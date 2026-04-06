@@ -226,7 +226,7 @@ export const LoginPage = () => {
                 {/* Background Image with Parallax drift */}
                 <div
                     className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat animate-parallax"
-                    style={{ backgroundImage: 'url(/login-bg-new.png)' }}
+                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}login-bg-new.png)` }}
                 />
 
                 {/* Premium Deep Green Gradient Overlay */}
@@ -251,7 +251,7 @@ export const LoginPage = () => {
                     >
                         {/* Institute Profile Header */}
                         <div className="flex flex-col gap-0.5 mb-4 items-center">
-                            <img src="/website-banner-2-1.png" alt="Official Banner" className="h-[60px] object-contain drop-shadow-lg mb-1" />
+                            <img src={`${import.meta.env.BASE_URL}website-banner-2-1.png`} alt="Official Banner" className="h-[60px] object-contain drop-shadow-lg mb-1" />
                             <span className="text-white font-bold tracking-[0.3em] uppercase text-[11px] drop-shadow-md">
                                 {t.republic}
                             </span>
@@ -425,7 +425,7 @@ export const LoginPage = () => {
                             : 'bg-white border border-gray-100 shadow-lg shadow-gray-200/50'
                             }`}>
                             <img
-                                src="/school-logo.png"
+                                src={`${import.meta.env.BASE_URL}school-logo.png`}
                                 alt="Calibungan HS Logo"
                                 className="h-14 w-14 object-contain"
                             />

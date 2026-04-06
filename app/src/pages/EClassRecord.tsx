@@ -18,7 +18,8 @@ export function EClassRecord() {
         selectedSection: globalSection,
         selectedSubject: globalSubject,
         setSelectedSection: setGlobalSection,
-        setSelectedSubject: setGlobalSubject
+        setSelectedSubject: setGlobalSubject,
+        showNotification
     } = useAppStore();
     const { user } = useAuthStore();
     const isTeacher = user?.role === 'teacher';
@@ -211,16 +212,16 @@ export function EClassRecord() {
         const ptWS = ptPS * currentWeights.performance_tasks;
 
         const qaScore = Number(sGrades.quarterly_exam) || 0;
-        const qaHPS = hps.qa;
+        const qaHPS = Number(hps.qa) || 0;
         const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
         const initialGrade = wwWS + ptWS + qaWS;
 
         const hasScores =
-            sGrades.written_works.some(s => s > 0 || String(s) === '0') ||
-            sGrades.performance_tasks.some(s => s > 0 || String(s) === '0') ||
-            sGrades.quarterly_exam > 0 || String(sGrades.quarterly_exam) === '0';
+            sGrades.written_works.some(s => s !== '' && s !== 0) ||
+            sGrades.performance_tasks.some(s => s !== '' && s !== 0) ||
+            (sGrades.quarterly_exam !== '' && sGrades.quarterly_exam !== 0);
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade) : 0;
 
@@ -285,13 +286,13 @@ export function EClassRecord() {
         );
 
         const newRecord = existingRecord ? { ...existingRecord } : {
-            id: `hps-${Date.now()}`,
+            id: `hps_${selectedSubject}_Q${quarter}_${activeSchoolYear}`,
             subject_id: selectedSubject,
             school_year: activeSchoolYear,
             quarter: quarter,
-            written_works: Array(10).fill(0),
-            performance_tasks: Array(10).fill(0),
-            quarterly_exam: 0
+            written_works: Array(10).fill(''),
+            performance_tasks: Array(10).fill(''),
+            quarterly_exam: ''
         };
 
         if (type === 'qa') {
@@ -321,19 +322,32 @@ export function EClassRecord() {
         );
 
         const record = existingRecord ? { ...existingRecord } : {
-            id: `rec-${Date.now()}-${Math.random()}`,
+            id: `grade_${lrn}_${selectedSubject}_Q${quarter}`,
             student_lrn: lrn,
             section_id: sections.find(s => s.section_name === selectedSection)?.id || '',
             subject_id: selectedSubject,
             school_year: activeSchoolYear,
             quarter: quarter,
-            written_works: Array(10).fill(0),
-            performance_tasks: Array(10).fill(0),
-            quarterly_exam: 0,
-            final_grade: 0
+            written_works: Array(10).fill(''),
+            performance_tasks: Array(10).fill(''),
+            quarterly_exam: '',
+            final_grade: ''
         };
 
         const parsedVal = value === '' ? '' : value === '0' ? '0' : Number(value);
+
+        // Validation: Do not allow score higher than HPS
+        if (typeof parsedVal === 'number') {
+            let currentHPS = 0;
+            if (type === 'ww') currentHPS = Number(hps.ww[index]);
+            else if (type === 'pt') currentHPS = Number(hps.pt[index]);
+            else if (type === 'qa') currentHPS = Number(hps.qa);
+
+            if (parsedVal > currentHPS) {
+                showNotification(`Score (${parsedVal}) cannot be higher than the Highest Possible Score (${currentHPS}).`, 'error');
+                return;
+            }
+        }
 
         if (type === 'qa') {
             record.quarterly_exam = parsedVal as any;
@@ -358,16 +372,17 @@ export function EClassRecord() {
         const ptWS = ptPS * currentWeights.performance_tasks;
 
         const qaScore = Number(record.quarterly_exam) || 0;
-        const qaPS = hps.qa === 0 ? 0 : (qaScore / hps.qa) * 100;
+        const qaHPS = Number(hps.qa) || 0;
+        const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
         const initialGrade = wwWS + ptWS + qaWS;
 
         // Check if there are any scores entered
         const hasScores =
-            record.written_works.some(s => s > 0 || String(s) === '0') ||
-            record.performance_tasks.some(s => s > 0 || String(s) === '0') ||
-            record.quarterly_exam > 0 || String(record.quarterly_exam) === '0';
+            record.written_works.some(s => s !== '' && s !== 0) ||
+            record.performance_tasks.some(s => s !== '' && s !== 0) ||
+            (record.quarterly_exam !== '' && record.quarterly_exam !== 0);
 
         if (!hasScores) {
             record.final_grade = undefined;
@@ -474,7 +489,7 @@ export function EClassRecord() {
                         <div key={section.gender} className={`p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-8'}`}>
                             <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2 px-4">
                                 <div className="w-24 h-24 flex items-center justify-center">
-                                    <img src="/deped_logo_left.png" alt="DepEd Logo" className="w-full h-full object-contain" />
+                                    <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <div className="text-center flex-1 mx-4">
                                     <h1 className="text-xl font-bold font-serif tracking-wide text-black mb-0 uppercase">Class Record</h1>
@@ -509,7 +524,7 @@ export function EClassRecord() {
                                     </div>
                                 </div>
                                 <div className="w-40 h-24 flex items-center justify-center">
-                                    <img src="/deped_logo_right.png" alt="DepEd Logo" className="w-full h-auto object-contain" />
+                                    <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-auto object-contain" />
                                 </div>
                             </div>
 
@@ -610,7 +625,6 @@ export function EClassRecord() {
                                                         <input
                                                             type="number"
                                                             value={score === 0 ? '' : score}
-                                                            placeholder="0"
                                                             onChange={(e) => updateGrade(student.lrn, 'ww', i, e.target.value)}
                                                             className="w-full h-full text-center outline-none p-0 focus:bg-blue-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
@@ -624,7 +638,6 @@ export function EClassRecord() {
                                                         <input
                                                             type="number"
                                                             value={score === 0 ? '' : score}
-                                                            placeholder="0"
                                                             onChange={(e) => updateGrade(student.lrn, 'pt', i, e.target.value)}
                                                             className="w-full h-full text-center outline-none p-0 focus:bg-green-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
@@ -637,7 +650,6 @@ export function EClassRecord() {
                                                     <input
                                                         type="number"
                                                         value={summary.qaScore === 0 ? '' : summary.qaScore}
-                                                        placeholder="0"
                                                         onChange={(e) => updateGrade(student.lrn, 'qa', 0, e.target.value)}
                                                         className="w-full h-full text-center outline-none p-0 focus:bg-yellow-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />

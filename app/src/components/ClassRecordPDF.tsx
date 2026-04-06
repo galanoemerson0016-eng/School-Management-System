@@ -256,7 +256,7 @@ export const ClassRecordPDF = ({
                         </View>
 
                         {/* DepEd Logo */}
-                        <Image style={styles.logoRight} src="/deped_logo_right.png" />
+                        <Image style={styles.logoRight} src={`${import.meta.env.BASE_URL}deped_logo_right.png`} />
                     </View>
 
                     {/* Info Grid - Top Row */}

@@ -9,7 +9,7 @@ export const defaultSchoolProfile: SchoolProfile = {
     head_name: 'Juan A. Dela Cruz',
     head_position: 'OIC-School Head, HT-VI',
     grade_levels_offered: 'Grade 7-12',
-    logo_url: '/school-logo.png',
+    logo_url: import.meta.env.BASE_URL + 'school-logo.png',
 };
 
 // Default subjects by grade level (MATATAG Curriculum)

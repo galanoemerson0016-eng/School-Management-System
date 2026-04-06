@@ -88,10 +88,10 @@ export interface ClassRecord {
     subject_id: string;
     school_year: string;
     quarter: 1 | 2 | 3 | 4;
-    written_works: number[];
-    performance_tasks: number[];
-    quarterly_exam: number;
-    final_grade?: number;
+    written_works: (number | string)[];
+    performance_tasks: (number | string)[];
+    quarterly_exam: number | string;
+    final_grade?: number | string;
 }
 
 export interface Enrollment {
@@ -151,9 +151,9 @@ export interface HPSRecord {
     subject_id: string; // Unique per section in this system
     school_year: string;
     quarter: 1 | 2 | 3 | 4;
-    written_works: number[];
-    performance_tasks: number[];
-    quarterly_exam: number;
+    written_works: (number | string)[];
+    performance_tasks: (number | string)[];
+    quarterly_exam: number | string;
 }
 
 export interface SF2Sheet {

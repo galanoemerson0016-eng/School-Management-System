@@ -53,7 +53,7 @@ export function Sidebar() {
             <div className={`p-6 flex items-center gap-4 ${isCollapsed ? 'justify-center' : ''}`}>
                 <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] flex-shrink-0 border border-white/20 relative overflow-hidden">
                     <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
-                    <img src="/school-logo.png" alt="School Logo" className="w-7 h-7 object-contain relative z-10" />
+                    <img src={`${import.meta.env.BASE_URL}school-logo.png`} alt="School Logo" className="w-7 h-7 object-contain relative z-10" />
                 </div>
                 {!isCollapsed && (
                     <div className="min-w-0">

@@ -16,16 +16,21 @@ export interface HonorStudent {
 export function computeStudentAverage(
     studentLrn: string,
     quarter: 1 | 2 | 3 | 4,
-    classRecords: ClassRecord[],
-    subjects: Subject[]
+    classRecords: ClassRecord[]
 ): number {
     const studentRecords = classRecords.filter(
-        r => r.student_lrn === studentLrn && r.quarter === quarter && (r.final_grade ?? 0) > 0
+        r => {
+            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
+            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
+            const hasScores = wwHasScores || ptHasScores || qaHasScore;
+            return r.student_lrn === studentLrn && r.quarter === quarter && hasScores && (Number(r.final_grade) || 0) > 0;
+        }
     );
 
     if (studentRecords.length === 0) return 0;
 
-    const total = studentRecords.reduce((sum, r) => sum + (r.final_grade ?? 0), 0);
+    const total = studentRecords.reduce((sum, r) => sum + (Number(r.final_grade) || 0), 0);
     return Math.round((total / studentRecords.length) * 100) / 100;
 }
 
@@ -34,12 +39,11 @@ export function computeStudentAverage(
  */
 export function computeYearlyAverage(
     studentLrn: string,
-    classRecords: ClassRecord[],
-    subjects: Subject[]
+    classRecords: ClassRecord[]
 ): number {
     const quarters: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4];
     const quarterAverages = quarters
-        .map(q => computeStudentAverage(studentLrn, q, classRecords, subjects))
+        .map(q => computeStudentAverage(studentLrn, q, classRecords))
         .filter(avg => avg > 0);
 
     if (quarterAverages.length === 0) return 0;
@@ -69,20 +73,26 @@ export function generateHonorRoll(
     const honorStudents: HonorStudent[] = [];
 
     for (const student of students) {
-        const avg = computeStudentAverage(student.lrn, quarter, classRecords, subjects);
+        const avg = computeStudentAverage(student.lrn, quarter, classRecords);
         const honorType = getHonorType(avg);
 
         if (honorType && avg > 0) {
             const section = sections.find(s => s.section_name === student.student_section);
             const studentRecords = classRecords.filter(
-                r => r.student_lrn === student.lrn && r.quarter === quarter && (r.final_grade ?? 0) > 0
+                r => {
+                    const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
+                    const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+                    const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
+                    const hasScores = wwHasScores || ptHasScores || qaHasScore;
+                    return r.student_lrn === student.lrn && r.quarter === quarter && hasScores && (Number(r.final_grade) || 0) > 0;
+                }
             );
 
             const subjectGrades = studentRecords.map(r => {
                 const subject = subjects.find(s => s.id === r.subject_id);
                 return {
                     subjectName: subject?.subject_name || 'Unknown',
-                    grade: r.final_grade ?? 0,
+                    grade: Number(r.final_grade) || 0,
                 };
             });
 
@@ -112,17 +122,24 @@ export function getAtRiskStudents(
 
     for (const record of classRecords) {
         if (record.quarter !== quarter) continue;
-        if ((record.final_grade ?? 0) <= 0) continue;
-        if ((record.final_grade ?? 0) >= 75) continue;
+        const wwHasScores = record.written_works?.some(s => (Number(s) || 0) > 0) || false;
+        const ptHasScores = record.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+        const qaHasScore = (Number(record.quarterly_exam) || 0) > 0;
+        const hasScores = wwHasScores || ptHasScores || qaHasScore;
+        
+        if (!hasScores) continue;
+        const finalGrade = Number(record.final_grade) || 0;
+        if (finalGrade <= 0) continue;
+        if (finalGrade >= 75) continue;
 
         const student = students.find(s => s.lrn === record.student_lrn);
         const subject = subjects.find(s => s.id === record.subject_id);
 
-        if (student) {
+        if (student && subject) {
             atRisk.push({
                 student,
-                subjectName: subject?.subject_name || 'Unknown',
-                grade: record.final_grade ?? 0,
+                subjectName: subject.subject_name,
+                grade: Number(record.final_grade) || 0,
             });
         }
     }
@@ -142,13 +159,20 @@ export function getMPSPerSubject(
 
     for (const record of classRecords) {
         if (record.quarter !== quarter) continue;
-        if ((record.final_grade ?? 0) <= 0) continue;
+        const wwHasScores = record.written_works?.some(s => (Number(s) || 0) > 0) || false;
+        const ptHasScores = record.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+        const qaHasScore = (Number(record.quarterly_exam) || 0) > 0;
+        const hasScores = wwHasScores || ptHasScores || qaHasScore;
+        
+        if (!hasScores) continue;
+        const finalGrade = Number(record.final_grade) || 0;
+        if (finalGrade <= 0) continue;
 
         const subject = subjects.find(s => s.id === record.subject_id);
         const key = subject?.subject_name || record.subject_id;
 
         if (!subjectMap.has(key)) subjectMap.set(key, []);
-        subjectMap.get(key)!.push(record.final_grade ?? 0);
+        subjectMap.get(key)!.push(finalGrade);
     }
 
     return Array.from(subjectMap.entries()).map(([subjectName, grades]) => {

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useAuthStore } from '../stores';
+import { useAuthStore, useAppStore } from '../stores';
 import { auth } from '../lib/firebase';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { Moon, Sun, Bell, Database, Lock, User, Shield, Info, Mail, Facebook } from 'lucide-react';
+import { Moon, Sun, Bell, Database, Lock, User, Shield, Info, Mail, Facebook, Trash2 } from 'lucide-react';
 
 export function SettingsPage() {
     const { user } = useAuthStore();
+    const { students, sections, subjects, deleteStudent, deleteSection } = useAppStore();
 
     // Dark Mode
     const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -94,6 +95,59 @@ export function SettingsPage() {
             alert('Export failed: ' + error);
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    // Database Maintenance (Ghost Students Cleanup)
+    const [isCleaning, setIsCleaning] = useState(false);
+    const handleCleanGhostStudents = async () => {
+        setIsCleaning(true);
+        try {
+            const ghostStudents = students.filter(s => !sections.some(sec => sec.section_name === s.student_section));
+            
+            if (ghostStudents.length === 0) {
+                alert('Database is clean. No ghost students found!');
+                return;
+            }
+            
+            if (confirm(`Warning: You are about to permanently delete ${ghostStudents.length} unassigned (ghost) student(s) from the system.\n\nProceed?`)) {
+                for (const student of ghostStudents) {
+                    await deleteStudent(student.lrn);
+                }
+                alert(`Success! Purged ${ghostStudents.length} ghost student record(s) from the database.`);
+            }
+        } catch (error) {
+            alert('Failed to perform database clean-up: ' + error);
+        } finally {
+            setIsCleaning(false);
+        }
+    };
+    
+    const [isPurgingSections, setIsPurgingSections] = useState(false);
+    const handleCleanGhostSections = async () => {
+        setIsPurgingSections(true);
+        try {
+            const ghostSections = sections.filter(sec => {
+                const hasStudents = students.some(s => s.student_section === sec.section_name);
+                const hasSubjects = subjects.some(sub => sub.section_id === sec.id);
+                return !hasStudents && !hasSubjects;
+            });
+            
+            if (ghostSections.length === 0) {
+                alert('Database is clean. No empty ghost sections found!');
+                return;
+            }
+            
+            if (confirm(`Warning: You are about to permanently delete ${ghostSections.length} empty section(s) from the system.\n\nThese sections have NO students and NO subjects assigned.\n\nProceed?`)) {
+                for (const section of ghostSections) {
+                    await deleteSection(section.id);
+                }
+                alert(`Success! Purged ${ghostSections.length} ghost section record(s).`);
+            }
+        } catch (error) {
+            alert('Failed to purge sections: ' + error);
+        } finally {
+            setIsPurgingSections(false);
         }
     };
 
@@ -210,6 +264,37 @@ export function SettingsPage() {
                             {isExporting ? 'Exporting...' : 'Export Data'}
                         </button>
                     </div>
+
+                    {/* Database Maintenance */}
+                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="p-2.5 rounded-lg bg-red-100 text-red-600">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-gray-800">Database Maintenance</p>
+                                <p className="text-sm text-gray-500">Purge unassigned "ghost" students and empty sections from the system</p>
+                            </div>
+                        </div>
+                                <div className="flex flex-wrap gap-3 mt-4">
+                                    <button
+                                        onClick={handleCleanGhostStudents}
+                                        disabled={isCleaning}
+                                        className="px-5 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-100 transition-all flex items-center gap-2 border border-rose-100 disabled:opacity-50"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        {isCleaning ? 'Cleaning...' : 'Purge Ghost Students'}
+                                    </button>
+                                    <button
+                                        onClick={handleCleanGhostSections}
+                                        disabled={isPurgingSections}
+                                        className="px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm hover:bg-amber-100 transition-all flex items-center gap-2 border border-amber-100 disabled:opacity-50"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        {isPurgingSections ? 'Purging...' : 'Purge Ghost Sections'}
+                                    </button>
+                                </div>
+                    </div>
                 </div>
             </div>
 
@@ -217,49 +302,41 @@ export function SettingsPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white flex items-center gap-3">
                     <Info className="w-5 h-5" />
-                    <h3 className="text-lg font-bold">About this System</h3>
+                    <h3 className="text-lg font-bold">About</h3>
                 </div>
-                <div className="p-6">
-                    <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-inner">
-                            <span className="text-3xl">🎓</span>
-                        </div>
-                        <h4 className="text-2xl font-black text-deped-blue">School Management System</h4>
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-1">Department of Education (DepEd)</p>
-                    </div>
+                <div className="p-6 text-center">
+                    <div className="text-4xl mb-4">🎓</div>
+                    <h4 className="text-xl font-bold text-deped-blue">DepEd SMS</h4>
+                    <p className="text-gray-600 font-medium mb-4">Comprehensive School Management System</p>
                     
-                    <div className="space-y-4 text-sm text-gray-700 leading-relaxed bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-6 shadow-inner text-justify">
-                        <p>
-                            This official <strong>School Management System</strong> is a comprehensive, digital solution uniquely tailored for public high schools within the Department of Education. It streamlines the day-to-day administrative operations of school personnel and empowers teachers through innovative technology.
-                        </p>
-                        <p>
-                            From generating precise <strong>E-Class Records</strong> to seamlessly automating the processing of <strong>SF9 (Report Cards)</strong>, <strong>SF10 (Permanent Records)</strong>, and <strong>SF2 (Daily Attendance)</strong> forms, this portal acts as the ultimate centralized hub for school governance, analytics, and learner data management.
-                        </p>
+                    <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed mb-6">
+                        An integrated digital ecosystem designed in compliance with the Department of Education's standards. 
+                        It modernizes academic processes by streamlining the generation of electronic class records, 
+                        SF9, SF10, and SF2 attendance reports, ensuring fast, accurate, and secure educational data management.
+                    </p>
+
+                    <div className="mt-4 mb-8 flex flex-wrap justify-center gap-2">
+                        <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">E-Class Record</span>
+                        <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">SF9 Report Card</span>
+                        <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">SF10 Record</span>
+                        <span className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold">Attendance SF2</span>
+                        <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Reports & Analytics</span>
+                        <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">Calendar</span>
                     </div>
 
-                    <div className="mb-8 flex flex-wrap justify-center gap-2">
-                        <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-200 shadow-sm uppercase tracking-wider">E-Class Record</span>
-                        <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-bold border border-green-200 shadow-sm uppercase tracking-wider">SF9 Report Card</span>
-                        <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold border border-purple-200 shadow-sm uppercase tracking-wider">SF10 Record</span>
-                        <span className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-[10px] font-bold border border-orange-200 shadow-sm uppercase tracking-wider">Attendance SF2</span>
-                        <span className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-[10px] font-bold border border-red-200 shadow-sm uppercase tracking-wider">Reports & Analytics</span>
-                        <span className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-[10px] font-bold border border-amber-200 shadow-sm uppercase tracking-wider">Calendar</span>
-                    </div>
-
-                    <div className="border-t border-gray-200 pt-6">
-                        <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-5 text-center">System Developer & Architect</h5>
-                        <div className="flex flex-col items-center gap-2">
-                            <p className="font-black text-gray-800 text-xl tracking-tight">Emerson M. Galano</p>
-                            <div className="flex flex-wrap justify-center items-center gap-3 mt-2">
-                                <a href="mailto:emerson.galano@deped.gov.ph" className="flex items-center gap-2 text-xs font-bold text-emerald-700 hover:text-white transition-colors bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 hover:bg-emerald-600 shadow-sm">
-                                    <Mail className="w-4 h-4" />
-                                    emerson.galano@deped.gov.ph
-                                </a>
-                                <a href="https://www.facebook.com/xshame14/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-bold text-blue-700 hover:text-white transition-colors bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-200 hover:bg-blue-600 shadow-sm">
-                                    <Facebook className="w-4 h-4" />
-                                    Messenger / Facebook
-                                </a>
-                            </div>
+                    <div className="pt-6 border-t border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Developed By</p>
+                        <h5 className="text-xl font-black text-gray-800">Emerson M. Galano</h5>
+                        
+                        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+                            <a href="mailto:emerson.galano@deped.gov.ph" className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-deped-blue transition-colors bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 hover:border-deped-blue/30 shadow-sm">
+                                <Mail className="w-4 h-4 text-deped-blue" />
+                                emerson.galano@deped.gov.ph
+                            </a>
+                            <a href="https://www.facebook.com/xshame14/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 hover:border-blue-600/30 shadow-sm">
+                                <Facebook className="w-4 h-4 text-blue-600" />
+                                Facebook Profile
+                            </a>
                         </div>
                     </div>
                 </div>

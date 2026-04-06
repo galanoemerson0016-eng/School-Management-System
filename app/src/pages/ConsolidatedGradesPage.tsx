@@ -54,11 +54,11 @@ const ConsolidatedGradesDocument = ({
                 {/* Custom DepEd Header Layout */}
                 <View style={styles.headerContainer}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                        <Image src="/deped_logo_left.png" style={{ width: 60, height: 60 }} />
+                        <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={{ width: 60, height: 60 }} />
                         <View style={{ flex: 1, alignItems: 'center' }}>
                             <Text style={styles.headerTitle}>FINAL GRADES AND GENERAL AVERAGE</Text>
                         </View>
-                        <Image src="/deped_logo_right.png" style={{ width: 70, height: 70 }} />
+                        <Image src={`${import.meta.env.BASE_URL}deped_logo_right.png`} style={{ width: 70, height: 70 }} />
                     </View>
 
                     {/* Metadata Grid (3 Columns) */}
@@ -477,13 +477,13 @@ export function ConsolidatedGradesPage() {
                         {/* Header Section */}
                         <div className="mb-6">
                             <div className="flex justify-between items-center mb-4">
-                                <img src="/deped_logo_left.png" alt="DepEd Left" className="w-16 h-16 object-contain" />
+                                <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Left" className="w-16 h-16 object-contain" />
                                 <div className="text-center">
                                     <h1 className="text-xl font-bold uppercase text-black mb-1">Final Grades and General Average</h1>
                                     <div className="text-sm">Republic of the Philippines</div>
                                     <div className="text-sm font-bold">Department of Education</div>
                                 </div>
-                                <img src="/deped_logo_right.png" alt="DepEd Right" className="w-20 h-20 object-contain" />
+                                <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Right" className="w-20 h-20 object-contain" />
                             </div>
 
                             {/* Metadata Grid */}

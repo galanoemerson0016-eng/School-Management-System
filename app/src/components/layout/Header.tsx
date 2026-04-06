@@ -32,7 +32,7 @@ export function Header() {
     const unreadCount = recentNotifications.length;
 
     return (
-        <header className="px-6 lg:px-10 py-5 border-b border-slate-200/50 dark:border-white/5 bg-white/30 dark:bg-black/10 backdrop-blur-md z-30 relative no-print shrink-0">
+        <header className="px-6 lg:px-10 py-3 border-b border-slate-200/50 dark:border-white/5 bg-white/30 dark:bg-black/10 backdrop-blur-md z-30 relative no-print shrink-0">
             <div className="flex justify-between items-center">
                 
                 {/* Title Area */}

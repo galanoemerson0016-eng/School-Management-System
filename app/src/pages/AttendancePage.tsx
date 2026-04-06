@@ -335,14 +335,14 @@ export function AttendancePage() {
                 {/* === HEADER === */}
                 <div className="flex items-center mb-1">
                     <div className="w-[75px] flex-shrink-0">
-                        <img src="/deped_logo_left.png" alt="DepEd Logo" className="w-[70px] h-[70px] object-contain" />
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-[70px] h-[70px] object-contain" />
                     </div>
                     <div className="flex-1 text-center">
                         <p className="text-[16px] font-bold leading-tight" style={{ fontFamily: 'Arial, sans-serif' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
                         <p className="italic text-[9px] text-gray-600">(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
                     </div>
                     <div className="w-[100px] flex-shrink-0 flex justify-end">
-                        <img src="/deped_logo_right.png" alt="DepEd" className="h-[55px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-[55px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </div>
                 </div>
 

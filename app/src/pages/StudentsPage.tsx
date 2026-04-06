@@ -31,6 +31,19 @@ export function StudentsPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
+
+    const toggleGrade = (grade: string) => {
+        setCollapsedGrades(prev => ({ ...prev, [grade]: !prev[grade] }));
+    };
+
+    const toggleAllGrades = (collapse: boolean) => {
+        const newState: Record<string, boolean> = {};
+        Object.keys(sectionsByGrade).forEach(g => {
+            newState[g] = collapse;
+        });
+        setCollapsedGrades(newState);
+    };
 
     // Import State
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -393,29 +406,50 @@ export function StudentsPage() {
                         exit="exit"
                         className="space-y-8"
                     >
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            {[
-                                { label: 'Total Learners', value: totalStudents, icon: Users, color: 'blue' },
-                                { label: 'Male', value: totalMale, icon: Users, color: 'sky' },
-                                { label: 'Female', value: totalFemale, icon: Users, color: 'pink' },
-                            ].map((stat, idx) => (
-                                <motion.div
-                                    key={stat.label}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.1 }}
-                                    className={`bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-white/20 flex items-center gap-4`}
+                        {/* Quick Stats & Controls */}
+                        <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                                {[
+                                    { label: 'Total Learners', value: totalStudents, icon: Users, color: 'blue' },
+                                    { label: 'Male', value: totalMale, icon: Users, color: 'sky' },
+                                    { label: 'Female', value: totalFemale, icon: Users, color: 'pink' },
+                                ].map((stat, idx) => (
+                                    <motion.div
+                                        key={stat.label}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.1 }}
+                                        className={`bg-white/70 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-white/20 flex items-center gap-4`}
+                                    >
+                                        <div className={`p-3 rounded-xl ${stat.color === 'blue' ? 'bg-blue-100 text-blue-600' : stat.color === 'sky' ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-500'}`}>
+                                            <stat.icon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
+                                            <p className="text-2xl font-black text-gray-800">{stat.value}</p>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                            
+                            <div className="flex gap-2 mb-1">
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => toggleAllGrades(false)}
+                                    className="px-3 py-1.5 bg-white border border-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-gray-50 transition-all"
                                 >
-                                    <div className={`p-3 rounded-xl ${stat.color === 'blue' ? 'bg-blue-100 text-blue-600' : stat.color === 'sky' ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-500'}`}>
-                                        <stat.icon className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                        <p className="text-2xl font-black text-gray-800">{stat.value}</p>
-                                    </div>
-                                </motion.div>
-                            ))}
+                                    Expand All
+                                </motion.button>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => toggleAllGrades(true)}
+                                    className="px-3 py-1.5 bg-white border border-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-gray-50 transition-all"
+                                >
+                                    Collapse All
+                                </motion.button>
+                            </div>
                         </div>
 
                         {/* Section Cards by Grade */}
@@ -431,19 +465,42 @@ export function StudentsPage() {
                                 <motion.div
                                     key={grade}
                                     variants={fadeSlide}
-                                    className="bg-white/50 backdrop-blur-sm p-6 rounded-3xl border border-white/30 shadow-sm"
+                                    layout
+                                    className="bg-white/50 backdrop-blur-sm p-5 rounded-3xl border border-white/30 shadow-sm overflow-hidden"
                                 >
-                                    <h3 className="text-lg font-black text-deped-blue mb-5 flex items-center gap-2">
-                                        <div className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
-                                        {grade}
-                                        <span className="text-xs font-bold text-gray-400 ml-2">({gradeSections.length} sections)</span>
-                                    </h3>
-                                    <motion.div
-                                        variants={containerVariants}
-                                        initial="hidden"
-                                        animate="visible"
-                                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+                                    <button
+                                        onClick={() => toggleGrade(grade)}
+                                        className="w-full flex justify-between items-center group/header mb-2 outline-none focus-visible:ring-2 focus-visible:ring-deped-blue/20 rounded-xl p-1"
                                     >
+                                        <h3 className="text-lg font-black text-deped-blue flex items-center gap-2">
+                                            <div className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
+                                            {grade}
+                                            <span className="text-xs font-bold text-gray-400 ml-2">({gradeSections.length} sections)</span>
+                                        </h3>
+                                        <motion.div
+                                            animate={{ rotate: collapsedGrades[grade] ? 0 : 90 }}
+                                            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                                            className="p-2 rounded-xl bg-white/50 border border-gray-100 text-gray-400 group-hover/header:text-deped-blue group-hover/header:bg-white shadow-sm transition-all"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </motion.div>
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {!collapsedGrades[grade] && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                                className="pt-3"
+                                            >
+                                                <motion.div
+                                                    variants={containerVariants}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+                                                >
                                         {gradeSections.map((section) => {
                                             const count = getStudentCount(section.section_name);
                                             const maleCount = getMaleCount(section.section_name);
@@ -509,7 +566,10 @@ export function StudentsPage() {
                                                 </motion.div>
                                             );
                                         })}
-                                    </motion.div>
+                                                </motion.div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </motion.div>
                             ))}
 

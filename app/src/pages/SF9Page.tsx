@@ -247,7 +247,7 @@ function SF9ExactDocument({
                     <View style={styles.rightColumn}>
                         <Text style={styles.sf9Label}>SF9-JHS</Text>
                         <View style={styles.headerContainer}>
-                            <Image src="/deped_logo_left.png" style={styles.logo} />
+                            <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.logo} />
                             <View style={styles.headerCenter}>
                                 <Text style={styles.headerText}>Republic of the Philippines</Text>
                                 <Text style={styles.headerText}>DEPARTMENT OF EDUCATION</Text>
@@ -255,7 +255,7 @@ function SF9ExactDocument({
                                 <Text style={styles.headerText}>{division}</Text>
                                 <Text style={styles.headerText}>{district}</Text>
                             </View>
-                            <Image src="/deped_logo_right.png" style={styles.logo} />
+                            <Image src={`${import.meta.env.BASE_URL}deped_logo_right.png`} style={styles.logo} />
                         </View>
                         <Text style={styles.schoolName}>{schoolName}</Text>
                         <Text style={styles.reportTitle}>LEARNER'S PROGRESS REPORT CARD</Text>

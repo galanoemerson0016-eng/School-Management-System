@@ -25,26 +25,64 @@ export function Dashboard() {
     // Unified data scope
     const dashboardData = useMemo(() => {
         const filteredStudents = students.filter(s => s.student_section && validSections.has(s.student_section));
+        
+        // LIMIT TO VALID SUBJECTS (exclude orphaned grades for deleted subjects)
+        const validSubjectIds = new Set(subjects.map(s => s.id));
+
+        // AUTO-CONSOLIDATE: Group by student/subject/quarter to eliminate ghost duplicates
+        const consolidatedMap = new Map<string, typeof classRecords[0]>();
+        
+        classRecords.forEach(r => {
+            // Must belong to a valid student and subject
+            const matchesValid = filteredStudents.some(s => s.lrn === r.student_lrn) && validSubjectIds.has(r.subject_id);
+            if (!matchesValid) return;
+
+            const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}`;
+            const existing = consolidatedMap.get(key);
+            
+            if (!existing) {
+                consolidatedMap.set(key, r);
+            } else {
+                const isNew = r.id.startsWith('grade_');
+                const isExistingNew = existing.id.startsWith('grade_');
+
+                if (isNew && !isExistingNew) {
+                    // Current is deterministic, existing is ghost. ALWAYS overwrite.
+                    consolidatedMap.set(key, r);
+                } else if (!isNew && isExistingNew) {
+                    // Current is ghost, existing is deterministic. NEVER overwrite.
+                    return;
+                } else {
+                    // Both are same type (either both 'grade_' or both 'rec-')
+                    // Pick the one with more content or higher grade as a fallback
+                    if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
+                        consolidatedMap.set(key, r);
+                    }
+                }
+            }
+        });
+
         return {
             students: filteredStudents,
             sections: sections,
-            records: classRecords
+            records: Array.from(consolidatedMap.values())
         };
-    }, [students, sections, classRecords, validSections]);
+    }, [students, sections, classRecords, validSections, subjects]);
 
     const validStudentLrns = useMemo(() => new Set(dashboardData.students.map(s => s.lrn)), [dashboardData.students]);
 
     // Derived Lists for Drill-down
     const failingStudentList = useMemo(() => {
         const failingRecords = dashboardData.records.filter(r => {
-            const hasScores =
-                (r.written_works?.some(s => s > 0) || false) ||
-                (r.performance_tasks?.some(s => s > 0) || false) ||
-                (r.quarterly_exam > 0);
+            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
+            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
+            const hasScores = wwHasScores || ptHasScores || qaHasScore;
 
+            const finalGrade = Number(r.final_grade) || 0;
             return validStudentLrns.has(r.student_lrn) &&
                 hasScores &&
-                (r.final_grade ?? 0) > 0 && (r.final_grade ?? 0) < 75;
+                finalGrade > 0 && finalGrade < 75;
         });
 
         return failingRecords.map(r => {
@@ -57,21 +95,24 @@ export function Dashboard() {
                 subject_name: subject?.subject_name || 'Unknown',
                 subject_id: r.subject_id,
                 section_id: section?.id || '',
-                section_name: section?.section_name || 'Unknown'
+                section_name: section?.section_name || 'Unknown',
+                grade: r.final_grade ?? 0,
+                quarter: r.quarter
             };
         });
     }, [dashboardData.records, validStudentLrns, dashboardData.students, sections, subjects]);
 
     const topStudentList = useMemo(() => {
         const highRecords = dashboardData.records.filter(r => {
-            const hasScores =
-                (r.written_works?.some(s => s > 0) || false) ||
-                (r.performance_tasks?.some(s => s > 0) || false) ||
-                (r.quarterly_exam > 0);
+            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
+            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
+            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
+            const hasScores = wwHasScores || ptHasScores || qaHasScore;
 
+            const finalGrade = Number(r.final_grade) || 0;
             return validStudentLrns.has(r.student_lrn) &&
                 hasScores &&
-                (r.final_grade ?? 0) >= 90;
+                finalGrade >= 90;
         });
 
         return highRecords.map(r => {
@@ -84,7 +125,9 @@ export function Dashboard() {
                 subject_name: subject?.subject_name || 'Unknown',
                 subject_id: r.subject_id,
                 section_id: section?.id || '',
-                section_name: section?.section_name || 'Unknown'
+                section_name: section?.section_name || 'Unknown',
+                grade: r.final_grade ?? 0,
+                quarter: r.quarter
             };
         });
     }, [dashboardData.records, validStudentLrns, dashboardData.students, sections, subjects]);
@@ -109,8 +152,8 @@ export function Dashboard() {
         });
     }, [dashboardData.students]);
 
-    const atRiskCount = failingStudentList.length;
-    const topPerformersCount = topStudentList.length;
+    const atRiskCount = new Set(failingStudentList.map(s => s.lrn)).size;
+    const topPerformersCount = new Set(topStudentList.map(s => s.lrn)).size;
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -129,15 +172,15 @@ export function Dashboard() {
 
     return (
         <motion.div
-            className="space-y-8 pb-8"
+            className="space-y-5 pb-4"
             initial="hidden"
             animate="visible"
             variants={containerVariants}
         >
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <motion.div variants={itemVariants}>
-                    <h2 className="text-3xl font-extrabold text-deped-blue tracking-tight">System Dashboard</h2>
-                    <p className="text-gray-500 font-medium">Academic Overview • S.Y. {activeSchoolYear}</p>
+                    <h2 className="text-xl font-extrabold text-deped-blue tracking-tight">System Dashboard</h2>
+                    <p className="text-xs text-gray-500 font-medium">Academic Overview • S.Y. {activeSchoolYear}</p>
                 </motion.div>
                 <motion.div
                     variants={itemVariants}
@@ -148,7 +191,7 @@ export function Dashboard() {
                 </motion.div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                     { label: 'Total Enrollees', value: dashboardData.students.length, sub: 'Learners', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
                     {
@@ -177,49 +220,49 @@ export function Dashboard() {
                     <motion.div
                         key={stat.label}
                         variants={itemVariants}
-                        whileHover={{ y: -5, scale: 1.02 }}
+                        whileHover={{ y: -3, scale: 1.01 }}
                         onClick={stat.onClick}
-                        className={`bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-sm border ${stat.border} flex items-center justify-between group transition-all duration-300 hover:shadow-xl hover:bg-white ${stat.onClick ? 'cursor-pointer' : ''}`}
+                        className={`bg-white/70 backdrop-blur-md p-4 rounded-3xl shadow-sm border ${stat.border} flex items-center justify-between group transition-all duration-300 hover:shadow-xl hover:bg-white ${stat.onClick ? 'cursor-pointer' : ''}`}
                     >
                         <div>
-                            <div className="flex items-center gap-1.5 mb-1">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
                                 {stat.info && (
                                     <div className="group/info relative">
-                                        <Info className="w-3 h-3 text-gray-300" />
-                                        <div className="absolute left-0 bottom-full mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl border border-white/10">
+                                        <Info className="w-2.5 h-2.5 text-gray-300" />
+                                        <div className="absolute left-0 bottom-full mb-2 w-48 p-2 bg-gray-800 text-white text-[9px] rounded-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl border border-white/10">
                                             {stat.info}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            <p className="text-4xl font-black text-gray-800 tracking-tighter">{stat.value}</p>
-                            <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">{stat.sub}</p>
+                            <p className="text-3xl font-black text-gray-800 tracking-tighter">{stat.value}</p>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase">{stat.sub}</p>
                         </div>
-                        <div className={`p-4 ${stat.bg} ${stat.color} rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
-                            <stat.icon className="w-8 h-8" />
+                        <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
+                            <stat.icon className="w-6 h-6" />
                         </div>
                     </motion.div>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
                     <motion.div
                         variants={itemVariants}
-                        className="bg-white/70 backdrop-blur-md p-8 rounded-3xl shadow-sm border border-white/20"
+                        className="bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-white/20"
                     >
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-xl font-bold text-deped-blue flex items-center gap-2">
-                                <div className="p-2 bg-blue-100 rounded-lg"><Layers className="w-5 h-5 text-blue-600" /></div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                                <div className="p-1.5 bg-blue-100 rounded-lg"><Layers className="w-4 h-4 text-blue-600" /></div>
                                 Enrollment Distribution
                             </h3>
-                            <div className="flex gap-4 text-xs font-bold uppercase tracking-wider">
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-deped-blue rounded-full" /> Male</span>
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-pink-500 rounded-full" /> Female</span>
+                            <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="flex items-center gap-1.5"><div className="w-2 h-2 bg-deped-blue rounded-full" /> Male</span>
+                                <span className="flex items-center gap-1.5"><div className="w-2 h-2 bg-pink-500 rounded-full" /> Female</span>
                             </div>
                         </div>
-                        <div className="h-80 w-full">
+                        <div className="h-60 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={enrollmentData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                                     <XAxis dataKey="grade" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
@@ -234,21 +277,21 @@ export function Dashboard() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {[
-                            { label: 'Male Learners', value: dashboardData.students.filter(s => s.gender === 'Male').length, total: dashboardData.students.length, icon: '♂️', bg: 'bg-blue-50', text: 'text-blue-600' },
-                            { label: 'Female Learners', value: dashboardData.students.filter(s => s.gender === 'Female').length, total: dashboardData.students.length, icon: '♀️', bg: 'bg-pink-50', text: 'text-pink-600' }
+                            { label: 'Male', value: dashboardData.students.filter(s => s.gender === 'Male').length, total: dashboardData.students.length, icon: '♂️', bg: 'bg-blue-50', text: 'text-blue-600' },
+                            { label: 'Female', value: dashboardData.students.filter(s => s.gender === 'Female').length, total: dashboardData.students.length, icon: '♀️', bg: 'bg-pink-50', text: 'text-pink-600' }
                         ].map((gender) => (
                             <motion.div
                                 key={gender.label}
                                 variants={itemVariants}
-                                whileHover={{ scale: 1.02 }}
-                                className={`${gender.bg} p-6 rounded-3xl flex items-center border border-white/50 shadow-sm transition-all duration-300 hover:shadow-md`}
+                                whileHover={{ scale: 1.01 }}
+                                className={`${gender.bg} p-4 rounded-3xl flex items-center border border-white/50 shadow-sm transition-all duration-300 hover:shadow-md`}
                             >
-                                <div className="p-4 bg-white rounded-2xl text-2xl mr-5 shadow-sm">{gender.icon}</div>
+                                <div className="p-3 bg-white rounded-2xl text-xl mr-4 shadow-sm">{gender.icon}</div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{gender.label}</p>
-                                    <p className={`text-2xl font-black ${gender.text}`}>
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{gender.label}</p>
+                                    <p className={`text-xl font-black ${gender.text}`}>
                                         {gender.value}
-                                        <span className="text-sm text-gray-400 font-bold ml-2">
+                                        <span className="text-xs text-gray-400 font-bold ml-2">
                                             ({gender.total > 0 ? Math.round((gender.value / gender.total) * 100) : 0}%)
                                         </span>
                                     </p>
@@ -260,18 +303,18 @@ export function Dashboard() {
 
                 <motion.div
                     variants={itemVariants}
-                    className="bg-white/70 backdrop-blur-md p-8 rounded-3xl shadow-sm border border-white/20 flex flex-col h-full"
+                    className="bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-white/20 flex flex-col h-full overflow-hidden"
                 >
-                    <div className="flex justify-between items-center mb-8">
-                        <h3 className="text-xl font-bold text-deped-blue flex items-center gap-2">
-                            <div className="p-2 bg-indigo-100 rounded-lg"><Bell className="w-5 h-5 text-indigo-600" /></div>
-                            Recent Updates
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                            <div className="p-1.5 bg-indigo-100 rounded-lg"><Bell className="w-4 h-4 text-indigo-600" /></div>
+                            Updates
                         </h3>
-                        <button className="p-2 hover:bg-gray-100 rounded-xl transition-colors group" onClick={() => window.location.reload()} title="Refresh">
-                            <RefreshCcw className="w-4 h-4 text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
+                        <button className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors group" onClick={() => window.location.reload()} title="Refresh">
+                            <RefreshCcw className="w-3.5 h-3.5 text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
                         </button>
                     </div>
-                    <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar max-h-[360px]">
                         {announcements.length > 0 ? (
                             announcements.slice(0, 5).map((announcement, idx) => {
                                 const typeColors: Record<string, string> = {
@@ -336,7 +379,7 @@ export function Dashboard() {
                                         <div>
                                             <p className="font-bold text-gray-800 uppercase">{item.last_name}, {item.first_name}</p>
                                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">
-                                                <span className="text-deped-blue">{item.subject_name}</span> • {item.section_name}
+                                                <span className="text-deped-blue">{item.subject_name}</span> • {item.section_name} • <span className={selectedMetric === 'at-risk' ? 'text-rose-600' : 'text-emerald-600'}>Q{item.quarter} (Grade: {item.grade})</span>
                                             </p>
                                         </div>
                                         <button

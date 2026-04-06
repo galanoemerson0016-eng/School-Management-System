@@ -18,6 +18,7 @@ import {
   ConsolidatedGradesPage,
   CalendarPage,
 } from './pages';
+import { Toast } from './components/ui/Toast';
 import useStoreSync from './hooks/useStoreSync';
 
 // DepEd-branded loading splash while auth state resolves
@@ -35,7 +36,7 @@ function LoadingSplash() {
         {/* Logo */}
         <div className="p-5 bg-white/[0.06] backdrop-blur-xl rounded-3xl border border-white/[0.1] shadow-2xl">
           <img
-            src="/school-logo.png"
+            src={`${import.meta.env.BASE_URL}school-logo.png`}
             alt="School Logo"
             className="h-20 w-20 object-contain"
           />
@@ -137,11 +138,13 @@ function App() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
       }} />
 
+      <Toast />
+
       <div className="relative z-10 flex w-full h-full p-2 lg:p-3 gap-2 lg:gap-3 box-border">
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden bg-white/70 dark:bg-white/[0.02] backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative">
           <Header />
-          <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
             {renderContent()}
           </div>
         </main>

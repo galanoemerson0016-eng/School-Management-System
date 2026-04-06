@@ -3,13 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, ObservedValues, HPSRecord, SF2Sheet } from '../types';
 import {
-    defaultSchoolProfile,
-    defaultSubjects,
-    defaultSections,
-    defaultStudents,
-    defaultClassRecords,
-    defaultObservedValues,
-    defaultHPSRecords
+    defaultSchoolProfile
 } from '../lib/initial-data';
 import type { User } from '../types';
 
@@ -105,6 +99,15 @@ interface AppState {
     activeSF2Sheet: SF2Sheet | null;
     fetchSF2Sheet: (sectionId: string, month: string) => Promise<void>;
     saveSF2Sheet: (sheet: SF2Sheet) => Promise<void>;
+
+    // Global Notifications
+    notification: {
+        message: string;
+        type: 'success' | 'error' | 'info';
+        visible: boolean;
+    };
+    showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
+    hideNotification: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -120,7 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     setActiveSchoolYear: (sy) => set({ activeSchoolYear: sy }),
 
     // Students
-    students: defaultStudents,
+    students: [],
     setStudents: (students) => set({ students }),
     addStudent: async (student) => {
         // Optimistic Update
@@ -188,7 +191,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     // Sections
-    sections: defaultSections,
+    sections: [],
     setSections: (sections) => set({ sections }),
     addSection: async (section) => {
         set((state) => ({ sections: [...state.sections, section] }));
@@ -222,7 +225,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     // Subjects
-    subjects: defaultSubjects,
+    subjects: [],
     setSubjects: (subjects) => set({ subjects }),
     addSubject: async (subject) => {
         set((state) => ({ subjects: [...state.subjects, subject] }));
@@ -281,22 +284,33 @@ export const useAppStore = create<AppState>((set, get) => ({
 
 
     // Class Records (Grades)
-    classRecords: defaultClassRecords,
+    classRecords: [],
     setClassRecords: (records) => set({ classRecords: records }),
     updateClassRecord: async (record) => {
+        // Optimistic UI update
+        set((state) => {
+            const existingIndex = state.classRecords.findIndex(r => r.id === record.id);
+            if (existingIndex >= 0) {
+                const newRecords = [...state.classRecords];
+                newRecords[existingIndex] = record;
+                return { classRecords: newRecords };
+            } else {
+                return { classRecords: [...state.classRecords, record] };
+            }
+        });
         // Use setDoc with merge to handle create or update
         await setDoc(doc(db, 'grades', record.id), record); // Overwrite safety?
     },
 
     // Observed Values (Behavior)
-    observedValues: defaultObservedValues,
+    observedValues: [],
     setObservedValues: (values) => set({ observedValues: values }),
     updateObservedValue: async (value) => {
         await setDoc(doc(db, 'observedValues', value.id), value);
     },
 
     // HPS Records
-    hpsRecords: defaultHPSRecords,
+    hpsRecords: [],
     setHpsRecords: (records) => set({ hpsRecords: records }),
     updateHPSRecord: async (record) => {
         // Optimistic UI update
@@ -371,5 +385,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e) {
             console.error("Error saving SF2 sheet", e);
         }
-    }
+    },
+
+    // Global Notifications
+    notification: {
+        message: '',
+        type: 'info',
+        visible: false,
+    },
+    showNotification: (message, type = 'info') => {
+        set({ notification: { message, type, visible: true } });
+        // Auto-hide after 3.5 seconds
+        setTimeout(() => {
+            get().hideNotification();
+        }, 3500);
+    },
+    hideNotification: () => {
+        set((state) => ({ 
+            notification: { ...state.notification, visible: false } 
+        }));
+    },
 }));
