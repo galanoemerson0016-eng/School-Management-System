@@ -606,12 +606,12 @@ export function SF9Page() {
                     );
 
                     const hasScores = r && (
-                        r.written_works.some(s => s > 0) ||
-                        r.performance_tasks.some(s => s > 0) ||
-                        r.quarterly_exam > 0
+                        r.written_works.some(s => Number(s) > 0) ||
+                        r.performance_tasks.some(s => Number(s) > 0) ||
+                        Number(r.quarterly_exam) > 0
                     );
 
-                    return hasScores ? (r?.final_grade || 0) : 0;
+                    return hasScores ? Number(r?.final_grade || 0) : 0;
                 };
 
                 return [getQuarterGrade(1), getQuarterGrade(2), getQuarterGrade(3), getQuarterGrade(4)];

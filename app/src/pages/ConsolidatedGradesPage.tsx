@@ -326,13 +326,13 @@ export function ConsolidatedGradesPage() {
                                 rec.quarter === q
                             );
                             const hasScores = r && (
-                                r.written_works.some(s => s > 0) ||
-                                r.performance_tasks.some(s => s > 0) ||
-                                r.quarterly_exam > 0
+                                r.written_works.some(s => Number(s) > 0) ||
+                                r.performance_tasks.some(s => Number(s) > 0) ||
+                                Number(r.quarterly_exam) > 0
                             );
 
                             if (r && r.final_grade && hasScores) {
-                                qGrades[q].push(r.final_grade);
+                                qGrades[q].push(Number(r.final_grade));
                             }
                         }
                     });
@@ -380,14 +380,14 @@ export function ConsolidatedGradesPage() {
 
                         // Check if there are any actual scores
                         const hasScores = record && (
-                            record.written_works.some(s => s > 0) ||
-                            record.performance_tasks.some(s => s > 0) ||
-                            record.quarterly_exam > 0
+                            record.written_works.some(s => Number(s) > 0) ||
+                            record.performance_tasks.some(s => Number(s) > 0) ||
+                            Number(record.quarterly_exam) > 0
                         );
 
                         if (record && record.final_grade && hasScores) {
-                            subjectGrades[`q${q}`] = record.final_grade;
-                            subjectFinalTotal += record.final_grade;
+                            subjectGrades[`q${q}`] = Number(record.final_grade);
+                            subjectFinalTotal += Number(record.final_grade);
                             qCount++;
                         }
                     }

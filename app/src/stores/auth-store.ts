@@ -3,8 +3,7 @@ import { auth, db } from '../lib/firebase';
 import {
     signInWithEmailAndPassword,
     signOut,
-    onAuthStateChanged,
-    type User as FirebaseUser
+    onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import type { User, UserRole } from '../types';

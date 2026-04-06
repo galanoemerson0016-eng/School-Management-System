@@ -440,7 +440,7 @@ function SF10Document({ student, schoolName, schoolYear }: SF10DocumentProps) {
 }
 
 export function SF10Page() {
-    const { students, sections, schoolProfile } = useAppStore();
+    const { students, sections, schoolProfile, activeSchoolYear } = useAppStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
@@ -496,8 +496,8 @@ export function SF10Page() {
                                 document={
                                     <SF10Document
                                         student={selectedStudent}
-                                        schoolName={schoolProfile.school_name}
-                                        schoolYear={schoolProfile.school_year}
+                                        schoolName={schoolProfile.name}
+                                        schoolYear={activeSchoolYear}
                                     />
                                 }
                                 fileName={`SF10_${selectedStudent.last_name}_${selectedStudent.first_name}.pdf`}
@@ -526,8 +526,8 @@ export function SF10Page() {
                         <PDFViewer width="100%" height="100%">
                             <SF10Document
                                 student={selectedStudent}
-                                schoolName={schoolProfile.school_name}
-                                schoolYear={schoolProfile.school_year}
+                                schoolName={schoolProfile.name}
+                                schoolYear={activeSchoolYear}
                             />
                         </PDFViewer>
                     </div>

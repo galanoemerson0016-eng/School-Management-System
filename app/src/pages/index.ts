@@ -3,7 +3,6 @@ export { Dashboard } from './Dashboard';
 export { StudentsPage } from './StudentsPage';
 export { ClassesPage } from './ClassesPage';
 export { SubjectsPage } from './SubjectsPage';
-export { ClassRecordPage } from './ClassRecordPage';
 export { EClassRecord } from './EClassRecord';
 export { SF9Page } from './SF9Page';
 export { SF10Page } from './SF10Page';

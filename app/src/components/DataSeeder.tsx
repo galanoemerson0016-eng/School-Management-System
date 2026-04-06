@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { db } from '../lib/firebase';
-import { doc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import {
     defaultSchoolProfile,
     defaultSubjects,
