@@ -13,6 +13,7 @@ export function EClassRecord() {
         activeSchoolYear,
         classRecords,
         updateClassRecord,
+        deleteClassRecord,
         hpsRecords,
         updateHPSRecord,
         selectedSection: globalSection,
@@ -196,9 +197,9 @@ export function EClassRecord() {
         );
 
         const sGrades = record || {
-            written_works: Array(10).fill(0),
-            performance_tasks: Array(10).fill(0),
-            quarterly_exam: 0
+            written_works: Array(10).fill(''),
+            performance_tasks: Array(10).fill(''),
+            quarterly_exam: ''
         };
 
         const wwTotalScore = sGrades.written_works.reduce((a, b) => Number(a) + Number(b), 0);
@@ -218,10 +219,11 @@ export function EClassRecord() {
 
         const initialGrade = wwWS + ptWS + qaWS;
 
+        const isValidScore = (s: any) => s !== '' && s !== null && s !== undefined;
         const hasScores =
-            sGrades.written_works.some(s => s !== '' && s !== 0) ||
-            sGrades.performance_tasks.some(s => s !== '' && s !== 0) ||
-            (sGrades.quarterly_exam !== '' && sGrades.quarterly_exam !== 0);
+            sGrades.written_works.some(isValidScore) ||
+            sGrades.performance_tasks.some(isValidScore) ||
+            isValidScore(sGrades.quarterly_exam);
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade) : 0;
 
@@ -378,19 +380,18 @@ export function EClassRecord() {
 
         const initialGrade = wwWS + ptWS + qaWS;
 
-        // Check if there are any scores entered
+        const isValidScore = (s: any) => s !== '' && s !== null && s !== undefined;
         const hasScores =
-            record.written_works.some(s => s !== '' && s !== 0) ||
-            record.performance_tasks.some(s => s !== '' && s !== 0) ||
-            (record.quarterly_exam !== '' && record.quarterly_exam !== 0);
+            record.written_works.some(isValidScore) ||
+            record.performance_tasks.some(isValidScore) ||
+            isValidScore(record.quarterly_exam);
 
         if (!hasScores) {
-            record.final_grade = undefined;
+            deleteClassRecord(record.id);
         } else {
             record.final_grade = transmuteGrade(initialGrade);
+            updateClassRecord(record);
         }
-
-        updateClassRecord(record);
     };
 
     const handlePrint = () => {
@@ -624,7 +625,7 @@ export function EClassRecord() {
                                                     <td key={`ww-${i}`} className="border border-black p-0">
                                                         <input
                                                             type="number"
-                                                            value={score === 0 ? '' : score}
+                                                            value={score}
                                                             onChange={(e) => updateGrade(student.lrn, 'ww', i, e.target.value)}
                                                             className="w-full h-full text-center outline-none p-0 focus:bg-blue-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
@@ -637,7 +638,7 @@ export function EClassRecord() {
                                                     <td key={`pt-${i}`} className="border border-black p-0">
                                                         <input
                                                             type="number"
-                                                            value={score === 0 ? '' : score}
+                                                            value={score}
                                                             onChange={(e) => updateGrade(student.lrn, 'pt', i, e.target.value)}
                                                             className="w-full h-full text-center outline-none p-0 focus:bg-green-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                         />
@@ -649,7 +650,7 @@ export function EClassRecord() {
                                                 <td className="border border-black p-0">
                                                     <input
                                                         type="number"
-                                                        value={summary.qaScore === 0 ? '' : summary.qaScore}
+                                                        value={summary.qa}
                                                         onChange={(e) => updateGrade(student.lrn, 'qa', 0, e.target.value)}
                                                         className="w-full h-full text-center outline-none p-0 focus:bg-yellow-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />

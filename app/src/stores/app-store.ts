@@ -65,6 +65,7 @@ interface AppState {
     classRecords: ClassRecord[];
     setClassRecords: (records: ClassRecord[]) => void;
     updateClassRecord: (record: ClassRecord) => Promise<void>;
+    deleteClassRecord: (id: string) => Promise<void>;
 
 
     // Observed Values
@@ -287,26 +288,58 @@ export const useAppStore = create<AppState>((set, get) => ({
     classRecords: [],
     setClassRecords: (records) => set({ classRecords: records }),
     updateClassRecord: async (record) => {
+        // Prepare sanitized record for Firestore (remove undefined)
+        const sanitizedRecord = JSON.parse(JSON.stringify(record, (key, value) => 
+            value === undefined ? null : value
+        ));
+
         // Optimistic UI update
         set((state) => {
             const existingIndex = state.classRecords.findIndex(r => r.id === record.id);
+            const newRecords = [...state.classRecords];
             if (existingIndex >= 0) {
-                const newRecords = [...state.classRecords];
                 newRecords[existingIndex] = record;
-                return { classRecords: newRecords };
             } else {
-                return { classRecords: [...state.classRecords, record] };
+                newRecords.push(record);
             }
+            return { classRecords: newRecords };
         });
-        // Use setDoc with merge to handle create or update
-        await setDoc(doc(db, 'grades', record.id), record); // Overwrite safety?
+
+        try {
+            await setDoc(doc(db, 'grades', record.id), sanitizedRecord);
+        } catch (error) {
+            console.error("Failed to update class record", error);
+            get().showNotification("Failed to save grade to database.", "error");
+        }
+    },
+    deleteClassRecord: async (id) => {
+        const previousRecords = get().classRecords;
+        set((state) => ({
+            classRecords: state.classRecords.filter(r => r.id !== id)
+        }));
+        try {
+            await deleteDoc(doc(db, 'grades', id));
+        } catch (error) {
+            console.error("Failed to delete class record", error);
+            set({ classRecords: previousRecords });
+            get().showNotification("Failed to delete record from database.", "error");
+        }
     },
 
     // Observed Values (Behavior)
     observedValues: [],
     setObservedValues: (values) => set({ observedValues: values }),
     updateObservedValue: async (value) => {
-        await setDoc(doc(db, 'observedValues', value.id), value);
+        // Sanitize
+        const sanitizedValue = JSON.parse(JSON.stringify(value, (key, val) => 
+            val === undefined ? null : val
+        ));
+        try {
+            await setDoc(doc(db, 'observedValues', value.id), sanitizedValue);
+        } catch (error) {
+            console.error("Failed to update observed value", error);
+            get().showNotification("Failed to save behavior rating.", "error");
+        }
     },
 
     // HPS Records
