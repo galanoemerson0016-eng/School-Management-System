@@ -145,6 +145,12 @@ export function Sidebar() {
                     <LogOut className="w-4 h-4 flex-shrink-0" />
                     {!isCollapsed && 'Sign Out'}
                 </button>
+
+                <div className="pt-2 text-center">
+                    <span className={`text-[9px] uppercase font-bold tracking-widest text-slate-400/70 dark:text-slate-500/70 select-none ${isCollapsed ? 'block' : ''}`}>
+                        {isCollapsed ? 'v1.0' : 'Version 1.0.1'}
+                    </span>
+                </div>
             </div>
         </>
     );
