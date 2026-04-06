@@ -1,0 +1,93 @@
+=== SF10 JHS PERMANENT RECORD ===
+Sheets: ['Front', 'SirWedz Guides', 'Back']
+
+--- Sheet: Front ---
+Dimensions: B1:BD84
+ | SF10-JHS |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Republic of the Phil |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Department of Educat |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Learner Permanent Ac |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | (Formerly Form 137) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | LEARNER'S INFORMATIO |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | LAST NAME: |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | FIRST NAME: |  |  |  |  |  |  |  |  |  |  |  | 
+ | Learner Reference Nu |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Birthdate (mm/dd/yyy |  |  |  | 
+ | ELIGIBILITY FOR JHS  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  | Elementary School Co |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | General Average: |  |  |  |  |  |  | 
+ |  |  | Name of Elementary S |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID: | 
+ | Other Credential Pre |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  | PEPT Passer |  |  |  |  | Rating: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ALS A & E Passer |  |  |  |  |  | 
+ |  |  | Date of Examination/ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Name and Address of  | 
+ | SCHOLASTIC RECORD |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | School: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID: |  |  |  |  |  |  |  |  |  | District: |  |  | 
+ | Classified as Grade: |  |  |  |  |  |  |  |  | Section: |  |  |  |  |  |  | School Year: |  |  |  |  |  |  |  |  | Name of Adviser/Teac |  |  | 
+ | LEARNING AREAS |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Quarterly Rating |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 1 |  |  |  | 2 |  |  |  | 3 | 
+ | Filipino |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | English |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Mathematics |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Science |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Araling Panlipunan ( |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Edukasyon sa Pagpapa |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Technology and Livel |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | MAPEH |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Music |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Arts |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Physical Education |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Health |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | General Average |  |  |  |  |  |  |  |  | 
+ | Remedial Classes |  |  |  |  |  |  |  |  |  | Conducted from (mm/d |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Learning Areas |  |  |  |  |  |  |  |  |  | Final Rating |  |  |  |  |  |  |  |  | Remedial Class Mark |  |  |  |  |  |  |  |  | 
+ | School: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID: |  |  |  |  |  |  |  |  |  | District: |  |  | 
+ | Classified as Grade: |  |  |  |  |  |  |  |  | Section: |  |  |  |  |  |  | School Year: |  |  |  |  |  |  |  |  | Name of Adviser/Teac |  |  | 
+
+--- Sheet: SirWedz Guides ---
+Dimensions: A1:B11
+Edited as of Feb. 24 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1 | Format of the templa |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2 | Margins set at the l |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+3 | Arial Narrow Font |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+4 | Shading for each tit |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+5 | Adjusted Column Widt |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+6 | Scaled at 74% |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+As edited, Wedzmer B |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+
+--- Sheet: Back ---
+Dimensions: B1:BD95
+ | SF10-JHS |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | School: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID: |  |  |  |  |  |  |  |  |  | District: |  |  | 
+ | Classified as Grade: |  |  |  |  |  |  |  |  | Section: |  |  |  |  |  |  | School Year: |  |  |  |  |  |  |  |  | Name of Adviser/Teac |  |  | 
+ | LEARNING AREAS |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Quarterly Rating |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 1 |  |  |  | 2 |  |  |  | 3 | 
+ | Filipino |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | English |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Mathematics |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Science |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Araling Panlipunan ( |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Edukasyon sa Pagpapa |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Technology and Livel |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | MAPEH |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Music |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Arts |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Physical Education |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Health |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | General Average |  |  |  |  |  |  |  |  | 
+ | Remedial Classes |  |  |  |  |  |  |  |  |  | Conducted from (mm/d |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Learning Areas |  |  |  |  |  |  |  |  |  | Final Rating |  |  |  |  |  |  |  |  | Remedial Class Mark |  |  |  |  |  |  |  |  | 
+ | School: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID: |  |  |  |  |  |  |  |  |  | District: |  |  | 
+ | Classified as Grade: |  |  |  |  |  |  |  |  | Section: |  |  |  |  |  |  | School Year: |  |  |  |  |  |  |  |  | Name of Adviser/Teac |  |  | 
+ | LEARNING AREAS |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Quarterly Rating |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 1 |  |  |  | 2 |  |  |  | 3 | 
+ | Filipino |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | English |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Mathematics |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Science |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Araling Panlipunan ( |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Edukasyon sa Pagpapa |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Technology and Livel |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | MAPEH |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Music |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Arts |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Physical Education |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Health |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | General Average |  |  |  |  |  |  |  |  | 
+

@@ -1,0 +1,12 @@
+=== ENGLISH Q1 FULL HEADER ===
+Row 1: Class Record  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 2:  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 3: (Pursuant to Deped Order 8 series of 2015) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 4:  |  | REGION |  |  |  |  |  |  |  |  | DIVISION |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 5:  | SCHOOL NAME |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | SCHOOL ID |  |  |  |  |  |  |  |  |  | SCHOOL YEAR |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 6:  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 7: FIRST QUARTER |  |  |  |  | GRADE & SECTION:  |  |  |  |  |  |  |  |  |  |  | TEACHER: |  |  |  |  |  |  |  |  |  |  |  | SUBJECT: |  |  |  | ENGLISH |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 8:  | LEARNERS' NAMES |  |  |  | WRITTEN WORKS (30%) |  |  |  |  |  |  |  |  |  |  |  |  | PERFORMANCE TASKS (50%) |  |  |  |  |  |  |  |  |  |  |  |  | QUARTERLY ASSESSMENT (20%) |  |  | Initial  |    Quarterly                 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 9:  |  |  |  |  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | Total | PS | WS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | Total | PS | WS | 1 | PS | WS | Grade | Grade |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Row 10:  | HIGHEST POSSIBLE SCORE |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 100 | 0.3 |  |  |  |  |  |  |  |  |  |  |  | 100 | 0.5 |  | 100 | 0.2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 

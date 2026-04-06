@@ -1,0 +1,163 @@
+=== PAGE 1 ===
+Width: 841.6799926757812, Height: 595.2000122070312
+
+[53,132] 9.4pt TimesNewRomanPSMT: No. of school
+[53,144] 9.4pt TimesNewRomanPSMT: days
+[53,156] 9.4pt TimesNewRomanPSMT: No. of days
+[53,168] 9.4pt TimesNewRomanPSMT: present
+[53,181] 9.4pt TimesNewRomanPSMT: No. of days
+[53,192] 9.4pt TimesNewRomanPSMT: absent
+[427,191] 10.2pt TimesNewRomanPSMT: Name:
+[427,207] 10.2pt TimesNewRomanPSMT: LRN:
+[427,222] 10.2pt TimesNewRomanPSMT: Age:
+[427,238] 10.2pt TimesNewRomanPSMT: Grade:
+[427,259] 10.2pt TimesNewRomanPS-BoldMT: Dear Parents:
+[474,273] 10.2pt TimesNewRomanPSMT: This report card shows the ability and progress your child has made in
+[427,286] 10.2pt TimesNewRomanPSMT: the different learning areas as well as his/her core values.
+[53,299] 10.2pt TimesNewRomanPSMT: 1st Quarter
+[474,299] 10.2pt TimesNewRomanPSMT: The school welcomes you should you desire to know more about your
+[427,312] 10.2pt TimesNewRomanPSMT: child's progress.
+[53,325] 10.2pt TimesNewRomanPSMT: 2nd
+[70,325] 10.2pt TimesNewRomanPSMT: Quarter
+[53,355] 10.2pt TimesNewRomanPSMT: 3rd
+[68,355] 10.2pt TimesNewRomanPSMT: Quarter
+[53,383] 10.2pt TimesNewRomanPSMT: 4th
+[68,383] 10.2pt TimesNewRomanPSMT: Quarter
+[427,403] 10.2pt TimesNewRomanPSMT: Admitted to Grade:
+[639,403] 10.2pt TimesNewRomanPSMT: Section:
+[427,417] 10.2pt TimesNewRomanPSMT: Eligible for Admission to Grade:
+[427,431] 10.2pt TimesNewRomanPSMT: Approved:
+[427,518] 10.2pt TimesNewRomanPSMT: Admitted in:
+[427,531] 10.2pt TimesNewRomanPSMT: Date:
+[676,558] 10.2pt TimesNewRomanPSMT: School Head
+[335,90] 7.7pt TimesNewRomanPSMT: TOTAL
+[620,222] 10.2pt TimesNewRomanPSMT: Section:
+[620,238] 10.2pt TimesNewRomanPSMT: School Year:
+[684,236] 11.0pt TimesNewRomanPS-BoldMT: 2025-2026
+[481,236] 11.0pt TimesNewRomanPS-BoldMT: 7
+[669,468] 10.2pt TimesNewRomanPSMT: Teacher Adviser
+[475,500] 11.0pt TimesNewRomanPS-BoldMT: CANCELLATION OF ELIGIBILITY TO TRANSFER
+[561,76] 9.4pt TimesNewRomanPSMT: MATATAG DISTRICT
+[636,325] 10.2pt TimesNewRomanPS-BoldMT: KIMBERLY A. ESCALANTE
+[669,339] 10.2pt TimesNewRomanPSMT: Teacher Adviser
+[684,221] 11.0pt TimesNewRomanPS-BoldMT: EMERALD
+[462,340] 10.2pt TimesNewRomanPS-BoldMT: JUAN A. DELA CRUZ
+[460,355] 10.2pt TimesNewRomanPSMT: OIC-School Head, HT-VI
+[460,468] 10.2pt TimesNewRomanPSMT: OIC-School Head, HT-VI
+[551,63] 9.4pt TimesNewRomanPSMT: Division of Matatag Division
+[620,207] 10.2pt TimesNewRomanPSMT: Gender:
+[528,381] 11.0pt TimesNewRomanPS-BoldMT: CERTIFICATE OF TRANSFER
+[498,108] 11.0pt TimesNewRomanPS-BoldMT: NEW ARGAO NATIONAL HIGH SCHOOL
+[118,50] 12.7pt TimesNewRomanPS-BoldMT: REPORT ON ATTENDANCE
+[555,27] 9.4pt TimesNewRomanPSMT: Republic of the Philippines
+[539,39] 9.4pt TimesNewRomanPSMT: DEPARTMENT OF EDUCATION
+[581,51] 9.4pt TimesNewRomanPSMT: Region XXX
+[119,272] 11.0pt TimesNewRomanPS-BoldMT: PARENT / GUARDIAN'S NAME
+[307,272] 11.0pt TimesNewRomanPS-BoldMT: Signature
+[119,93] 7.7pt TimesNewRomanPSMT: JUNE
+[141,93] 7.7pt TimesNewRomanPSMT: JULY
+[162,87] 7.7pt TimesNewRomanPSMT: AUGUST
+[183,80] 7.7pt TimesNewRomanPSMT: SEPTEMBER
+[312,89] 7.7pt TimesNewRomanPSMT: MARCH
+[205,85] 7.7pt TimesNewRomanPSMT: OCTOBER
+[226,81] 7.7pt TimesNewRomanPSMT: NOVEMBER
+[247,82] 7.7pt TimesNewRomanPSMT: DECEMBER
+[269,85] 7.7pt TimesNewRomanPSMT: JANUARY
+[290,82] 7.7pt TimesNewRomanPSMT: FEBRUARY
+[457,148] 13.6pt CooperBlack: LEARNER'S PROGRESS REPORT CARD
+[389,14] 9.4pt TimesNewRomanPS-ItalicMT: SF9-JHS
+
+=== PAGE 2 ===
+Width: 841.6799926757812, Height: 595.2000122070312
+
+[685,69] 9.4pt TimesNewRomanPS-BoldMT: 1
+[714,69] 9.4pt TimesNewRomanPS-BoldMT: 2
+[743,69] 9.4pt TimesNewRomanPS-BoldMT: 3
+[772,69] 9.4pt TimesNewRomanPS-BoldMT: 4
+[799,86] 9.4pt Calibri: 1
+[799,136] 9.4pt Calibri: 2
+[799,186] 9.4pt Calibri: 3
+[799,235] 9.4pt Calibri: 4
+[799,260] 9.4pt Calibri: 5
+[799,310] 9.4pt Calibri: 6
+[799,360] 9.4pt Calibri: 7
+[490,501] 10.2pt TimesNewRomanPSMT: AO
+[491,518] 10.2pt TimesNewRomanPSMT: SO
+[490,535] 10.2pt TimesNewRomanPSMT: RO
+[490,553] 10.2pt TimesNewRomanPSMT: NO
+[625,500] 10.2pt TimesNewRomanPSMT: Always Observed
+[623,518] 10.2pt TimesNewRomanPSMT: Sometimes Observed
+[627,535] 10.2pt TimesNewRomanPSMT: Rarely Observed
+[633,552] 10.2pt TimesNewRomanPSMT: Not Observed
+[491,27] 11.9pt TimesNewRomanPS-BoldMT: REPORT ON LEARNER'S OBSERVED VALUES
+[708,55] 9.4pt TimesNewRomanPS-BoldMT: QUARTER
+[454,339] 10.2pt TimesNewRomanPS-BoldMT: 4. MAKABANSA
+[454,203] 10.2pt TimesNewRomanPS-BoldMT: 2. MAKATAO
+[463,61] 9.4pt TimesNewRomanPS-BoldMT: CORE VALUES
+[554,61] 8.5pt TimesNewRomanPS-BoldMT: BEHAVIOR STATEMENTS
+[542,85] 8.5pt TimesNewRomanPSMT: Expresses one's spiritual beliefs
+[542,96] 8.5pt TimesNewRomanPSMT: while respecting the spiritual beliefs
+[542,107] 8.5pt TimesNewRomanPSMT: of others
+[542,136] 8.5pt TimesNewRomanPSMT: Shows adherence to ethical principles
+[542,147] 8.5pt TimesNewRomanPSMT: by upholding truth in all undertakings
+[542,180] 8.5pt TimesNewRomanPSMT: Is sensitive to individual, social and
+[542,191] 8.5pt TimesNewRomanPSMT: culural differences: resists
+[542,202] 8.5pt TimesNewRomanPSMT: stereotyping people
+[542,223] 8.5pt TimesNewRomanPSMT: Demonstrates contributions toward
+[542,234] 8.5pt TimesNewRomanPSMT: solidarity
+[542,255] 8.5pt TimesNewRomanPSMT: Cares for the environment and
+[542,265] 8.5pt TimesNewRomanPSMT: utilizes resources wisely, judiciously
+[542,276] 8.5pt TimesNewRomanPSMT: and economically
+[454,120] 10.2pt TimesNewRomanPS-BoldMT: 1. MAKA-DIYOS
+[454,258] 10.2pt TimesNewRomanPS-BoldMT: 3. MAKA-
+[454,271] 10.2pt TimesNewRomanPS-BoldMT: KALIKASAN
+[352,69] 9.4pt TimesNewRomanPS-BoldMT: REMARKS
+[478,477] 10.2pt TimesNewRomanPS-BoldMT: Marking
+[616,477] 10.2pt TimesNewRomanPS-BoldMT: Non-numerical Rating
+[137,432] 11.9pt TimesNewRomanPS-BoldMT: General Average
+[55,246] 10.2pt TimesNewRomanPSMT: Technology and Livelihood
+[55,259] 10.2pt TimesNewRomanPSMT: Education
+[55,277] 10.2pt TimesNewRomanPSMT: MAPEH
+[55,103] 10.2pt TimesNewRomanPSMT: Filipino
+[55,128] 10.2pt TimesNewRomanPSMT: English
+[55,203] 10.2pt TimesNewRomanPSMT: Araling Panlipunan
+[55,153] 10.2pt TimesNewRomanPSMT: Mathematics
+[55,178] 10.2pt TimesNewRomanPSMT: Science
+[67,27] 11.9pt TimesNewRomanPS-BoldMT: REPORT ON LEARNING PROGRESS AND ACHIEVEMENT
+[211,77] 9.4pt TimesNewRomanPS-BoldMT: 1
+[237,77] 9.4pt TimesNewRomanPS-BoldMT: 2
+[264,77] 9.4pt TimesNewRomanPS-BoldMT: 3
+[291,77] 9.4pt TimesNewRomanPS-BoldMT: 4
+[230,55] 9.4pt TimesNewRomanPS-BoldMT: QUARTER
+[311,63] 9.4pt TimesNewRomanPS-BoldMT: FINAL
+[309,75] 9.4pt TimesNewRomanPS-BoldMT: GRADE
+[342,518] 10.2pt TimesNewRomanPSMT: Passed
+[86,477] 10.2pt TimesNewRomanPS-BoldMT: Descriptors
+[207,477] 10.2pt TimesNewRomanPS-BoldMT: Grading Scale
+[336,477] 10.2pt TimesNewRomanPS-BoldMT: Remarks
+[55,500] 10.2pt TimesNewRomanPSMT: Outstanding
+[221,500] 10.2pt TimesNewRomanPSMT: 90 - 100
+[342,500] 10.2pt TimesNewRomanPSMT: Passed
+[224,518] 10.2pt TimesNewRomanPSMT: 85 - 89
+[55,518] 10.2pt TimesNewRomanPSMT: Very Satisfactory
+[70,302] 10.2pt TimesNewRomanPS-ItalicMT: Music and Arts
+[85,69] 9.4pt TimesNewRomanPS-BoldMT: LEARNING AREAS
+[55,227] 10.2pt TimesNewRomanPSMT: Values Education
+[55,552] 10.2pt TimesNewRomanPSMT: Fairly Satisfactory
+[224,552] 10.2pt TimesNewRomanPSMT: 75 - 79
+[342,552] 10.2pt TimesNewRomanPSMT: Passed
+[55,570] 10.2pt TimesNewRomanPSMT: Did Not Meet Expectations
+[218,570] 10.2pt TimesNewRomanPSMT: Below 75
+[343,570] 10.2pt TimesNewRomanPSMT: Failed
+[55,535] 10.2pt TimesNewRomanPSMT: Satisfactory
+[224,535] 10.2pt TimesNewRomanPSMT: 80 - 84
+[342,535] 10.2pt TimesNewRomanPSMT: Passed
+[542,354] 8.5pt TimesNewRomanPSMT: Demonstrates appropriate behavior in
+[542,365] 8.5pt TimesNewRomanPSMT: carrying out activities in the school,
+[542,376] 8.5pt TimesNewRomanPSMT: community and country
+[542,304] 8.5pt TimesNewRomanPSMT: Demonstrates pride in being a
+[542,315] 8.5pt TimesNewRomanPSMT: Filipino: exercises the rights and
+[542,326] 8.5pt TimesNewRomanPSMT: responsibilities of a Filipino citizen
+[70,320] 10.2pt TimesNewRomanPS-ItalicMT: Physical Education and
+[70,333] 10.2pt TimesNewRomanPS-ItalicMT: Health
+

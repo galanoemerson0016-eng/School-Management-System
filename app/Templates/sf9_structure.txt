@@ -1,0 +1,129 @@
+=== SF9 AUTOMATED GRADE 7 ===
+Sheets: ['Instructions', 'Class Info', 'K-12 Front', 'Grade 7 Inside', 'QUARTER 1 GRADES', 'QUARTER 2 GRADES', 'QUARTER 3 GRADES', 'QUARTER 4 GRADES', 'FINAL SUMMARY', 'K-12 Gr4-6 Inside']
+
+--- Sheet: Instructions ---
+Dimensions: A1:A1
+Use short (8.5 X 11 board |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+
+--- Sheet: Class Info ---
+Dimensions: A2:H49
+Names | LRN | Sex | Age | Q1 BEHAVIOR | Q2 | Q3 | Q4 |  |  |  |  |  |  |  |  |  |  |  | 
+Antonio Reyes | 123456789012 | MALE | 13 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Carlo Dela Cruz | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Daniel Bautista | 123456789012 | MALE | 13 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Ernesto Garcia | 123456789012 | MALE | 13 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Joseph Mendoza | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Luis Fernandez | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Miguel Santos | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Paolo Navarro | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Rafael Castillo | 123456789012 | MALE | 13 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Ramon Villanueva | 123456789012 | MALE | 12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+
+--- Sheet: K-12 Front ---
+Dimensions: A1:AE195
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Republic of the Philippin |  |  |  | 
+REPORT ON ATTENDANCE |  |  |  |  |  |  |  |  |  |  |  |  |  |  | DEPARTMENT OF EDUCATION |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Region IV-A (CALABARZON) |  |  |  | 
+ | June | July | August | September | October | November | December | January | February | March |  |  | Total |  | Division of _____________ |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ______________ District |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | BAGONG PAG-ASA NATIONAL H |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | School ID : 123456 |  |  |  | 
+No. of school days | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 |  |  | 100 |  | LEARNER'S PROGRESS REPORT |  |  |  | 
+No. of days present | 9 | 8 | 10 | 9 | 9 | 10 | 9 | 8 | 9 | 9 |  |  | 90 |  | Name: | Carlo Dela Cruz |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Age: | 12 |  |  | Sex:
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Grade:  |  | SEVEN |  | Section: 
+No. of days absent | 1 | 2 |  | 1 | 1 |  | 1 | 2 | 1 | 1 |  |  | 10 |  | School Year:  |  | 2025-2026 |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Dear Parent: |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | This report card shows th |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | made in the different lea |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | The school welcomes you i |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | child's progress. |  |  |  | 
+PARENT'S/GUARDIAN'S SIGNA |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1st QUARTER |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ADRES BONIFACO |  |  | 
+2nd QUARTER |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Principal |  |  | 
+3rd QUARTER |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Certificate of Transfer |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Admitted to Grade: |  |  |  | SEVEN
+4th QUARTER |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Eligibility for Admission |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Approved: |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | ANDRES BONIFACIO |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Principal |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Cancellation of Eligibili |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Admitted in: |  |  |  | 
+ |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Date: |  |  |  | 
+
+--- Sheet: Grade 7 Inside ---
+Dimensions: A1:U403
+REPORT ON LEARNING PROGRE |  |  |  |  |  |  |  | REPORT ON LEARNER'S OBSER |  |  |  |  |  |  |  |  |  |  | 
+Learning Areas | QUARTER |  |  |  | Final | Remarks |  | Core Values |  | Behavior Statements |  |  |  |  | QUARTER |  |  |  | 
+ | 1 | 2 | 3 | 4 | Grade |  |  |  |  |  |  |  |  |  | 1 | 2 | 3 | 4 | 
+Filipino | 77 | 78 | 84 | 84 | 81 | Passed |  |  |  | Expresses one's spiritual |  |  |  |  | AO | AO | AO | AO | 
+English | 78 | 80 | 80 | 80 | 80 | Passed |  | 1.  Maka- |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |      Diyos |  |  |  |  |  |  |  |  |  |  | 
+Mathematics | 79 | 80 | 78 | 81 | 80 | Passed |  |  |  | Shows adherence to ethica |  |  |  |  | AO | AO | AO | AO | 
+Science | 77 | 80 | 77 | 81 | 79 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  | 2.  Makatao |  | Is sensitive to individua |  |  |  |  | AO | AO | AO | AO | 
+Values Education (VE) | 81 | 84 | 85 | 87 | 84 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  |  | Demonstrates constributio |  |  |  |  | AO | AO | AO | AO | 
+Araling Panlipunan (AP) | 80 | 81 | 81 | 83 | 81 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  | 3.  Maka- |  | Cares for the environment |  |  |  |  | AO | AO | AO | AO | 
+Technology and Livelihood | 84 | 85 | 86 | 88 | 86 | Passed |  |      kalikasan |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  | 4.   Maka- |  | Demonstrates pride in bei |  |  |  |  | AO | AO | AO | AO | 
+MAPEH | 84 | 85 | 84 | 86 | 85 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+    Music & Arts | 84 | 84 | 83 | 85 | 84 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+    PE & Health | 84 | 85 | 84 | 86 | 85 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | 80 | 81.625 | 81.875 | 83.75 | 82 | Passed |  |       bansa |  | Demonstrates appropriate  |  |  |  |  | AO | AO | AO | AO | 
+AVERAGE | 80 | 82 | 82 | 84 | 82 | Passed |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | General Average |  |  |  | 82 |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | Q1 | Q2 | Q3 | Q4 |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Learning Modality |  | F2F | F2F | F2F | F2F |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+         Description |  |  | Grading Scale |  | Remarks |  |  |  | Marking |  |  |  | Non-numerical Rating |  |  |  |  |  | 
+          Outstanding |  |  | 90-100 |  | Passed |  |  |  | AO |  |  |  |  | Always Observed |  |  |  |  | 
+          Very Satisfacto |  |  | 85-89 |  | Passed |  |  |  | SO |  |  |  |  | Sometimes Observed |  |  |  |  | 
+          Satisfactory |  |  | 80-84 |  | Passed |  |  |  | RO |  |  |  |  | Rarely Observed |  |  |  |  | 
+          Fairly Satisfac |  |  | 75-79 |  | Passed |  |  |  | NO |  |  |  |  | Not Observed |  |  |  |  | 
+          Did Not Meet Ex |  |  | Below 75 |  | Failed |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+
+--- Sheet: QUARTER 1 GRADES ---
+Dimensions: A1:Q60
+ | LEARNERS' NAMES | GMRC | ENGLISH | MATH | SCIENCE | FILIPINO | ARALING PANLIPUNAN | EPP | MAPEH |  |  |  |  |  AVERAGE |  | RANKING |  |  | 
+ |  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | Music Arts | PE Health |  |  |  |  |  |  |  | 
+1 | Antonio Reyes | 85 | 81 | 81 | 78 | 80 | 84 | 86 | 83 | 83 | 83 |  |  | 82 | 82.25 | 3 |  |  | 
+2 | Carlo Dela Cruz | 82 | 80 | 83 | 79 | 79 | 80 | 84 | 85 | 83 | 86 |  |  | 82 | 81.5 | 4 |  |  | 
+3 | Daniel Bautista | 81 | 83 | 80 | 76 | 82 | 79 | 80 | 81 | 80 | 81 |  |  | 80 | 80.25 | 7 |  |  | 
+4 | Ernesto Garcia | 81 | 78 | 79 | 77 | 77 | 80 | 84 | 84 | 84 | 84 |  |  | 80 | 80 | 8 |  |  | 
+5 | Joseph Mendoza | 85 | 82 | 84 | 79 | 81 | 80 | 84 | 86 | 85 | 86 |  |  | 83 | 82.625 | 2 |  |  | 
+6 | Luis Fernandez | 83 | 77 | 80 | 77 | 76 | 83 | 84 | 85 | 85 | 84 |  |  | 81 | 80.625 | 6 |  |  | 
+7 | Miguel Santos | 89 | 88 | 82 | 82 | 87 | 89 | 90 | 89 | 89 | 88 |  |  | 87 | 87 | 1 |  |  | 
+8 | Paolo Navarro | 81 | 80 | 83 | 80 | 80 | 80 | 82 | 81 | 82 | 80 |  |  | 81 | 80.875 | 5 |  |  | 
+9 | Rafael Castillo | 80 | 79 | 77 | 76 | 79 | 77 | 79 | 78 | 78 | 78 |  |  | 78 | 78.125 | 9 |  |  | 
+10 | Ramon Villanueva | 80 | 77 | 76 | 75 | 77 | 78 | 80 | 78 | 77 | 79 |  |  | 78 | 77.625 | 10 |  |  | 
+11 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+12 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+13 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+14 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+15 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+16 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+17 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+18 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+19 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+20 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+21 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+22 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+23 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+24 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+25 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+26 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+27 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+28 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+29 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+30 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+31 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+32 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+33 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+34 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+35 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+36 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+37 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+38 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 11 |  |  | 
+

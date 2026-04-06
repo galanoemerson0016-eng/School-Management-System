@@ -1,0 +1,26 @@
+﻿src/components/DataSeeder.tsx(3,23): error TS6133: 'writeBatch' is declared but its value is never read.
+src/pages/ClassRecordPage.tsx(1,29): error TS6133: 'useEffect' is declared but its value is never read.
+src/pages/ClassRecordPage.tsx(3,1): error TS6192: All imports in import declaration are unused.
+src/pages/ClassRecordPage.tsx(4,1): error TS6133: 'db' is declared but its value is never read.
+src/pages/ClassRecordPage.tsx(5,15): error TS6196: 'Section' is declared but never used.
+src/pages/ClassRecordPage.tsx(5,24): error TS6196: 'Subject' is declared but never used.
+src/pages/ClassRecordPage.tsx(5,33): error TS6196: 'Student' is declared but never used.
+src/pages/ClassRecordPage.tsx(19,12): error TS6133: 'records' is declared but its value is never read.
+src/pages/ClassRecordPage.tsx(19,21): error TS6133: 'setRecords' is declared but its value is never read.
+src/pages/ConsolidatedGradesPage.tsx(4,10): error TS6133: 'PDFDownloadLink' is declared but its value is never read.
+src/pages/ConsolidatedGradesPage.tsx(34,7): error TS6133: 'ConsolidatedGradesDocument' is declared but its value is never read.
+src/pages/ReportsPage.tsx(238,63): error TS2339: Property 'range' does not exist on type 'PieLabelRenderProps'.
+src/pages/ReportsPage.tsx(238,70): error TS2339: Property 'count' does not exist on type 'PieLabelRenderProps'.
+src/pages/ReportsPage.tsx(336,99): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: Props, context?: any): string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<...> | Promise<...> | Component<...> | null | undefined', gave the following error.
+    Object literal may only specify known properties, and 'angle' does not exist in type 'SVGProps<SVGTextElement> | ReactElement<unknown, string | JSXElementConstructor<any>> | ((props: XAxisTickContentProps) => ReactNode)'.
+  Overload 2 of 2, '(props: Props): string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<...> | Component<...> | null | undefined', gave the following error.
+    Object literal may only specify known properties, and 'angle' does not exist in type 'SVGProps<SVGTextElement> | ReactElement<unknown, string | JSXElementConstructor<any>> | ((props: XAxisTickContentProps) => ReactNode)'.
+src/pages/SF10Page.tsx(198,46): error TS6133: 'schoolYear' is declared but its value is never read.
+src/pages/SF10Page.tsx(499,67): error TS2339: Property 'school_name' does not exist on type 'SchoolProfile'.
+src/pages/SF10Page.tsx(500,67): error TS2339: Property 'school_year' does not exist on type 'SchoolProfile'.
+src/pages/SF10Page.tsx(529,59): error TS2339: Property 'school_name' does not exist on type 'SchoolProfile'.
+src/pages/SF10Page.tsx(530,59): error TS2339: Property 'school_year' does not exist on type 'SchoolProfile'.
+src/pages/SubjectsPage.tsx(5,30): error TS6196: 'Section' is declared but never used.
+src/stores/auth-store.ts(7,18): error TS6133: 'FirebaseUser' is declared but its value is never read.
+src/utils/grading-helpers.ts(20,5): error TS6133: 'subjects' is declared but its value is never read.
