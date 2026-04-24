@@ -1,51 +1,101 @@
-import { useState, useMemo } from 'react';
-import { useAppStore } from '../stores';
+import { useState, useMemo, useEffect } from 'react';
+import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, FileSpreadsheet, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle } from 'lucide-react';
-import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents } from '../utils/grading-helpers';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, FileSpreadsheet, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees } from '../utils/grading-helpers';
 import { exportToCSV } from '../utils/csv-export';
+import { canEditReport, canViewReport, filterOfficialSectionsForUser, filterOfficialRecords, type ReportType } from '../lib/rbac';
 
 const COLORS = ['#003f87', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
 
 export function ReportsPage() {
-    const { students, sections, subjects, classRecords, setCurrentView, setSelectedSection, setSelectedSubject } = useAppStore();
+    const { students, sections, subjects, gradingSheetRecords, setCurrentView, setSelectedSection, setSelectedSubject } = useAppStore();
+    const { user } = useAuthStore();
     const [activeReport, setActiveReport] = useState<string | null>(null);
-    const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 4>(1);
+    const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 'overall'>(1);
     const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('all');
     const [selectedDetailMetric, setSelectedDetailMetric] = useState<'total' | 'at-risk' | null>(null);
+    const [atRiskViewMode, setAtRiskViewMode] = useState<'grouped' | 'detailed'>('grouped');
+    const [expandedSubjectAwards, setExpandedSubjectAwards] = useState<Record<string, boolean>>({});
+
+    const reportKeyByActive: Record<string, ReportType> = {
+        quarterly: 'quarterly-summaries',
+        subject: 'subject-performance',
+        progress: 'learner-progress',
+        'at-risk': 'at-risk-students',
+        'honor-roll': 'honor-roll',
+    };
+
+    const openReport = (key: keyof typeof reportKeyByActive) => {
+        const reportType = reportKeyByActive[key];
+        if (!canViewReport(user, reportType)) return;
+        if (key !== 'honor-roll' && selectedQuarter === 'overall') {
+            setSelectedQuarter(3);
+        }
+        setActiveReport(key);
+    };
+
+    const reportTypeForActive = activeReport ? reportKeyByActive[activeReport] : null;
+    const safeActiveReport = reportTypeForActive && canViewReport(user, reportTypeForActive) ? activeReport : null;
+
+    const officialSections = useMemo(() => filterOfficialSectionsForUser(user, sections), [user, sections]);
+    const officialSubjects = useMemo(() => filterOfficialRecords(subjects), [subjects]);
+
+    const activeSectionName = useMemo(() => {
+        if (selectedSectionFilter === 'all') return 'All Sections';
+        const section = officialSections.find(s => s.id === selectedSectionFilter);
+        return section ? `${section.section_grade_level} - ${section.section_name}` : 'Unknown Section';
+    }, [officialSections, selectedSectionFilter]);
+
+    const sortedSections = useMemo(() => {
+        return [...officialSections].sort((a, b) => {
+            const getGradeNum = (val: string) => {
+                const num = val.match(/\d+/);
+                return num ? parseInt(num[0]) : 0;
+            };
+            const gradeA = getGradeNum(a.section_grade_level);
+            const gradeB = getGradeNum(b.section_grade_level);
+            if (gradeA !== gradeB) return gradeA - gradeB;
+            return a.section_name.localeCompare(b.section_name);
+        });
+    }, [sections]);
+
+    // Auto-select single section if it's the only one
+    useEffect(() => {
+        if (sortedSections.length === 1 && selectedSectionFilter === 'all') {
+            setSelectedSectionFilter(sortedSections[0].id);
+        }
+    }, [sortedSections, selectedSectionFilter]);
 
     // Filter subjects by section
     const filteredSubjects = useMemo(() => {
-        if (selectedSectionFilter === 'all') return subjects;
-        return subjects.filter(s => s.section_id === selectedSectionFilter);
-    }, [subjects, selectedSectionFilter]);
+        if (selectedSectionFilter === 'all') return officialSubjects;
+        return officialSubjects.filter(s => s.section_id === selectedSectionFilter);
+    }, [officialSubjects, selectedSectionFilter]);
 
     // Active Students ONLY (No Ghosts!)
     const validStudents = useMemo(() => {
-        const validSections = new Set(sections.map(s => s.section_name));
+        const validSections = new Set([...officialSections.map(s => s.section_name), ...officialSections.map(s => s.id)]);
         return students.filter(s => s.student_section && validSections.has(s.student_section));
-    }, [students, sections]);
+    }, [students, officialSections]);
 
-    const filteredRecords = useMemo(() => {
+    const consolidatedOfficialRecords = useMemo(() => {
         // First, limit to records belonging to VALID students (no ghosts)
         const validLrns = new Set(validStudents.map(s => s.lrn));
         
         // LIMIT TO VALID SUBJECTS (exclude orphaned grades for deleted subjects)
-        const validSubjectIds = new Set(subjects.map(s => s.id));
+        const validSubjectIds = new Set(officialSubjects.map(s => s.id));
 
-        const baseRecords = classRecords.filter(r => {
+        const baseRecords = filterOfficialRecords(gradingSheetRecords).filter(r => {
             const hasValidRefs = validLrns.has(r.student_lrn) && validSubjectIds.has(r.subject_id);
             if (!hasValidRefs) return false;
 
-            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
-            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
-            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
-            return wwHasScores || ptHasScores || qaHasScore;
+            return (Number(r.final_grade) || 0) > 0;
         });
 
         // AUTO-CONSOLIDATE: Group by student/subject/quarter to eliminate ghost duplicates
-        const consolidatedMap = new Map<string, typeof classRecords[0]>();
+        const consolidatedMap = new Map<string, typeof gradingSheetRecords[0]>();
         
         baseRecords.forEach(r => {
             const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}`;
@@ -73,14 +123,16 @@ export function ReportsPage() {
             }
         });
 
-        const recordsForValidStudents = Array.from(consolidatedMap.values());
+        return Array.from(consolidatedMap.values());
+    }, [gradingSheetRecords, validStudents, officialSubjects]);
 
-        if (selectedSectionFilter === 'all') return recordsForValidStudents;
-        
+    const filteredRecords = useMemo(() => {
+        if (selectedSectionFilter === 'all') return consolidatedOfficialRecords;
+
         // Then filter by section subjects
         const sectionSubjectIds = new Set(filteredSubjects.map(s => s.id));
-        return recordsForValidStudents.filter(r => sectionSubjectIds.has(r.subject_id));
-    }, [classRecords, validStudents, filteredSubjects, selectedSectionFilter, subjects]);
+        return consolidatedOfficialRecords.filter(r => sectionSubjectIds.has(r.subject_id));
+    }, [consolidatedOfficialRecords, filteredSubjects, selectedSectionFilter]);
 
     // MPS Data
     const mpsData = useMemo(() =>
@@ -94,11 +146,87 @@ export function ReportsPage() {
         [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter]
     );
 
+    // Subject Awardees
+    const subjectAwardees = useMemo(() =>
+        getSubjectAwardees(validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter),
+        [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter]
+    );
+
+    // Grouped Honor Data
+    const groupedHonorData = useMemo(() => {
+        const groups: Record<string, { honors: typeof honorRoll, awards: typeof subjectAwardees }> = {};
+        
+        sections.forEach(sec => {
+            if (sec.is_teaching_load) return; // Skip in Honor Roll Report
+            const gradeStr = sec.section_grade_level ? sec.section_grade_level.replace('Grade ', 'G') : 'U';
+            const groupName = `${gradeStr} - ${sec.section_name}`;
+            groups[groupName] = { honors: [], awards: [] };
+        });
+
+        honorRoll.forEach(item => {
+            const gradeStr = item.student.grade_level ? item.student.grade_level.replace('Grade ', 'G') : 'U';
+            const groupName = `${gradeStr} - ${item.sectionName}`;
+            if (!groups[groupName]) groups[groupName] = { honors: [], awards: [] };
+            groups[groupName].honors.push(item);
+        });
+
+        subjectAwardees.forEach(item => {
+            const sec = sections.find(s => s.section_name === item.sectionName);
+            const gradeStr = sec && sec.section_grade_level ? sec.section_grade_level.replace('Grade ', 'G') : 'U';
+            const groupStr = `${gradeStr} - ${item.sectionName}`;
+            if (!groups[groupStr]) groups[groupStr] = { honors: [], awards: [] };
+            groups[groupStr].awards.push(item);
+        });
+
+        return Object.entries(groups)
+            .filter(([, data]) => data.honors.length > 0 || data.awards.length > 0)
+            .map(([groupName, data]) => ({ groupName, items: data.honors, awards: data.awards }))
+            .sort((a, b) => {
+                const gradeMatchA = a.groupName.match(/G(\d+)/i);
+                const gradeMatchB = b.groupName.match(/G(\d+)/i);
+                
+                const gradeA = gradeMatchA ? parseInt(gradeMatchA[1], 10) : 0;
+                const gradeB = gradeMatchB ? parseInt(gradeMatchB[1], 10) : 0;
+
+                if (gradeA !== gradeB) {
+                    return gradeA - gradeB; // Ascending: G7 before G8
+                }
+                return a.groupName.localeCompare(b.groupName);
+            });
+    }, [honorRoll, subjectAwardees, sections]);
+
     // At-Risk
     const atRiskStudents = useMemo(() =>
         getAtRiskStudents(validStudents, filteredRecords, filteredSubjects, selectedQuarter),
         [validStudents, filteredRecords, filteredSubjects, selectedQuarter]
     );
+
+    // Grouped At-Risk Students (by student)
+    const groupedAtRiskStudents = useMemo(() => {
+        const grouped = new Map<string, { student: typeof validStudents[0], subjects: Array<{ subjectName: string, grade: number }> }>();
+
+        atRiskStudents.forEach(item => {
+            const key = item.student.lrn;
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    student: item.student,
+                    subjects: []
+                });
+            }
+            grouped.get(key)!.subjects.push({
+                subjectName: item.subjectName,
+                grade: item.grade
+            });
+        });
+
+        return Array.from(grouped.values()).sort((a, b) => {
+            // Sort by number of failing subjects (most first), then by name
+            if (b.subjects.length !== a.subjects.length) {
+                return b.subjects.length - a.subjects.length;
+            }
+            return a.student.last_name.localeCompare(b.student.last_name);
+        });
+    }, [atRiskStudents]);
 
     // Grade Distribution
     const gradeDistribution = useMemo(() => {
@@ -125,86 +253,223 @@ export function ReportsPage() {
     // Subject radar data
     const radarData = useMemo(() => {
         return mpsData.slice(0, 8).map(d => ({
-            subject: d.subjectName.length > 12 ? d.subjectName.substring(0, 12) + '...' : d.subjectName,
+            subject: (d.subjectName?.length || 0) > 12 ? d.subjectName.substring(0, 12) + '...' : (d.subjectName || 'Unknown'),
             mps: d.mps,
             passRate: d.passRate,
         }));
     }, [mpsData]);
 
-    // Learner progress (per quarter)
+    const previousQuarterMPSData = useMemo(() => {
+        if (typeof selectedQuarter !== 'number' || selectedQuarter <= 1) return [];
+        const prevQuarter = (selectedQuarter - 1) as 1 | 2 | 3;
+        return getMPSPerSubject(filteredRecords, filteredSubjects, prevQuarter);
+    }, [filteredRecords, filteredSubjects, selectedQuarter]);
+
+    const subjectPerformanceInsights = useMemo(() => {
+        const sortedByMps = [...mpsData].sort((a, b) => b.mps - a.mps);
+        const strongest = sortedByMps[0];
+        const weakest = sortedByMps[sortedByMps.length - 1];
+
+        const termRecords = filteredRecords.filter(
+            r => r.quarter === selectedQuarter && (Number(r.final_grade) || 0) > 0
+        );
+        const passing = termRecords.filter(r => (Number(r.final_grade) || 0) >= 75).length;
+        const overallPassRate = termRecords.length > 0 ? Math.round((passing / termRecords.length) * 100) : 0;
+        const overallMps = mpsData.length > 0
+            ? Math.round((mpsData.reduce((sum, row) => sum + row.mps, 0) / mpsData.length) * 100) / 100
+            : 0;
+        const belowTargetCount = mpsData.filter(row => row.mps < 75).length;
+
+        return {
+            strongest,
+            weakest,
+            overallPassRate,
+            overallMps,
+            belowTargetCount,
+            subjectCount: mpsData.length,
+        };
+    }, [mpsData, filteredRecords, selectedQuarter]);
+
+    const subjectComparisonRows = useMemo(() => {
+        const prevMap = new Map(previousQuarterMPSData.map(row => [row.subjectName, row.mps]));
+
+        return [...mpsData]
+            .sort((a, b) => {
+                if (b.mps !== a.mps) return b.mps - a.mps;
+                return b.passRate - a.passRate;
+            })
+            .map((row, idx) => {
+                const prevMps = prevMap.get(row.subjectName);
+                const delta = typeof prevMps === 'number'
+                    ? Math.round((row.mps - prevMps) * 100) / 100
+                    : null;
+
+                return {
+                    rank: idx + 1,
+                    ...row,
+                    delta,
+                };
+            });
+    }, [mpsData, previousQuarterMPSData]);
+
+    const subjectInterventions = useMemo(() => {
+        return [...subjectComparisonRows]
+            .sort((a, b) => a.mps - b.mps)
+            .slice(0, 3)
+            .map((row) => {
+                let priority: 'Urgent' | 'Remediation' | 'Monitor' = 'Monitor';
+                let action = 'Track weekly classwork and continue guided review sessions.';
+
+                if (row.mps < 70) {
+                    priority = 'Urgent';
+                    action = 'Set immediate intervention with parent conference and focused reteaching.';
+                } else if (row.mps < 75) {
+                    priority = 'Remediation';
+                    action = 'Schedule remediation blocks and weekly competency recovery checks.';
+                }
+
+                return {
+                    ...row,
+                    priority,
+                    action,
+                };
+            });
+    }, [subjectComparisonRows]);
+
+    // Learner progress (per term)
     const progressData = useMemo(() => {
-        const quarters: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4];
-        return quarters.map(q => {
-            const qRecords = filteredRecords.filter(r => r.quarter === q && (Number(r.final_grade) || 0) > 0);
+        const terms: (1 | 2 | 3)[] = [1, 2, 3];
+        return terms.map(q => {
+            const qRecords = filteredRecords.filter(r => Number(r.quarter) === q && (Number(r.final_grade) || 0) > 0);
             const avg = qRecords.length > 0
                 ? Math.round((qRecords.reduce((sum, r) => sum + (Number(r.final_grade) || 0), 0) / qRecords.length) * 100) / 100
                 : 0;
             const passing = qRecords.filter(r => (Number(r.final_grade) || 0) >= 75).length;
             const passRate = qRecords.length > 0 ? Math.round((passing / qRecords.length) * 100) : 0;
-            return { quarter: `Q${q}`, average: avg, passRate, totalRecords: qRecords.length };
+            return { quarter: `T${q}`, average: avg, passRate, totalRecords: qRecords.length };
         });
     }, [filteredRecords]);
 
+    const progressInsights = useMemo(() => {
+        if (progressData.length < 3) return null;
+
+        const t1 = progressData[0];
+        const t3 = progressData[2];
+
+        const gradeImprovement = t3.average - t1.average;
+        const passImprovement = t3.passRate - t1.passRate;
+
+        const overallTrend = gradeImprovement > 0 ? 'improving' : gradeImprovement < 0 ? 'declining' : 'stable';
+
+        // Calculate subject progress without nested useMemo
+        const terms: (1 | 2 | 3)[] = [1, 2, 3];
+        const subjectMap = new Map();
+
+        terms.forEach(q => {
+            const qRecords = filteredRecords.filter(r => Number(r.quarter) === q && (Number(r.final_grade) || 0) > 0);
+            const subjectGroups = qRecords.reduce((acc, r) => {
+                const subj = subjects.find(s => s.id === r.subject_id)?.subject_name || 'Unknown';
+                if (!acc[subj]) acc[subj] = [];
+                acc[subj].push(Number(r.final_grade) || 0);
+                return acc;
+            }, {} as Record<string, number[]>);
+
+            Object.entries(subjectGroups).forEach(([subj, grades]) => {
+                const avg = grades.length > 0 ? Math.round((grades.reduce((a, b) => a + b, 0) / grades.length) * 100) / 100 : 0;
+                if (!subjectMap.has(subj)) subjectMap.set(subj, []);
+                subjectMap.get(subj).push({ term: q, average: avg, count: grades.length });
+            });
+        });
+
+        const subjectProgress = Array.from(subjectMap.entries()).map(([subject, data]) => ({
+            subject,
+            data: data.sort((a: any, b: any) => a.term - b.term)
+        }));
+
+        return {
+            gradeImprovement: Math.round(gradeImprovement * 100) / 100,
+            passImprovement,
+            overallTrend,
+            subjectProgress
+        };
+    }, [progressData, filteredRecords, subjects]);
+
     const handleExportMPS = () => {
+        if (!canEditReport(user, 'quarterly-summaries')) return;
         exportToCSV(mpsData.map(d => ({
             'Subject': d.subjectName,
             'MPS': d.mps,
             'Pass Rate (%)': d.passRate,
             'Total Students': d.totalStudents,
-        })), `MPS_Report_Q${selectedQuarter}`);
+        })), `MPS_Report_T${selectedQuarter}`);
     };
 
     const handleExportHonorRoll = () => {
+        if (!canEditReport(user, 'honor-roll')) return;
         exportToCSV(honorRoll.map(h => ({
             'Name': `${h.student.last_name}, ${h.student.first_name}`,
             'Section': h.sectionName,
             'General Average': h.generalAverage,
             'Honor Type': h.honorType,
-        })), `Honor_Roll_Q${selectedQuarter}`);
+        })), `Honor_Roll_T${selectedQuarter}`);
     };
 
     const handleExportAtRisk = () => {
+        if (!canEditReport(user, 'at-risk-students')) return;
         exportToCSV(atRiskStudents.map(a => ({
             'Name': `${a.student.last_name}, ${a.student.first_name}`,
             'Subject': a.subjectName,
             'Grade': a.grade,
             'Section': a.student.student_section || '',
-        })), `At_Risk_Students_Q${selectedQuarter}`);
+        })), `At_Risk_Students_T${selectedQuarter}`);
     };
 
-    const QuarterSelector = () => (
-        <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-500 uppercase">Quarter:</span>
-            {([1, 2, 3, 4] as const).map(q => (
+    const renderQuarterSelector = () => (
+        <div className="flex items-center p-1 bg-gray-100/80 rounded-xl w-fit">
+            {([1, 2, 3] as const).map(q => (
                 <button
                     key={q}
                     onClick={() => setSelectedQuarter(q)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedQuarter === q
-                        ? 'bg-deped-blue text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    className={`px-5 py-2 rounded-lg text-xs font-black transition-all duration-300 ${selectedQuarter === q
+                        ? 'bg-white text-green-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
                         }`}
                 >
-                    Q{q}
+                    T{q}
                 </button>
             ))}
+            {safeActiveReport === 'honor-roll' && (
+                <button
+                    onClick={() => setSelectedQuarter('overall')}
+                    className={`px-5 py-2 rounded-lg text-xs font-black transition-all duration-300 ml-1 ${selectedQuarter === 'overall'
+                        ? 'bg-green-700 text-white shadow-md'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    FINAL
+                </button>
+            )}
         </div>
     );
 
-    const SectionFilter = () => (
-        <select
-            value={selectedSectionFilter}
-            onChange={(e) => setSelectedSectionFilter(e.target.value)}
-            className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
-        >
-            <option value="all">All Sections</option>
-            {sections.map(s => (
-                <option key={s.id} value={s.id}>{s.section_name}</option>
-            ))}
-        </select>
-    );
+    const renderSectionFilter = () => {
+        if (sortedSections.length <= 1) return null;
+        return (
+            <select
+                value={selectedSectionFilter}
+                onChange={(e) => setSelectedSectionFilter(e.target.value)}
+                className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+            >
+                <option value="all">All Sections</option>
+                {sortedSections.map(s => (
+                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                ))}
+            </select>
+        );
+    };
     
     // NEW: Record Details Modal
-    const RecordDetailsModal = () => {
+    const renderRecordDetailsModal = () => {
         if (!selectedDetailMetric) return null;
 
         const records = selectedDetailMetric === 'total' 
@@ -227,7 +492,7 @@ export function ReportsPage() {
                                 {selectedDetailMetric === 'total' ? 'Graded Records Log' : 'At-Risk Students List'}
                             </h3>
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
-                                Quarter {selectedQuarter} • {records.length} {records.length === 1 ? 'Record' : 'Records'} Found
+                                Term {selectedQuarter} • {records.length} {records.length === 1 ? 'Record' : 'Records'} Found
                             </p>
                         </div>
                         <button 
@@ -263,7 +528,7 @@ export function ReportsPage() {
                                             </td>
                                             <td className="py-3 px-2">
                                                 <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-bold text-gray-600">
-                                                    {student?.student_section || 'N/A'}
+                                                    {sections.find(s => s.id === student?.student_section || s.section_name === student?.student_section)?.section_name || student?.student_section || 'N/A'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-2 font-bold text-gray-600">{subject?.subject_name || 'Deleted Subject'}</td>
@@ -301,7 +566,7 @@ export function ReportsPage() {
         );
     };
 
-    if (activeReport) {
+    if (safeActiveReport) {
         return (
             <div className="space-y-6 pb-8">
                 <motion.div
@@ -318,23 +583,29 @@ export function ReportsPage() {
                         </button>
                         <div>
                             <h2 className="text-2xl font-extrabold text-deped-blue">
-                                {activeReport === 'quarterly' && 'Quarterly Summary Report'}
-                                {activeReport === 'subject' && 'Subject Performance'}
-                                {activeReport === 'progress' && 'Learner Progress Tracker'}
-                                {activeReport === 'at-risk' && 'At-Risk Students Report'}
+                                {safeActiveReport === 'quarterly' && 'Term Summary Report'}
+                                {safeActiveReport === 'subject' && 'Subject Performance'}
+                                {safeActiveReport === 'progress' && 'Learner Progress Tracker'}
+                                {safeActiveReport === 'at-risk' && 'At-Risk Students Report'}
+                                {safeActiveReport === 'honor-roll' && 'Honor Roll Report'}
                             </h2>
+                            {sortedSections.length === 1 && (
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                    Section: {activeSectionName}
+                                </p>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <SectionFilter />
-                        <QuarterSelector />
+                        {renderSectionFilter()}
+                        {renderQuarterSelector()}
                     </div>
                 </motion.div>
 
                 <AnimatePresence mode="wait">
-                    <RecordDetailsModal />
-                    {/* QUARTERLY SUMMARY */}
-                    {activeReport === 'quarterly' && (
+                    {renderRecordDetailsModal()}
+                    {/* TERM SUMMARY */}
+                    {safeActiveReport === 'quarterly' && (
                         <motion.div
                             key="quarterly"
                             initial={{ opacity: 0, y: 20 }}
@@ -342,31 +613,38 @@ export function ReportsPage() {
                             exit={{ opacity: 0 }}
                             className="space-y-6"
                         >
-                            {/* Stats */}
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                                {[
-                                    { label: 'Total Records', value: filteredRecords.filter(r => r.quarter === selectedQuarter && (Number(r.final_grade) || 0) > 0).length, color: 'blue', onClick: () => setSelectedDetailMetric('total') },
-                                    { label: 'Average Grade', value: progressData[selectedQuarter - 1]?.average || 0, color: 'green' },
-                                    { label: 'Pass Rate', value: `${progressData[selectedQuarter - 1]?.passRate || 0}%`, color: 'yellow' },
-                                    { label: 'At-Risk', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, color: 'red', onClick: () => setSelectedDetailMetric('at-risk') },
-                                ].map((stat) => (
-                                    <div 
-                                        key={stat.label} 
-                                        className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 ${stat.onClick ? 'cursor-pointer hover:border-deped-blue/30 hover:bg-blue-50/10 transition-all' : ''}`}
-                                        onClick={stat.onClick}
-                                    >
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                        <p className="text-3xl font-black text-gray-800 mt-1">{stat.value}</p>
-                                    </div>
-                                ))}
-                            </div>
+                            {(() => {
+                                const quarterlyIdx = typeof selectedQuarter === 'number' ? selectedQuarter - 1 : 0;
+                                return (
+                                    <>
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                            {[
+                                                { label: 'Total Records', value: filteredRecords.filter(r => r.quarter === selectedQuarter && (Number(r.final_grade) || 0) > 0).length, color: 'blue', onClick: () => setSelectedDetailMetric('total') },
+                                                { label: 'Average Grade', value: progressData[quarterlyIdx]?.average || 0, color: 'green' },
+                                                { label: 'Pass Rate', value: `${progressData[quarterlyIdx]?.passRate || 0}%`, color: 'yellow' },
+                                                { label: 'At-Risk', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, color: 'red', onClick: () => setSelectedDetailMetric('at-risk') },
+                                            ].map((stat) => (
+                                                <div 
+                                                    key={stat.label} 
+                                                    className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 ${stat.onClick ? 'cursor-pointer hover:border-deped-blue/30 hover:bg-blue-50/10 transition-all' : ''}`}
+                                                    onClick={stat.onClick}
+                                                >
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
+                                                    <p className="text-3xl font-black text-gray-800 mt-1">{stat.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                );
+                            })()}
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* MPS Chart */}
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <div className="flex justify-between items-center mb-4">
                                         <h3 className="font-bold text-gray-800">Mean Percentage Score (MPS)</h3>
-                                        <button onClick={handleExportMPS} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold">
+                                        <button onClick={handleExportMPS} disabled={!canEditReport(user, 'quarterly-summaries')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold disabled:opacity-40 disabled:cursor-not-allowed">
                                             <Download className="w-3 h-3" /> Export CSV
                                         </button>
                                     </div>
@@ -395,8 +673,9 @@ export function ReportsPage() {
                                                     cx="50%"
                                                     cy="50%"
                                                     outerRadius={100}
-                                                    label={({ index }: any) => {
-                                                        const entry = gradeDistribution.filter(d => d.count > 0)[index];
+                                                    label={({ index }: { index?: number }) => {
+                                                        const activeData = gradeDistribution.filter(d => d.count > 0);
+                                                        const entry = typeof index === 'number' ? activeData[index] : undefined;
                                                         return entry ? `${entry.range}: ${entry.count}` : '';
                                                     }}
                                                 >
@@ -452,7 +731,7 @@ export function ReportsPage() {
                                         </tbody>
                                     </table>
                                     {mpsData.length === 0 && (
-                                        <p className="text-center py-8 text-gray-400 italic">No graded records for Quarter {selectedQuarter}</p>
+                                        <p className="text-center py-8 text-gray-400 italic">No graded records for Term {selectedQuarter}</p>
                                     )}
                                 </div>
                             </div>
@@ -460,7 +739,7 @@ export function ReportsPage() {
                     )}
 
                     {/* SUBJECT PERFORMANCE */}
-                    {activeReport === 'subject' && (
+                    {safeActiveReport === 'subject' && (
                         <motion.div
                             key="subject"
                             initial={{ opacity: 0, y: 20 }}
@@ -468,6 +747,35 @@ export function ReportsPage() {
                             exit={{ opacity: 0 }}
                             className="space-y-6"
                         >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Overall MPS</p>
+                                    <p className="text-3xl font-black text-deped-blue mt-1">{subjectPerformanceInsights.overallMps}%</p>
+                                    <p className="text-[11px] text-gray-500 mt-1">Across {subjectPerformanceInsights.subjectCount} subjects</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Overall Pass Rate</p>
+                                    <p className="text-3xl font-black text-emerald-600 mt-1">{subjectPerformanceInsights.overallPassRate}%</p>
+                                    <p className="text-[11px] text-gray-500 mt-1">Term {selectedQuarter} graded records</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Top Subject</p>
+                                    <p className="text-lg font-black text-gray-800 mt-1 uppercase">
+                                        {subjectPerformanceInsights.strongest?.subjectName || 'N/A'}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 mt-1">MPS: {subjectPerformanceInsights.strongest?.mps ?? 0}%</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Needs Support</p>
+                                    <p className="text-lg font-black text-gray-800 mt-1 uppercase">
+                                        {subjectPerformanceInsights.weakest?.subjectName || 'N/A'}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 mt-1">
+                                        {subjectPerformanceInsights.belowTargetCount} subject(s) below 75 MPS
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Radar Chart */}
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -496,18 +804,13 @@ export function ReportsPage() {
                                     <div className="h-80">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={mpsData} margin={{ bottom: 60 }}>
-                                                <XAxis 
-                                                    dataKey="subjectName" 
-                                                    tick={(props: any) => {
-                                                        const { x, y, payload } = props;
-                                                        return (
-                                                            <g transform={`translate(${x},${y})`}>
-                                                                <text x={0} y={0} dy={16} textAnchor="end" fill="#666" fontSize={9} transform="rotate(-45)">
-                                                                    {payload.value}
-                                                                </text>
-                                                            </g>
-                                                        );
-                                                    }} 
+                                                <XAxis
+                                                    dataKey="subjectName"
+                                                    tick={{ fontSize: 9 }}
+                                                    angle={-45}
+                                                    textAnchor="end"
+                                                    interval={0}
+                                                    height={70}
                                                 />
                                                 <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
                                                 <Tooltip />
@@ -521,11 +824,86 @@ export function ReportsPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="font-bold text-gray-800">Subject Performance Details</h3>
+                                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                        Trend vs {typeof selectedQuarter === 'number' && selectedQuarter > 1 ? `T${selectedQuarter - 1}` : 'Previous Term'}
+                                    </p>
+                                </div>
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="bg-gray-50 text-left">
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Rank</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Subject</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">MPS</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Pass Rate</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Students</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Trend</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {subjectComparisonRows.map((row) => (
+                                            <tr key={row.subjectName} className="hover:bg-gray-50">
+                                                <td className="px-4 py-3 font-black text-gray-600">#{row.rank}</td>
+                                                <td className="px-4 py-3 font-bold text-sm text-gray-800">{row.subjectName}</td>
+                                                <td className="px-4 py-3 text-center text-sm font-black text-deped-blue">{row.mps}%</td>
+                                                <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{row.passRate}%</td>
+                                                <td className="px-4 py-3 text-center text-sm text-gray-500">{row.totalStudents}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {row.delta === null ? (
+                                                        <span className="text-xs font-bold text-gray-400">N/A</span>
+                                                    ) : row.delta > 0 ? (
+                                                        <span className="text-xs font-black text-emerald-600">+{row.delta}</span>
+                                                    ) : row.delta < 0 ? (
+                                                        <span className="text-xs font-black text-red-600">{row.delta}</span>
+                                                    ) : (
+                                                        <span className="text-xs font-bold text-gray-500">0.00</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {subjectComparisonRows.length === 0 && (
+                                    <p className="text-center py-8 text-gray-400 italic">No graded records for Term {selectedQuarter}</p>
+                                )}
+                            </div>
+
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold text-gray-800 mb-4">Intervention Insights</h3>
+                                <div className="space-y-3">
+                                    {subjectInterventions.map((item) => (
+                                        <div key={item.subjectName} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="font-black text-gray-800 text-sm uppercase">{item.subjectName}</p>
+                                                    <p className="text-xs font-bold text-gray-500 mt-0.5">MPS: {item.mps}% • Pass Rate: {item.passRate}%</p>
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
+                                                    item.priority === 'Urgent'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : item.priority === 'Remediation'
+                                                            ? 'bg-amber-100 text-amber-700'
+                                                            : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {item.priority}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-600 mt-2 leading-relaxed">{item.action}</p>
+                                        </div>
+                                    ))}
+                                    {subjectInterventions.length === 0 && (
+                                        <p className="text-center py-6 text-gray-400 italic">No intervention insight available for this term.</p>
+                                    )}
+                                </div>
+                            </div>
                         </motion.div>
                     )}
 
                     {/* LEARNER PROGRESS */}
-                    {activeReport === 'progress' && (
+                    {safeActiveReport === 'progress' && (
                         <motion.div
                             key="progress"
                             initial={{ opacity: 0, y: 20 }}
@@ -533,8 +911,34 @@ export function ReportsPage() {
                             exit={{ opacity: 0 }}
                             className="space-y-6"
                         >
+                            {/* Progress Summary */}
+                            {progressInsights && (
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-blue-100 rounded-xl">
+                                            <TrendingUp className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-gray-800">Academic Growth Summary</h3>
+                                            <p className="text-sm text-gray-600">
+                                                From T1 to T3: Grade improved by {progressInsights.gradeImprovement > 0 ? '+' : ''}{progressInsights.gradeImprovement} points,
+                                                Pass Rate by {progressInsights.passImprovement > 0 ? '+' : ''}{progressInsights.passImprovement}%
+                                                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
+                                                    progressInsights.overallTrend === 'improving' ? 'bg-green-100 text-green-700' :
+                                                    progressInsights.overallTrend === 'declining' ? 'bg-red-100 text-red-700' :
+                                                    'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                    {progressInsights.overallTrend === 'improving' ? 'Improving' :
+                                                     progressInsights.overallTrend === 'declining' ? 'Declining' : 'Stable'}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-4">Academic Progress Across Quarters</h3>
+                                <h3 className="font-bold text-gray-800 mb-4">Academic Progress Across Terms</h3>
                                 <div className="h-80">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={progressData}>
@@ -550,26 +954,88 @@ export function ReportsPage() {
                             </div>
 
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-4">Quarter-by-Quarter Stats</h3>
+                                <h3 className="font-bold text-gray-800 mb-4">Term-by-Term Stats</h3>
                                 <div className="grid grid-cols-4 gap-4">
-                                    {progressData.map(p => (
-                                        <div key={p.quarter} className={`p-4 rounded-xl border-2 transition-all ${p.quarter === `Q${selectedQuarter}` ? 'border-deped-blue bg-blue-50' : 'border-gray-100'}`}>
-                                            <p className="text-lg font-black text-deped-blue">{p.quarter}</p>
-                                            <p className="text-2xl font-black text-gray-800">{p.average || '—'}</p>
-                                            <p className="text-xs text-gray-500 font-bold">Avg Grade</p>
-                                            <div className="mt-2 pt-2 border-t border-gray-100">
-                                                <p className="text-sm font-bold text-green-600">{p.passRate}% Pass</p>
-                                                <p className="text-[10px] text-gray-400">{p.totalRecords} records</p>
+                                    {progressData.map((p, idx) => {
+                                        const prev = idx > 0 ? progressData[idx - 1] : null;
+                                        const gradeChange = prev ? p.average - prev.average : 0;
+                                        const passChange = prev ? p.passRate - prev.passRate : 0;
+
+                                        return (
+                                            <div key={p.quarter} className={`p-4 rounded-xl border-2 transition-all ${p.quarter === `T${selectedQuarter}` ? 'border-deped-blue bg-blue-50' : 'border-gray-100'}`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <p className="text-lg font-black text-deped-blue">{p.quarter}</p>
+                                                    {prev && (
+                                                        <div className="flex items-center gap-1">
+                                                            {gradeChange > 0 ? <ArrowUp className="w-3 h-3 text-green-600" /> :
+                                                             gradeChange < 0 ? <ArrowDown className="w-3 h-3 text-red-600" /> :
+                                                             <Minus className="w-3 h-3 text-gray-600" />}
+                                                            <span className={`text-xs font-bold ${gradeChange > 0 ? 'text-green-600' : gradeChange < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                                {gradeChange > 0 ? '+' : ''}{Math.round(gradeChange * 100) / 100}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-2xl font-black text-gray-800">{p.average || '—'}</p>
+                                                <p className="text-xs text-gray-500 font-bold">Avg Grade</p>
+                                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                                    <p className="text-sm font-bold text-green-600">{p.passRate}% Pass</p>
+                                                    <p className="text-[10px] text-gray-400">{p.totalRecords} records</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
+
+                            {/* Subject Progress Table */}
+                            {progressInsights?.subjectProgress && progressInsights.subjectProgress.length > 0 && (
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                                    <h3 className="font-bold text-gray-800 mb-4">Subject Progress Details</h3>
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gray-50 text-left">
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Subject</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T1 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T2 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T3 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Improvement</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {progressInsights.subjectProgress.map((subj) => {
+                                                const t1 = subj.data.find((d: any) => d.term === 1)?.average || 0;
+                                                const t3 = subj.data.find((d: any) => d.term === 3)?.average || 0;
+                                                const improvement = t3 - t1;
+
+                                                return (
+                                                    <tr key={subj.subject} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-3 font-bold text-sm text-gray-800">{subj.subject}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t1 || '—'}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{subj.data.find((d: any) => d.term === 2)?.average || '—'}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t3 || '—'}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {improvement !== 0 ? (
+                                                                <span className={`text-sm font-bold flex items-center justify-center gap-1 ${improvement > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                    {improvement > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                                                                    {improvement > 0 ? '+' : ''}{Math.round(improvement * 100) / 100}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-sm font-bold text-gray-500">0.00</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </motion.div>
                     )}
 
                     {/* AT-RISK STUDENTS */}
-                    {activeReport === 'at-risk' && (
+                    {safeActiveReport === 'at-risk' && (
                         <motion.div
                             key="at-risk"
                             initial={{ opacity: 0, y: 20 }}
@@ -577,62 +1043,357 @@ export function ReportsPage() {
                             exit={{ opacity: 0 }}
                             className="space-y-6"
                         >
-                            <div className="flex justify-between items-center">
-                                <div className="bg-red-50 px-4 py-2 rounded-xl border border-red-100">
-                                    <span className="text-sm font-bold text-red-700">{new Set(atRiskStudents.map(a => a.student.lrn)).size} at-risk learners found in Quarter {selectedQuarter}</span>
+                            {/* Summary Stats */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-red-50 px-4 py-3 rounded-xl border border-red-100">
+                                    <p className="text-sm font-bold text-red-700">{groupedAtRiskStudents.length} at-risk learners</p>
+                                    <p className="text-xs text-red-600">Unique students failing ≥1 subject</p>
                                 </div>
-                                <button onClick={handleExportAtRisk} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border">
+                                <div className="bg-orange-50 px-4 py-3 rounded-xl border border-orange-100">
+                                    <p className="text-sm font-bold text-orange-700">{atRiskStudents.length} total failing grades</p>
+                                    <p className="text-xs text-orange-600">Individual subject failures</p>
+                                </div>
+                                <div className="bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
+                                    <p className="text-sm font-bold text-gray-700">
+                                        {groupedAtRiskStudents.length > 0 ? Math.round((groupedAtRiskStudents.reduce((sum, s) => sum + s.subjects.length, 0) / groupedAtRiskStudents.length) * 10) / 10 : 0} avg subjects failed
+                                    </p>
+                                    <p className="text-xs text-gray-600">Per at-risk student</p>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-bold text-gray-600">View Mode:</span>
+                                    <div className="flex bg-gray-100 rounded-lg p-1">
+                                        <button
+                                            onClick={() => setAtRiskViewMode('grouped')}
+                                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                                                atRiskViewMode === 'grouped' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            Grouped ({groupedAtRiskStudents.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setAtRiskViewMode('detailed')}
+                                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                                                atRiskViewMode === 'detailed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            Detailed ({atRiskStudents.length})
+                                        </button>
+                                    </div>
+                                </div>
+                                <button onClick={handleExportAtRisk} disabled={!canEditReport(user, 'at-risk-students')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
                                     <Download className="w-3 h-3" /> Export CSV
                                 </button>
                             </div>
 
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="bg-gradient-to-r from-red-600 to-rose-500 text-white">
-                                            <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
-                                            <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
-                                            <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
-                                            <th className="px-5 py-4 text-left text-xs font-bold uppercase">Subject</th>
-                                            <th className="px-5 py-4 text-center text-xs font-bold uppercase">Quarter</th>
-                                            <th className="px-5 py-4 text-center text-xs font-bold uppercase">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {atRiskStudents.map((item, idx) => (
-                                            <tr key={`${item.student.lrn}-${item.subjectName}-${idx}`} className="hover:bg-red-50/50">
-                                                <td className="px-5 py-3 text-sm text-gray-400 font-bold">{idx + 1}</td>
-                                                <td 
-                                                    className="px-5 py-3 font-bold text-sm text-deped-blue hover:text-blue-700 underline cursor-pointer uppercase transition-colors"
-                                                    onClick={() => {
-                                                        const secObj = sections.find(s => s.section_name === item.student.student_section);
-                                                        const subObj = subjects.find(s => s.subject_name === item.subjectName && s.section_id === secObj?.id);
-                                                        if (subObj && secObj) {
-                                                            setSelectedSection(secObj.section_name);
-                                                            setSelectedSubject(subObj.id);
-                                                            setCurrentView('eclass');
-                                                        }
-                                                    }}
-                                                    title={`View ${item.subjectName} Class Record`}
-                                                >
-                                                    {item.student.last_name}, {item.student.first_name}
-                                                </td>
-                                                <td className="px-5 py-3 text-sm text-gray-600">{item.student.student_section}</td>
-                                                <td className="px-5 py-3 text-sm text-gray-600">{item.subjectName}</td>
-                                                <td className="px-5 py-3 text-center text-sm font-bold text-gray-700">Q{selectedQuarter}</td>
-                                                <td className="px-5 py-3 text-center">
-                                                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black">
-                                                        {item.grade}
-                                                    </span>
-                                                </td>
+                                {atRiskViewMode === 'grouped' ? (
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gradient-to-r from-red-600 to-rose-500 text-white">
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Failing Subjects</th>
+                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Count</th>
+                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Lowest Grade</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {groupedAtRiskStudents.map((item, idx) => {
+                                                const lowestGrade = Math.min(...item.subjects.map(s => s.grade));
+                                                return (
+                                                    <tr key={item.student.lrn} className="hover:bg-red-50/50">
+                                                        <td className="px-5 py-3 text-sm text-gray-400 font-bold">{idx + 1}</td>
+                                                        <td 
+                                                            className="px-5 py-3 font-bold text-sm text-deped-blue hover:text-blue-700 underline cursor-pointer uppercase transition-colors"
+                                                            onClick={() => {
+                                                                const secObj = sections.find(s => s.section_name === item.student.student_section);
+                                                                if (secObj) {
+                                                                    setSelectedSection(secObj.section_name);
+                                                                    setCurrentView('eclass');
+                                                                }
+                                                            }}
+                                                            title="View student records"
+                                                        >
+                                                            {item.student.last_name}, {item.student.first_name}
+                                                        </td>
+                                                        <td className="px-5 py-3 text-sm text-gray-600">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
+                                                        <td className="px-5 py-3 text-sm text-gray-600">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {item.subjects.slice(0, 3).map((subj, subjIdx) => (
+                                                                    <span key={subjIdx} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-medium">
+                                                                        {subj.subjectName}: {subj.grade}
+                                                                    </span>
+                                                                ))}
+                                                                {item.subjects.length > 3 && (
+                                                                    <span className="text-xs text-gray-500 font-medium">
+                                                                        +{item.subjects.length - 3} more
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-center">
+                                                            <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-black">
+                                                                {item.subjects.length}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-center">
+                                                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black">
+                                                                {lowestGrade}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gradient-to-r from-red-600 to-rose-500 text-white">
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
+                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Subject</th>
+                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Term</th>
+                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {atRiskStudents.map((item, idx) => (
+                                                <tr key={`${item.student.lrn}-${item.subjectName}-${idx}`} className="hover:bg-red-50/50">
+                                                    <td className="px-5 py-3 text-sm text-gray-400 font-bold">{idx + 1}</td>
+                                                    <td 
+                                                        className="px-5 py-3 font-bold text-sm text-deped-blue hover:text-blue-700 underline cursor-pointer uppercase transition-colors"
+                                                        onClick={() => {
+                                                            const secObj = sections.find(s => s.section_name === item.student.student_section);
+                                                            const subObj = subjects.find(s => s.subject_name === item.subjectName && s.section_id === secObj?.id);
+                                                            if (subObj && secObj) {
+                                                                setSelectedSection(secObj.section_name);
+                                                                setSelectedSubject(subObj.id);
+                                                                setCurrentView('eclass');
+                                                            }
+                                                        }}
+                                                        title={`View ${item.subjectName} Class Record`}
+                                                    >
+                                                        {item.student.last_name}, {item.student.first_name}
+                                                    </td>
+                                                    <td className="px-5 py-3 text-sm text-gray-600">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
+                                                    <td className="px-5 py-3 text-sm text-gray-600">{item.subjectName}</td>
+                                                    <td className="px-5 py-3 text-center text-sm font-bold text-gray-700">T{selectedQuarter}</td>
+                                                    <td className="px-5 py-3 text-center">
+                                                        <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black">
+                                                            {item.grade}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
                                 {atRiskStudents.length === 0 && (
                                     <div className="text-center py-12 text-gray-400 italic">
                                         <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                        No at-risk students found for Quarter {selectedQuarter}
+                                        No at-risk students found for Term {selectedQuarter}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* HONOR ROLL REPORT */}
+                    {safeActiveReport === 'honor-roll' && (
+                        <motion.div
+                            key="honor-roll"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="space-y-6"
+                        >
+                            {/* Honor Roll Analytics Highlights */}
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                {[
+                                    { label: 'With Highest Honors', color: 'from-amber-400 to-amber-600', icon: Trophy, bg: 'bg-amber-50' },
+                                    { label: 'With High Honors', color: 'from-slate-300 to-slate-500', icon: Medal, bg: 'bg-slate-50' },
+                                    { label: 'With Honors', color: 'from-orange-400 to-orange-600', icon: Award, bg: 'bg-orange-50' },
+                                    { label: 'Total Awardees', color: 'from-green-800 to-green-950', icon: Sparkles, bg: 'bg-green-50' }
+                                ].map((type) => {
+                                    const count = type.label === 'Total Awardees' ? honorRoll.length : honorRoll.filter(h => h.honorType === type.label).length;
+                                    return (
+                                        <div key={type.label} className={`relative overflow-hidden group p-6 rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1 ${type.label === 'Total Awardees' ? 'bg-gradient-to-br ' + type.color : 'bg-white'}`}>
+                                            <div className="relative z-10">
+                                                <div className={`p-2 rounded-xl w-fit mb-3 ${type.label === 'Total Awardees' ? 'bg-white/20' : type.bg}`}>
+                                                    <type.icon className={`w-5 h-5 ${type.label === 'Total Awardees' ? 'text-white' : 'text-' + type.color.split('-')[1] + '-600'}`} />
+                                                </div>
+                                                <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${type.label === 'Total Awardees' ? 'text-green-100' : 'text-gray-400'}`}>{type.label}</p>
+                                                <div className="flex items-baseline gap-2 mt-1">
+                                                    <p className={`text-4xl font-black ${type.label === 'Total Awardees' ? 'text-white' : 'text-gray-800'}`}>{count}</p>
+                                                    {count > 0 && <span className={`text-[10px] font-bold ${type.label === 'Total Awardees' ? 'text-green-300' : 'text-green-600'}`}>Active</span>}
+                                                </div>
+                                            </div>
+                                            <type.icon className={`absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] ${type.label === 'Total Awardees' ? 'text-white' : 'text-black'}`} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button onClick={handleExportHonorRoll} disabled={!canEditReport(user, 'honor-roll')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <Download className="w-3 h-3" /> Export CSV
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {groupedHonorData.map(group => {
+                                    const achievementRate = Math.min(100, (group.items.length / 5) * 100); 
+                                    
+                                    return (
+                                        <div key={group.groupName} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
+                                            {/* Modern Glass Header */}
+                                            <div className="bg-gradient-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
+                                                <div className="absolute inset-0 bg-white/5 opacity-10"></div>
+                                                <div className="relative z-10">
+                                                    <div className="flex items-center gap-3">
+                                                        <h3 className="font-black text-white text-2xl tracking-tighter">{group.groupName}</h3>
+                                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border border-white/10">Official Report</span>
+                                                    </div>
+                                                    <p className="text-green-100/60 text-[10px] font-bold uppercase tracking-widest mt-1">Academic Achievement Dashboard</p>
+                                                </div>
+                                                <div className="relative z-10 flex gap-4">
+                                                    <div className="text-right">
+                                                        <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.items.length}</p>
+                                                        <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Honors</p>
+                                                    </div>
+                                                    <div className="w-px h-8 bg-white/10 my-auto"></div>
+                                                    <div className="text-right">
+                                                        <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.awards.length}</p>
+                                                        <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Subjects</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Achievement Analytics Bar */}
+                                            <div className="bg-green-50/50 px-8 py-2 border-b border-green-100/50 flex items-center gap-4">
+                                                <TrendingUp className="w-3 h-3 text-green-600" />
+                                                <div className="flex-1 h-1.5 bg-green-200/50 rounded-full overflow-hidden">
+                                                    <motion.div 
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${achievementRate}%` }}
+                                                        className="h-full bg-green-600 rounded-full"
+                                                    />
+                                                </div>
+                                                <span className="text-[10px] font-black text-green-800">{Math.round(achievementRate)}% Achievement Intensity</span>
+                                            </div>
+
+                                            {group.items.length > 0 && (
+                                                <div className="px-2 pt-2">
+                                                    <table className="w-full">
+                                                        <thead>
+                                                            <tr className="text-gray-400 text-left underline-offset-4">
+                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest w-16">Rank</th>
+                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student Excellence</th>
+                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Award Category</th>
+                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Gen. Avg</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-50">
+                                                            {group.items.map((item, idx) => (
+                                                                <tr key={`${item.student.lrn}-${idx}`} className="hover:bg-green-50/30 transition-colors group/row">
+                                                                    <td className="px-6 py-5">
+                                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${
+                                                                            idx === 0 ? 'bg-amber-100 text-amber-600' : 
+                                                                            idx === 1 ? 'bg-slate-100 text-slate-500' : 
+                                                                            idx === 2 ? 'bg-orange-100 text-orange-600' : 'text-gray-400'
+                                                                        }`}>
+                                                                            {idx < 3 ? <Trophy className="w-4 h-4" /> : idx + 1}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-5">
+                                                                        <p className="font-black text-gray-800 uppercase tracking-tight group-hover/row:text-green-900 transition-colors">
+                                                                            {item.student.last_name}, {item.student.first_name}
+                                                                        </p>
+                                                                        <p className="text-[10px] font-bold text-gray-400 uppercase">{item.student.lrn}</p>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 text-center">
+                                                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border ${
+                                                                            item.honorType === 'With Highest Honors' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                            item.honorType === 'With High Honors' ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                                                                            'bg-orange-50 text-orange-700 border-orange-200'
+                                                                        }`}>
+                                                                            {item.honorType}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 text-right">
+                                                                        <p className="text-lg font-black text-gray-900 tracking-tighter">{item.generalAverage}</p>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+
+                                            {group.awards.length > 0 && (
+                                                <div className="p-8 bg-gray-50/30 border-t border-gray-100">
+                                                    <button 
+                                                        onClick={() => setExpandedSubjectAwards(prev => ({ ...prev, [group.groupName]: !prev[group.groupName] }))}
+                                                        className="w-full flex items-center justify-between group/btn"
+                                                    >
+                                                        <div className="flex items-center gap-3 text-xs font-black text-gray-400 uppercase tracking-[0.2em] group-hover/btn:text-green-800 transition-colors">
+                                                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                                <Target className="w-4 h-4 text-green-600" />
+                                                            </div>
+                                                            Subject Excellence Matrix ({group.awards.length})
+                                                        </div>
+                                                        <div className={`p-2 rounded-full transition-all ${expandedSubjectAwards[group.groupName] ? 'bg-green-100 text-green-700 rotate-180' : 'bg-gray-100 text-gray-400'}`}>
+                                                            <ChevronDown className="w-4 h-4" />
+                                                        </div>
+                                                    </button>
+                                                    
+                                                    <AnimatePresence>
+                                                        {expandedSubjectAwards[group.groupName] && (
+                                                            <motion.div
+                                                                initial={{ height: 0, opacity: 0 }}
+                                                                animate={{ height: 'auto', opacity: 1 }}
+                                                                exit={{ height: 0, opacity: 0 }}
+                                                                className="overflow-hidden"
+                                                            >
+                                                                <div className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                    {group.awards.map((award, idx) => (
+                                                                        <div key={`${award.subjectName}-${idx}`} className="bg-white p-5 rounded-[1.5rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+                                                                            <div className="absolute top-0 right-0 p-4">
+                                                                                <Medal className="w-10 h-10 text-green-500/10" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-green-600 uppercase tracking-widest border-b border-green-50 pb-2 mb-3">{award.subjectName}</p>
+                                                                                <p className="text-md font-black text-gray-800 uppercase leading-snug tracking-tight">{award.studentName}</p>
+                                                                            </div>
+                                                                            <div className="mt-4 pt-4 flex items-center justify-between">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Performance</span>
+                                                                                </div>
+                                                                                <span className="text-xl font-black text-green-900 tracking-tighter">{award.grade}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+
+                                {groupedHonorData.length === 0 && (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-12 text-gray-400 italic">
+                                        <Award className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                        No honor students or subject awardees found for {selectedQuarter === 'overall' ? 'the entire year' : `Term ${selectedQuarter}`}
                                     </div>
                                 )}
                             </div>
@@ -652,11 +1413,10 @@ export function ReportsPage() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                    { label: 'Honor Students', value: honorRoll.length, icon: Award, color: 'emerald', action: () => setActiveReport('quarterly') },
-                    { label: 'At-Risk Learners', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, icon: AlertTriangle, color: 'red', action: () => setActiveReport('at-risk') },
-                    { label: 'Total Subjects', value: subjects.length, icon: BarChart3, color: 'blue', action: () => setActiveReport('subject') },
+                    { label: 'Honor Students', value: honorRoll.length, icon: Award, color: 'emerald', action: () => openReport('quarterly') },
+                    { label: 'At-Risk Learners', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, icon: AlertTriangle, color: 'red', action: () => openReport('at-risk') },
                     { label: 'Total Enrollees', value: validStudents.length, icon: Users, color: 'purple', action: null },
                 ].map((stat) => (
                     <div 
@@ -678,34 +1438,39 @@ export function ReportsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Consolidated Grades Card */}
-                <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-xl shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group">
+                {/* Certificate Generator Card */}
+                {canViewReport(user, 'certificate-generator') && (
+                <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-xl shadow-lg border border-indigo-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
                     <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-600 transition-colors duration-300">
-                            <FileSpreadsheet className="w-8 h-8 text-deped-blue group-hover:text-white" />
+                        <div className="p-3 bg-indigo-100 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
+                            <Award className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full animate-pulse shadow-sm shadow-indigo-200">NEW TOOL</span>
+                            <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded">DepEd Format</span>
                         </div>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Consolidated Grade Sheet</h3>
-                    <p className="text-gray-600 mb-6 text-sm line-clamp-2">
-                        View and print the Master Sheet of Grades (Final Grades and General Average) per section.
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Certificate Generator</h3>
+                    <p className="text-gray-600 mb-6 text-sm">
+                        Create pixel-perfect DepEd Certificates of Recognition for awardees and honor students.
                     </p>
-                    <button
-                        onClick={() => setCurrentView('consolidated-grades')}
-                        className="w-full flex items-center justify-center gap-2 bg-deped-blue text-white py-3 rounded-lg hover:bg-blue-700 transition-all font-medium group-hover:shadow-md"
-                    >
-                        View Master Sheet <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-3 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all font-medium flex items-center justify-center gap-2">
+                         Open Generator <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
 
-                {/* Quarterly Summaries */}
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => setActiveReport('quarterly')}>
+
+                {/* Term Summaries */}
+                {canViewReport(user, 'quarterly-summaries') && (
+                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('quarterly')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-green-50 rounded-lg group-hover:bg-green-600 transition-colors duration-300">
                             <BarChart3 className="w-8 h-8 text-green-600 group-hover:text-white" />
                         </div>
                         <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Quarterly Summaries</h3>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Term Summaries</h3>
                     <p className="text-gray-600 mb-6 text-sm">
                         View Mean Percentage Scores (MPS), Grade Distribution, and Pass/Fail rates.
                     </p>
@@ -713,9 +1478,11 @@ export function ReportsPage() {
                         Generate Report <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
 
                 {/* Subject Performance */}
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => setActiveReport('subject')}>
+                {canViewReport(user, 'subject-performance') && (
+                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('subject')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-purple-50 rounded-lg group-hover:bg-purple-600 transition-colors duration-300">
                             <PieChartIcon className="w-8 h-8 text-purple-600 group-hover:text-white" />
@@ -730,9 +1497,11 @@ export function ReportsPage() {
                         View Comparison <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
 
                 {/* Learner Progress */}
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => setActiveReport('progress')}>
+                {canViewReport(user, 'learner-progress') && (
+                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('progress')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-orange-50 rounded-lg group-hover:bg-orange-600 transition-colors duration-300">
                             <TrendingUp className="w-8 h-8 text-orange-600 group-hover:text-white" />
@@ -741,15 +1510,17 @@ export function ReportsPage() {
                     </div>
                     <h3 className="text-xl font-bold text-gray-800 mb-2">Learner Progress</h3>
                     <p className="text-gray-600 mb-6 text-sm">
-                        Track academic growth and milestones over time across all quarters.
+                        Track academic growth and milestones over time across all terms.
                     </p>
                     <button className="w-full py-3 rounded-lg border border-gray-200 text-gray-600 hover:border-orange-600 hover:text-orange-600 transition-colors font-medium flex items-center justify-center gap-2">
                         Track Progress <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
 
                 {/* At-Risk Students */}
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => setActiveReport('at-risk')}>
+                {canViewReport(user, 'at-risk-students') && (
+                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('at-risk')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-red-50 rounded-lg group-hover:bg-red-600 transition-colors duration-300">
                             <AlertTriangle className="w-8 h-8 text-red-600 group-hover:text-white" />
@@ -764,38 +1535,26 @@ export function ReportsPage() {
                         View Report <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
 
                 {/* Honor Roll */}
-                <div className="bg-gradient-to-br from-amber-50 to-white p-6 rounded-xl shadow border border-amber-100 hover:shadow-lg transition-all duration-300 group">
+                {canViewReport(user, 'honor-roll') && (
+                <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-xl shadow border border-green-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('honor-roll')}>
                     <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-500 transition-colors duration-300">
-                            <Award className="w-8 h-8 text-amber-600 group-hover:text-white" />
+                        <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-900 transition-colors duration-300">
+                            <Award className="w-8 h-8 text-green-900 group-hover:text-white" />
                         </div>
-                        <span className="bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <span className="bg-green-100 text-green-900 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Honor Roll</h3>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Honor Roll Report</h3>
                     <p className="text-gray-600 mb-6 text-sm">
-                        Auto-generated honor roll: Highest Honors (98+), High Honors (95+), Honors (90+).
+                        View detailed list of students With Highest Honors, High Honors, and Honors per Term and EOSY calculations.
                     </p>
-                    <div className="space-y-2 mb-4">
-                        {honorRoll.length > 0 ? (
-                            honorRoll.slice(0, 3).map(h => (
-                                <div key={h.student.lrn} className="flex items-center justify-between text-sm bg-amber-50/50 p-2 rounded-lg">
-                                    <span className="font-bold text-gray-700 uppercase text-xs">{h.student.last_name}, {h.student.first_name}</span>
-                                    <span className="text-xs font-black text-amber-700">{h.generalAverage}</span>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-xs text-gray-400 italic text-center py-2">No honor students for Q{selectedQuarter}</p>
-                        )}
-                    </div>
-                    <button
-                        onClick={handleExportHonorRoll}
-                        className="w-full py-3 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500 transition-all font-medium flex items-center justify-center gap-2"
-                    >
-                        <Download className="w-4 h-4" /> Export Honor Roll
+                    <button className="w-full py-3 rounded-lg border border-green-800 text-green-900 hover:bg-green-900 hover:text-white transition-all font-medium flex items-center justify-center gap-2">
+                        View Honor Roll <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
+                )}
             </div>
         </div>
     );

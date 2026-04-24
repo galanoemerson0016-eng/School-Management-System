@@ -69,7 +69,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                 const sheet = workbook.Sheets[sheetName];
 
                 // Convert to array of arrays (0-indexed rows and cols)
-                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
                 const students: Student[] = [];
                 let isScanningMales = true;
@@ -91,9 +91,14 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         break; // End of list
                     }
 
-                    // Extract LRN (Col A -> Index 0)
-                    const lrnRaw = row[0];
-                    if (!lrnRaw) continue; // Skip empty rows
+                    // Extract LRN (Col A/Index 0 is primary in this version, fallback to Col B)
+                    let lrnRaw = row[0];
+                    if (!lrnRaw) {
+                        lrnRaw = row[1];
+                    }
+                    
+                    if (!lrnRaw) continue; // Not a valid LRN (Skip rows with no LRN)
+
                     if (!colC.includes(',')) continue; // Name must have comma
 
                     // Parse Name (Col C)
@@ -116,14 +121,29 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                     // Parse Age (Col J -> Index 9)
                     const age = Number(row[9]) || 0;
 
-                    // Parse Address (Col R=17, U=20, W=22)
-                    const addr1 = row[17] || '';
-                    const addr2 = row[20] || '';
-                    const addr3 = row[22] || '';
-                    const address = [addr1, addr2, addr3].filter(Boolean).join(', ');
+                    // Mother Tongue (L=11), IP (M=12), Ethnicity (N=13), Religion (O=14)
+                    const motherTongue = String(row[11] || '').trim();
+                    const isIP = String(row[12] || '').trim().toUpperCase() === 'YES' || String(row[12] || '').trim() === '/';
+                    const ethnicGroup = String(row[13] || '').trim();
+                    const religion = String(row[14] || '').trim();
+
+                    // Parse Address (Col R=17, S=18, T=19, U=20, V=21, W=22)
+                    const houseNo = String(row[17] || '').trim();
+                    const street = String(row[18] || '').trim();
+                    const barangay = String(row[20] || '').trim();
+                    const municipality = String(row[21] || '').trim();
+                    const province = String(row[22] || '').trim();
+                    const address = [houseNo, street, barangay, municipality, province].filter(Boolean).join(', ');
+
+                    // Parents (X=23/27, Y=24/31 depends on layout)
+                    // Based on KAMAGONG analysis: Father is Index 27, Mother is Index 31
+                    const fatherName = String(row[27] || row[23] || '').trim();
+                    const motherName = String(row[31] || row[24] || '').trim();
+                    const guardianName = String(row[35] || row[25] || '').trim();
+                    const relationship = String(row[36] || row[26] || '').trim();
 
                     students.push({
-                        lrn: String(lrnRaw),
+                        lrn: String(lrnRaw).trim(),
                         last_name: lastName,
                         first_name: firstName,
                         middle_name: middleName,
@@ -131,6 +151,14 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         birthday: birthdate,
                         age: age,
                         address: address,
+                        mother_tongue: motherTongue,
+                        is_ip: isIP,
+                        ethnic_group: ethnicGroup,
+                        religion: religion,
+                        father_name: fatherName,
+                        mother_name: motherName,
+                        guardian_name: guardianName,
+                        guardian_relationship: relationship,
                         grade_level: '',
                         enrollment_date: new Date().toISOString().split('T')[0]
                     });

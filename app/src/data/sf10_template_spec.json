@@ -1,0 +1,1273 @@
+{
+  "documentMeta": {
+    "id": "sf10-jhs-permanent-record",
+    "formCode": "SF10-JHS",
+    "title": "Learner Permanent Academic Record for Junior High School (SF10-JHS)",
+    "subtitle": "(Formerly Form 137)",
+    "countryHeader": "Republic of the Philippines",
+    "agencyHeader": "Department of Education",
+    "documentVersion": "SFRT Revised 2017",
+    "sourceSheets": ["Front", "Back"],
+    "pageCount": 2,
+    "orientation": "portrait",
+    "unit": "px",
+    "dpi": 96,
+    "description": "Print-accurate DepEd SF10-JHS permanent record template for school management systems"
+  },
+  "pageSettings": {
+    "width": 768,
+    "height": 1056,
+    "marginTop": 8,
+    "marginRight": 8,
+    "marginBottom": 8,
+    "marginLeft": 8,
+    "printableWidth": 752,
+    "printableHeight": 1040,
+    "backgroundPrint": true,
+    "scaleOnPrint": 1.0,
+    "allowResponsiveReflow": false,
+    "fixedLayout": true
+  },
+  "typography": {
+    "defaultFontFamily": "Arial, Helvetica, sans-serif",
+    "defaultFontSize": 10,
+    "defaultLineHeight": 1.1,
+    "tokens": {
+      "tiny": { "fontSize": 8, "fontWeight": "normal" },
+      "small": { "fontSize": 9, "fontWeight": "normal" },
+      "body": { "fontSize": 10, "fontWeight": "normal" },
+      "bodyBold": { "fontSize": 10, "fontWeight": "bold" },
+      "headerSmall": { "fontSize": 11, "fontWeight": "bold" },
+      "sectionTitle": { "fontSize": 12, "fontWeight": "bold" },
+      "mainTitle": { "fontSize": 15, "fontWeight": "bold" },
+      "subtitle": { "fontSize": 9, "fontWeight": "normal", "fontStyle": "italic" }
+    }
+  },
+  "colors": {
+    "pageBackground": "#f4f4f4",
+    "contentBackground": "#ffffff",
+    "textPrimary": "#111111",
+    "borderPrimary": "#000000",
+    "sectionFill": "#cfc79b",
+    "transparent": "transparent"
+  },
+  "borderStyles": {
+    "none": {
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0,
+      "color": "#000000"
+    },
+    "outerBox": {
+      "top": 2,
+      "right": 2,
+      "bottom": 2,
+      "left": 2,
+      "color": "#000000"
+    },
+    "headerBox": {
+      "top": 2,
+      "right": 2,
+      "bottom": 2,
+      "left": 2,
+      "color": "#000000"
+    },
+    "innerGrid": {
+      "top": 1,
+      "right": 1,
+      "bottom": 1,
+      "left": 1,
+      "color": "#000000"
+    },
+    "underlineField": {
+      "top": 0,
+      "right": 0,
+      "bottom": 2,
+      "left": 0,
+      "color": "#000000"
+    },
+    "signatureLine": {
+      "top": 0,
+      "right": 0,
+      "bottom": 2,
+      "left": 0,
+      "color": "#000000"
+    }
+  },
+  "assets": {
+    "leftLogo": {
+      "id": "depedSealPlaceholder",
+      "type": "imagePlaceholder",
+      "label": "Education Seal"
+    },
+    "rightLogo": {
+      "id": "depedLogoPlaceholder",
+      "type": "imagePlaceholder",
+      "label": "DepEd Logo"
+    }
+  },
+  "dataBindings": {
+    "learner": {
+      "lastName": "",
+      "firstName": "",
+      "nameExtension": "",
+      "middleName": "",
+      "lrn": "",
+      "birthdate": "",
+      "sex": ""
+    },
+    "eligibility": {
+      "elementaryCompleter": {
+        "checked": false
+      },
+      "generalAverage": "",
+      "citation": "",
+      "elementarySchoolName": "",
+      "elementarySchoolId": "",
+      "elementarySchoolAddress": "",
+      "pept": {
+        "checked": false,
+        "rating": "",
+        "examDate": ""
+      },
+      "als": {
+        "checked": false,
+        "rating": "",
+        "testingCenter": ""
+      },
+      "others": {
+        "checked": false,
+        "specification": ""
+      }
+    },
+    "scholasticRecords": [
+      {
+        "schoolName": "",
+        "schoolId": "",
+        "district": "",
+        "division": "",
+        "region": "",
+        "gradeLevel": "",
+        "section": "",
+        "schoolYear": "",
+        "adviserTeacher": "",
+        "signature": "",
+        "subjects": {
+          "filipino": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "english": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mathematics": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "science": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "ap": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "esp": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "tle": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mapeh": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "music": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "arts": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "physicalEducation": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "health": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "generalAverage": ""
+        },
+        "remedial": {
+          "fromDate": "",
+          "toDate": "",
+          "rows": [
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            },
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            }
+          ]
+        }
+      },
+      {
+        "schoolName": "",
+        "schoolId": "",
+        "district": "",
+        "division": "",
+        "region": "",
+        "gradeLevel": "",
+        "section": "",
+        "schoolYear": "",
+        "adviserTeacher": "",
+        "signature": "",
+        "subjects": {
+          "filipino": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "english": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mathematics": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "science": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "ap": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "esp": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "tle": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mapeh": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "music": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "arts": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "physicalEducation": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "health": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "generalAverage": ""
+        },
+        "remedial": {
+          "fromDate": "",
+          "toDate": "",
+          "rows": [
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            },
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            }
+          ]
+        }
+      },
+      {
+        "schoolName": "",
+        "schoolId": "",
+        "district": "",
+        "division": "",
+        "region": "",
+        "gradeLevel": "",
+        "section": "",
+        "schoolYear": "",
+        "adviserTeacher": "",
+        "signature": "",
+        "subjects": {
+          "filipino": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "english": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mathematics": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "science": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "ap": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "esp": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "tle": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mapeh": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "music": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "arts": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "physicalEducation": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "health": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "generalAverage": ""
+        },
+        "remedial": {
+          "fromDate": "",
+          "toDate": "",
+          "rows": [
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            },
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            }
+          ]
+        }
+      },
+      {
+        "schoolName": "",
+        "schoolId": "",
+        "district": "",
+        "division": "",
+        "region": "",
+        "gradeLevel": "",
+        "section": "",
+        "schoolYear": "",
+        "adviserTeacher": "",
+        "signature": "",
+        "subjects": {
+          "filipino": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "english": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mathematics": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "science": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "ap": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "esp": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "tle": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mapeh": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "music": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "arts": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "physicalEducation": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "health": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "generalAverage": ""
+        },
+        "remedial": {
+          "fromDate": "",
+          "toDate": "",
+          "rows": [
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            },
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            }
+          ]
+        }
+      },
+      {
+        "schoolName": "",
+        "schoolId": "",
+        "district": "",
+        "division": "",
+        "region": "",
+        "gradeLevel": "",
+        "section": "",
+        "schoolYear": "",
+        "adviserTeacher": "",
+        "signature": "",
+        "subjects": {
+          "filipino": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "english": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mathematics": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "science": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "ap": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "esp": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "tle": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "mapeh": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "music": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "arts": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "physicalEducation": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "health": { "q1": "", "q2": "", "q3": "", "q4": "", "finalRating": "", "remarks": "" },
+          "generalAverage": ""
+        },
+        "remedial": {
+          "fromDate": "",
+          "toDate": "",
+          "rows": [
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            },
+            {
+              "learningArea": "",
+              "finalRating": "",
+              "remedialClassMark": "",
+              "recomputedFinalGrade": "",
+              "remarks": ""
+            }
+          ]
+        }
+      }
+    ],
+    "certification": {
+      "page1": {
+        "recordOf": "",
+        "lrn": "",
+        "admissionGrade": "",
+        "schoolName": "",
+        "schoolId": "",
+        "lastSchoolYearAttended": "",
+        "date": "",
+        "principalSignatureName": "",
+        "schoolSeal": ""
+      },
+      "page2": {
+        "recordOf": "",
+        "lrn": "",
+        "admissionGrade": "",
+        "schoolName": "",
+        "schoolId": "",
+        "lastSchoolYearAttended": "",
+        "date": "",
+        "principalSignatureName": "",
+        "schoolSeal": ""
+      }
+    }
+  },
+  "reusableComponents": {
+    "sectionHeaderBar": {
+      "type": "rectWithText",
+      "height": 18,
+      "fill": "#cfc79b",
+      "borderStyle": "headerBox",
+      "textStyle": "sectionTitle",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "padding": 2
+    },
+    "labeledLineField": {
+      "type": "labeledLineField",
+      "labelStyle": "body",
+      "valueStyle": "body",
+      "lineStyle": "underlineField",
+      "height": 14,
+      "required": false,
+      "readonly": false
+    },
+    "checkboxWithLabel": {
+      "type": "checkboxWithLabel",
+      "checkbox": {
+        "shape": "square",
+        "size": 9,
+        "checked": false,
+        "borderStyle": "innerGrid"
+      },
+      "labelStyle": "body",
+      "spacing": 6
+    },
+    "scholasticRecordBlockJHS": {
+      "type": "group",
+      "height": 182,
+      "childrenDescription": [
+        "headerInfoBox",
+        "ratingTable",
+        "generalAverageRow"
+      ]
+    },
+    "remedialClassesBlock": {
+      "type": "group",
+      "height": 58,
+      "childrenDescription": [
+        "titleStrip",
+        "dateRangeFields",
+        "remedialTable"
+      ]
+    },
+    "certificationBlock": {
+      "type": "group",
+      "height": 98,
+      "childrenDescription": [
+        "headerBar",
+        "certificationSentence",
+        "schoolInfoFields",
+        "signatureLines"
+      ]
+    }
+  },
+  "validationRules": {
+    "learner.lrn": {
+      "type": "string",
+      "pattern": "^[0-9]{12}$|^[0-9]{0,12}$",
+      "message": "LRN should be a 12-digit number or blank."
+    },
+    "learner.birthdate": {
+      "type": "string",
+      "pattern": "^(0[1-9]|1[0-2])\\/(0[1-9]|[12][0-9]|3[01])\\/([0-9]{4})$|^$",
+      "message": "Birthdate must be in mm/dd/yyyy format or blank."
+    },
+    "schoolYear": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{4}$|^$",
+      "message": "School Year must be in YYYY-YYYY format or blank."
+    },
+    "gradeValue": {
+      "type": "string",
+      "pattern": "^(100|[0-9]{1,2}(\\.[0-9]{1,2})?)$|^$",
+      "message": "Grade must be numeric or blank."
+    },
+    "learner.sex": {
+      "type": "string",
+      "maxLength": 10
+    }
+  },
+  "printRules": {
+    "fixedPages": true,
+    "pageBreakInsideScholasticRecord": false,
+    "pageBreakInsideRemedialBlock": false,
+    "pageBreakInsideCertification": false,
+    "fitEachPageToSingleSheet": true,
+    "preserveBackgroundFills": true,
+    "preserveAllBorders": true,
+    "noScalingDistortion": true,
+    "clipOverflow": false
+  },
+  "pages": [
+    {
+      "pageNumber": 1,
+      "id": "page1-front",
+      "elements": [
+        {
+          "id": "p1_canvas",
+          "type": "rect",
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1056,
+          "fill": "#f4f4f4",
+          "borderStyle": "none"
+        },
+        {
+          "id": "p1_form_code",
+          "type": "text",
+          "text": "SF10-JHS",
+          "x": 14,
+          "y": 12,
+          "width": 60,
+          "height": 12,
+          "fontFamily": "Arial, Helvetica, sans-serif",
+          "fontSize": 9,
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        {
+          "id": "p1_left_logo",
+          "type": "imagePlaceholder",
+          "label": "Education Seal",
+          "x": 48,
+          "y": 18,
+          "width": 58,
+          "height": 58,
+          "bindingKey": "assets.leftLogo"
+        },
+        {
+          "id": "p1_right_logo",
+          "type": "imagePlaceholder",
+          "label": "DepEd Logo",
+          "x": 628,
+          "y": 18,
+          "width": 112,
+          "height": 44,
+          "bindingKey": "assets.rightLogo"
+        },
+        {
+          "id": "p1_header_country",
+          "type": "text",
+          "text": "Republic of the Philippines",
+          "x": 260,
+          "y": 18,
+          "width": 250,
+          "height": 12,
+          "fontSize": 10,
+          "fontWeight": "normal",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_header_agency",
+          "type": "text",
+          "text": "Department of Education",
+          "x": 260,
+          "y": 30,
+          "width": 250,
+          "height": 12,
+          "fontSize": 10,
+          "fontWeight": "normal",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_header_title",
+          "type": "text",
+          "text": "Learner Permanent Academic Record for Junior High School (SF10-JHS)",
+          "x": 130,
+          "y": 44,
+          "width": 520,
+          "height": 20,
+          "fontSize": 15,
+          "fontWeight": "bold",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_header_subtitle",
+          "type": "text",
+          "text": "(Formerly Form 137)",
+          "x": 305,
+          "y": 62,
+          "width": 158,
+          "height": 12,
+          "fontSize": 9,
+          "fontWeight": "normal",
+          "fontStyle": "italic",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_learner_info_header",
+          "type": "rectWithText",
+          "text": "LEARNER'S INFORMATION",
+          "x": 10,
+          "y": 82,
+          "width": 748,
+          "height": 18,
+          "fill": "#cfc79b",
+          "borderStyle": "headerBox",
+          "fontSize": 12,
+          "fontWeight": "bold",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_li_last_name",
+          "type": "labeledLineField",
+          "label": "LAST NAME:",
+          "x": 14,
+          "y": 104,
+          "width": 220,
+          "height": 14,
+          "bindingKey": "learner.lastName"
+        },
+        {
+          "id": "p1_li_first_name",
+          "type": "labeledLineField",
+          "label": "FIRST NAME:",
+          "x": 245,
+          "y": 104,
+          "width": 205,
+          "height": 14,
+          "bindingKey": "learner.firstName"
+        },
+        {
+          "id": "p1_li_name_ext",
+          "type": "labeledLineField",
+          "label": "NAME EXT. (Jr.,II):",
+          "x": 458,
+          "y": 104,
+          "width": 125,
+          "height": 14,
+          "bindingKey": "learner.nameExtension"
+        },
+        {
+          "id": "p1_li_middle_name",
+          "type": "labeledLineField",
+          "label": "MIDDLE NAME:",
+          "x": 590,
+          "y": 104,
+          "width": 156,
+          "height": 14,
+          "bindingKey": "learner.middleName"
+        },
+        {
+          "id": "p1_li_lrn",
+          "type": "labeledLineField",
+          "label": "Learner Reference Number (LRN):",
+          "x": 14,
+          "y": 122,
+          "width": 330,
+          "height": 14,
+          "bindingKey": "learner.lrn"
+        },
+        {
+          "id": "p1_li_birthdate",
+          "type": "labeledLineField",
+          "label": "Birthdate (mm/dd/yyyy):",
+          "x": 358,
+          "y": 122,
+          "width": 230,
+          "height": 14,
+          "bindingKey": "learner.birthdate"
+        },
+        {
+          "id": "p1_li_sex",
+          "type": "labeledLineField",
+          "label": "Sex:",
+          "x": 610,
+          "y": 122,
+          "width": 136,
+          "height": 14,
+          "bindingKey": "learner.sex"
+        },
+        {
+          "id": "p1_eligibility_header",
+          "type": "rectWithText",
+          "text": "ELIGIBILITY FOR JHS ENROLMENT",
+          "x": 10,
+          "y": 150,
+          "width": 748,
+          "height": 18,
+          "fill": "#cfc79b",
+          "borderStyle": "headerBox",
+          "fontSize": 12,
+          "fontWeight": "bold",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_eligibility_box",
+          "type": "rect",
+          "x": 10,
+          "y": 168,
+          "width": 748,
+          "height": 82,
+          "fill": "#ffffff",
+          "borderStyle": "outerBox"
+        },
+        {
+          "id": "p1_el_elem_checkbox",
+          "type": "checkboxWithLabel",
+          "label": "Elementary School Completer",
+          "x": 24,
+          "y": 176,
+          "width": 200,
+          "height": 12,
+          "bindingKey": "eligibility.elementaryCompleter.checked"
+        },
+        {
+          "id": "p1_el_general_average",
+          "type": "labeledLineField",
+          "label": "General Average:",
+          "x": 285,
+          "y": 176,
+          "width": 180,
+          "height": 12,
+          "bindingKey": "eligibility.generalAverage"
+        },
+        {
+          "id": "p1_el_citation",
+          "type": "labeledLineField",
+          "label": "Citation (if Any):",
+          "x": 490,
+          "y": 176,
+          "width": 235,
+          "height": 12,
+          "bindingKey": "eligibility.citation"
+        },
+        {
+          "id": "p1_el_elem_school_name",
+          "type": "labeledLineField",
+          "label": "Name of Elementary School:",
+          "x": 24,
+          "y": 194,
+          "width": 352,
+          "height": 12,
+          "bindingKey": "eligibility.elementarySchoolName"
+        },
+        {
+          "id": "p1_el_elem_school_id",
+          "type": "labeledLineField",
+          "label": "School ID:",
+          "x": 395,
+          "y": 194,
+          "width": 110,
+          "height": 12,
+          "bindingKey": "eligibility.elementarySchoolId"
+        },
+        {
+          "id": "p1_el_elem_school_address",
+          "type": "labeledLineField",
+          "label": "Address of School:",
+          "x": 520,
+          "y": 194,
+          "width": 205,
+          "height": 12,
+          "bindingKey": "eligibility.elementarySchoolAddress"
+        },
+        {
+          "id": "p1_el_other_credential_label",
+          "type": "text",
+          "text": "Other Credential Presented",
+          "x": 16,
+          "y": 212,
+          "width": 190,
+          "height": 12,
+          "fontSize": 10,
+          "fontWeight": "normal"
+        },
+        {
+          "id": "p1_el_pept_checkbox",
+          "type": "checkboxWithLabel",
+          "label": "PEPT Passer",
+          "x": 24,
+          "y": 226,
+          "width": 95,
+          "height": 12,
+          "bindingKey": "eligibility.pept.checked"
+        },
+        {
+          "id": "p1_el_pept_rating",
+          "type": "labeledLineField",
+          "label": "Rating:",
+          "x": 121,
+          "y": 226,
+          "width": 120,
+          "height": 12,
+          "bindingKey": "eligibility.pept.rating"
+        },
+        {
+          "id": "p1_el_pept_examdate",
+          "type": "labeledLineField",
+          "label": "Date of Examination/Assessment (mm/dd/yyyy):",
+          "x": 24,
+          "y": 244,
+          "width": 350,
+          "height": 12,
+          "bindingKey": "eligibility.pept.examDate"
+        },
+        {
+          "id": "p1_el_als_checkbox",
+          "type": "checkboxWithLabel",
+          "label": "ALS A & E Passer",
+          "x": 286,
+          "y": 226,
+          "width": 115,
+          "height": 12,
+          "bindingKey": "eligibility.als.checked"
+        },
+        {
+          "id": "p1_el_als_rating",
+          "type": "labeledLineField",
+          "label": "Rating:",
+          "x": 409,
+          "y": 226,
+          "width": 120,
+          "height": 12,
+          "bindingKey": "eligibility.als.rating"
+        },
+        {
+          "id": "p1_el_als_testing_center",
+          "type": "labeledLineField",
+          "label": "Name and Address of Testing Center:",
+          "x": 390,
+          "y": 244,
+          "width": 210,
+          "height": 12,
+          "bindingKey": "eligibility.als.testingCenter"
+        },
+        {
+          "id": "p1_el_others_checkbox",
+          "type": "checkboxWithLabel",
+          "label": "Others (Pls. Specify):",
+          "x": 594,
+          "y": 226,
+          "width": 145,
+          "height": 12,
+          "bindingKey": "eligibility.others.checked"
+        },
+        {
+          "id": "p1_el_others_spec",
+          "type": "labeledLineField",
+          "label": "",
+          "x": 595,
+          "y": 244,
+          "width": 140,
+          "height": 12,
+          "bindingKey": "eligibility.others.specification"
+        },
+        {
+          "id": "p1_scholastic_header",
+          "type": "rectWithText",
+          "text": "SCHOLASTIC RECORD",
+          "x": 10,
+          "y": 272,
+          "width": 748,
+          "height": 18,
+          "fill": "#cfc79b",
+          "borderStyle": "headerBox",
+          "fontSize": 12,
+          "fontWeight": "bold",
+          "textAlign": "center"
+        },
+        {
+          "id": "p1_record_0",
+          "type": "scholasticRecordBlock",
+          "x": 10,
+          "y": 292,
+          "width": 748,
+          "height": 206,
+          "recordIndex": 0,
+          "bindingKey": "scholasticRecords[0]",
+          "headerFields": [
+            { "label": "School:", "bindingKey": "scholasticRecords[0].schoolName", "x": 4, "y": 2, "width": 160 },
+            { "label": "School ID:", "bindingKey": "scholasticRecords[0].schoolId", "x": 170, "y": 2, "width": 130 },
+            { "label": "District:", "bindingKey": "scholasticRecords[0].district", "x": 305, "y": 2, "width": 160 },
+            { "label": "Division:", "bindingKey": "scholasticRecords[0].division", "x": 472, "y": 2, "width": 160 },
+            { "label": "Region:", "bindingKey": "scholasticRecords[0].region", "x": 640, "y": 2, "width": 96 },
+            { "label": "Classified as Grade:", "bindingKey": "scholasticRecords[0].gradeLevel", "x": 4, "y": 20, "width": 115 },
+            { "label": "Section:", "bindingKey": "scholasticRecords[0].section", "x": 125, "y": 20, "width": 95 },
+            { "label": "School Year:", "bindingKey": "scholasticRecords[0].schoolYear", "x": 225, "y": 20, "width": 130 },
+            { "label": "Name of Adviser/Teacher:", "bindingKey": "scholasticRecords[0].adviserTeacher", "x": 360, "y": 20, "width": 215 },
+            { "label": "Signature:", "bindingKey": "scholasticRecords[0].signature", "x": 580, "y": 20, "width": 156 }
+          ],
+          "table": {
+            "x": 0,
+            "y": 38,
+            "width": 748,
+            "height": 168,
+            "columns": [
+              { "key": "learningAreas", "label": "LEARNING AREAS", "width": 310 },
+              { "key": "q1", "label": "1", "width": 54 },
+              { "key": "q2", "label": "2", "width": 54 },
+              { "key": "q3", "label": "3", "width": 54 },
+              { "key": "q4", "label": "4", "width": 54 },
+              { "key": "finalRating", "label": "FINAL RATING", "width": 80 },
+              { "key": "remarks", "label": "REMARKS", "width": 142 }
+            ],
+            "mergedHeaders": [
+              { "text": "Quarterly Rating", "x": 308, "y": 0, "width": 216, "height": 18 }
+            ],
+            "rows": [
+              { "label": "Filipino", "bindingKey": "scholasticRecords[0].subjects.filipino", "indent": 0 },
+              { "label": "English", "bindingKey": "scholasticRecords[0].subjects.english", "indent": 0 },
+              { "label": "Mathematics", "bindingKey": "scholasticRecords[0].subjects.mathematics", "indent": 0 },
+              { "label": "Science", "bindingKey": "scholasticRecords[0].subjects.science", "indent": 0 },
+              { "label": "Araling Panlipunan (AP)", "bindingKey": "scholasticRecords[0].subjects.ap", "indent": 0 },
+              { "label": "Edukasyon sa Pagpapakatao (EsP)", "bindingKey": "scholasticRecords[0].subjects.esp", "indent": 0 },
+              { "label": "Technology and Livelihood Education (TLE)", "bindingKey": "scholasticRecords[0].subjects.tle", "indent": 0 },
+              { "label": "MAPEH", "bindingKey": "scholasticRecords[0].subjects.mapeh", "indent": 0 },
+              { "label": "Music", "bindingKey": "scholasticRecords[0].subjects.music", "indent": 18, "italic": true },
+              { "label": "Arts", "bindingKey": "scholasticRecords[0].subjects.arts", "indent": 18, "italic": true },
+              { "label": "Physical Education", "bindingKey": "scholasticRecords[0].subjects.physicalEducation", "indent": 18, "italic": true },
+              { "label": "Health", "bindingKey": "scholasticRecords[0].subjects.health", "indent": 18, "italic": true },
+              { "label": "", "bindingKey": "", "indent": 0 },
+              { "label": "General Average", "bindingKey": "scholasticRecords[0].subjects.generalAverage", "indent": 0, "centered": true }
+            ]
+          }
+        },
+        {
+          "id": "p1_remedial_0",
+          "type": "remedialClassesBlock",
+          "x": 10,
+          "y": 498,
+          "width": 748,
+          "height": 66,
+          "recordIndex": 0,
+          "bindingKey": "scholasticRecords[0].remedial",
+          "dateFields": {
+            "from": "scholasticRecords[0].remedial.fromDate",
+            "to": "scholasticRecords[0].remedial.toDate"
+          },
+          "tableColumns": [
+            { "label": "Learning Areas", "width": 175 },
+            { "label": "Final Rating", "width": 112 },
+            { "label": "Remedial Class Mark", "width": 176 },
+            { "label": "Recomputed\nFinal Grade", "width": 118 },
+            { "label": "Remarks", "width": 167 }
+          ]
+        },
+        {
+          "id": "p1_record_1",
+          "type": "scholasticRecordBlock",
+          "x": 10,
+          "y": 574,
+          "width": 748,
+          "height": 206,
+          "recordIndex": 1,
+          "bindingKey": "scholasticRecords[1]",
+          "headerFields": [
+            { "label": "School:", "bindingKey": "scholasticRecords[1].schoolName", "x": 4, "y": 2, "width": 160 },
+            { "label": "School ID:", "bindingKey": "scholasticRecords[1].schoolId", "x": 170, "y": 2, "width": 130 },
+            { "label": "District:", "bindingKey": "scholasticRecords[1].district", "x": 305, "y": 2, "width": 160 },
+            { "label": "Division:", "bindingKey": "scholasticRecords[1].division", "x": 472, "y": 2, "width": 160 },
+            { "label": "Region:", "bindingKey": "scholasticRecords[1].region", "x": 640, "y": 2, "width": 96 },
+            { "label": "Classified as Grade:", "bindingKey": "scholasticRecords[1].gradeLevel", "x": 4, "y": 20, "width": 115 },
+            { "label": "Section:", "bindingKey": "scholasticRecords[1].section", "x": 125, "y": 20, "width": 95 },
+            { "label": "School Year:", "bindingKey": "scholasticRecords[1].schoolYear", "x": 225, "y": 20, "width": 130 },
+            { "label": "Name of Adviser/Teacher:", "bindingKey": "scholasticRecords[1].adviserTeacher", "x": 360, "y": 20, "width": 215 },
+            { "label": "Signature:", "bindingKey": "scholasticRecords[1].signature", "x": 580, "y": 20, "width": 156 }
+          ],
+          "table": {
+            "x": 0,
+            "y": 38,
+            "width": 748,
+            "height": 168,
+            "columns": [
+              { "key": "learningAreas", "label": "LEARNING AREAS", "width": 310 },
+              { "key": "q1", "label": "1", "width": 54 },
+              { "key": "q2", "label": "2", "width": 54 },
+              { "key": "q3", "label": "3", "width": 54 },
+              { "key": "q4", "label": "4", "width": 54 },
+              { "key": "finalRating", "label": "FINAL RATING", "width": 80 },
+              { "key": "remarks", "label": "REMARKS", "width": 142 }
+            ],
+            "mergedHeaders": [
+              { "text": "Quarterly Rating", "x": 308, "y": 0, "width": 216, "height": 18 }
+            ],
+            "rows": [
+              { "label": "Filipino", "bindingKey": "scholasticRecords[1].subjects.filipino", "indent": 0 },
+              { "label": "English", "bindingKey": "scholasticRecords[1].subjects.english", "indent": 0 },
+              { "label": "Mathematics", "bindingKey": "scholasticRecords[1].subjects.mathematics", "indent": 0 },
+              { "label": "Science", "bindingKey": "scholasticRecords[1].subjects.science", "indent": 0 },
+              { "label": "Araling Panlipunan (AP)", "bindingKey": "scholasticRecords[1].subjects.ap", "indent": 0 },
+              { "label": "Edukasyon sa Pagpapakatao (EsP)", "bindingKey": "scholasticRecords[1].subjects.esp", "indent": 0 },
+              { "label": "Technology and Livelihood Education (TLE)", "bindingKey": "scholasticRecords[1].subjects.tle", "indent": 0 },
+              { "label": "MAPEH", "bindingKey": "scholasticRecords[1].subjects.mapeh", "indent": 0 },
+              { "label": "Music", "bindingKey": "scholasticRecords[1].subjects.music", "indent": 18, "italic": true },
+              { "label": "Arts", "bindingKey": "scholasticRecords[1].subjects.arts", "indent": 18, "italic": true },
+              { "label": "Physical Education", "bindingKey": "scholasticRecords[1].subjects.physicalEducation", "indent": 18, "italic": true },
+              { "label": "Health", "bindingKey": "scholasticRecords[1].subjects.health", "indent": 18, "italic": true },
+              { "label": "", "bindingKey": "", "indent": 0 },
+              { "label": "General Average", "bindingKey": "scholasticRecords[1].subjects.generalAverage", "indent": 0, "centered": true }
+            ]
+          }
+        },
+        {
+          "id": "p1_remedial_1",
+          "type": "remedialClassesBlock",
+          "x": 10,
+          "y": 780,
+          "width": 748,
+          "height": 66,
+          "recordIndex": 1,
+          "bindingKey": "scholasticRecords[1].remedial",
+          "dateFields": {
+            "from": "scholasticRecords[1].remedial.fromDate",
+            "to": "scholasticRecords[1].remedial.toDate"
+          },
+          "tableColumns": [
+            { "label": "Learning Areas", "width": 175 },
+            { "label": "Final Rating", "width": 112 },
+            { "label": "Remedial Class Mark", "width": 176 },
+            { "label": "Recomputed\nFinal Grade", "width": 118 },
+            { "label": "Remarks", "width": 167 }
+          ]
+        },
+        {
+          "id": "p1_certification",
+          "type": "certificationBlock",
+          "x": 10,
+          "y": 852,
+          "width": 748,
+          "height": 104,
+          "bindingKey": "certification.page1",
+          "title": "CERTIFICATION",
+          "text": "I CERTIFY that this is a true record of",
+          "fields": [
+            { "label": "", "bindingKey": "certification.page1.recordOf", "x": 175, "y": 30, "width": 170 },
+            { "label": "with LRN", "bindingKey": "certification.page1.lrn", "x": 395, "y": 30, "width": 120 },
+            { "label": "and that he/she is eligible for admission to Grade", "bindingKey": "certification.page1.admissionGrade", "x": 575, "y": 30, "width": 160 },
+            { "label": "Name of School:", "bindingKey": "certification.page1.schoolName", "x": 10, "y": 50, "width": 295 },
+            { "label": "School ID:", "bindingKey": "certification.page1.schoolId", "x": 315, "y": 50, "width": 130 },
+            { "label": "Last School Year Attended:", "bindingKey": "certification.page1.lastSchoolYearAttended", "x": 455, "y": 50, "width": 175 }
+          ],
+          "signatureLines": [
+            { "label": "Date", "bindingKey": "certification.page1.date", "x": 20, "y": 80, "width": 140 },
+            { "label": "Signature of Principal/School Head over Printed Name", "bindingKey": "certification.page1.principalSignatureName", "x": 190, "y": 80, "width": 270 },
+            { "label": "(Affix School Seal Here)", "bindingKey": "certification.page1.schoolSeal", "x": 610, "y": 80, "width": 110 }
+          ]
+        }
+      ]
+    },
+    {
+      "pageNumber": 2,
+      "id": "page2-back",
+      "elements": [
+        {
+          "id": "p2_canvas",
+          "type": "rect",
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1056,
+          "fill": "#f4f4f4",
+          "borderStyle": "none"
+        },
+        {
+          "id": "p2_form_code",
+          "type": "text",
+          "text": "SF10-JHS",
+          "x": 20,
+          "y": 10,
+          "width": 60,
+          "height": 12,
+          "fontSize": 9
+        },
+        {
+          "id": "p2_page_note",
+          "type": "text",
+          "text": "Page 2 of",
+          "x": 675,
+          "y": 10,
+          "width": 65,
+          "height": 12,
+          "fontSize": 9,
+          "textAlign": "right"
+        },
+        {
+          "id": "p2_record_2",
+          "type": "scholasticRecordBlock",
+          "x": 20,
+          "y": 20,
+          "width": 720,
+          "height": 206,
+          "recordIndex": 2,
+          "bindingKey": "scholasticRecords[2]",
+          "headerFields": [
+            { "label": "School:", "bindingKey": "scholasticRecords[2].schoolName", "x": 4, "y": 2, "width": 160 },
+            { "label": "School ID:", "bindingKey": "scholasticRecords[2].schoolId", "x": 170, "y": 2, "width": 130 },
+            { "label": "District:", "bindingKey": "scholasticRecords[2].district", "x": 305, "y": 2, "width": 160 },
+            { "label": "Division:", "bindingKey": "scholasticRecords[2].division", "x": 472, "y": 2, "width": 160 },
+            { "label": "Region:", "bindingKey": "scholasticRecords[2].region", "x": 640, "y": 2, "width": 96 },
+            { "label": "Classified as Grade:", "bindingKey": "scholasticRecords[2].gradeLevel", "x": 4, "y": 20, "width": 115 },
+            { "label": "Section:", "bindingKey": "scholasticRecords[2].section", "x": 125, "y": 20, "width": 95 },
+            { "label": "School Year:", "bindingKey": "scholasticRecords[2].schoolYear", "x": 225, "y": 20, "width": 130 },
+            { "label": "Name of Adviser/Teacher:", "bindingKey": "scholasticRecords[2].adviserTeacher", "x": 360, "y": 20, "width": 215 },
+            { "label": "Signature:", "bindingKey": "scholasticRecords[2].signature", "x": 580, "y": 20, "width": 156 }
+          ]
+        },
+        {
+          "id": "p2_remedial_2",
+          "type": "remedialClassesBlock",
+          "x": 20,
+          "y": 226,
+          "width": 720,
+          "height": 66,
+          "recordIndex": 2,
+          "bindingKey": "scholasticRecords[2].remedial"
+        },
+        {
+          "id": "p2_record_3",
+          "type": "scholasticRecordBlock",
+          "x": 20,
+          "y": 300,
+          "width": 720,
+          "height": 206,
+          "recordIndex": 3,
+          "bindingKey": "scholasticRecords[3]",
+          "headerFields": [
+            { "label": "School:", "bindingKey": "scholasticRecords[3].schoolName", "x": 4, "y": 2, "width": 160 },
+            { "label": "School ID:", "bindingKey": "scholasticRecords[3].schoolId", "x": 170, "y": 2, "width": 130 },
+            { "label": "District:", "bindingKey": "scholasticRecords[3].district", "x": 305, "y": 2, "width": 160 },
+            { "label": "Division:", "bindingKey": "scholasticRecords[3].division", "x": 472, "y": 2, "width": 160 },
+            { "label": "Region:", "bindingKey": "scholasticRecords[3].region", "x": 640, "y": 2, "width": 96 },
+            { "label": "Classified as Grade:", "bindingKey": "scholasticRecords[3].gradeLevel", "x": 4, "y": 20, "width": 115 },
+            { "label": "Section:", "bindingKey": "scholasticRecords[3].section", "x": 125, "y": 20, "width": 95 },
+            { "label": "School Year:", "bindingKey": "scholasticRecords[3].schoolYear", "x": 225, "y": 20, "width": 130 },
+            { "label": "Name of Adviser/Teacher:", "bindingKey": "scholasticRecords[3].adviserTeacher", "x": 360, "y": 20, "width": 215 },
+            { "label": "Signature:", "bindingKey": "scholasticRecords[3].signature", "x": 580, "y": 20, "width": 156 }
+          ]
+        },
+        {
+          "id": "p2_remedial_3",
+          "type": "remedialClassesBlock",
+          "x": 20,
+          "y": 506,
+          "width": 720,
+          "height": 66,
+          "recordIndex": 3,
+          "bindingKey": "scholasticRecords[3].remedial"
+        },
+        {
+          "id": "p2_record_4",
+          "type": "scholasticRecordBlock",
+          "x": 20,
+          "y": 580,
+          "width": 720,
+          "height": 206,
+          "recordIndex": 4,
+          "bindingKey": "scholasticRecords[4]",
+          "headerFields": [
+            { "label": "School:", "bindingKey": "scholasticRecords[4].schoolName", "x": 4, "y": 2, "width": 160 },
+            { "label": "School ID:", "bindingKey": "scholasticRecords[4].schoolId", "x": 170, "y": 2, "width": 130 },
+            { "label": "District:", "bindingKey": "scholasticRecords[4].district", "x": 305, "y": 2, "width": 160 },
+            { "label": "Division:", "bindingKey": "scholasticRecords[3].division", "x": 472, "y": 2, "width": 160 },
+            { "label": "Region:", "bindingKey": "scholasticRecords[4].region", "x": 640, "y": 2, "width": 96 },
+            { "label": "Classified as Grade:", "bindingKey": "scholasticRecords[4].gradeLevel", "x": 4, "y": 20, "width": 115 },
+            { "label": "Section:", "bindingKey": "scholasticRecords[4].section", "x": 125, "y": 20, "width": 95 },
+            { "label": "School Year:", "bindingKey": "scholasticRecords[4].schoolYear", "x": 225, "y": 20, "width": 130 },
+            { "label": "Name of Adviser/Teacher:", "bindingKey": "scholasticRecords[4].adviserTeacher", "x": 360, "y": 20, "width": 215 },
+            { "label": "Signature:", "bindingKey": "scholasticRecords[4].signature", "x": 580, "y": 20, "width": 156 }
+          ]
+        },
+        {
+          "id": "p2_remedial_4",
+          "type": "remedialClassesBlock",
+          "x": 20,
+          "y": 786,
+          "width": 720,
+          "height": 66,
+          "recordIndex": 4,
+          "bindingKey": "scholasticRecords[4].remedial"
+        },
+        {
+          "id": "p2_transfer_note",
+          "type": "text",
+          "text": "For Transfer Out / JHS Completer Only",
+          "x": 20,
+          "y": 856,
+          "width": 220,
+          "height": 12,
+          "fontSize": 10,
+          "fontWeight": "bold",
+          "textAlign": "left"
+        },
+        {
+          "id": "p2_certification",
+          "type": "certificationBlock",
+          "x": 20,
+          "y": 870,
+          "width": 720,
+          "height": 94,
+          "bindingKey": "certification.page2",
+          "title": "CERTIFICATION",
+          "fields": [
+            { "label": "", "bindingKey": "certification.page2.recordOf", "x": 165, "y": 30, "width": 150 },
+            { "label": "with LRN", "bindingKey": "certification.page2.lrn", "x": 365, "y": 30, "width": 120 },
+            { "label": "and that he/she is eligible for admission to Grade", "bindingKey": "certification.page2.admissionGrade", "x": 495, "y": 30, "width": 170 },
+            { "label": "Name of School:", "bindingKey": "certification.page2.schoolName", "x": 10, "y": 50, "width": 280 },
+            { "label": "School ID:", "bindingKey": "certification.page2.schoolId", "x": 300, "y": 50, "width": 120 },
+            { "label": "Last School Year Attended:", "bindingKey": "certification.page2.lastSchoolYearAttended", "x": 430, "y": 50, "width": 150 }
+          ],
+          "signatureLines": [
+            { "label": "Date", "bindingKey": "certification.page2.date", "x": 24, "y": 77, "width": 130 },
+            { "label": "Signature of Principal/School Head over Printed Name", "bindingKey": "certification.page2.principalSignatureName", "x": 205, "y": 77, "width": 315 },
+            { "label": "(Affix School Seal Here)", "bindingKey": "certification.page2.schoolSeal", "x": 570, "y": 77, "width": 95 }
+          ]
+        },
+        {
+          "id": "p2_footer_note",
+          "type": "text",
+          "text": "(May add Certification box if needed)",
+          "x": 20,
+          "y": 968,
+          "width": 200,
+          "height": 12,
+          "fontSize": 9,
+          "textAlign": "left"
+        },
+        {
+          "id": "p2_revision_note",
+          "type": "text",
+          "text": "SFRT Revised 2017",
+          "x": 620,
+          "y": 968,
+          "width": 120,
+          "height": 12,
+          "fontSize": 9,
+          "fontStyle": "italic",
+          "textAlign": "right"
+        }
+      ]
+    }
+  ],
+  "rendererHints": {
+    "scholasticRecordTemplate": {
+      "headerBoxHeight": 36,
+      "headerLabelFontSize": 9,
+      "headerFieldLineOffsetY": 10,
+      "tableHeaderHeightTop": 18,
+      "tableHeaderHeightBottom": 18,
+      "bodyRowHeight": 12,
+      "generalAverageRowHeight": 14,
+      "outerBorder": 2,
+      "innerBorder": 1,
+      "mapehChildrenItalic": true,
+      "mapehChildrenIndent": 18
+    },
+    "remedialBlockTemplate": {
+      "titleStripHeight": 14,
+      "dateRowHeight": 14,
+      "tableHeaderHeight": 20,
+      "bodyRowHeight": 12,
+      "bodyRowCount": 2
+    },
+    "certificationBlockTemplate": {
+      "headerBarHeight": 18,
+      "sentenceStartY": 28,
+      "schoolInfoStartY": 48,
+      "signatureLineY": 78
+    }
+  }
+}

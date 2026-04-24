@@ -1,41 +1,155 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../stores';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+import type { Student } from '../types';
 import { motion } from 'framer-motion';
-import { Users, AlertCircle, Layers, Award, Calendar, RefreshCcw, Bell, Info } from 'lucide-react';
+import { Users, Layers, Calendar, RefreshCcw, Bell, Info, ShieldCheck, Download, FileSpreadsheet } from 'lucide-react';
+import { getTermLabel } from '../lib/terms';
+import { exportStudentsToExcel, exportGradesToExcel, exportMasterDataToExcel } from '../services/excel-export';
+
+const formatTimeAgo = (timestamp: number | null) => {
+    if (!timestamp) return 'Never';
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(timestamp).toLocaleDateString();
+};
+
+interface SubjectDetail {
+    subject_name: string;
+    subject_id: string;
+    section_id: string;
+    section_name: string;
+    grade: number;
+    quarter: 1 | 2 | 3 | 4;
+}
+
+interface GroupedStudentMetric extends Student {
+    details: SubjectDetail[];
+}
 
 export function Dashboard() {
-    const {
-        students,
-        sections,
-        subjects,
-        activeSchoolYear,
-        announcements,
-        classRecords,
-        setCurrentView,
-        setSelectedSection,
-        setSelectedSubject
-    } = useAppStore();
+    // Optimized selectors to prevent unnecessary re-renders
+    const students = useAppStore((s) => s.students);
+    const sections = useAppStore((s) => s.sections);
+    const subjects = useAppStore((s) => s.subjects);
+    const activeSchoolYear = useAppStore((s) => s.activeSchoolYear);
+    const announcements = useAppStore((s) => s.announcements);
+    const gradingSheetRecords = useAppStore((s) => s.gradingSheetRecords);
+    const setCurrentView = useAppStore((s) => s.setCurrentView);
+    const setSelectedSection = useAppStore((s) => s.setSelectedSection);
+    const setSelectedSubject = useAppStore((s) => s.setSelectedSubject);
+    const isSyncReady = useAppStore((s) => s.isSyncReady);
+    const lastBackupTime = useAppStore((s) => s.lastBackupTime);
+    const createBackup = useAppStore((s) => s.createBackup);
+    const attendanceRecords = useAppStore((s) => s.attendanceRecords);
+    const classRecords = useAppStore((s) => s.classRecords);
 
+    const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false);
+    const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '' });
     const [selectedMetric, setSelectedMetric] = useState<'at-risk' | 'top' | null>(null);
+    const [failingViewMode, setFailingViewMode] = useState<'grouped' | 'detailed'>('grouped');
 
-    // Filter Students to only those belonging to existing sections (resolves "ghost data")
-    const validSections = useMemo(() => new Set(sections.map(s => s.section_name)), [sections]);
+    const attendanceStats = useMemo(() => {
+        const last14Days = Array.from({ length: 14 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (13 - i));
+            return d.toISOString().split('T')[0];
+        });
 
-    // Unified data scope
-    const dashboardData = useMemo(() => {
-        const filteredStudents = students.filter(s => s.student_section && validSections.has(s.student_section));
+        return last14Days.map(date => {
+            const count = attendanceRecords.filter(r => r.date === date && r.status === 'absent').length;
+            return { date: date.split('-').slice(1).join('/'), count };
+        });
+    }, [attendanceRecords]);
+
+    // Attendance insights
+    const attendanceInsights = useMemo(() => {
+        const totalAbsences = attendanceStats.reduce((sum: number, day: {count: number}) => sum + day.count, 0);
+        const averageDailyAbsences = attendanceStats.length > 0 ? Math.round((totalAbsences / attendanceStats.length) * 10) / 10 : 0;
+        const peakDay = attendanceStats.reduce((max: {date: string, count: number}, day: {date: string, count: number}) => day.count > max.count ? day : max, attendanceStats[0] || { date: '', count: 0 });
         
-        // LIMIT TO VALID SUBJECTS (exclude orphaned grades for deleted subjects)
-        const validSubjectIds = new Set(subjects.map(s => s.id));
+        return {
+            totalAbsences,
+            averageDailyAbsences,
+            peakDay: peakDay?.date || 'N/A',
+            peakCount: peakDay?.count || 0
+        };
+    }, [attendanceStats]);
 
-        // AUTO-CONSOLIDATE: Group by student/subject/quarter to eliminate ghost duplicates
-        const consolidatedMap = new Map<string, typeof classRecords[0]>();
+    const handleBulkExport = () => {
+        exportMasterDataToExcel(
+            students,
+            sections,
+            subjects,
+            gradingSheetRecords,
+            useAppStore.getState().enrollments
+        );
+    };
+
+    const handleStudentExport = () => {
+        exportStudentsToExcel(students, sections);
+    };
+
+    const studentMap = useMemo(() => {
+        const map = new Map<string, typeof students[number]>();
+        for (const student of students) {
+            map.set(student.lrn, student);
+        }
+        return map;
+    }, [students]);
+
+    const subjectMap = useMemo(() => {
+        const map = new Map<string, typeof subjects[number]>();
+        for (const subject of subjects) {
+            map.set(subject.id, subject);
+        }
+        return map;
+    }, [subjects]);
+
+    const sectionMapById = useMemo(() => {
+        const map = new Map<string, typeof sections[number]>();
+        for (const section of sections) {
+            map.set(section.id, section);
+        }
+        return map;
+    }, [sections]);
+
+    const officialSections = useMemo(() => sections.filter(s => !s.is_teaching_load || s.is_advisory), [sections]);
+    const officialSubjects = useMemo(() => subjects.filter(s => {
+        const section = sections.find(sec => sec.id === s.section_id);
+        return !s.is_teaching_load || (section && section.is_advisory);
+    }), [subjects, sections]);
+
+    // Filtered Students and Section verification
+    const filteredStudents = useMemo(() => {
+        if (officialSections.length === 0) return [];
+        const validSectionIds = new Set(officialSections.map(s => s.id));
+        const validSectionNames = new Set(officialSections.map(s => s.section_name));
+        return students.filter(s => 
+            s.student_section && (validSectionIds.has(s.student_section) || validSectionNames.has(s.student_section))
+        );
+    }, [students, officialSections]);
+
+    const filteredStudentLrns = useMemo(() => {
+        return new Set(filteredStudents.map(s => s.lrn));
+    }, [filteredStudents]);
+
+    // Optimize Grade Consolidation - The most expensive part
+    const consolidatedRecords = useMemo(() => {
+        if (gradingSheetRecords.length === 0) return [];
         
-        classRecords.forEach(r => {
-            // Must belong to a valid student and subject
-            const matchesValid = filteredStudents.some(s => s.lrn === r.student_lrn) && validSubjectIds.has(r.subject_id);
-            if (!matchesValid) return;
+        const validSubjectIds = new Set(officialSubjects.map(s => s.id));
+        const consolidatedMap = new Map<string, typeof gradingSheetRecords[0]>();
+        
+        for (const r of gradingSheetRecords) {
+            // Early exit for invalid data
+            if (!filteredStudentLrns.has(r.student_lrn) || !validSubjectIds.has(r.subject_id)) {
+                continue;
+            }
 
             const key = `${r.student_lrn}_${r.subject_id}_${r.quarter}`;
             const existing = consolidatedMap.get(key);
@@ -43,94 +157,197 @@ export function Dashboard() {
             if (!existing) {
                 consolidatedMap.set(key, r);
             } else {
+                // Heuristic to pick the "best" record (latest or non-ghost)
                 const isNew = r.id.startsWith('grade_');
                 const isExistingNew = existing.id.startsWith('grade_');
 
                 if (isNew && !isExistingNew) {
-                    // Current is deterministic, existing is ghost. ALWAYS overwrite.
                     consolidatedMap.set(key, r);
-                } else if (!isNew && isExistingNew) {
-                    // Current is ghost, existing is deterministic. NEVER overwrite.
-                    return;
-                } else {
-                    // Both are same type (either both 'grade_' or both 'rec-')
-                    // Pick the one with more content or higher grade as a fallback
+                } else if (isNew === isExistingNew) {
                     if (Number(r.final_grade || 0) > Number(existing.final_grade || 0)) {
                         consolidatedMap.set(key, r);
                     }
                 }
             }
-        });
+        }
 
-        return {
-            students: filteredStudents,
-            sections: sections,
-            records: Array.from(consolidatedMap.values())
+        return Array.from(consolidatedMap.values());
+    }, [gradingSheetRecords, filteredStudentLrns, officialSubjects]);
+
+
+    // Single-pass processing for failing and top students
+    const metricsResult = useMemo(() => {
+        const failingMap = new Map<string, GroupedStudentMetric>();
+        const topMap = new Map<string, GroupedStudentMetric>();
+        const failingLrns = new Set<string>();
+        const topLrns = new Set<string>();
+
+        for (const r of consolidatedRecords) {
+            const finalGrade = Number(r.final_grade) || 0;
+            if (finalGrade === 0) continue;
+
+            const hasScores = (r.final_grade !== '');
+            
+            if (!hasScores) continue;
+
+            const student = studentMap.get(r.student_lrn);
+            if (!student) continue;
+
+            const subject = subjectMap.get(r.subject_id);
+            const section = subject?.section_id ? sectionMapById.get(subject.section_id) : undefined;
+
+            const detail: SubjectDetail = {
+                subject_name: subject?.subject_name || 'Unknown',
+                subject_id: r.subject_id,
+                section_id: section?.id || '',
+                section_name: section?.section_name || 'Unknown',
+                grade: finalGrade,
+                quarter: r.quarter as 1|2|3|4
+            };
+
+            if (finalGrade < 75) {
+                if (!failingMap.has(student.lrn)) failingMap.set(student.lrn, { ...student, details: [] });
+                failingMap.get(student.lrn)!.details.push(detail);
+                failingLrns.add(r.student_lrn);
+            } else if (finalGrade >= 90) {
+                if (!topMap.has(student.lrn)) topMap.set(student.lrn, { ...student, details: [] });
+                topMap.get(student.lrn)!.details.push(detail);
+                topLrns.add(r.student_lrn);
+            }
+        }
+
+        return { 
+            failingStudentList: Array.from(failingMap.values()), 
+            topStudentList: Array.from(topMap.values()),
+            atRiskCount: failingLrns.size,
+            topPerformersCount: topLrns.size
         };
-    }, [students, sections, classRecords, validSections, subjects]);
+    }, [consolidatedRecords, studentMap, subjectMap, sectionMapById]);
 
-    const validStudentLrns = useMemo(() => new Set(dashboardData.students.map(s => s.lrn)), [dashboardData.students]);
+    const { failingStudentList, topStudentList } = metricsResult;
 
-    // Derived Lists for Drill-down
-    const failingStudentList = useMemo(() => {
-        const failingRecords = dashboardData.records.filter(r => {
-            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
-            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
-            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
-            const hasScores = wwHasScores || ptHasScores || qaHasScore;
-
-            const finalGrade = Number(r.final_grade) || 0;
-            return validStudentLrns.has(r.student_lrn) &&
-                hasScores &&
-                finalGrade > 0 && finalGrade < 75;
+    // Group failing students by section for better organization
+    const groupedFailingStudents = useMemo(() => {
+        const sectionGroups: Record<string, GroupedStudentMetric[]> = {};
+        
+        failingStudentList.forEach(student => {
+            const sectionName = sections.find(s => s.id === student.student_section || s.section_name === student.student_section)?.section_name || student.student_section;
+            if (!sectionGroups[sectionName as string]) {
+                sectionGroups[sectionName as string] = [];
+            }
+            sectionGroups[sectionName as string].push(student);
         });
 
-        return failingRecords.map(r => {
-            const student = dashboardData.students.find(s => s.lrn === r.student_lrn);
-            const subject = subjects.find(sub => sub.id === r.subject_id);
-            const section = sections.find(sec => sec.id === subject?.section_id);
+        return Object.entries(sectionGroups)
+            .map(([sectionName, students]) => ({
+                sectionName,
+                students,
+                totalFailing: students.length,
+                totalSubjects: students.reduce((sum, s) => sum + s.details.length, 0),
+                averageGrade: students.length > 0 ? 
+                    Math.round(students.reduce((sum, s) => sum + Math.min(...s.details.map(d => d.grade)), 0) / students.length * 10) / 10 : 0
+            }))
+            .sort((a, b) => b.totalFailing - a.totalFailing);
+    }, [failingStudentList, sections]);
 
-            return {
-                ...student!,
-                subject_name: subject?.subject_name || 'Unknown',
-                subject_id: r.subject_id,
-                section_id: section?.id || '',
-                section_name: section?.section_name || 'Unknown',
-                grade: r.final_grade ?? 0,
-                quarter: r.quarter
-            };
-        });
-    }, [dashboardData.records, validStudentLrns, dashboardData.students, sections, subjects]);
-
-    const topStudentList = useMemo(() => {
-        const highRecords = dashboardData.records.filter(r => {
-            const wwHasScores = r.written_works?.some(s => (Number(s) || 0) > 0) || false;
-            const ptHasScores = r.performance_tasks?.some(s => (Number(s) || 0) > 0) || false;
-            const qaHasScore = (Number(r.quarterly_exam) || 0) > 0;
-            const hasScores = wwHasScores || ptHasScores || qaHasScore;
-
-            const finalGrade = Number(r.final_grade) || 0;
-            return validStudentLrns.has(r.student_lrn) &&
-                hasScores &&
-                finalGrade >= 90;
+    // --- NEW: Grading Progress Pulse ---
+    const gradingProgress = useMemo(() => {
+        if (officialSections.length === 0 || officialSubjects.length === 0) return 0;
+        
+        // Count expected records for the current total official environment
+        // Logic: Students x Subjects = Total Expected Grade Slots
+        let totalSlots = 0;
+        officialSections.forEach(sec => {
+            const studentCount = filteredStudents.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
+            const subjectCount = officialSubjects.filter(sub => sub.section_id === sec.id).length;
+            totalSlots += (studentCount * subjectCount);
         });
 
-        return highRecords.map(r => {
-            const student = dashboardData.students.find(s => s.lrn === r.student_lrn);
-            const subject = subjects.find(sub => sub.id === r.subject_id);
-            const section = sections.find(sec => sec.id === subject?.section_id);
+        if (totalSlots === 0) return 0;
 
-            return {
-                ...student!,
-                subject_name: subject?.subject_name || 'Unknown',
-                subject_id: r.subject_id,
-                section_id: section?.id || '',
-                section_name: section?.section_name || 'Unknown',
-                grade: r.final_grade ?? 0,
-                quarter: r.quarter
-            };
-        });
-    }, [dashboardData.records, validStudentLrns, dashboardData.students, sections, subjects]);
+        // Current quarter (heuristic: use latest quarter found in records or default to 1)
+        const currentQtr = consolidatedRecords.length > 0 ? Math.max(...consolidatedRecords.map(r => r.quarter)) : 1;
+        
+        const filledSlots = consolidatedRecords.filter(r => r.quarter === currentQtr).length;
+        return Math.min(100, Math.round((filledSlots / totalSlots) * 100));
+    }, [officialSections, officialSubjects, filteredStudents, consolidatedRecords]);
+
+    // --- NEW: Setup Health Checks ---
+    const schoolProfile = useAppStore(s => s.schoolProfile);
+    const setupIncomplete = useMemo(() => {
+        return !schoolProfile.name || !schoolProfile.school_id || !schoolProfile.region || !schoolProfile.adviser_name;
+    }, [schoolProfile]);
+
+    // Optimized Enrollment Data (Single pass)
+    const enrollmentData = useMemo(() => {
+        const gradeLevelCounts: Record<string, { male: number; female: number }> = {};
+        const sectionCounts: Record<string, { male: number; female: number }> = {};
+
+        for (const s of filteredStudents) {
+            if (!gradeLevelCounts[s.grade_level]) gradeLevelCounts[s.grade_level] = { male: 0, female: 0 };
+            
+            // Resolve section label (ID to Name if necessary)
+            let sectionLabel = s.student_section || 'Unassigned';
+            const resolved = sections.find(sec => sec.id === sectionLabel || sec.section_name === sectionLabel);
+            if (resolved) sectionLabel = resolved.section_name;
+
+            if (!sectionCounts[sectionLabel]) sectionCounts[sectionLabel] = { male: 0, female: 0 };
+            
+            if (s.gender === 'Male') {
+                gradeLevelCounts[s.grade_level].male++;
+                sectionCounts[sectionLabel].male++;
+            } else if (s.gender === 'Female') {
+                gradeLevelCounts[s.grade_level].female++;
+                sectionCounts[sectionLabel].female++;
+            }
+        }
+
+        const activeGrades = Object.entries(gradeLevelCounts).filter(([, d]) => (d.male + d.female) > 0);
+
+        // If only one grade level is present, show breakdown by section for better detail
+        if (activeGrades.length === 1) {
+            return Object.entries(sectionCounts)
+                .map(([section, data]) => ({
+                    label: section,
+                    male: data.male,
+                    female: data.female,
+                    total: data.male + data.female
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label));
+        }
+
+        const fixedGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+        return fixedGrades
+            .map(grade => ({
+                label: grade.replace('Grade ', 'G'),
+                male: gradeLevelCounts[grade]?.male || 0,
+                female: gradeLevelCounts[grade]?.female || 0,
+                total: (gradeLevelCounts[grade]?.male || 0) + (gradeLevelCounts[grade]?.female || 0)
+            }))
+            .filter(item => item.total > 0);
+    }, [filteredStudents, sections]);
+
+    const totalStudents = filteredStudents.length;
+    const maleCount = filteredStudents.filter(s => s.gender === 'Male').length;
+    const femaleCount = totalStudents - maleCount;
+
+    const genderPieData = [
+        { name: 'Male', value: maleCount, color: '#003f87' },
+        { name: 'Female', value: femaleCount, color: '#ec4899' }
+    ];
+
+    // Academic Health Score calculation
+    const academicHealthScore = useMemo(() => {
+        if (totalStudents === 0) return 100;
+        
+        const failingRate = (failingStudentList.length / totalStudents) * 100;
+        const completionRate = gradingProgress;
+        
+        // Health score: weighted average of completion rate and inverse failing rate
+        const healthScore = Math.round((completionRate * 0.6) + ((100 - failingRate) * 0.4));
+        
+        return Math.max(0, Math.min(100, healthScore));
+    }, [totalStudents, failingStudentList.length, gradingProgress]);
 
     const handleViewRecord = (sectionName: string, subjectId: string) => {
         if (!sectionName || !subjectId) return;
@@ -139,21 +356,27 @@ export function Dashboard() {
         setCurrentView('eclass');
     };
 
-    const enrollmentData = useMemo(() => {
-        const gradeLevels = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-        return gradeLevels.map(grade => {
-            const gradeStudents = dashboardData.students.filter(s => s.grade_level === grade);
-            return {
-                grade: grade.replace('Grade ', 'G'),
-                male: gradeStudents.filter(s => s.gender === 'Male').length,
-                female: gradeStudents.filter(s => s.gender === 'Female').length,
-                total: gradeStudents.length,
-            };
-        });
-    }, [dashboardData.students]);
-
-    const atRiskCount = new Set(failingStudentList.map(s => s.lrn)).size;
-    const topPerformersCount = new Set(topStudentList.map(s => s.lrn)).size;
+    const handleCreateAnnouncement = () => {
+        if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim()) return;
+        
+        const announcement = {
+            id: `announcement_${Date.now()}`,
+            announcement_title: newAnnouncement.title,
+            announcement_content: newAnnouncement.content,
+            announcement_date: new Date().toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            }),
+            announcement_type: 'general' as const
+        };
+        
+        // Add to store (assuming announcements are managed in store)
+        useAppStore.getState().setAnnouncements([...announcements, announcement]);
+        
+        setNewAnnouncement({ title: '', content: '' });
+        setShowCreateAnnouncement(false);
+    };
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -170,188 +393,389 @@ export function Dashboard() {
         visible: { y: 0, opacity: 1 }
     };
 
+    if (!isSyncReady) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+                <div className="w-12 h-12 border-4 border-deped-blue border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-gray-500 font-bold animate-pulse uppercase tracking-widest text-xs">Synchronizing School Data...</p>
+            </div>
+        );
+    }
+
+    if (students.length === 0 && gradingSheetRecords.length === 0) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="max-w-xl w-full rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">📭</div>
+                    <h3 className="text-2xl font-black text-slate-900">No records yet</h3>
+                    <p className="mt-2 text-sm text-slate-500">
+                        The dashboard has finished syncing. Your school year currently has no student or grade records.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <motion.div
-            className="space-y-5 pb-4"
-            initial="hidden"
-            animate="visible"
-            variants={containerVariants}
-        >
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <motion.div variants={itemVariants}>
-                    <h2 className="text-xl font-extrabold text-deped-blue tracking-tight">System Dashboard</h2>
-                    <p className="text-xs text-gray-500 font-medium">Academic Overview • S.Y. {activeSchoolYear}</p>
-                </motion.div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+            <div className="max-w-7xl mx-auto p-6 space-y-8">
+                {/* Modern Header */}
                 <motion.div
-                    variants={itemVariants}
-                    className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-5 py-2.5 rounded-2xl shadow-sm border border-white/20 text-sm font-bold text-deped-blue"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
                 >
-                    <Calendar className="w-4 h-4 text-deped-blue" />
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Dashboard</h1>
+                        <p className="text-slate-600 font-medium">Welcome back • School Year {activeSchoolYear}</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Modern Action Buttons */}
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleStudentExport}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 shadow-sm transition-all"
+                        >
+                            <Download className="w-4 h-4" />
+                            Export Data
+                        </motion.button>
+
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => window.location.reload()}
+                            className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 shadow-sm transition-all"
+                        >
+                            <RefreshCcw className="w-4 h-4" />
+                        </motion.button>
+
+                        {/* Modern Date Display */}
+                        <div className="px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl shadow-sm">
+                            <p className="text-sm font-semibold text-slate-700">
+                                {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                        </div>
+                    </div>
                 </motion.div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                    { label: 'Total Enrollees', value: dashboardData.students.length, sub: 'Learners', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
-                    {
-                        label: 'At-Risk Learners',
-                        value: atRiskCount,
-                        sub: 'Below 75',
-                        icon: AlertCircle,
-                        color: 'text-rose-600',
-                        bg: 'bg-rose-100',
-                        border: 'border-rose-200',
-                        onClick: () => setSelectedMetric('at-risk'),
-                        info: 'Only students with saved grades are counted.'
-                    },
-                    { label: 'Total Sections', value: dashboardData.sections.length, sub: 'Active Classes', icon: Layers, color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' },
-                    {
-                        label: 'Top Performers',
-                        value: topPerformersCount,
-                        sub: '90% and Above',
-                        icon: Award,
-                        color: 'text-emerald-600',
-                        bg: 'bg-emerald-100',
-                        border: 'border-emerald-200',
-                        onClick: () => setSelectedMetric('top')
-                    }
-                ].map((stat) => (
-                    <motion.div
-                        key={stat.label}
-                        variants={itemVariants}
-                        whileHover={{ y: -3, scale: 1.01 }}
-                        onClick={stat.onClick}
-                        className={`bg-white/70 backdrop-blur-md p-4 rounded-3xl shadow-sm border ${stat.border} flex items-center justify-between group transition-all duration-300 hover:shadow-xl hover:bg-white ${stat.onClick ? 'cursor-pointer' : ''}`}
-                    >
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                {stat.info && (
-                                    <div className="group/info relative">
-                                        <Info className="w-2.5 h-2.5 text-gray-300" />
-                                        <div className="absolute left-0 bottom-full mb-2 w-48 p-2 bg-gray-800 text-white text-[9px] rounded-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl border border-white/10">
-                                            {stat.info}
-                                        </div>
-                                    </div>
-                                )}
+                
+                {/* Key Metrics Grid */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                >
+                    {/* Total Students */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-600 mb-1">Total Students</p>
+                                <p className="text-3xl font-black text-slate-800">{totalStudents}</p>
                             </div>
-                            <p className="text-3xl font-black text-gray-800 tracking-tighter">{stat.value}</p>
-                            <p className="text-[9px] font-bold text-gray-400 uppercase">{stat.sub}</p>
+                            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <Users className="w-6 h-6 text-blue-600" />
+                            </div>
                         </div>
-                        <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
-                            <stat.icon className="w-6 h-6" />
+                        <div className="mt-4 flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <p className="text-xs text-slate-500">Active enrollment</p>
                         </div>
-                    </motion.div>
-                ))}
-            </div>
+                    </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
+                    {/* Grading Progress */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-600 mb-1">Grading Progress</p>
+                                <p className="text-3xl font-black text-slate-800">{gradingProgress}%</p>
+                            </div>
+                            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                <RefreshCcw className="w-6 h-6 text-emerald-600" />
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${gradingProgress}%` }}
+                                    transition={{ duration: 1, delay: 0.2 }}
+                                    className="bg-emerald-500 h-2 rounded-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Attendance Rate */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-600 mb-1">Attendance Rate</p>
+                                <p className="text-3xl font-black text-slate-800">
+                                    {totalStudents > 0 ? Math.round(((totalStudents - attendanceInsights.averageDailyAbsences) / totalStudents) * 100) : 100}%
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                <Calendar className="w-6 h-6 text-purple-600" />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            <p className="text-xs text-slate-500">{attendanceInsights.averageDailyAbsences} avg absences/day</p>
+                        </div>
+                    </div>
+
+                    {/* System Status */}
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-600 mb-1">System Status</p>
+                                <p className="text-lg font-black text-slate-800">Online</p>
+                            </div>
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+                                    ? 'bg-green-100'
+                                    : 'bg-amber-100'
+                            }`}>
+                                <ShieldCheck className={`w-6 h-6 ${
+                                    lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+                                        ? 'text-green-600'
+                                        : 'text-amber-600'
+                                }`} />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                    lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+                                        ? 'bg-green-500'
+                                        : 'bg-amber-500'
+                                }`}></div>
+                                <p className="text-xs text-slate-500">Last backup: {formatTimeAgo(lastBackupTime)}</p>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+
+                {/* Charts Section */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                >
+                    {/* Attendance Trend Chart */}
                     <motion.div
                         variants={itemVariants}
-                        className="bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-white/20"
+                        className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
                     >
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-deped-blue flex items-center gap-2">
-                                <div className="p-1.5 bg-blue-100 rounded-lg"><Layers className="w-4 h-4 text-blue-600" /></div>
-                                Enrollment Distribution
-                            </h3>
-                            <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-                                <span className="flex items-center gap-1.5"><div className="w-2 h-2 bg-deped-blue rounded-full" /> Male</span>
-                                <span className="flex items-center gap-1.5"><div className="w-2 h-2 bg-pink-500 rounded-full" /> Female</span>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">14-Day Absence Trend</h3>
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[10px] font-black rounded-full border border-rose-100">AUDIT TOOL</span>
+                        </div>
+                        <div className="h-48 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={attendanceStats}>
+                                    <defs>
+                                        <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
+                                    <Tooltip 
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                                        labelStyle={{ fontWeight: 800, color: '#1e293b' }}
+                                    />
+                                    <Area type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <p className="mt-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center italic">Total absences tracked across official sections</p>
+                    </motion.div>
+
+                    {/* Gender Distribution Chart */}
+                    <motion.div
+                        variants={itemVariants}
+                        className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Gender Distribution</h3>
+                            <div className="flex gap-2">
+                                <div className="w-2 h-2 rounded-full bg-[#003f87]" />
+                                <div className="w-2 h-2 rounded-full bg-[#ec4899]" />
                             </div>
                         </div>
-                        <div className="h-60 w-full">
+                        <div className="h-48 w-full flex items-center justify-center relative">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={enrollmentData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                                    <XAxis dataKey="grade" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} />
-                                    <Tooltip cursor={{ fill: '#f8fafc', radius: 10 }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
-                                    <Bar dataKey="male" fill="#003f87" name="Male" radius={[6, 6, 0, 0]} barSize={24} />
-                                    <Bar dataKey="female" fill="#ec4899" name="Female" radius={[6, 6, 0, 0]} barSize={24} />
-                                </BarChart>
+                                <PieChart>
+                                    <Pie
+                                        data={genderPieData}
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {genderPieData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
                             </ResponsiveContainer>
+                            <div className="absolute flex flex-col items-center">
+                                <span className="text-xs font-black text-slate-400 uppercase">Total</span>
+                                <span className="text-2xl font-black text-slate-900 leading-none">{totalStudents}</span>
+                            </div>
                         </div>
                     </motion.div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {[
-                            { label: 'Male', value: dashboardData.students.filter(s => s.gender === 'Male').length, total: dashboardData.students.length, icon: '♂️', bg: 'bg-blue-50', text: 'text-blue-600' },
-                            { label: 'Female', value: dashboardData.students.filter(s => s.gender === 'Female').length, total: dashboardData.students.length, icon: '♀️', bg: 'bg-pink-50', text: 'text-pink-600' }
-                        ].map((gender) => (
-                            <motion.div
-                                key={gender.label}
-                                variants={itemVariants}
-                                whileHover={{ scale: 1.01 }}
-                                className={`${gender.bg} p-4 rounded-3xl flex items-center border border-white/50 shadow-sm transition-all duration-300 hover:shadow-md`}
-                            >
-                                <div className="p-3 bg-white rounded-2xl text-xl mr-4 shadow-sm">{gender.icon}</div>
+                    {/* Attendance Insights Card */}
+                    <motion.div
+                        variants={itemVariants}
+                        className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Attendance Insights</h3>
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full border border-blue-100">ANALYTICS</span>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
                                 <div>
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{gender.label}</p>
-                                    <p className={`text-xl font-black ${gender.text}`}>
-                                        {gender.value}
-                                        <span className="text-xs text-gray-400 font-bold ml-2">
-                                            ({gender.total > 0 ? Math.round((gender.value / gender.total) * 100) : 0}%)
-                                        </span>
-                                    </p>
+                                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Total Absences</p>
+                                    <p className="text-lg font-black text-slate-900">{attendanceInsights.totalAbsences}</p>
                                 </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
+                                <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
+                                    <Users className="w-4 h-4 text-slate-600" />
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl">
+                                <div>
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Daily Average</p>
+                                    <p className="text-lg font-black text-blue-900">{attendanceInsights.averageDailyAbsences}</p>
+                                </div>
+                                <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
+                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-rose-50 rounded-xl">
+                                <div>
+                                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Peak Day</p>
+                                    <p className="text-sm font-black text-rose-900">{attendanceInsights.peakDay}</p>
+                                    <p className="text-[10px] font-bold text-rose-700">{attendanceInsights.peakCount} absences</p>
+                                </div>
+                                <div className="w-8 h-8 bg-rose-200 rounded-full flex items-center justify-center">
+                                    <Bell className="w-4 h-4 text-rose-600" />
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
 
+
+                {/* Recent Updates Section */}
                 <motion.div
-                    variants={itemVariants}
-                    className="bg-white/70 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-white/20 flex flex-col h-full overflow-hidden"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
                 >
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-deped-blue flex items-center gap-2">
-                            <div className="p-1.5 bg-indigo-100 rounded-lg"><Bell className="w-4 h-4 text-indigo-600" /></div>
-                            Updates
-                        </h3>
-                        <button className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors group" onClick={() => window.location.reload()} title="Refresh">
-                            <RefreshCcw className="w-3.5 h-3.5 text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
-                        </button>
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Recent Updates</h3>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => setShowCreateAnnouncement(true)}
+                                className="p-2 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors group"
+                                title="Create New Announcement"
+                            >
+                                <Bell className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                            </button>
+                            <Bell className="w-4 h-4 text-slate-400" />
+                        </div>
                     </div>
-                    <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar max-h-[360px]">
-                        {announcements.length > 0 ? (
-                            announcements.slice(0, 5).map((announcement, idx) => {
-                                const typeColors: Record<string, string> = {
-                                    general: 'bg-slate-50 border-slate-200 text-slate-700 ico-bg-slate-100',
-                                    urgent: 'bg-rose-50 border-rose-100 text-rose-700 ico-bg-rose-100',
-                                    event: 'bg-emerald-50 border-emerald-100 text-emerald-700 ico-bg-emerald-100',
-                                };
-                                const colors = typeColors[announcement.announcement_type] || typeColors.general;
-                                return (
-                                    <motion.div
-                                        key={announcement.id}
-                                        initial={{ x: 20, opacity: 0 }}
-                                        animate={{ x: 0, opacity: 1 }}
-                                        transition={{ delay: 0.2 + idx * 0.05 }}
-                                        className={`p-5 rounded-2xl border ${colors.split(' ')[1]} ${colors.split(' ')[0]} hover:bg-white transition-colors cursor-pointer group shadow-sm hover:shadow-md`}
+
+                    {/* Create Announcement Modal */}
+                    {showCreateAnnouncement && (
+                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                            <div className="space-y-3">
+                                <input
+                                    type="text"
+                                    placeholder="Announcement Title"
+                                    value={newAnnouncement.title}
+                                    onChange={(e) => setNewAnnouncement(prev => ({ ...prev, title: e.target.value }))}
+                                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <textarea
+                                    placeholder="Announcement Content"
+                                    value={newAnnouncement.content}
+                                    onChange={(e) => setNewAnnouncement(prev => ({ ...prev, content: e.target.value }))}
+                                    rows={3}
+                                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={handleCreateAnnouncement}
+                                        disabled={!newAnnouncement.title.trim() || !newAnnouncement.content.trim()}
+                                        className="px-4 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <p className="font-bold text-sm text-gray-800 group-hover:text-deped-blue transition-colors line-clamp-1">{announcement.announcement_title}</p>
-                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-current opacity-70">{announcement.announcement_type}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 italic">"{announcement.announcement_content}"</p>
-                                        <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                                            <Calendar className="w-3 h-3" />
+                                        Post
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setShowCreateAnnouncement(false);
+                                            setNewAnnouncement({ title: '', content: '' });
+                                        }}
+                                        className="px-4 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-300"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-4 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                        {announcements.length > 0 ? (
+                            announcements.slice(0, 3).map((announcement, idx) => (
+                                <motion.div
+                                    key={announcement.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.1 }}
+                                    className="border-l-2 border-slate-200 pl-4 py-2 hover:bg-slate-50/50 rounded-r-lg transition-colors"
+                                >
+                                    <div className="flex items-start justify-between mb-1">
+                                        <p className="text-xs font-black text-slate-800 uppercase line-clamp-1">{announcement.announcement_title}</p>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-2 flex-shrink-0">
                                             {announcement.announcement_date}
-                                        </div>
-                                    </motion.div>
-                                );
-                            })
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-600 leading-relaxed line-clamp-2">{announcement.announcement_content}</p>
+                                </motion.div>
+                            ))
                         ) : (
-                            <div className="flex flex-col items-center justify-center py-12 text-center">
-                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4"><RefreshCcw className="w-6 h-6 text-gray-300" /></div>
-                                <p className="text-sm font-bold text-gray-400 italic">No recent updates</p>
+                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mb-2">
+                                    <Bell className="w-5 h-5 text-slate-400" />
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">No recent bulletins</p>
+                                <p className="text-[9px] text-slate-300 font-bold uppercase mt-1">Click the + to create your first announcement</p>
                             </div>
                         )}
                     </div>
+
+                    {announcements.length > 3 && (
+                        <div className="mt-4 pt-3 border-t border-slate-100">
+                            <button 
+                                onClick={() => setCurrentView('announcements')}
+                                className="w-full text-center text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-700 transition-colors"
+                            >
+                                View All Announcements →
+                            </button>
+                        </div>
+                    )}
                 </motion.div>
-            </div>
 
             {/* Drill-down Modal */}
             {selectedMetric && (
@@ -374,23 +798,33 @@ export function Dashboard() {
                         </div>
                         <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
                             {(selectedMetric === 'at-risk' ? failingStudentList : topStudentList).length > 0 ? (
-                                (selectedMetric === 'at-risk' ? failingStudentList : topStudentList).map((item, idx) => (
-                                    <div key={`${item.lrn}-${item.subject_id}-${idx}`} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors border border-gray-100 group">
-                                        <div>
-                                            <p className="font-bold text-gray-800 uppercase">{item.last_name}, {item.first_name}</p>
-                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">
-                                                <span className="text-deped-blue">{item.subject_name}</span> • {item.section_name} • <span className={selectedMetric === 'at-risk' ? 'text-rose-600' : 'text-emerald-600'}>Q{item.quarter} (Grade: {item.grade})</span>
-                                            </p>
+                                (selectedMetric === 'at-risk' ? failingStudentList : topStudentList).map((student) => (
+                                    <div key={student.lrn} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-3">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-bold text-gray-800 uppercase">{student.last_name}, {student.first_name}</p>
+                                            <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">{student.details.length} subject{student.details.length > 1 ? 's' : ''}</span>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                handleViewRecord(item.section_name, item.subject_id);
-                                                setSelectedMetric(null);
-                                            }}
-                                            className={`px-4 py-1.5 rounded-xl font-black text-xs transition-all active:scale-95 ${selectedMetric === 'at-risk' ? 'bg-rose-100 text-rose-700 group-hover:bg-rose-700 group-hover:text-white' : 'bg-emerald-100 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white'}`}
-                                        >
-                                            VIEW RECORD
-                                        </button>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {student.details.map((detail, idx) => (
+                                                <div key={`${detail.subject_id}-${idx}`} className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">
+                                                            <span className="text-deped-blue line-clamp-1">{detail.subject_name}</span> 
+                                                            {detail.section_name} • <span className={selectedMetric === 'at-risk' ? 'text-rose-600' : 'text-emerald-600'}>{getTermLabel(detail.quarter)} (Grade: {detail.grade})</span>
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            handleViewRecord(detail.section_name, detail.subject_id);
+                                                            setSelectedMetric(null);
+                                                        }}
+                                                        className={`ml-2 px-3 py-1 rounded-lg font-black text-[9px] transition-all active:scale-95 ${selectedMetric === 'at-risk' ? 'bg-rose-100 text-rose-700 hover:bg-rose-700 hover:text-white' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-700 hover:text-white'}`}
+                                                    >
+                                                        VIEW
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 ))
                             ) : (
@@ -403,6 +837,7 @@ export function Dashboard() {
                     </motion.div>
                 </div>
             )}
-        </motion.div>
+            </div>
+        </div>
     );
 }

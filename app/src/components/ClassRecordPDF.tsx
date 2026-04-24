@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import type { Student } from '../types';
+import type { Student, SchoolProfile } from '../types';
 
 // Register fonts if needed, otherwise use built-in Helvetica
 // Font.register({ family: 'Roboto', src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-light-webfont.ttf' });
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
 });
 
 interface ClassRecordPDFProps {
-    schoolProfile: any;
+    schoolProfile: SchoolProfile;
     activeSchoolYear: string;
     quarter: number;
     sectionGradeLevel: string;
@@ -170,7 +170,23 @@ interface ClassRecordPDFProps {
     maleStudents: Student[];
     femaleStudents: Student[];
     // Helper function to calculate student grades needs to be passed or logic duplicated
-    getStudentSummary: (student: Student) => any;
+    getStudentSummary: (student: Student) => StudentSummary;
+}
+
+interface StudentSummary {
+    ww: number[];
+    wwTotalScore: number;
+    wwPS: number;
+    wwWS: number;
+    pt: number[];
+    ptTotalScore: number;
+    ptPS: number;
+    ptWS: number;
+    qaScore: number;
+    qaPS: number;
+    qaWS: number;
+    initialGrade: number;
+    quarterlyGrade: number;
 }
 
 export const ClassRecordPDF = ({
@@ -230,11 +246,11 @@ export const ClassRecordPDF = ({
 
     const getQuarterName = (q: number) => {
         switch (q) {
-            case 1: return 'FIRST QUARTER';
-            case 2: return 'SECOND QUARTER';
-            case 3: return 'THIRD QUARTER';
-            case 4: return 'FOURTH QUARTER';
-            default: return 'FIRST QUARTER';
+            case 1: return 'FIRST TERM';
+            case 2: return 'SECOND TERM';
+            case 3: return 'THIRD TERM';
+            case 4: return 'LEGACY QUARTER 4';
+            default: return 'FIRST TERM';
         }
     };
 
@@ -336,7 +352,7 @@ export const ClassRecordPDF = ({
                             </View>
                         </View>
                         <View style={[styles.cell, { flex: 5, backgroundColor: '#d1d5db' }]}>
-                            <Text style={{ fontWeight: 'bold', fontSize: 7 }}>QUARTERLY ASSESSMENT ({Math.round(currentWeights.quarterly_exam * 100)}%)</Text>
+                            <Text style={{ fontWeight: 'bold', fontSize: 7 }}>TERM ASSESSMENT ({Math.round(currentWeights.quarterly_exam * 100)}%)</Text>
                             <View style={{ flexDirection: 'row', width: '100%', borderTopWidth: 1, borderTopColor: '#000', marginTop: 2, backgroundColor: '#ffffff' }}>
                                 <View style={[styles.cell, { flex: 1, borderRightWidth: 1 }]}><Text>1</Text></View>
                                 <View style={[styles.cell, { flex: 1, borderRightWidth: 1, backgroundColor: '#d1d5db' }]}><Text>PS</Text></View>
@@ -344,7 +360,7 @@ export const ClassRecordPDF = ({
                             </View>
                         </View>
                         <View style={[styles.cell, styles.gradeCell, { backgroundColor: '#e0ffff' }]}><Text style={{ fontSize: 7 }}>INITIAL GRADE</Text></View>
-                        <View style={[styles.cell, styles.remarksCell, { backgroundColor: '#90ee90' }]}><Text style={{ fontSize: 7 }}>QUARTERLY GRADE</Text></View>
+                        <View style={[styles.cell, styles.remarksCell, { backgroundColor: '#90ee90' }]}><Text style={{ fontSize: 7 }}>TERM GRADE</Text></View>
                     </View>
 
                     {/* HPS Row - Web uses bg-blue-50 with gray summaries */}

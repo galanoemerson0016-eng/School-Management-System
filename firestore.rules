@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userRoles() {
+      return userDoc().roles is list
+        ? userDoc().roles
+        : (userDoc().role != null ? [userDoc().role] : []);
+    }
+
+    function hasRole(role) {
+      return signedIn() && (role in userRoles());
+    }
+
+    function canManageEnrollmentData() {
+      return hasRole('admin') ||
+        hasRole('principal') ||
+        hasRole('registrar') ||
+        hasRole('staff') ||
+        hasRole('adviser');
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || hasRole('admin'));
+      allow write: if hasRole('admin');
+    }
+
+    match /settings/schoolProfile {
+      allow read: if signedIn();
+      allow write: if hasRole('admin') || hasRole('principal');
+    }
+
+    match /students/{studentId} {
+      allow read: if signedIn();
+      allow write: if canManageEnrollmentData();
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if signedIn();
+      allow write: if canManageEnrollmentData();
+    }
+
+    match /{document=**} {
+      allow read: if signedIn();
+      allow write: if hasRole('admin');
+    }
+  }
+}

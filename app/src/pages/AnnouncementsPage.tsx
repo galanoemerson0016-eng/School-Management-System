@@ -1,12 +1,15 @@
 import { useState, type FormEvent, useEffect } from 'react';
-import { useAppStore, useSystemStore } from '../stores';
+import { useAppStore, useSystemStore, useAuthStore } from '../stores';
 import type { Announcement } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Pin, PinOff, Trash2, Plus, Search } from 'lucide-react';
+import { canManagePublicPosts } from '../lib/rbac';
 
 export function AnnouncementsPage() {
     const { announcements, addAnnouncement, deleteAnnouncement } = useAppStore();
     const { loginAnnouncement, updateLoginAnnouncement, fetchSystemSettings } = useSystemStore();
+    const { user } = useAuthStore();
+    const canManageAnnouncements = canManagePublicPosts(user);
 
     // Login Announcement Local State
     const [loginAnnouncementText, setLoginAnnouncementText] = useState(loginAnnouncement);
@@ -19,7 +22,7 @@ export function AnnouncementsPage() {
 
     useEffect(() => {
         fetchSystemSettings();
-    }, []);
+    }, [fetchSystemSettings]);
 
     useEffect(() => {
         setLoginAnnouncementText(loginAnnouncement);
@@ -31,7 +34,7 @@ export function AnnouncementsPage() {
             await updateLoginAnnouncement(loginAnnouncementText);
             setIsEditingLoginAnnouncement(false);
             alert("Login Page Announcement Updated Successfully!");
-        } catch (error) {
+        } catch {
             alert("Failed to update login announcement.");
         } finally {
             setIsSavingSystem(false);
@@ -113,12 +116,14 @@ export function AnnouncementsPage() {
                     <h2 className="text-3xl font-extrabold text-deped-blue tracking-tight">Announcements</h2>
                     <p className="text-gray-500 font-medium mt-1">{announcements.length} total announcements</p>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                >
-                    <Plus className="w-4 h-4" /> New Announcement
-                </button>
+                {canManageAnnouncements && (
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" /> New Announcement
+                    </button>
+                )}
             </motion.div>
 
             {/* Login Page Announcement Editor */}
@@ -127,7 +132,7 @@ export function AnnouncementsPage() {
                     <h3 className="text-sm font-bold flex items-center gap-2">
                         📢 Login Page Banner
                     </h3>
-                    {!isEditingLoginAnnouncement && (
+                    {canManageAnnouncements && !isEditingLoginAnnouncement && (
                         <button
                             onClick={() => setIsEditingLoginAnnouncement(true)}
                             className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-white font-bold transition-colors"
@@ -209,9 +214,11 @@ export function AnnouncementsPage() {
                     <div className="text-center py-12">
                         <div className="text-5xl mb-4">📢</div>
                         <p className="text-gray-500 font-medium">No announcements found</p>
-                        <button onClick={() => setIsModalOpen(true)} className="mt-4 px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-sm">
-                            Create First Announcement
-                        </button>
+                        {canManageAnnouncements && (
+                            <button onClick={() => setIsModalOpen(true)} className="mt-4 px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-sm">
+                                Create First Announcement
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="p-4 space-y-3">
@@ -246,19 +253,23 @@ export function AnnouncementsPage() {
                                             <p className="text-sm text-gray-600 mt-1">{announcement.announcement_content}</p>
                                         </div>
                                         <div className="flex items-center gap-1 flex-shrink-0">
-                                            <button
-                                                onClick={() => handleTogglePin(announcement)}
-                                                className={`p-2 rounded-lg transition-colors ${announcement.is_pinned ? 'hover:bg-amber-100 text-amber-500' : 'hover:bg-gray-100 text-gray-400'}`}
-                                                title={announcement.is_pinned ? 'Unpin' : 'Pin'}
-                                            >
-                                                {announcement.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-                                            </button>
-                                            <button
-                                                onClick={() => deleteAnnouncement(announcement.id)}
-                                                className="p-2 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {canManageAnnouncements && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleTogglePin(announcement)}
+                                                        className={`p-2 rounded-lg transition-colors ${announcement.is_pinned ? 'hover:bg-amber-100 text-amber-500' : 'hover:bg-gray-100 text-gray-400'}`}
+                                                        title={announcement.is_pinned ? 'Unpin' : 'Pin'}
+                                                    >
+                                                        {announcement.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteAnnouncement(announcement.id)}
+                                                        className="p-2 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -295,7 +306,10 @@ export function AnnouncementsPage() {
                                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Type</label>
                                         <select
                                             value={formData.announcement_type}
-                                            onChange={(e) => setFormData({ ...formData, announcement_type: e.target.value as any })}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                announcement_type: e.target.value as Announcement['announcement_type']
+                                            })}
                                             className="form-input text-sm"
                                         >
                                             <option value="general">General</option>

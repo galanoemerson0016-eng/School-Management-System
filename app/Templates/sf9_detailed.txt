@@ -33,7 +33,7 @@ Width: 841.6799926757812, Height: 595.2000122070312
 [335,90] 7.7pt TimesNewRomanPSMT: TOTAL
 [620,222] 10.2pt TimesNewRomanPSMT: Section:
 [620,238] 10.2pt TimesNewRomanPSMT: School Year:
-[684,236] 11.0pt TimesNewRomanPS-BoldMT: 2025-2026
+[684,236] 11.0pt TimesNewRomanPS-BoldMT: 2026-2027
 [481,236] 11.0pt TimesNewRomanPS-BoldMT: 7
 [669,468] 10.2pt TimesNewRomanPSMT: Teacher Adviser
 [475,500] 11.0pt TimesNewRomanPS-BoldMT: CANCELLATION OF ELIGIBILITY TO TRANSFER

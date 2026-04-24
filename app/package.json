@@ -1,21 +1,77 @@
 {
-  "name": "app",
+  "name": "form-ease-g7",
   "private": true,
   "version": "1.0.1",
-  "type": "module",
+  "description": "School Management System for Grade 7",
+  "author": "Emerson M. Galano",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3001 && cross-env NODE_ENV=development electron .\"",
+    "electron:build": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder",
+    "electron:build:mac": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder --mac",
+    "electron:build:win": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.formease.g7",
+    "productName": "FormEase G7 Special",
+    "copyright": "Copyright © 2026 Department of Education",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "icon": "public/app-logo.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "FormEase G7"
+    },
+    "mac": {
+      "icon": "public/app-logo.png",
+      "category": "public.app-category.education",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "FormEase G7",
+      "icon": "public/app-logo.png"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ]
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
     "@tanstack/react-table": "^8.21.3",
-    "firebase": "^12.9.0",
+    "buffer": "^6.0.3",
+    "dom-to-image-more": "^3.7.2",
+    "express": "^4.21.2",
     "framer-motion": "^12.33.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
     "qrcode.react": "^4.2.0",
@@ -33,6 +89,10 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.2",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -41,6 +101,7 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "wait-on": "^9.0.5"
   }
 }

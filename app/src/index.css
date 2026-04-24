@@ -36,7 +36,7 @@
 /* Custom Utilities */
 @layer base {
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
     @apply antialiased;
   }
 
@@ -100,6 +100,7 @@
       opacity: 0;
       transform: translateX(100%);
     }
+
     to {
       opacity: 1;
       transform: translateX(0);
@@ -111,6 +112,7 @@
       opacity: 1;
       transform: translateX(0);
     }
+
     to {
       opacity: 0;
       transform: translateX(100%);
@@ -123,8 +125,15 @@
   }
 
   @keyframes badge-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
+
+    0%,
+    100% {
+      transform: scale(1);
+    }
+
+    50% {
+      transform: scale(1.15);
+    }
   }
 
   /* Custom scrollbar */
@@ -149,16 +158,21 @@
 
   /* Floating particle animation */
   @keyframes float-particle {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0) translateX(0) scale(1);
       opacity: 0;
     }
+
     10% {
       opacity: 1;
     }
+
     90% {
       opacity: 1;
     }
+
     100% {
       transform: translateY(-100vh) translateX(20px) scale(0.5);
       opacity: 0;
@@ -174,27 +188,51 @@
 
   /* Logo float animation */
   @keyframes logo-float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-6px);
+    }
   }
+
   .animate-logo-float {
     animation: logo-float 3s ease-in-out infinite;
   }
 
   /* Glow pulse for system status */
   @keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 4px rgba(34, 197, 94, 0.4); }
-    50% { box-shadow: 0 0 12px rgba(34, 197, 94, 0.8); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.8);
+    }
   }
+
   .animate-glow-pulse {
     animation: glow-pulse 2s ease-in-out infinite;
   }
 
   /* Input glow animation */
   @keyframes input-glow {
-    0%, 100% { box-shadow: 0 0 0 2px rgba(10, 61, 145, 0.15); }
-    50% { box-shadow: 0 0 0 4px rgba(10, 61, 145, 0.1), 0 0 20px rgba(10, 61, 145, 0.06); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 2px rgba(10, 61, 145, 0.15);
+    }
+
+    50% {
+      box-shadow: 0 0 0 4px rgba(10, 61, 145, 0.1), 0 0 20px rgba(10, 61, 145, 0.06);
+    }
   }
+
   .login-input:focus {
     animation: input-glow 2s ease-in-out infinite;
     border-color: #3A7BFF;
@@ -210,66 +248,134 @@
 
   /* Blob animations */
   @keyframes blob-morph {
-    0% { transform: translate(0px, 0px) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
-    100% { transform: translate(0px, 0px) scale(1); }
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
   }
+
   .animate-blob {
     animation: blob-morph 7s infinite;
   }
+
   .animation-delay-2000 {
     animation-delay: 2s;
   }
+
   .animation-delay-4000 {
     animation-delay: 4s;
   }
 
   /* Shake animation */
   @keyframes shake {
-    10%, 90% { transform: translate3d(-1px, 0, 0); }
-    20%, 80% { transform: translate3d(2px, 0, 0); }
-    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-    40%, 60% { transform: translate3d(4px, 0, 0); }
+
+    10%,
+    90% {
+      transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+      transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+      transform: translate3d(-4px, 0, 0);
+    }
+
+    40%,
+    60% {
+      transform: translate3d(4px, 0, 0);
+    }
   }
+
   .animate-shake {
-    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
   }
 
   /* Shimmer loading effect */
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
   }
+
   .animate-shimmer {
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
 
   /* Gradient button glow */
   @keyframes btn-glow {
-    0%, 100% { box-shadow: 0 4px 15px rgba(10, 61, 145, 0.3); }
-    50% { box-shadow: 0 8px 30px rgba(10, 61, 145, 0.5); }
+
+    0%,
+    100% {
+      box-shadow: 0 4px 15px rgba(10, 61, 145, 0.3);
+    }
+
+    50% {
+      box-shadow: 0 8px 30px rgba(10, 61, 145, 0.5);
+    }
   }
 
   /* Subtle parallax drift */
   @keyframes parallax-drift {
-    0%, 100% { transform: scale(1.05) translate(0, 0); }
-    25% { transform: scale(1.05) translate(-8px, 4px); }
-    50% { transform: scale(1.05) translate(4px, -8px); }
-    75% { transform: scale(1.05) translate(8px, 4px); }
+
+    0%,
+    100% {
+      transform: scale(1.05) translate(0, 0);
+    }
+
+    25% {
+      transform: scale(1.05) translate(-8px, 4px);
+    }
+
+    50% {
+      transform: scale(1.05) translate(4px, -8px);
+    }
+
+    75% {
+      transform: scale(1.05) translate(8px, 4px);
+    }
   }
+
   .animate-parallax {
     animation: parallax-drift 20s ease-in-out infinite;
   }
 
   /* Dashboard Mesh Background Animation */
   @keyframes mesh-shift {
-    0% { background-position: 0% 0%; }
-    50% { background-position: 100% 100%; }
-    100% { background-position: 0% 0%; }
+    0% {
+      background-position: 0% 0%;
+    }
+
+    50% {
+      background-position: 100% 100%;
+    }
+
+    100% {
+      background-position: 0% 0%;
+    }
   }
+
   .animate-mesh {
     background-size: 200% 200%;
     animation: mesh-shift 30s ease infinite;
@@ -277,10 +383,23 @@
 
   /* Orb animation for dark mode */
   @keyframes orb-float {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    25% { transform: translate(50px, -30px) rotate(90deg); }
-    50% { transform: translate(-20px, -60px) rotate(180deg); }
-    75% { transform: translate(-40px, 20px) rotate(270deg); }
+
+    0%,
+    100% {
+      transform: translate(0, 0) rotate(0deg);
+    }
+
+    25% {
+      transform: translate(50px, -30px) rotate(90deg);
+    }
+
+    50% {
+      transform: translate(-20px, -60px) rotate(180deg);
+    }
+
+    75% {
+      transform: translate(-40px, 20px) rotate(270deg);
+    }
   }
 
   /* Toggle switch styles */
@@ -292,6 +411,7 @@
     cursor: pointer;
     transition: background-color 0.3s ease;
   }
+
   .toggle-switch::after {
     content: '';
     position: absolute;
@@ -301,9 +421,10 @@
     height: 20px;
     border-radius: 50%;
     background: white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     transition: transform 0.3s ease;
   }
+
   .toggle-switch.active::after {
     transform: translateX(20px);
   }
@@ -318,63 +439,341 @@
 
 @layer utilities {
   @media print {
-    @page {
-      size: legal landscape;
-      margin: 8mm;
-    }
 
-    /* Hide non-content elements */
-    .no-print,
-    aside,
-    header,
-    nav {
-      display: none !important;
-    }
-
-    /* Reset body */
+    /* -------------------------------------------------
+       ROOT RESET
+    ------------------------------------------------- */
+    html,
     body {
-      background: white !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-
-    /* Fix App.tsx root: h-screen flex overflow-hidden */
-    body>div,
-    #root,
-    #root>div {
+      width: auto !important;
       height: auto !important;
       min-height: 0 !important;
       overflow: visible !important;
-      display: block !important;
       background: white !important;
+      color: black !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
-    /* Fix main element */
-    main {
-      padding: 0 !important;
+    #root,
+    .app-container {
+      display: block !important;
+      width: auto !important;
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      background: transparent !important;
       margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* -------------------------------------------------
+       GLOBAL PRINT QUALITY
+    ------------------------------------------------- */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      box-shadow: none !important;
+    }
+
+    /* -------------------------------------------------
+       PAGE SETUP
+       Keep physical sizing support
+    ------------------------------------------------- */
+    @page {
+      margin: 0;
+    }
+
+    /* Keep these utility classes available */
+    .print-landscape {}
+
+    .print-portrait {}
+
+    .print-a4 {}
+
+    .print-legal {}
+
+    /* -------------------------------------------------
+       HIDE NON-PRINT UI
+    ------------------------------------------------- */
+    .no-print,
+    aside,
+    header,
+    nav,
+    footer,
+    button:not(.force-print),
+    .sidebar,
+    .app-header {
+      display: none !important;
+    }
+
+    /* -------------------------------------------------
+       MAIN LAYOUT RESET
+    ------------------------------------------------- */
+    main {
+      display: block !important;
       width: 100% !important;
       max-width: 100% !important;
-      overflow: visible !important;
-      display: block !important;
       height: auto !important;
-    }
-
-    /* Fix content wrapper (p-8 div) */
-    main>div {
-      padding: 0 !important;
+      min-height: 0 !important;
+      overflow: visible !important;
       margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Common layout killers during print */
+    .flex,
+    .inline-flex {
       overflow: visible !important;
+    }
+
+    .overflow-hidden,
+    .overflow-auto,
+    .overflow-scroll,
+    .overflow-x-auto,
+    .overflow-y-auto {
+      overflow: visible !important;
+    }
+
+    .min-h-0,
+    .h-screen,
+    .max-h-screen {
+      min-height: 0 !important;
+      height: auto !important;
+      max-height: none !important;
+    }
+
+    /* Remove transforms that can cause clipped print output */
+    .transform,
+    [style*="transform"] {
+      transform: none !important;
+    }
+
+    /* -------------------------------------------------
+       PRINT STYLING CLEANUP
+    ------------------------------------------------- */
+    .rounded-xl,
+    .rounded-2xl,
+    .rounded-3xl,
+    .rounded-\[28px\] {
+      border-radius: 0 !important;
+    }
+
+    .shadow-sm,
+    .shadow-md,
+    .shadow-lg,
+    .shadow-2xl,
+    .shadow-xl {
+      box-shadow: none !important;
+    }
+
+    .border-white\/60,
+    .dark\:border-white\/5 {
+      border: 1px solid #e2e8f0 !important;
+    }
+
+    /* -------------------------------------------------
+       GENERIC TABLE PRINT SAFETY
+    ------------------------------------------------- */
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      border-spacing: 0 !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+
+    thead {
+      display: table-header-group !important;
+    }
+
+    tfoot {
+      display: table-footer-group !important;
+    }
+
+    tr,
+    td,
+    th {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    .print-compact-tables table {
+      border-spacing: 0 !important;
+      border-collapse: collapse !important;
+      width: 100% !important;
+    }
+
+    .print-compact-tables th,
+    .print-compact-tables td {
+      border: 1px solid black !important;
+      padding: 4px !important;
+    }
+
+    /* -------------------------------------------------
+       PAGE BREAK HELPERS
+    ------------------------------------------------- */
+    .page-break-before {
+      page-break-before: always !important;
+      break-before: page !important;
+    }
+
+    .page-break-after {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+
+    .page-break-avoid {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    /* -------------------------------------------------
+       SF5 SPECIFIC PRINT FIX
+       This is the important part for your issue
+    ------------------------------------------------- */
+    .sf5-print-stack {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+
+    .sf5-print-page {
+      display: block !important;
+      overflow: visible !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-before: auto !important;
+      break-before: auto !important;
+      position: relative !important;
+      background: white !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      margin: 0 !important;
+    }
+
+    .sf5-print-page,
+    .sf5-print-page * {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .sf5-print-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+
+    /* Strictly smaller than paper to accommodate printer hardware limits without page spill */
+    .print-a4.sf5-print-page {
+      width: 297mm !important;
+      min-height: 206mm !important;
       height: auto !important;
     }
 
-    /* Remove decorative styles from print */
-    .rounded-xl,
-    .shadow-sm,
-    .shadow-lg {
-      border-radius: 0 !important;
+    /* A4 is tighter than folio; slightly reduce print padding to avoid page spill/blank intermediate page. */
+    .sf5-a4-page {
+      padding: 3mm !important;
+    }
+
+    .print-legal.sf5-print-page {
+      width: 330mm !important;
+      height: 216mm !important;
+    }
+
+    /* Prevent internal wrappers from clipping later pages */
+    .sf5-print-page .flex,
+    .sf5-print-page .flex-1,
+    .sf5-print-page .min-h-0,
+    .sf5-print-page .overflow-auto,
+    .sf5-print-page .overflow-hidden {
+      overflow: visible !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+    }
+
+    /* Safer absolute footer rendering */
+    .sf5-print-page .absolute {
+      position: absolute !important;
+    }
+
+    /* SF6 Print Styles */
+    .sf6-print-stack {
+      display: block !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+
+    .sf6-print-page {
+      display: block !important;
+      overflow: visible !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-before: auto !important;
+      break-before: auto !important;
+      position: relative !important;
+      background: white !important;
+      outline: none !important;
       box-shadow: none !important;
-      border: none !important;
+      margin: 0 !important;
+    }
+
+    .sf6-print-page,
+    .sf6-print-page * {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .sf6-print-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+
+    /* Strictly smaller than paper to accommodate printer hardware limits without page spill */
+    .print-a4.sf6-print-page {
+      width: 297mm !important;
+      min-height: 206mm !important;
+      height: auto !important;
+    }
+
+    /* A4 is tighter than folio; slightly reduce print padding to avoid page spill/blank intermediate page. */
+    .sf6-a4-page {
+      padding: 3mm !important;
+    }
+
+    .print-legal.sf6-print-page {
+      width: 330mm !important;
+      height: 216mm !important;
+    }
+
+    /* Prevent internal wrappers from clipping later pages */
+    .sf6-print-page .flex,
+    .sf6-print-page .flex-1,
+    .sf6-print-page .min-h-0,
+    .sf6-print-page .overflow-auto,
+    .sf6-print-page .overflow-hidden {
+      overflow: visible !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+    }
+
+    /* Safer absolute footer rendering */
+    .sf6-print-page .absolute {
+      position: absolute !important;
     }
   }
 }

@@ -32,7 +32,7 @@ No. of school days | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 | 10 |  |  | 100
 No. of days present | 9 | 8 | 10 | 9 | 9 | 10 | 9 | 8 | 9 | 9 |  |  | 90 |  | Name: | Carlo Dela Cruz |  |  | 
  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Age: | 12 |  |  | Sex:
  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Grade:  |  | SEVEN |  | Section: 
-No. of days absent | 1 | 2 |  | 1 | 1 |  | 1 | 2 | 1 | 1 |  |  | 10 |  | School Year:  |  | 2025-2026 |  | 
+No. of days absent | 1 | 2 |  | 1 | 1 |  | 1 | 2 | 1 | 1 |  |  | 10 |  | School Year:  |  | 2026-2027 |  | 
  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | Dear Parent: |  |  |  | 
  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | This report card shows th |  |  | 
  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | made in the different lea |  |  |  | 

@@ -4,7 +4,14 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/School-Management-System/',
+  base: './',
   plugins: [react(), tailwindcss()],
+  server: {
+    port: 3001,
+    strictPort: true,
+  },
+  build: {
+    chunkSizeWarningLimit: 2000,
+  }
 })
 // Trigger restart

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuthStore } from '../stores';
+import { useAuthStore, useAppStore } from '../stores';
 import { useSystemStore } from '../stores/system-store';
 import {
     User, Eye, EyeOff, GraduationCap, BookOpen, ScrollText, School,
-    Megaphone, Moon, Sun, Globe, Shield, Clock, ChevronRight, Loader2, Fingerprint
+    Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2, Fingerprint
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,11 +13,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Particles = ({ darkMode }: { darkMode: boolean }) => {
     const particles = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
         id: i,
-        left: `${Math.random() * 100}%`,
-        size: Math.random() * 4 + 2,
-        duration: Math.random() * 15 + 10,
-        delay: Math.random() * 10,
-        opacity: Math.random() * 0.3 + 0.1,
+        // Deterministic pseudo-random values derived from index to satisfy purity rules.
+        left: `${(i * 37) % 100}%`,
+        size: ((i * 7) % 4) + 2,
+        duration: ((i * 11) % 15) + 10,
+        delay: ((i * 13) % 10),
+        opacity: (((i * 17) % 30) / 100) + 0.1,
     })), []);
 
     return (
@@ -135,6 +136,7 @@ export const LoginPage = () => {
 
     const { login, isLoading, error } = useAuthStore();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
+    const { schoolProfile } = useAppStore();
     const [shake, setShake] = useState(false);
 
     const passwordStrength = getPasswordStrength(credentials.password);
@@ -144,7 +146,7 @@ export const LoginPage = () => {
         fetchSystemSettings();
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
-    }, []);
+    }, [fetchSystemSettings]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -172,7 +174,7 @@ export const LoginPage = () => {
     const t = language === 'EN' ? {
         republic: 'REPUBLIC OF THE PHILIPPINES',
         welcome: 'Welcome to your official',
-        sms: 'School Management System',
+        sms: 'Student Management System',
         portal: 'portal.',
         depedBadge: 'Department of Education',
         digitalPortal: 'Digital Management Portal',
@@ -192,7 +194,7 @@ export const LoginPage = () => {
     } : {
         republic: 'REPUBLIKA NG PILIPINAS',
         welcome: 'Maligayang pagdating sa inyong opisyal na',
-        sms: 'School Management System',
+        sms: 'Student Management System',
         portal: 'portal.',
         depedBadge: 'Kagawaran ng Edukasyon',
         digitalPortal: 'Digital Management Portal',
@@ -212,7 +214,7 @@ export const LoginPage = () => {
     };
 
     return (
-        <div className={`min-h-screen w-full flex overflow-hidden font-[Inter,system-ui,sans-serif] selection:bg-blue-200 selection:text-deped-blue ${darkMode ? 'bg-[#0a0e1a]' : 'bg-login-bg'}`}>
+        <div className={`min-h-screen w-full flex overflow-hidden selection:bg-blue-200 selection:text-deped-blue ${darkMode ? 'bg-[#0a0e1a]' : 'bg-login-bg'}`}>
 
             {/* ============================== */}
             {/* LEFT PANEL — Hero Section       */}
@@ -226,7 +228,7 @@ export const LoginPage = () => {
                 {/* Background Image with Parallax drift */}
                 <div
                     className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat animate-parallax"
-                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}login-bg-new.png)` }}
+                    style={{ backgroundImage: `url(${import.meta.env.BASE_URL}login-bg.jpg)` }}
                 />
 
                 {/* Premium Deep Green Gradient Overlay */}
@@ -259,23 +261,20 @@ export const LoginPage = () => {
                                 Department of Education
                             </span>
                             <span className="text-white font-medium tracking-widest uppercase text-[9px]">
-                                Region III
+                                {schoolProfile.region}
                             </span>
                             <span className="text-white font-medium tracking-[0.15em] uppercase text-[9px]">
-                                Schools Division of Tarlac Province
+                                {schoolProfile.division}
                             </span>
                             <span className="text-white font-medium tracking-[0.15em] uppercase text-[9px]">
-                                Victoria East District
+                                {schoolProfile.district}
                             </span>
                         </div>
 
                         {/* School Name */}
-                        <div className="flex flex-col mb-2 text-shadow-sm items-center">
-                            <h1 className="text-[3rem] xl:text-[4rem] font-black tracking-tight leading-[0.95] text-white drop-shadow-2xl">
-                                CALIBUNGAN
-                            </h1>
-                            <h1 className="text-[3rem] xl:text-[4rem] font-black tracking-tight leading-[0.95] text-white drop-shadow-2xl">
-                                HIGH SCHOOL
+                        <div className="flex flex-col mb-2 text-shadow-sm items-center max-w-[90%]">
+                            <h1 className="text-[1.8rem] xl:text-[2.5rem] font-black tracking-tight leading-tight text-white drop-shadow-2xl text-center break-words">
+                                {schoolProfile.name.toUpperCase()}
                             </h1>
                         </div>
                     </motion.div>
@@ -425,8 +424,8 @@ export const LoginPage = () => {
                             : 'bg-white border border-gray-100 shadow-lg shadow-gray-200/50'
                             }`}>
                             <img
-                                src={`${import.meta.env.BASE_URL}school-logo.png`}
-                                alt="Calibungan HS Logo"
+                                src={`${import.meta.env.BASE_URL}app-logo.png`}
+                                alt="System Logo"
                                 className="h-14 w-14 object-contain"
                             />
                         </div>

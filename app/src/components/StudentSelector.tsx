@@ -1,6 +1,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronDown, Search, Check, X } from 'lucide-react';
+import { ChevronDown, Search, Check, X, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Student } from '../types';
 
 interface StudentSelectorProps {
@@ -60,8 +61,8 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
 
     if (disabled) {
         return (
-            <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-500 cursor-not-allowed">
-                -- Choose Student --
+            <div className="w-full h-14 px-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-slate-300 flex items-center cursor-not-allowed text-[13px] font-bold opacity-50">
+                -- Select Section First --
             </div>
         );
     }
@@ -72,98 +73,130 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full text-left px-3 py-2 bg-white border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-deped-blue focus:border-deped-blue flex items-center justify-between transition-all hover:bg-gray-50"
+                className={`w-full h-[60px] text-left px-5 bg-white border-2 rounded-3xl flex items-center justify-between transition-all hover:border-slate-300 shadow-sm ${isOpen ? 'ring-8 ring-indigo-600/5 border-indigo-600 bg-indigo-50/10' : 'border-slate-100'}`}
             >
-                <span className={`block truncate ${selectedStudent ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
-                    {selectedStudent
-                        ? `${selectedStudent.last_name}, ${selectedStudent.first_name}`
-                        : '-- Choose Student --'}
-                </span>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <div className="flex flex-col truncate">
+                    <span className={`block truncate text-[13px] leading-tight ${selectedStudent ? 'text-slate-900 font-black' : 'text-slate-400 font-bold'}`}>
+                        {selectedStudent
+                            ? `${selectedStudent.last_name}, ${selectedStudent.first_name}`
+                            : 'Search Learner Name...'}
+                    </span>
+                    {selectedStudent && (
+                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">
+                            LRN: {selectedStudent.lrn}
+                        </span>
+                    )}
+                </div>
+                <div className={`w-8 h-8 rounded-2xl flex items-center justify-center transition-all ${isOpen ? 'bg-indigo-600 text-white rotate-180' : 'bg-slate-50 text-slate-400'}`}>
+                    <ChevronDown className="w-4 h-4" />
+                </div>
             </button>
 
             {/* Dropdown Menu */}
-            {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white shadow-xl rounded-md border border-gray-200 max-h-96 flex flex-col animate-in fade-in zoom-in-95 duration-100 origin-top">
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute z-[100] w-full mt-3 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.15)] rounded-3xl border border-slate-100 max-h-[400px] flex flex-col overflow-hidden backdrop-blur-xl"
+                    >
+                        {/* Search Header */}
+                        <div className="p-4 border-b border-slate-50 bg-slate-50/30">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input
+                                    autoFocus
+                                    className="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-xs font-bold text-slate-700 outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/5 transition-all"
+                                    placeholder="Type to filter..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                {searchQuery && (
+                                    <button 
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-300 hover:text-slate-500"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
 
-                    {/* Search Input */}
-                    <div className="p-2 border-b border-gray-100 sticky top-0 bg-white z-10">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Filter students..."
-                                className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                autoFocus
-                            />
-                            {searchQuery && (
-                                <button
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
+                        {/* Scrollable List */}
+                        <div className="overflow-y-auto flex-1 p-3 space-y-4 custom-scrollbar">
+                            {/* Male Group */}
+                            {filteredGroups.male.length > 0 && (
+                                <div className="space-y-1">
+                                    <div className="px-4 py-1.5 text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center justify-between">
+                                        <span>Male Students</span>
+                                        <span className="opacity-40">{filteredGroups.male.length}</span>
+                                    </div>
+                                    {filteredGroups.male.map(student => (
+                                        <button
+                                            key={student.lrn}
+                                            onClick={() => handleSelect(student.lrn)}
+                                            className={`w-full text-left px-4 py-3.5 text-[12px] rounded-2xl flex items-center justify-between transition-all group ${selectedStudentLrn === student.lrn
+                                                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-200 font-black'
+                                                : 'text-slate-600 hover:bg-slate-50 font-bold'
+                                                }`}
+                                        >
+                                            <span className="truncate">{student.last_name}, {student.first_name}</span>
+                                            {selectedStudentLrn === student.lrn ? (
+                                                <Check className="w-4 h-4 text-white" />
+                                            ) : (
+                                                <ArrowRight className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Female Group */}
+                            {filteredGroups.female.length > 0 && (
+                                <div className="space-y-1">
+                                    <div className="px-4 py-1.5 text-[9px] font-black text-rose-500 uppercase tracking-[0.2em] flex items-center justify-between">
+                                        <span>Female Students</span>
+                                        <span className="opacity-40">{filteredGroups.female.length}</span>
+                                    </div>
+                                    {filteredGroups.female.map(student => (
+                                        <button
+                                            key={student.lrn}
+                                            onClick={() => handleSelect(student.lrn)}
+                                            className={`w-full text-left px-4 py-3.5 text-[12px] rounded-2xl flex items-center justify-between transition-all group ${selectedStudentLrn === student.lrn
+                                                ? 'bg-rose-600 text-white shadow-xl shadow-rose-200 font-black'
+                                                : 'text-slate-600 hover:bg-slate-50 font-bold'
+                                                }`}
+                                        >
+                                            <span className="truncate">{student.last_name}, {student.first_name}</span>
+                                            {selectedStudentLrn === student.lrn ? (
+                                                <Check className="w-4 h-4 text-white" />
+                                            ) : (
+                                                <ArrowRight className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Empty State */}
+                            {filteredGroups.male.length === 0 && filteredGroups.female.length === 0 && (
+                                <div className="p-10 text-center space-y-4">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto">
+                                        <Search className="w-6 h-6 text-slate-200" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-black text-slate-900 uppercase tracking-tighter">No Learners Found</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">
+                                            Try adjusting your search query<br/>for "{searchQuery}"
+                                        </p>
+                                    </div>
+                                </div>
                             )}
                         </div>
-                    </div>
-
-                    {/* Scrollable List */}
-                    <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
-                        {/* Male Group */}
-                        {filteredGroups.male.length > 0 && (
-                            <div className="mb-2">
-                                <div className="px-3 py-1.5 text-xs font-bold text-deped-blue/80 uppercase tracking-wider bg-gray-50 rounded-sm mb-1">
-                                    Male ({filteredGroups.male.length})
-                                </div>
-                                {filteredGroups.male.map(student => (
-                                    <button
-                                        key={student.lrn}
-                                        onClick={() => handleSelect(student.lrn)}
-                                        className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between transition-colors ${selectedStudentLrn === student.lrn
-                                            ? 'bg-deped-blue/10 text-deped-blue font-semibold'
-                                            : 'text-gray-700 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <span>{student.last_name}, {student.first_name}</span>
-                                        {selectedStudentLrn === student.lrn && <Check className="w-4 h-4 text-deped-blue" />}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Female Group */}
-                        {filteredGroups.female.length > 0 && (
-                            <div className="mb-1">
-                                <div className="px-3 py-1.5 text-xs font-bold text-pink-600/80 uppercase tracking-wider bg-pink-50 rounded-sm mb-1 mt-2">
-                                    Female ({filteredGroups.female.length})
-                                </div>
-                                {filteredGroups.female.map(student => (
-                                    <button
-                                        key={student.lrn}
-                                        onClick={() => handleSelect(student.lrn)}
-                                        className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between transition-colors ${selectedStudentLrn === student.lrn
-                                            ? 'bg-deped-blue/10 text-deped-blue font-semibold'
-                                            : 'text-gray-700 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        <span>{student.last_name}, {student.first_name}</span>
-                                        {selectedStudentLrn === student.lrn && <Check className="w-4 h-4 text-deped-blue" />}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Empty State */}
-                        {filteredGroups.male.length === 0 && filteredGroups.female.length === 0 && (
-                            <div className="p-4 text-center text-gray-500 text-sm italic">
-                                No students found matching "{searchQuery}"
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

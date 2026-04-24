@@ -1,20 +1,20 @@
-// Grade computation weights per DepEd Order 8 s. 2015 (Grades 1-10)
+// Grade computation weights based on current school policy
 
-// Subject Cluster 1: Languages, Araling Panlipunan (AP), EsP
+// Subject Cluster 1: AP, English, Filipino, Mathematics, Science, GMRC / Values Education
 export const WEIGHTS_LANGUAGES_AP_ESP = {
-    written_works: 0.30,      // 30%
+    written_works: 0.20,      // 20%
     performance_tasks: 0.50,   // 50%
-    quarterly_exam: 0.20,      // 20%
+    quarterly_exam: 0.30,      // 30%
 };
 
-// Subject Cluster 2: Science and Mathematics
+// Subject Cluster 2: Mathematics and Science (same weights as Cluster 1)
 export const WEIGHTS_SCIENCE_MATH = {
-    written_works: 0.40,      // 40%
-    performance_tasks: 0.40,   // 40%
-    quarterly_exam: 0.20,      // 20%
+    written_works: 0.20,      // 20%
+    performance_tasks: 0.50,   // 50%
+    quarterly_exam: 0.30,      // 30%
 };
 
-// Subject Cluster 3: MAPEH, EPP, TLE
+// Subject Cluster 3: EPP/TLE, MAPEH, Specialization
 export const WEIGHTS_MAPEH_TLE = {
     written_works: 0.20,      // 20%
     performance_tasks: 0.60,   // 60%
@@ -27,12 +27,13 @@ export type SubjectCluster = 'languages_ap_esp' | 'science_math' | 'mapeh_tle';
 export function getSubjectCluster(subjectName: string): SubjectCluster {
     const name = subjectName.toLowerCase();
 
-    // MAPEH, TLE, EPP cluster (20/60/20)
+    // MAPEH, TLE, EPP, Specialization cluster (20/60/20)
     if (name.includes('mapeh') ||
         name.includes('music') ||
         name.includes('arts') ||
         name.includes('physical education') ||
         name.includes('health') ||
+        name.includes('specialization') ||
         name.includes('tle') ||
         name.includes('technology and livelihood') ||
         name.includes('epp') ||
@@ -40,15 +41,14 @@ export function getSubjectCluster(subjectName: string): SubjectCluster {
         return 'mapeh_tle';
     }
 
-    // Science and Math cluster (40/40/20)
+    // Science and Math cluster (20/50/30)
     if (name.includes('science') ||
         name.includes('mathematics') ||
         name.includes('math')) {
         return 'science_math';
     }
 
-    // Languages, AP, EsP cluster (30/50/20) - default
-    // Includes: Filipino, English, AP, EsP, Values Education
+    // AP/English/Filipino/Values/GMRC cluster (20/50/30) - default
     return 'languages_ap_esp';
 }
 
@@ -69,16 +69,51 @@ export function getWeights(cluster: SubjectCluster) {
 export function transmuteGrade(initialGrade: number): number {
     const score = Math.min(100, Math.max(0, initialGrade)); // Clamp 0-100
 
-    // Range 0 - 59.99 (Transmuted: 60 - 74)
-    if (score < 60) {
-        // Using formula approximation for step size 4
-        // 0-3.99 -> 60
-        return 60 + Math.floor(score / 4);
-    }
+    const transmutationRanges = [
+        { min: 99.5, max: 100.0, grade: 100 },
+        { min: 97.5, max: 99.49, grade: 99 },
+        { min: 96.0, max: 97.49, grade: 98 },
+        { min: 95.0, max: 95.99, grade: 97 },
+        { min: 94.0, max: 94.99, grade: 96 },
+        { min: 93.0, max: 93.99, grade: 95 },
+        { min: 92.0, max: 92.99, grade: 94 },
+        { min: 91.0, max: 91.99, grade: 93 },
+        { min: 90.0, max: 90.99, grade: 92 },
+        { min: 89.0, max: 89.99, grade: 91 },
+        { min: 88.0, max: 88.99, grade: 90 },
+        { min: 87.0, max: 87.99, grade: 89 },
+        { min: 86.0, max: 86.99, grade: 88 },
+        { min: 85.0, max: 85.99, grade: 87 },
+        { min: 84.0, max: 84.99, grade: 86 },
+        { min: 83.0, max: 83.99, grade: 85 },
+        { min: 82.0, max: 82.99, grade: 84 },
+        { min: 81.0, max: 81.99, grade: 83 },
+        { min: 80.0, max: 80.99, grade: 82 },
+        { min: 79.0, max: 79.99, grade: 81 },
+        { min: 78.0, max: 78.99, grade: 80 },
+        { min: 77.0, max: 77.99, grade: 79 },
+        { min: 76.0, max: 76.99, grade: 78 },
+        { min: 75.0, max: 75.99, grade: 77 },
+        { min: 73.0, max: 74.99, grade: 76 },
+        { min: 70.0, max: 72.99, grade: 75 },
+        { min: 68.0, max: 69.99, grade: 74 },
+        { min: 66.0, max: 67.99, grade: 73 },
+        { min: 64.0, max: 65.99, grade: 72 },
+        { min: 62.0, max: 63.99, grade: 71 },
+        { min: 60.0, max: 61.99, grade: 70 },
+        { min: 58.0, max: 59.99, grade: 69 },
+        { min: 56.0, max: 57.99, grade: 68 },
+        { min: 54.0, max: 55.99, grade: 67 },
+        { min: 52.0, max: 53.99, grade: 66 },
+        { min: 50.0, max: 51.99, grade: 65 },
+        { min: 48.0, max: 49.99, grade: 64 },
+        { min: 46.0, max: 47.99, grade: 63 },
+        { min: 43.0, max: 45.99, grade: 62 },
+        { min: 40.0, max: 42.99, grade: 61 },
+        { min: 25.0, max: 39.99, grade: 60 },
+        { min: 0.0, max: 24.0, grade: 60 }, // default minimum
+    ];
 
-    // Range 60 - 100 (Transmuted: 75 - 100)
-    // Step size is 1.6
-    if (score >= 100) return 100;
-
-    return 75 + Math.floor((score - 60) / 1.6);
+    const matched = transmutationRanges.find((range) => score >= range.min && score <= range.max);
+    return matched ? matched.grade : 60;
 }

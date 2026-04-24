@@ -1,0 +1,2450 @@
+{
+  "Front": {
+    "dimensions": "B1:BD84",
+    "cols": {
+      "B": 2.6640625,
+      "C": 8.43,
+      "D": 1.44140625,
+      "E": 1.88671875,
+      "F": 2.44140625,
+      "G": 2.6640625,
+      "H": 8.43,
+      "I": 8.43,
+      "J": 8.43,
+      "K": 8.43,
+      "L": 3.6640625,
+      "M": 0.88671875,
+      "N": 8.43,
+      "O": 2.6640625,
+      "P": 1.0,
+      "Q": 2.6640625,
+      "R": 8.43,
+      "S": 8.43,
+      "T": 8.43,
+      "U": 8.43,
+      "V": 1.44140625,
+      "W": 2.6640625,
+      "X": 8.43,
+      "Y": 8.43,
+      "Z": 1.33203125,
+      "AA": 3.109375,
+      "AB": 2.6640625,
+      "AC": 8.43,
+      "AD": 1.109375,
+      "AE": 2.6640625,
+      "AF": 8.43,
+      "AG": 3.33203125,
+      "AH": 2.6640625,
+      "AI": 3.6640625,
+      "AJ": 2.6640625,
+      "AK": 8.43,
+      "AL": 2.0,
+      "AM": 2.6640625,
+      "AN": 8.43,
+      "AO": 1.44140625,
+      "AP": 2.6640625,
+      "AQ": 8.43,
+      "AR": 8.43,
+      "AS": 8.43,
+      "AT": 8.43,
+      "AU": 8.43,
+      "AV": 1.0,
+      "AW": 2.6640625,
+      "AX": 8.43,
+      "AY": 8.43,
+      "AZ": 8.43,
+      "BA": 8.43,
+      "BB": 8.43,
+      "BC": 8.43,
+      "BD": 0.44140625
+    },
+    "rows": {
+      "1": 13.5,
+      "2": 15.0,
+      "3": 15.0,
+      "4": 18.75,
+      "5": 14.4,
+      "6": 18.6,
+      "7": 15.0,
+      "8": 15.0,
+      "9": 14.4,
+      "10": 18.6,
+      "11": 5.25,
+      "12": 15.0,
+      "13": 15.0,
+      "14": 3.0,
+      "15": 15.0,
+      "16": 15.0,
+      "17": 15.0,
+      "18": 14.4,
+      "19": 18.6,
+      "20": 5.25,
+      "21": 15.0,
+      "22": 15.0,
+      "23": 2.25,
+      "24": 16.5,
+      "25": 15.0,
+      "26": 15.0,
+      "27": 15.0,
+      "28": 15.0,
+      "29": 15.0,
+      "30": 15.0,
+      "31": 15.0,
+      "32": 15.0,
+      "33": 15.0,
+      "34": 15.0,
+      "35": 15.0,
+      "36": 15.0,
+      "37": 15.0,
+      "38": 15.0,
+      "39": 15.0,
+      "40": 15.0,
+      "41": 6.0,
+      "42": 15.0,
+      "43": 2.25,
+      "44": 16.5,
+      "45": 15.0,
+      "46": 15.0,
+      "47": 14.4,
+      "48": 10.5,
+      "49": 15.0,
+      "50": 15.0,
+      "51": 2.25,
+      "52": 16.5,
+      "53": 15.0,
+      "54": 15.0,
+      "55": 15.0,
+      "56": 15.0,
+      "57": 15.0,
+      "58": 15.0,
+      "59": 15.0,
+      "60": 15.0,
+      "61": 15.0,
+      "62": 15.0,
+      "63": 15.0,
+      "64": 15.0,
+      "65": 15.0,
+      "66": 15.0,
+      "67": 15.0,
+      "68": 15.0,
+      "69": 6.0,
+      "70": 15.0,
+      "71": 2.25,
+      "72": 16.5,
+      "73": 15.0,
+      "74": 15.0,
+      "75": 14.4,
+      "76": 7.5,
+      "77": 18.6,
+      "78": 15.0,
+      "79": 15.0,
+      "80": 15.0,
+      "81": 15.0,
+      "82": 15.0,
+      "83": 15.0,
+      "84": 14.4
+    },
+    "merged_cells": [
+      "AP56:BC56",
+      "L42:W42",
+      "Y61:AB61",
+      "B12:C12",
+      "AJ37:AO37",
+      "W12:AB12",
+      "Q21:T21",
+      "Y56:AB56",
+      "AC32:AF32",
+      "AJ26:AO26",
+      "AM21:AO21",
+      "B13:C13",
+      "N22:Q22",
+      "B24:T25",
+      "B70:K70",
+      "U74:AG74",
+      "AG26:AI26",
+      "L70:W70",
+      "AC17:AN17",
+      "Y59:AB59",
+      "Y34:AB34",
+      "M13:AB13",
+      "AL81:BC83",
+      "Y25:AB25",
+      "AC25:AF25",
+      "U28:X28",
+      "Q49:T49",
+      "Y36:AB36",
+      "AC60:AF60",
+      "AM49:AO49",
+      "D12:V12",
+      "U67:X67",
+      "AP62:BC62",
+      "B77:BC77",
+      "AG37:AI37",
+      "AP64:BC64",
+      "AP26:BC26",
+      "Y62:AB62",
+      "B44:K45",
+      "L46:T46",
+      "AJ32:AO32",
+      "AJ63:AO63",
+      "AP65:BC65",
+      "AH46:AO46",
+      "Y64:AB64",
+      "AG63:AI63",
+      "AJ40:AO40",
+      "AC55:AF55",
+      "AJ27:AO27",
+      "B21:D21",
+      "AX9:BC9",
+      "AR48:BC48",
+      "AP75:BC75",
+      "AG27:AI27",
+      "AP44:BC45",
+      "AP12:BC12",
+      "L74:T74",
+      "Y33:AB33",
+      "AV8:BC8",
+      "AL42:AT42",
+      "AP72:BC73",
+      "AC66:AF66",
+      "B80:G80",
+      "Y39:AB39",
+      "AG55:AI55",
+      "AG38:AI38",
+      "AC67:AF67",
+      "U37:X37",
+      "AJ58:AO58",
+      "B38:T38",
+      "R16:W16",
+      "AF16:AH16",
+      "K50:M50",
+      "Y65:AB65",
+      "B40:T40",
+      "Y57:AB57",
+      "U21:Z21",
+      "B33:T33",
+      "AC80:AI80",
+      "U63:X63",
+      "U26:X26",
+      "AG66:AI66",
+      "B35:T35",
+      "U27:X27",
+      "Z8:AG8",
+      "AB79:AE79",
+      "B66:T66",
+      "AJ59:AO59",
+      "Y60:AB60",
+      "U49:Z49",
+      "L75:T75",
+      "AJ61:AO61",
+      "L44:T45",
+      "AH75:AO75",
+      "B34:T34",
+      "AH44:AO45",
+      "Y80:AB80",
+      "AG61:AI61",
+      "B30:T30",
+      "U38:X38",
+      "AP33:BC33",
+      "AX7:BC7",
+      "X42:AF42",
+      "AG62:AI62",
+      "AP35:BC35",
+      "AJ80:AR80",
+      "B54:T54",
+      "AG70:AK70",
+      "S81:AK83",
+      "Y58:AB58",
+      "B10:BC10",
+      "B56:T56",
+      "AP30:BC30",
+      "AP59:BC59",
+      "B48:AF48",
+      "AC26:AF26",
+      "V50:Z50",
+      "AP61:BC61",
+      "B76:BC76",
+      "B57:T57",
+      "AJ67:AO67",
+      "AA49:AC49",
+      "AJ62:AO62",
+      "B81:O83",
+      "B75:K75",
+      "B23:BC23",
+      "U59:X59",
+      "AG39:AI39",
+      "N50:Q50",
+      "U52:AI52",
+      "B62:T62",
+      "AJ64:AO64",
+      "AC37:AF37",
+      "U46:AG46",
+      "B31:T31",
+      "U61:X61",
+      "AP34:BC34",
+      "AG64:AI64",
+      "B39:T39",
+      "L16:Q16",
+      "X70:AF70",
+      "AP36:BC36",
+      "B51:BC51",
+      "AA50:AH50",
+      "BB21:BC21",
+      "U56:X56",
+      "AG65:AI65",
+      "AJ24:AO25",
+      "AC63:AF63",
+      "B3:BC3",
+      "B65:T65",
+      "AC27:AF27",
+      "B63:T63",
+      "AP54:BC54",
+      "AP49:AX49",
+      "T17:AB17",
+      "AF79:AK79",
+      "U36:X36",
+      "Y30:AB30",
+      "W7:AG7",
+      "Y54:AB54",
+      "Y29:AB29",
+      "AC53:AF53",
+      "B6:BC6",
+      "Y31:AB31",
+      "AC38:AF38",
+      "B72:K73",
+      "U62:X62",
+      "AP57:BC57",
+      "U64:X64",
+      "B55:T55",
+      "AP58:BC58",
+      "AP39:BC39",
+      "AJ52:AO53",
+      "B8:L8",
+      "B19:BC19",
+      "AS50:AV50",
+      "AI16:AM16",
+      "B58:T58",
+      "AQ16:AW16",
+      "AP24:BC25",
+      "B60:T60",
+      "B20:BC20",
+      "AA18:AW18",
+      "U75:AG75",
+      "U44:AG45",
+      "AH72:AO73",
+      "AC34:AF34",
+      "Y28:AB28",
+      "B7:F7",
+      "AN16:AP16",
+      "AJ38:AO38",
+      "U39:X39",
+      "AC59:AF59",
+      "O79:AA79",
+      "Y32:AB32",
+      "AC61:AF61",
+      "AJ33:AO33",
+      "AJ35:AO35",
+      "AG33:AI33",
+      "AC62:AF62",
+      "AP60:BC60",
+      "U65:X65",
+      "AK13:AQ13",
+      "AG35:AI35",
+      "B84:O84",
+      "U25:X25",
+      "AG34:AI34",
+      "AG42:AK42",
+      "AF12:AI12",
+      "AL84:AP84",
+      "AG59:AI59",
+      "B16:C16",
+      "B28:T28",
+      "AJ28:AO28",
+      "B74:K74",
+      "AW50:BC50",
+      "B68:T68",
+      "AJ30:AO30",
+      "AQ84:BC84",
+      "G7:Q7",
+      "U72:AG73",
+      "AA21:AC21",
+      "AJ54:AO54",
+      "AP74:BC74",
+      "AJ56:AO56",
+      "AG54:AI54",
+      "AC64:AF64",
+      "D17:S17",
+      "L47:T47",
+      "AG56:AI56",
+      "U58:X58",
+      "U33:X33",
+      "AP28:BC28",
+      "AH74:AO74",
+      "AI22:AR22",
+      "AG36:AI36",
+      "AC65:AF65",
+      "M8:Y8",
+      "AS8:AU8",
+      "AP67:BC67",
+      "Y66:AB66",
+      "B79:N79",
+      "B36:T36",
+      "Y53:AB53",
+      "U24:AI24",
+      "B17:C17",
+      "AN7:AP7",
+      "AJ29:AO29",
+      "Y55:AB55",
+      "P81:R84",
+      "AG48:AQ48",
+      "D16:H16",
+      "AJ31:AO31",
+      "AC58:AF58",
+      "E21:P21",
+      "BB49:BC49",
+      "AC39:AF39",
+      "AP21:AX21",
+      "B29:T29",
+      "AS80:BC80",
+      "Y37:AB37",
+      "L72:T73",
+      "I16:K16",
+      "R22:U22",
+      "AG32:AI32",
+      "AJ57:AO57",
+      "B43:BC43",
+      "AC13:AG13",
+      "AR13:BC13",
+      "X16:AE16",
+      "U35:X35",
+      "AG57:AI57",
+      "B32:T32",
+      "E49:P49",
+      "B26:T26",
+      "U34:X34",
+      "AP29:BC29",
+      "Y63:AB63",
+      "B22:H22",
+      "AG58:AI58",
+      "AP31:BC31",
+      "U30:X30",
+      "B27:T27",
+      "AH13:AJ13",
+      "Y67:AB67",
+      "B42:K42",
+      "AG60:AI60",
+      "AJ12:AO12",
+      "AJ39:AO39",
+      "AC12:AE12",
+      "B4:BC4",
+      "B37:T37",
+      "U54:X54",
+      "B52:T53",
+      "U29:X29",
+      "AX16:BC16",
+      "R7:V7",
+      "U31:X31",
+      "Y38:AB38",
+      "AJ65:AO65",
+      "AX18:BC18",
+      "AH7:AM7",
+      "AJ60:AO60",
+      "AC33:AF33",
+      "U40:AI40",
+      "AG25:AI25",
+      "U57:X57",
+      "AC35:AF35",
+      "V22:Z22",
+      "AP32:BC32",
+      "AP37:BC37",
+      "AP47:BC47",
+      "AG53:AI53",
+      "AH8:AR8",
+      "AA9:AW9",
+      "U68:AI68",
+      "B47:K47",
+      "AJ55:AO55",
+      "AC28:AF28",
+      "AP63:BC63",
+      "B78:BC78",
+      "B59:T59",
+      "B46:K46",
+      "AS22:AV22",
+      "AC30:AF30",
+      "B18:Z18",
+      "AY21:BA21",
+      "U32:X32",
+      "AP27:BC27",
+      "Y26:AB26",
+      "AP52:BC53",
+      "AI50:AR50",
+      "U47:AG47",
+      "AL70:AT70",
+      "AC54:AF54",
+      "Y27:AB27",
+      "AJ66:AO66",
+      "AC56:AF56",
+      "S84:AK84",
+      "B9:Z9",
+      "B2:BC2",
+      "AJ68:AO68",
+      "AC36:AF36",
+      "AY49:BA49",
+      "AG28:AI28",
+      "U60:X60",
+      "AP55:BC55",
+      "B49:D49",
+      "AP38:BC38",
+      "AG30:AI30",
+      "AG67:AI67",
+      "AP40:BC40",
+      "AD21:AL21",
+      "B15:BC15",
+      "H80:X80",
+      "AO17:BC17",
+      "B67:T67",
+      "B61:T61",
+      "AC29:AF29",
+      "I50:J50",
+      "AC31:AF31",
+      "AA22:AH22",
+      "AP66:BC66",
+      "AH47:AO47",
+      "U55:X55",
+      "AW22:BC22",
+      "AP68:BC68",
+      "B64:T64",
+      "AJ34:AO34",
+      "B50:H50",
+      "AD49:AL49",
+      "I22:J22",
+      "AJ36:AO36",
+      "K22:L22",
+      "BB79:BC79",
+      "AC57:AF57",
+      "Y35:AB35",
+      "AQ7:AW7",
+      "AP46:BC46",
+      "AG29:AI29",
+      "U66:X66",
+      "B5:BC5",
+      "U53:X53",
+      "AG31:AI31",
+      "R50:U50"
+    ],
+    "cells": {
+      "B1": {
+        "v": "SF10-JHS",
+        "align": "left",
+        "border": false
+      },
+      "B2": {
+        "v": "Republic of the Philippines",
+        "align": "center",
+        "border": false
+      },
+      "B3": {
+        "v": "Department of Education",
+        "align": "center",
+        "border": false
+      },
+      "B4": {
+        "v": "Learner Permanent Academic Record for Junior High School (SF10-JHS)",
+        "align": "center",
+        "border": false
+      },
+      "B5": {
+        "v": "(Formerly Form 137)",
+        "align": "center",
+        "border": false
+      },
+      "B6": {
+        "v": "LEARNER'S INFORMATION",
+        "align": "center",
+        "border": true
+      },
+      "B7": {
+        "v": "LAST NAME:",
+        "align": "left",
+        "border": false
+      },
+      "R7": {
+        "v": "FIRST NAME:",
+        "align": "right",
+        "border": false
+      },
+      "AH7": {
+        "v": "NAME EXT. (Jr,I,II):",
+        "align": "right",
+        "border": false
+      },
+      "AQ7": {
+        "v": "MIDDLE NAME:",
+        "align": "right",
+        "border": false
+      },
+      "B8": {
+        "v": "Learner Reference Number (LRN):",
+        "align": "left",
+        "border": false
+      },
+      "Z8": {
+        "v": "Birthdate (mm/dd/yyyy):",
+        "align": "right",
+        "border": true
+      },
+      "AS8": {
+        "v": "Sex:",
+        "align": "right",
+        "border": false
+      },
+      "B10": {
+        "v": "ELIGIBILITY FOR JHS ENROLMENT",
+        "align": "center",
+        "border": true
+      },
+      "D12": {
+        "v": "Elementary School Completer",
+        "align": "left",
+        "border": true
+      },
+      "W12": {
+        "v": "General Average:",
+        "align": "right",
+        "border": true
+      },
+      "AJ12": {
+        "v": "Citation (if Any):",
+        "align": "right",
+        "border": true
+      },
+      "D13": {
+        "v": "Name of Elementary School:",
+        "align": "left",
+        "border": false
+      },
+      "AC13": {
+        "v": "School ID:",
+        "align": "right",
+        "border": false
+      },
+      "AK13": {
+        "v": "Address of School:",
+        "align": "right",
+        "border": false
+      },
+      "B15": {
+        "v": "Other Credential Presented",
+        "align": "left",
+        "border": false
+      },
+      "D16": {
+        "v": "PEPT Passer",
+        "align": "left",
+        "border": false
+      },
+      "I16": {
+        "v": "Rating:",
+        "align": "right",
+        "border": false
+      },
+      "X16": {
+        "v": "ALS A & E Passer",
+        "align": "left",
+        "border": false
+      },
+      "AF16": {
+        "v": "Rating:",
+        "align": "left",
+        "border": false
+      },
+      "AQ16": {
+        "v": "Others (Pls. Specify):",
+        "align": "right",
+        "border": false
+      },
+      "D17": {
+        "v": "Date of Examination/Assessment (mm/dd/yyyy):",
+        "align": "left",
+        "border": false
+      },
+      "AC17": {
+        "v": "Name and Address of Testing Center:",
+        "align": "right",
+        "border": false
+      },
+      "B19": {
+        "v": "SCHOLASTIC RECORD",
+        "align": "center",
+        "border": true
+      },
+      "B21": {
+        "v": "School:",
+        "align": "left",
+        "border": true
+      },
+      "Q21": {
+        "v": "School ID:",
+        "align": "right",
+        "border": true
+      },
+      "AA21": {
+        "v": "District:",
+        "align": "right",
+        "border": true
+      },
+      "AM21": {
+        "v": "Division:",
+        "align": "left",
+        "border": true
+      },
+      "AY21": {
+        "v": "Region:",
+        "align": "right",
+        "border": true
+      },
+      "B22": {
+        "v": "Classified as Grade:",
+        "align": "left",
+        "border": true
+      },
+      "K22": {
+        "v": "Section:",
+        "align": "left",
+        "border": true
+      },
+      "R22": {
+        "v": "School Year:",
+        "align": "left",
+        "border": false
+      },
+      "AA22": {
+        "v": "Name of Adviser/Teacher:",
+        "align": "right",
+        "border": false
+      },
+      "AS22": {
+        "v": "Signature:",
+        "align": "left",
+        "border": true
+      },
+      "B24": {
+        "v": "LEARNING AREAS",
+        "align": "center",
+        "border": true
+      },
+      "U24": {
+        "v": "Quarterly Rating",
+        "align": "center",
+        "border": true
+      },
+      "AJ24": {
+        "v": "FINAL\n RATING",
+        "align": "center",
+        "border": true
+      },
+      "AP24": {
+        "v": "REMARKS",
+        "align": "center",
+        "border": true
+      },
+      "U25": {
+        "v": "1",
+        "align": "center",
+        "border": true
+      },
+      "Y25": {
+        "v": "2",
+        "align": "center",
+        "border": true
+      },
+      "AC25": {
+        "v": "3",
+        "align": "center",
+        "border": true
+      },
+      "AG25": {
+        "v": "4",
+        "align": "center",
+        "border": true
+      },
+      "B26": {
+        "v": "Filipino",
+        "align": "left",
+        "border": true
+      },
+      "B27": {
+        "v": "English",
+        "align": "left",
+        "border": true
+      },
+      "B28": {
+        "v": "Mathematics",
+        "align": "left",
+        "border": true
+      },
+      "B29": {
+        "v": "Science",
+        "align": "left",
+        "border": true
+      },
+      "B30": {
+        "v": "Araling Panlipunan (AP)",
+        "align": "left",
+        "border": true
+      },
+      "B31": {
+        "v": "Edukasyon sa Pagpapakatao (EsP)",
+        "align": "left",
+        "border": true
+      },
+      "B32": {
+        "v": "Technology and Livelihood Education (TLE)",
+        "align": "left",
+        "border": true
+      },
+      "B33": {
+        "v": "MAPEH",
+        "align": "left",
+        "border": true
+      },
+      "B34": {
+        "v": "Music",
+        "align": "left",
+        "border": true
+      },
+      "B35": {
+        "v": "Arts",
+        "align": "left",
+        "border": true
+      },
+      "B36": {
+        "v": "Physical Education",
+        "align": "left",
+        "border": true
+      },
+      "B37": {
+        "v": "Health",
+        "align": "left",
+        "border": true
+      },
+      "U40": {
+        "v": "General Average",
+        "align": "center",
+        "border": true
+      },
+      "B42": {
+        "v": "Remedial Classes",
+        "align": "center",
+        "border": true
+      },
+      "L42": {
+        "v": "Conducted from (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "AG42": {
+        "v": "to (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "BD43": {
+        "v": "u",
+        "align": "left",
+        "border": false
+      },
+      "B44": {
+        "v": "Learning Areas",
+        "align": "center",
+        "border": true
+      },
+      "L44": {
+        "v": "Final Rating",
+        "align": "center",
+        "border": true
+      },
+      "U44": {
+        "v": "Remedial Class Mark",
+        "align": "center",
+        "border": true
+      },
+      "AH44": {
+        "v": "Recomputed\nFinal Grade",
+        "align": "center",
+        "border": true
+      },
+      "AP44": {
+        "v": "Remarks",
+        "align": "center",
+        "border": true
+      },
+      "B49": {
+        "v": "School:",
+        "align": "left",
+        "border": true
+      },
+      "Q49": {
+        "v": "School ID:",
+        "align": "right",
+        "border": true
+      },
+      "AA49": {
+        "v": "District:",
+        "align": "right",
+        "border": true
+      },
+      "AM49": {
+        "v": "Division:",
+        "align": "left",
+        "border": true
+      },
+      "AY49": {
+        "v": "Region:",
+        "align": "right",
+        "border": true
+      },
+      "B50": {
+        "v": "Classified as Grade:",
+        "align": "left",
+        "border": true
+      },
+      "K50": {
+        "v": "Section:",
+        "align": "left",
+        "border": true
+      },
+      "R50": {
+        "v": "School Year:",
+        "align": "left",
+        "border": false
+      },
+      "AA50": {
+        "v": "Name of Adviser/Teacher:",
+        "align": "right",
+        "border": false
+      },
+      "AS50": {
+        "v": "Signature:",
+        "align": "left",
+        "border": true
+      },
+      "B52": {
+        "v": "LEARNING AREAS",
+        "align": "center",
+        "border": true
+      },
+      "U52": {
+        "v": "Quarterly Rating",
+        "align": "center",
+        "border": true
+      },
+      "AJ52": {
+        "v": "FINAL\n RATING",
+        "align": "center",
+        "border": true
+      },
+      "AP52": {
+        "v": "REMARKS",
+        "align": "center",
+        "border": true
+      },
+      "U53": {
+        "v": "1",
+        "align": "center",
+        "border": true
+      },
+      "Y53": {
+        "v": "2",
+        "align": "center",
+        "border": true
+      },
+      "AC53": {
+        "v": "3",
+        "align": "center",
+        "border": true
+      },
+      "AG53": {
+        "v": "4",
+        "align": "center",
+        "border": true
+      },
+      "B54": {
+        "v": "Filipino",
+        "align": "left",
+        "border": true
+      },
+      "B55": {
+        "v": "English",
+        "align": "left",
+        "border": true
+      },
+      "B56": {
+        "v": "Mathematics",
+        "align": "left",
+        "border": true
+      },
+      "B57": {
+        "v": "Science",
+        "align": "left",
+        "border": true
+      },
+      "B58": {
+        "v": "Araling Panlipunan (AP)",
+        "align": "left",
+        "border": true
+      },
+      "B59": {
+        "v": "Edukasyon sa Pagpapakatao (EsP)",
+        "align": "left",
+        "border": true
+      },
+      "B60": {
+        "v": "Technology and Livelihood Education (TLE)",
+        "align": "left",
+        "border": true
+      },
+      "B61": {
+        "v": "MAPEH",
+        "align": "left",
+        "border": true
+      },
+      "B62": {
+        "v": "Music",
+        "align": "left",
+        "border": true
+      },
+      "B63": {
+        "v": "Arts",
+        "align": "left",
+        "border": true
+      },
+      "B64": {
+        "v": "Physical Education",
+        "align": "left",
+        "border": true
+      },
+      "B65": {
+        "v": "Health",
+        "align": "left",
+        "border": true
+      },
+      "U68": {
+        "v": "General Average",
+        "align": "center",
+        "border": true
+      },
+      "B70": {
+        "v": "Remedial Classes",
+        "align": "center",
+        "border": true
+      },
+      "L70": {
+        "v": "Conducted from (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "AG70": {
+        "v": "to (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "BD71": {
+        "v": "u",
+        "align": "left",
+        "border": false
+      },
+      "B72": {
+        "v": "Learning Areas",
+        "align": "center",
+        "border": true
+      },
+      "L72": {
+        "v": "Final Rating",
+        "align": "center",
+        "border": true
+      },
+      "U72": {
+        "v": "Remedial Class Mark",
+        "align": "center",
+        "border": true
+      },
+      "AH72": {
+        "v": "Recomputed\nFinal Grade",
+        "align": "center",
+        "border": true
+      },
+      "AP72": {
+        "v": "Remarks",
+        "align": "center",
+        "border": true
+      },
+      "B77": {
+        "v": "CERTIFICATION",
+        "align": "center",
+        "border": true
+      },
+      "B79": {
+        "v": "I CERTIFY that this is a true record of",
+        "align": "left",
+        "border": true
+      },
+      "AB79": {
+        "v": "with LRN",
+        "align": "right",
+        "border": false
+      },
+      "BA79": {
+        "v": "and that he/she is eligible for admission to Grade",
+        "align": "right",
+        "border": false
+      },
+      "B80": {
+        "v": "Name of School:",
+        "align": "left",
+        "border": true
+      },
+      "Y80": {
+        "v": "School ID:",
+        "align": "left",
+        "border": false
+      },
+      "AJ80": {
+        "v": "Last School Year Attended:",
+        "align": "left",
+        "border": false
+      },
+      "B84": {
+        "v": "Date",
+        "align": "center",
+        "border": true
+      },
+      "S84": {
+        "v": "Signature of Principal/School Head over Printed Name",
+        "align": "center",
+        "border": true
+      },
+      "AQ84": {
+        "v": "(Affix School Seal Here)",
+        "align": "center",
+        "border": true
+      }
+    }
+  },
+  "Back": {
+    "dimensions": "B1:BD95",
+    "cols": {
+      "B": 2.6640625,
+      "C": 8.43,
+      "D": 1.44140625,
+      "E": 1.88671875,
+      "F": 2.44140625,
+      "G": 2.6640625,
+      "H": 8.43,
+      "I": 8.43,
+      "J": 8.43,
+      "K": 8.43,
+      "L": 3.6640625,
+      "M": 0.88671875,
+      "N": 8.43,
+      "O": 2.6640625,
+      "P": 1.0,
+      "Q": 2.6640625,
+      "R": 8.43,
+      "S": 8.43,
+      "T": 8.43,
+      "U": 8.43,
+      "V": 1.44140625,
+      "W": 2.6640625,
+      "X": 8.43,
+      "Y": 8.43,
+      "Z": 1.33203125,
+      "AA": 3.109375,
+      "AB": 2.6640625,
+      "AC": 8.43,
+      "AD": 1.109375,
+      "AE": 2.6640625,
+      "AF": 8.43,
+      "AG": 3.33203125,
+      "AH": 2.6640625,
+      "AI": 3.6640625,
+      "AJ": 2.6640625,
+      "AK": 8.43,
+      "AL": 2.0,
+      "AM": 2.6640625,
+      "AN": 8.43,
+      "AO": 1.44140625,
+      "AP": 2.6640625,
+      "AQ": 8.43,
+      "AR": 8.43,
+      "AS": 8.43,
+      "AT": 8.43,
+      "AU": 8.43,
+      "AV": 1.0,
+      "AW": 2.6640625,
+      "AX": 8.43,
+      "AY": 8.43,
+      "AZ": 8.43,
+      "BA": 8.43,
+      "BB": 8.43,
+      "BC": 8.43,
+      "BD": 1.0
+    },
+    "rows": {
+      "1": 13.5,
+      "2": 4.5,
+      "3": 15.0,
+      "4": 15.0,
+      "5": 2.25,
+      "6": 16.5,
+      "7": 15.0,
+      "8": 15.0,
+      "9": 15.0,
+      "10": 15.0,
+      "11": 15.0,
+      "12": 15.0,
+      "13": 15.0,
+      "14": 15.0,
+      "15": 15.0,
+      "16": 15.0,
+      "17": 15.0,
+      "18": 15.0,
+      "19": 15.0,
+      "20": 15.0,
+      "21": 15.0,
+      "22": 15.0,
+      "23": 6.0,
+      "24": 16.5,
+      "25": 2.25,
+      "26": 16.5,
+      "27": 15.0,
+      "28": 15.0,
+      "29": 14.4,
+      "30": 4.5,
+      "31": 15.0,
+      "32": 15.0,
+      "33": 2.25,
+      "34": 16.5,
+      "35": 15.0,
+      "36": 15.0,
+      "37": 15.0,
+      "38": 15.0,
+      "39": 15.0,
+      "40": 15.0,
+      "41": 15.0,
+      "42": 15.0,
+      "43": 15.0,
+      "44": 16.5,
+      "45": 15.0,
+      "46": 15.0,
+      "47": 15.0,
+      "48": 15.0,
+      "49": 15.0,
+      "50": 15.0,
+      "51": 6.0,
+      "52": 16.5,
+      "53": 2.25,
+      "54": 16.5,
+      "55": 15.0,
+      "56": 15.0,
+      "57": 14.4,
+      "58": 4.5,
+      "59": 15.0,
+      "60": 15.0,
+      "61": 2.25,
+      "62": 16.5,
+      "63": 15.0,
+      "64": 15.0,
+      "65": 15.0,
+      "66": 15.0,
+      "67": 15.0,
+      "68": 15.0,
+      "69": 15.0,
+      "70": 15.0,
+      "71": 15.0,
+      "72": 16.5,
+      "73": 15.0,
+      "74": 15.0,
+      "75": 15.0,
+      "76": 15.0,
+      "77": 15.0,
+      "78": 15.0,
+      "79": 6.0,
+      "80": 16.5,
+      "81": 2.25,
+      "82": 16.5,
+      "83": 15.0,
+      "84": 15.0,
+      "85": 14.4,
+      "86": 14.4,
+      "87": 18.6,
+      "88": 15.0,
+      "89": 15.0,
+      "90": 15.0,
+      "91": 15.0,
+      "92": 15.0,
+      "93": 15.0,
+      "94": 14.4,
+      "95": 15.0
+    },
+    "merged_cells": [
+      "Y46:AB46",
+      "O89:AA89",
+      "AP56:BC56",
+      "AQ94:BC94",
+      "Y12:AB12",
+      "AP43:BC43",
+      "AD31:AL31",
+      "Y48:AB48",
+      "AJ37:AO37",
+      "Y41:AB41",
+      "AC70:AF70",
+      "AG80:AK80",
+      "AC45:AF45",
+      "Y43:AB43",
+      "B72:T72",
+      "AC47:AF47",
+      "AG42:AI42",
+      "AP69:BC69",
+      "AC76:AF76",
+      "B60:H60",
+      "AP11:BC11",
+      "U16:X16",
+      "AJ50:AO50",
+      "AJ42:AO42",
+      "B17:T17",
+      "AL94:AP94",
+      "AR58:BC58",
+      "B26:K27",
+      "U28:AG28",
+      "B19:T19",
+      "Y36:AB36",
+      "U67:X67",
+      "AG45:AI45",
+      "B85:K85",
+      "B20:T20",
+      "AG37:AI37",
+      "U69:X69",
+      "AP64:BC64",
+      "R60:U60",
+      "AG47:AI47",
+      "AY31:BA31",
+      "L52:W52",
+      "AS4:AV4",
+      "AC13:AF13",
+      "AP65:BC65",
+      "Y64:AB64",
+      "AJ47:AO47",
+      "AC15:AF15",
+      "U22:AI22",
+      "U78:AI78",
+      "AG63:AI63",
+      "AJ40:AO40",
+      "Q31:T31",
+      "U54:AG55",
+      "AP17:BC17",
+      "AP77:BC77",
+      "AC73:AF73",
+      "B13:T13",
+      "AP75:BC75",
+      "U18:X18",
+      "AH56:AO56",
+      "AP12:BC12",
+      "AP6:BC7",
+      "AH85:AO85",
+      "B89:N89",
+      "Y8:AB8",
+      "U19:X19",
+      "AP14:BC14",
+      "Y75:AB75",
+      "AJ45:AO45",
+      "AC66:AF66",
+      "B22:T22",
+      "AS60:AV60",
+      "Y39:AB39",
+      "U77:X77",
+      "AC74:AF74",
+      "AC68:AF68",
+      "AY3:BA3",
+      "AG38:AI38",
+      "AC67:AF67",
+      "U37:X37",
+      "AG46:AI46",
+      "AJ71:AO71",
+      "AP26:BC27",
+      "AG40:AI40",
+      "U72:X72",
+      "AC69:AF69",
+      "B38:T38",
+      "AJ73:AO73",
+      "Y65:AB65",
+      "AJ48:AO48",
+      "B40:T40",
+      "AC21:AF21",
+      "AJ77:AO77",
+      "U63:X63",
+      "AP9:BC9",
+      "AG66:AI66",
+      "N4:Q4",
+      "B41:T41",
+      "AP20:BC20",
+      "AC16:AF16",
+      "S91:AK93",
+      "AG74:AI74",
+      "AG68:AI68",
+      "AW32:BC32",
+      "AP84:BC84",
+      "AP22:BC22",
+      "AP78:BC78",
+      "AC18:AF18",
+      "AG43:AI43",
+      "B66:T66",
+      "AP15:BC15",
+      "AD3:AL3",
+      "Y20:AB20",
+      "Y14:AB14",
+      "U34:AI34",
+      "AJ46:AO46",
+      "L26:T27",
+      "AC42:AF42",
+      "P91:R94",
+      "B28:K28",
+      "AG21:AI21",
+      "AW60:BC60",
+      "AG48:AI48",
+      "U38:X38",
+      "B32:H32",
+      "U40:X40",
+      "AS90:BC90",
+      "AJ74:AO74",
+      "U15:X15",
+      "Y15:AB15",
+      "Y71:AB71",
+      "BA1:BC1",
+      "AJ16:AO16",
+      "B56:K56",
+      "AI60:AR60",
+      "BB59:BC59",
+      "Y73:AB73",
+      "U31:Z31",
+      "B43:T43",
+      "AJ9:AO9",
+      "Y10:AB10",
+      "AJ11:AO11",
+      "AG9:AI9",
+      "AJ34:AO35",
+      "AC19:AF19",
+      "R32:U32",
+      "AJ67:AO67",
+      "AG11:AI11",
+      "L24:W24",
+      "B9:T9",
+      "AJ69:AO69",
+      "AG75:AI75",
+      "V4:Z4",
+      "E59:P59",
+      "AL91:BC93",
+      "L85:T85",
+      "AB89:AE89",
+      "AP59:AX59",
+      "B61:BC61",
+      "AA31:AC31",
+      "Q3:T3",
+      "AM31:AO31",
+      "L84:T84",
+      "B75:T75",
+      "AG39:AI39",
+      "AJ64:AO64",
+      "AM3:AO3",
+      "U46:X46",
+      "AC37:AF37",
+      "B87:BC87",
+      "B6:T7",
+      "U48:X48",
+      "AG64:AI64",
+      "B39:T39",
+      "B70:T70",
+      "AP49:BC49",
+      "U41:X41",
+      "AP36:BC36",
+      "B59:D59",
+      "U56:AG56",
+      "AP82:BC83",
+      "AG65:AI65",
+      "Y7:AB7",
+      "U43:X43",
+      "AJ17:AO17",
+      "AC63:AF63",
+      "Y49:AB49",
+      "AJ19:AO19",
+      "B65:T65",
+      "AG17:AI17",
+      "Y76:AB76",
+      "B82:K83",
+      "BB89:BC89",
+      "AG19:AI19",
+      "B50:T50",
+      "U9:X9",
+      "AG12:AI12",
+      "U36:X36",
+      "AP62:BC63",
+      "AG14:AI14",
+      "B12:T12",
+      "B14:T14",
+      "AC38:AF38",
+      "AG72:AI72",
+      "B78:T78",
+      "AP57:BC57",
+      "AS32:AV32",
+      "Y13:AB13",
+      "AC46:AF46",
+      "AC40:AF40",
+      "U64:X64",
+      "AC41:AF41",
+      "AP39:BC39",
+      "AL24:AT24",
+      "B88:BC88",
+      "L56:T56",
+      "AJ20:AO20",
+      "B52:K52",
+      "AC77:AF77",
+      "U17:X17",
+      "U11:X11",
+      "AJ22:AO22",
+      "Y44:AB44",
+      "AG20:AI20",
+      "AC43:AF43",
+      "B3:D3",
+      "I4:J4",
+      "U75:X75",
+      "AP70:BC70",
+      "AC72:AF72",
+      "U12:X12",
+      "K32:M32",
+      "B84:K84",
+      "AJ38:AO38",
+      "U39:X39",
+      "Y70:AB70",
+      "AF89:AK89",
+      "AY59:BA59",
+      "B80:K80",
+      "U3:Z3",
+      "B15:T15",
+      "L29:T29",
+      "AA59:AC59",
+      "X80:AF80",
+      "AC48:AF48",
+      "Y47:AB47",
+      "AH54:AO55",
+      "AP85:BC85",
+      "U65:X65",
+      "Y21:AB21",
+      "AG35:AI35",
+      "U26:AG27",
+      "AJ90:AR90",
+      "B8:T8",
+      "L57:T57",
+      "Y16:AB16",
+      "AA32:AH32",
+      "AH57:AO57",
+      "AH84:AO84",
+      "AD59:AL59",
+      "B10:T10",
+      "AH82:AO83",
+      "AI32:AR32",
+      "AG76:AI76",
+      "AP13:BC13",
+      "AJ72:AO72",
+      "AC9:AF9",
+      "Y18:AB18",
+      "Y45:AB45",
+      "B74:T74",
+      "B68:T68",
+      "U20:X20",
+      "AP71:BC71",
+      "AC11:AF11",
+      "U14:X14",
+      "U85:AG85",
+      "B76:T76",
+      "I32:J32",
+      "AP8:BC8",
+      "Y42:AB42",
+      "AP73:BC73",
+      "AG52:AK52",
+      "AP10:BC10",
+      "K4:M4",
+      "AJ41:AO41",
+      "AP74:BC74",
+      "B21:T21",
+      "B33:BC33",
+      "AJ43:AO43",
+      "AG41:AI41",
+      "B54:K55",
+      "U6:AI6",
+      "AL80:AT80",
+      "AC64:AF64",
+      "I60:J60",
+      "B94:O94",
+      "AP28:BC28",
+      "AG49:AI49",
+      "U8:X8",
+      "AG36:AI36",
+      "AC65:AF65",
+      "AP34:BC35",
+      "AP21:BC21",
+      "AP67:BC67",
+      "U10:X10",
+      "L82:T83",
+      "Y66:AB66",
+      "S94:AK94",
+      "B36:T36",
+      "AC17:AF17",
+      "AA60:AH60",
+      "Y68:AB68",
+      "N32:Q32",
+      "B34:T35",
+      "AC75:AF75",
+      "U84:AG84",
+      "AJ44:AO44",
+      "V60:Z60",
+      "AC12:AF12",
+      "B77:T77",
+      "AJ62:AO63",
+      "V32:Z32",
+      "AC39:AF39",
+      "AC14:AF14",
+      "B90:G90",
+      "B29:K29",
+      "U21:X21",
+      "AP16:BC16",
+      "Q59:T59",
+      "AP76:BC76",
+      "Y37:AB37",
+      "AM59:AO59",
+      "AP18:BC18",
+      "N60:Q60",
+      "B62:T63",
+      "B49:T49",
+      "B24:K24",
+      "B30:AF30",
+      "X24:AF24",
+      "U35:X35",
+      "AC7:AF7",
+      "AP29:BC29",
+      "Y63:AB63",
+      "U74:X74",
+      "BB31:BC31",
+      "AC71:AF71",
+      "AP44:BC44",
+      "R4:U4",
+      "U49:X49",
+      "Y74:AB74",
+      "AJ75:AO75",
+      "U76:X76",
+      "Y67:AB67",
+      "U50:AI50",
+      "B42:T42",
+      "AJ12:AO12",
+      "AJ6:AO7",
+      "Y69:AB69",
+      "X52:AF52",
+      "AC20:AF20",
+      "L28:T28",
+      "B44:T44",
+      "AJ39:AO39",
+      "AJ14:AO14",
+      "AJ70:AO70",
+      "AP72:BC72",
+      "AP54:BC55",
+      "AH28:AO28",
+      "AC90:AI90",
+      "B37:T37",
+      "AG70:AI70",
+      "E31:P31",
+      "U29:AG29",
+      "AP31:AX31",
+      "AP42:BC42",
+      "AG7:AI7",
+      "AR30:BC30",
+      "AJ65:AO65",
+      "AG71:AI71",
+      "Y38:AB38",
+      "AP19:BC19",
+      "L80:W80",
+      "B71:T71",
+      "AC8:AF8",
+      "Y19:AB19",
+      "U57:AG57",
+      "AC35:AF35",
+      "AI4:AR4",
+      "U82:AG83",
+      "AG58:AQ58",
+      "AC10:AF10",
+      "K60:M60",
+      "U42:X42",
+      "AP37:BC37",
+      "AP47:BC47",
+      "Y77:AB77",
+      "AJ13:AO13",
+      "AJ78:AO78",
+      "B45:T45",
+      "AJ15:AO15",
+      "AG13:AI13",
+      "AH29:AO29",
+      "AL52:AT52",
+      "Y72:AB72",
+      "B47:T47",
+      "AP50:BC50",
+      "AG15:AI15",
+      "B46:T46",
+      "U70:X70",
+      "AG8:AI8",
+      "AG73:AI73",
+      "H90:X90",
+      "B48:T48",
+      "U59:Z59",
+      "AP45:BC45",
+      "AG10:AI10",
+      "B31:D31",
+      "L54:T55",
+      "U47:X47",
+      "AG24:AK24",
+      "B73:T73",
+      "AJ8:AO8",
+      "Y90:AB90",
+      "AJ10:AO10",
+      "AJ66:AO66",
+      "AC49:AF49",
+      "AJ68:AO68",
+      "AC36:AF36",
+      "U44:X44",
+      "B4:H4",
+      "AP38:BC38",
+      "AH26:AO27",
+      "AA3:AC3",
+      "AG67:AI67",
+      "Y9:AB9",
+      "AP40:BC40",
+      "U45:X45",
+      "B58:AF58",
+      "AG69:AI69",
+      "Y11:AB11",
+      "AJ21:AO21",
+      "B67:T67",
+      "U13:X13",
+      "U7:X7",
+      "Y40:AB40",
+      "B69:T69",
+      "AC44:AF44",
+      "U71:X71",
+      "AP66:BC66",
+      "BB3:BC3",
+      "U73:X73",
+      "AP68:BC68",
+      "AJ18:AO18",
+      "B64:T64",
+      "AG16:AI16",
+      "B91:O93",
+      "U62:AI62",
+      "AJ49:AO49",
+      "AG18:AI18",
+      "AJ36:AO36",
+      "B16:T16",
+      "AJ76:AO76",
+      "AA4:AH4",
+      "AW4:BC4",
+      "B18:T18",
+      "Y35:AB35",
+      "AP46:BC46",
+      "E3:P3",
+      "B11:T11",
+      "U66:X66",
+      "AP3:AX3",
+      "B5:BC5",
+      "B57:K57",
+      "Y17:AB17",
+      "AP48:BC48",
+      "AG30:AQ30",
+      "AG44:AI44",
+      "U68:X68",
+      "AP41:BC41",
+      "AG77:AI77"
+    ],
+    "cells": {
+      "B1": {
+        "v": "SF10-JHS",
+        "align": "left",
+        "border": false
+      },
+      "AZ1": {
+        "v": "Page 2 of",
+        "align": "right",
+        "border": false
+      },
+      "B3": {
+        "v": "School:",
+        "align": "left",
+        "border": true
+      },
+      "Q3": {
+        "v": "School ID:",
+        "align": "right",
+        "border": true
+      },
+      "AA3": {
+        "v": "District:",
+        "align": "right",
+        "border": true
+      },
+      "AM3": {
+        "v": "Division:",
+        "align": "left",
+        "border": true
+      },
+      "AY3": {
+        "v": "Region:",
+        "align": "right",
+        "border": true
+      },
+      "B4": {
+        "v": "Classified as Grade:",
+        "align": "left",
+        "border": true
+      },
+      "K4": {
+        "v": "Section:",
+        "align": "center",
+        "border": true
+      },
+      "R4": {
+        "v": "School Year:",
+        "align": "left",
+        "border": false
+      },
+      "AA4": {
+        "v": "Name of Adviser/Teacher:",
+        "align": "right",
+        "border": false
+      },
+      "AS4": {
+        "v": "Signature:",
+        "align": "left",
+        "border": true
+      },
+      "B6": {
+        "v": "LEARNING AREAS",
+        "align": "center",
+        "border": true
+      },
+      "U6": {
+        "v": "Quarterly Rating",
+        "align": "center",
+        "border": true
+      },
+      "AJ6": {
+        "v": "FINAL\n RATING",
+        "align": "center",
+        "border": true
+      },
+      "AP6": {
+        "v": "REMARKS",
+        "align": "center",
+        "border": true
+      },
+      "U7": {
+        "v": "1",
+        "align": "center",
+        "border": true
+      },
+      "Y7": {
+        "v": "2",
+        "align": "center",
+        "border": true
+      },
+      "AC7": {
+        "v": "3",
+        "align": "center",
+        "border": true
+      },
+      "AG7": {
+        "v": "4",
+        "align": "center",
+        "border": true
+      },
+      "B8": {
+        "v": "Filipino",
+        "align": "left",
+        "border": true
+      },
+      "B9": {
+        "v": "English",
+        "align": "left",
+        "border": true
+      },
+      "B10": {
+        "v": "Mathematics",
+        "align": "left",
+        "border": true
+      },
+      "B11": {
+        "v": "Science",
+        "align": "left",
+        "border": true
+      },
+      "B12": {
+        "v": "Araling Panlipunan (AP)",
+        "align": "left",
+        "border": true
+      },
+      "B13": {
+        "v": "Edukasyon sa Pagpapakatao (EsP)",
+        "align": "left",
+        "border": true
+      },
+      "B14": {
+        "v": "Technology and Livelihood Education (TLE)",
+        "align": "left",
+        "border": true
+      },
+      "B15": {
+        "v": "MAPEH",
+        "align": "left",
+        "border": true
+      },
+      "B16": {
+        "v": "Music",
+        "align": "left",
+        "border": true
+      },
+      "B17": {
+        "v": "Arts",
+        "align": "left",
+        "border": true
+      },
+      "B18": {
+        "v": "Physical Education",
+        "align": "left",
+        "border": true
+      },
+      "B19": {
+        "v": "Health",
+        "align": "left",
+        "border": true
+      },
+      "U22": {
+        "v": "General Average",
+        "align": "center",
+        "border": true
+      },
+      "B24": {
+        "v": "Remedial Classes",
+        "align": "center",
+        "border": true
+      },
+      "L24": {
+        "v": "Conducted from (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "AG24": {
+        "v": "to (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "BD25": {
+        "v": "u",
+        "align": "left",
+        "border": false
+      },
+      "B26": {
+        "v": "Learning Areas",
+        "align": "center",
+        "border": true
+      },
+      "L26": {
+        "v": "Final Rating",
+        "align": "center",
+        "border": true
+      },
+      "U26": {
+        "v": "Remedial Class Mark",
+        "align": "center",
+        "border": true
+      },
+      "AH26": {
+        "v": "Recomputed\nFinal Grade",
+        "align": "center",
+        "border": true
+      },
+      "AP26": {
+        "v": "Remarks",
+        "align": "center",
+        "border": true
+      },
+      "B31": {
+        "v": "School:",
+        "align": "left",
+        "border": true
+      },
+      "Q31": {
+        "v": "School ID:",
+        "align": "right",
+        "border": true
+      },
+      "AA31": {
+        "v": "District:",
+        "align": "right",
+        "border": true
+      },
+      "AM31": {
+        "v": "Division:",
+        "align": "left",
+        "border": true
+      },
+      "AY31": {
+        "v": "Region:",
+        "align": "right",
+        "border": true
+      },
+      "B32": {
+        "v": "Classified as Grade:",
+        "align": "left",
+        "border": true
+      },
+      "K32": {
+        "v": "Section:",
+        "align": "left",
+        "border": true
+      },
+      "R32": {
+        "v": "School Year:",
+        "align": "left",
+        "border": false
+      },
+      "AA32": {
+        "v": "Name of Adviser/Teacher:",
+        "align": "right",
+        "border": false
+      },
+      "AS32": {
+        "v": "Signature:",
+        "align": "left",
+        "border": true
+      },
+      "B34": {
+        "v": "LEARNING AREAS",
+        "align": "center",
+        "border": true
+      },
+      "U34": {
+        "v": "Quarterly Rating",
+        "align": "center",
+        "border": true
+      },
+      "AJ34": {
+        "v": "FINAL\n RATING",
+        "align": "center",
+        "border": true
+      },
+      "AP34": {
+        "v": "REMARKS",
+        "align": "center",
+        "border": true
+      },
+      "U35": {
+        "v": "1",
+        "align": "center",
+        "border": true
+      },
+      "Y35": {
+        "v": "2",
+        "align": "center",
+        "border": true
+      },
+      "AC35": {
+        "v": "3",
+        "align": "center",
+        "border": true
+      },
+      "AG35": {
+        "v": "4",
+        "align": "center",
+        "border": true
+      },
+      "B36": {
+        "v": "Filipino",
+        "align": "left",
+        "border": true
+      },
+      "B37": {
+        "v": "English",
+        "align": "left",
+        "border": true
+      },
+      "B38": {
+        "v": "Mathematics",
+        "align": "left",
+        "border": true
+      },
+      "B39": {
+        "v": "Science",
+        "align": "left",
+        "border": true
+      },
+      "B40": {
+        "v": "Araling Panlipunan (AP)",
+        "align": "left",
+        "border": true
+      },
+      "B41": {
+        "v": "Edukasyon sa Pagpapakatao (EsP)",
+        "align": "left",
+        "border": true
+      },
+      "B42": {
+        "v": "Technology and Livelihood Education (TLE)",
+        "align": "left",
+        "border": true
+      },
+      "B43": {
+        "v": "MAPEH",
+        "align": "left",
+        "border": true
+      },
+      "B44": {
+        "v": "Music",
+        "align": "left",
+        "border": true
+      },
+      "B45": {
+        "v": "Arts",
+        "align": "left",
+        "border": true
+      },
+      "B46": {
+        "v": "Physical Education",
+        "align": "left",
+        "border": true
+      },
+      "B47": {
+        "v": "Health",
+        "align": "left",
+        "border": true
+      },
+      "U50": {
+        "v": "General Average",
+        "align": "center",
+        "border": true
+      },
+      "B52": {
+        "v": "Remedial Classes",
+        "align": "center",
+        "border": true
+      },
+      "L52": {
+        "v": "Conducted from (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "AG52": {
+        "v": "to (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "BD53": {
+        "v": "u",
+        "align": "left",
+        "border": false
+      },
+      "B54": {
+        "v": "Learning Areas",
+        "align": "center",
+        "border": true
+      },
+      "L54": {
+        "v": "Final Rating",
+        "align": "center",
+        "border": true
+      },
+      "U54": {
+        "v": "Remedial Class Mark",
+        "align": "center",
+        "border": true
+      },
+      "AH54": {
+        "v": "Recomputed\nFinal Grade",
+        "align": "center",
+        "border": true
+      },
+      "AP54": {
+        "v": "Remarks",
+        "align": "center",
+        "border": true
+      },
+      "B59": {
+        "v": "School:",
+        "align": "left",
+        "border": true
+      },
+      "Q59": {
+        "v": "School ID:",
+        "align": "right",
+        "border": true
+      },
+      "AA59": {
+        "v": "District:",
+        "align": "right",
+        "border": true
+      },
+      "AM59": {
+        "v": "Division:",
+        "align": "left",
+        "border": true
+      },
+      "AY59": {
+        "v": "Region:",
+        "align": "right",
+        "border": true
+      },
+      "B60": {
+        "v": "Classified as Grade:",
+        "align": "left",
+        "border": true
+      },
+      "K60": {
+        "v": "Section:",
+        "align": "left",
+        "border": true
+      },
+      "R60": {
+        "v": "School Year:",
+        "align": "left",
+        "border": false
+      },
+      "AA60": {
+        "v": "Name of Adviser/Teacher:",
+        "align": "right",
+        "border": false
+      },
+      "AS60": {
+        "v": "Signature:",
+        "align": "left",
+        "border": true
+      },
+      "B62": {
+        "v": "LEARNING AREAS",
+        "align": "center",
+        "border": true
+      },
+      "U62": {
+        "v": "Quarterly Rating",
+        "align": "center",
+        "border": true
+      },
+      "AJ62": {
+        "v": "FINAL\n RATING",
+        "align": "center",
+        "border": true
+      },
+      "AP62": {
+        "v": "REMARKS",
+        "align": "center",
+        "border": true
+      },
+      "U63": {
+        "v": "1",
+        "align": "center",
+        "border": true
+      },
+      "Y63": {
+        "v": "2",
+        "align": "center",
+        "border": true
+      },
+      "AC63": {
+        "v": "3",
+        "align": "center",
+        "border": true
+      },
+      "AG63": {
+        "v": "4",
+        "align": "center",
+        "border": true
+      },
+      "B64": {
+        "v": "Filipino",
+        "align": "left",
+        "border": true
+      },
+      "B65": {
+        "v": "English",
+        "align": "left",
+        "border": true
+      },
+      "B66": {
+        "v": "Mathematics",
+        "align": "left",
+        "border": true
+      },
+      "B67": {
+        "v": "Science",
+        "align": "left",
+        "border": true
+      },
+      "B68": {
+        "v": "Araling Panlipunan (AP)",
+        "align": "left",
+        "border": true
+      },
+      "B69": {
+        "v": "Edukasyon sa Pagpapakatao (EsP)",
+        "align": "left",
+        "border": true
+      },
+      "B70": {
+        "v": "Technology and Livelihood Education (TLE)",
+        "align": "left",
+        "border": true
+      },
+      "B71": {
+        "v": "MAPEH",
+        "align": "left",
+        "border": true
+      },
+      "B72": {
+        "v": "Music",
+        "align": "left",
+        "border": true
+      },
+      "B73": {
+        "v": "Arts",
+        "align": "left",
+        "border": true
+      },
+      "B74": {
+        "v": "Physical Education",
+        "align": "left",
+        "border": true
+      },
+      "B75": {
+        "v": "Health",
+        "align": "left",
+        "border": true
+      },
+      "U78": {
+        "v": "General Average",
+        "align": "center",
+        "border": true
+      },
+      "B80": {
+        "v": "Remedial Classes",
+        "align": "center",
+        "border": true
+      },
+      "L80": {
+        "v": "Conducted from (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "AG80": {
+        "v": "to (mm/dd/yyyy)",
+        "align": "left",
+        "border": true
+      },
+      "BD81": {
+        "v": "u",
+        "align": "left",
+        "border": false
+      },
+      "B82": {
+        "v": "Learning Areas",
+        "align": "center",
+        "border": true
+      },
+      "L82": {
+        "v": "Final Rating",
+        "align": "center",
+        "border": true
+      },
+      "U82": {
+        "v": "Remedial Class Mark",
+        "align": "center",
+        "border": true
+      },
+      "AH82": {
+        "v": "Recomputed\nFinal Grade",
+        "align": "center",
+        "border": true
+      },
+      "AP82": {
+        "v": "Remarks",
+        "align": "center",
+        "border": true
+      },
+      "B86": {
+        "v": "For Transfer Out / JHS Completer Only",
+        "align": "left",
+        "border": false
+      },
+      "B87": {
+        "v": "CERTIFICATION",
+        "align": "center",
+        "border": true
+      },
+      "B89": {
+        "v": "I CERTIFY that this is a true record of",
+        "align": "left",
+        "border": true
+      },
+      "AB89": {
+        "v": "with LRN",
+        "align": "right",
+        "border": false
+      },
+      "BA89": {
+        "v": "and that he/she is eligible for admission to Grade",
+        "align": "right",
+        "border": false
+      },
+      "B90": {
+        "v": "Name of School:",
+        "align": "left",
+        "border": true
+      },
+      "Y90": {
+        "v": "School ID:",
+        "align": "left",
+        "border": false
+      },
+      "AJ90": {
+        "v": "Last School Year Attended:",
+        "align": "left",
+        "border": false
+      },
+      "B94": {
+        "v": "Date",
+        "align": "center",
+        "border": true
+      },
+      "S94": {
+        "v": "Signature of Principal/School Head over Printed Name",
+        "align": "center",
+        "border": true
+      },
+      "AQ94": {
+        "v": "(Affix School Seal Here)",
+        "align": "center",
+        "border": true
+      },
+      "B95": {
+        "v": "(May add Certifiation box if needed)",
+        "align": "left",
+        "border": false
+      },
+      "BC95": {
+        "v": "SFRT Revised 2017",
+        "align": "right",
+        "border": false
+      }
+    }
+  }
+}

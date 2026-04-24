@@ -1,45 +1,93 @@
 import { useAppStore, useAuthStore } from '../../stores';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     LayoutDashboard,
     Users,
     School,
-    BookOpen,
     GraduationCap,
     FileSpreadsheet,
-    Files,
-    FileText,
     Megaphone,
     Settings,
+    Info,
     LogOut,
     BarChart3,
     UserCog,
-    CheckCircle2,
     Calendar,
     Menu,
     X,
-    ChevronLeft
+    ChevronLeft,
+    ClipboardList,
+    Layers
 } from 'lucide-react';
+import { canAccessView, hasRole, type AppView } from '../../lib/rbac';
 
 export function Sidebar() {
-    const { currentView, setCurrentView } = useAppStore();
+    const { currentView, setCurrentView, schoolProfile } = useAppStore();
     const { logout, user } = useAuthStore();
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebar-collapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        const saved = localStorage.getItem('sidebar-width');
+        return saved ? parseInt(saved) : 288;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const sidebarRef = useRef<HTMLDivElement>(null);
 
-    const menuItems = [
+    useEffect(() => {
+        localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+    }, [isCollapsed]);
+
+    useEffect(() => {
+        localStorage.setItem('sidebar-width', sidebarWidth.toString());
+    }, [sidebarWidth]);
+
+    const startResizing = useCallback((e: React.MouseEvent) => {
+        setIsResizing(true);
+        e.preventDefault();
+        document.body.style.cursor = 'col-resize';
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+        document.body.style.cursor = '';
+    }, []);
+
+    const resize = useCallback((e: MouseEvent) => {
+        if (isResizing) {
+            // Account for the p-3 padding on the parent container (12px)
+            const newWidth = e.clientX - 12; 
+            if (newWidth >= 240 && newWidth <= 600) {
+                setSidebarWidth(newWidth);
+                if (isCollapsed) setIsCollapsed(false);
+            } else if (newWidth < 120) {
+                setIsCollapsed(true);
+            }
+        }
+    }, [isResizing, isCollapsed]);
+
+    useEffect(() => {
+        window.addEventListener('mousemove', resize);
+        window.addEventListener('mouseup', stopResizing);
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [resize, stopResizing]);
+
+    const menuItems: Array<{ id: AppView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'sections', label: 'Classes & Sections', icon: Layers },
         { id: 'students', label: 'Student Information', icon: Users },
         { id: 'institute', label: 'Institute Profile', icon: School },
-        { id: 'classes', label: 'Classes/Sections', icon: BookOpen },
         { id: 'subjects', label: 'Subjects', icon: GraduationCap },
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
-        { id: 'sf9', label: 'SF9 Report Card', icon: Files },
-        { id: 'sf10', label: 'SF10 Permanent Record', icon: FileText },
-        { id: 'attendance', label: 'Attendance SF2', icon: CheckCircle2 },
+        { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
+        { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
         { id: 'calendar', label: 'School Calendar', icon: Calendar },
         { id: 'announcements', label: 'Announcements', icon: Megaphone },
-        { id: 'parent-portal', label: 'Parent Portal', icon: Users },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
     ];
 
@@ -48,25 +96,27 @@ export function Sidebar() {
         setIsMobileOpen(false);
     };
 
+    const visibleMenuItems = menuItems.filter((item) => canAccessView(user, item.id));
+
     const sidebarContent = (
         <>
-            <div className={`p-6 flex items-center gap-4 ${isCollapsed ? 'justify-center' : ''}`}>
-                <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] flex-shrink-0 border border-white/20 relative overflow-hidden">
+            <div className={`p-4 pb-3 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+                <div className="w-9 h-9 bg-gradient-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] flex-shrink-0 border border-white/20 relative overflow-hidden">
                     <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
-                    <img src={`${import.meta.env.BASE_URL}school-logo.png`} alt="School Logo" className="w-7 h-7 object-contain relative z-10" />
+                    <img src={`${import.meta.env.BASE_URL}app-logo.png`} alt="App Logo" className="w-6 h-6 object-contain relative z-10" />
                 </div>
                 {!isCollapsed && (
                     <div className="min-w-0">
-                        <h1 className="font-bold text-lg leading-none tracking-wide text-slate-800 dark:text-white drop-shadow-sm">Calibungan HS</h1>
-                        <p className="text-[10px] uppercase font-bold tracking-[0.15em] text-emerald-600 dark:text-emerald-400 mt-1.5">Portal</p>
+                        <h1 className="font-bold text-[14px] lg:text-[15px] leading-tight tracking-tight text-slate-800 dark:text-white drop-shadow-sm break-words">
+                            {schoolProfile.name}
+                        </h1>
+                        <p className="text-[9px] uppercase font-bold tracking-[0.15em] text-emerald-600 dark:text-emerald-400 mt-1">Portal</p>
                     </div>
                 )}
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
-                {menuItems.map((item) => {
-                    if (item.id === 'parent-portal' && user?.role !== 'parent') return null;
-
+            <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar">
+                {visibleMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentView === item.id;
 
@@ -75,7 +125,7 @@ export function Sidebar() {
                             key={item.id}
                             onClick={() => handleNavClick(item.id)}
                             title={isCollapsed ? item.label : undefined}
-                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
+                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
                                 ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                                 : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                                 }`}
@@ -84,19 +134,19 @@ export function Sidebar() {
                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                             )}
                             <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                            {!isCollapsed && <span className={`text-sm font-semibold tracking-wide truncate transition-colors ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>{item.label}</span>}
+                            {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide truncate transition-colors ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>{item.label}</span>}
                         </button>
                     );
                 })}
 
                 {/* Admin Only Items */}
-                {user?.role === 'admin' && (
+                {hasRole(user, 'admin') && (
                     <>
                         <div className={`my-4 border-t border-slate-200 dark:border-white/10 ${isCollapsed ? 'mx-2' : 'mx-4'}`} />
                         <button
                             onClick={() => handleNavClick('users')}
                             title={isCollapsed ? 'User Management' : undefined}
-                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'users'
+                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'users'
                                 ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                                 : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                                 }`}
@@ -105,29 +155,46 @@ export function Sidebar() {
                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                             )}
                             <UserCog className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'users' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                            {!isCollapsed && <span className={`text-sm font-semibold tracking-wide transition-colors ${currentView === 'users' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>User Management</span>}
+                            {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'users' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>User Management</span>}
                         </button>
                     </>
                 )}
 
                 {/* Settings */}
+                {canAccessView(user, 'settings') && (
+                    <button
+                        onClick={() => handleNavClick('settings')}
+                        title={isCollapsed ? 'Settings' : undefined}
+                        className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
+                            ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
+                            : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
+                            }`}
+                    >
+                        {currentView === 'settings' && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
+                        )}
+                        <Settings className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'settings' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                        {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
+                    </button>
+                )}
+                {/* About */}
                 <button
-                    onClick={() => handleNavClick('settings')}
-                    title={isCollapsed ? 'Settings' : undefined}
-                    className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
+                    onClick={() => handleNavClick('about')}
+                    title={isCollapsed ? 'About' : undefined}
+                    className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
                         ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                         : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                         }`}
                 >
-                    {currentView === 'settings' && (
+                    {currentView === 'about' && (
                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                     )}
-                    <Settings className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'settings' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                    {!isCollapsed && <span className={`text-sm font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
+                    <Info className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'about' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                    {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'about' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>About & Innovator</span>}
                 </button>
             </nav>
 
-            <div className={`p-4 space-y-2`}>
+            <div className={`p-3 space-y-2`}>
                 <div className={`border-t border-slate-200 dark:border-white/10 mb-4 ${isCollapsed ? 'mx-0' : 'mx-2'}`} />
                 {/* Collapse toggle (desktop) */}
                 <button
@@ -186,8 +253,22 @@ export function Sidebar() {
             </div>
 
             {/* Desktop sidebar */}
-            <div className={`hidden lg:flex ${isCollapsed ? 'w-[88px]' : 'w-72'} flex-col h-full z-20 no-print transition-all duration-300 relative bg-white/70 dark:bg-white/[0.02] backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]`}>
+            <div 
+                ref={sidebarRef}
+                style={{ width: isCollapsed ? '88px' : `${sidebarWidth}px` }}
+                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/[0.02] backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
+            >
                 {sidebarContent}
+                
+                {/* Resize Handle */}
+                {!isCollapsed && (
+                    <div
+                        onMouseDown={startResizing}
+                        className="absolute -right-2 top-0 w-4 h-full cursor-col-resize z-40 group-hover/sidebar:bg-emerald-500/5 transition-colors flex items-center justify-center group/handle"
+                    >
+                        <div className="w-1 h-12 bg-emerald-500/20 rounded-full opacity-0 group-hover/sidebar:opacity-100 group-hover/handle:bg-emerald-500 transition-all shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+                    </div>
+                )}
             </div>
         </>
     );

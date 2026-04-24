@@ -1,0 +1,83 @@
+[
+  {
+    "id": "section-1770566985325",
+    "section_room": "",
+    "adviser_name": "Maridel B. Dela Cruz",
+    "section_grade_level": "Grade 7",
+    "section_name": "Kamagong",
+    "adviser_id": "EswkEwVK91Wa8Phj3zO21zwUKwh2"
+  },
+  {
+    "id": "section-1770566994212",
+    "section_name": "Molave",
+    "adviser_id": "S6h87vw8KgMQNqhNWvzO54BUhDC2",
+    "section_grade_level": "Grade 7",
+    "section_room": ""
+  },
+  {
+    "id": "section-1770567010380",
+    "section_grade_level": "Grade 8",
+    "section_room": "",
+    "section_name": "Sampaguita",
+    "adviser_id": "FeZOizSVzaRoagBizR5ecCidK5x2"
+  },
+  {
+    "id": "section-1770567016285",
+    "adviser_id": "62NEbsrUIqai9vLaDS0esgJTOuI3",
+    "section_name": "Rose",
+    "section_grade_level": "Grade 8",
+    "section_room": "",
+    "adviser_name": "Marienel A. Cariaga"
+  },
+  {
+    "id": "section-1770567025580",
+    "adviser_id": "uK3167xRTHgvgVGmoAlbl1aNgsk1",
+    "section_name": "Ilang-Ilang",
+    "section_grade_level": "Grade 8",
+    "section_room": ""
+  },
+  {
+    "id": "section-1770567034297",
+    "section_grade_level": "Grade 9",
+    "section_room": "",
+    "section_name": "Temperance",
+    "adviser_id": "O5swMROCTMX0pIV3u4PdEp6q8oh2"
+  },
+  {
+    "id": "section-1770567041244",
+    "section_grade_level": "Grade 9",
+    "section_room": "",
+    "adviser_id": "W9tHAQVyMpfr1AfbjUzsKYPWunJ3",
+    "section_name": "Courage"
+  },
+  {
+    "id": "section-1770567051469",
+    "section_name": "Diamond",
+    "adviser_id": "Rg7kBaMuUkZcimIkjMty1Rqw0Fm2",
+    "section_grade_level": "Grade 10",
+    "section_room": ""
+  },
+  {
+    "id": "section-1770567057204",
+    "adviser_id": "aUuLxyzGHWQjqkt4R3QDA2chf5M2",
+    "section_name": "Ruby",
+    "section_grade_level": "Grade 10",
+    "section_room": ""
+  },
+  {
+    "id": "section-1770567065645",
+    "section_grade_level": "Grade 10",
+    "section_room": "",
+    "adviser_name": "Flordelia C. Apolonio",
+    "adviser_id": "9xQXOpSvryPGHeWSy0kUyy5Vjt12",
+    "section_name": "Sapphire"
+  },
+  {
+    "id": "section-einstein-recovered",
+    "section_name": "Einstein",
+    "section_grade_level": "Grade 7",
+    "section_room": "RECOVERED",
+    "adviser_name": "RECOVERED ADVISER",
+    "adviser_id": "system-recovered"
+  }
+]

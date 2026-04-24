@@ -1,19 +1,39 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import { Printer, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search } from 'lucide-react';
+import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
+
+type AttendanceDayStatus = string;
+type AttendanceMonthData = Record<string, Record<number, AttendanceDayStatus>>;
+type DateLabels = Record<number, string>;
+ 
+const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
+    JUNE: [8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
+    JULY: [1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31],
+    AUGUST: [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 24, 25, 26, 27, 28],
+    SEPTEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30],
+    OCTOBER: [1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30],
+    NOVEMBER: [3, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27],
+    DECEMBER: [1, 2, 3, 4, 7, 9, 10, 11, 14, 15, 16, 17, 18],
+    JANUARY: [4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29],
+    FEBRUARY: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26],
+    MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 29, 30, 31],
+    APRIL: [1, 5, 6, 7, 8],
+};
 
 
 export function AttendancePage() {
-    const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers } = useAppStore();
+    const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
+    const [zoom, setZoom] = useState(1);
 
-    const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH'];
+    const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
 
-    const [attendanceData, setAttendanceData] = useState<Record<string, Record<string, Record<number, string>>>>({});
-    const [monthDateLabels, setMonthDateLabels] = useState<Record<string, Record<number, string>>>({});
+    const [attendanceData, setAttendanceData] = useState<Record<string, AttendanceMonthData>>({});
+    const [monthDateLabels, setMonthDateLabels] = useState<Record<string, DateLabels>>({});
 
     const totalColumns = 25; // 5 weeks × 5 days (Mon-Fri)
 
@@ -40,26 +60,59 @@ export function AttendancePage() {
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingSaveRef = useRef<{ month: string; data: AttendanceMonthData; labels: DateLabels } | null>(null);
 
-    const triggerSave = (month: string, newData: any, newLabels: any) => {
+    const triggerSave = (month: string, newData: AttendanceMonthData, newLabels: DateLabels, immediate = false) => {
+        // Track the most recent data for unmount flushing
+        pendingSaveRef.current = { month, data: newData, labels: newLabels };
+
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-        saveTimeoutRef.current = setTimeout(() => {
-            if (!selectedSection) return;
+        const doSave = () => {
+            if (!selectedSection || !pendingSaveRef.current) return;
+            const { month: m, data: d, labels: l } = pendingSaveRef.current;
             saveSF2Sheet({
-                id: `${selectedSection}_${useAppStore.getState().activeSchoolYear}_${month}`,
+                id: `${selectedSection}_${useAppStore.getState().activeSchoolYear}_${m}`,
                 section_id: selectedSection,
                 school_year: useAppStore.getState().activeSchoolYear,
-                month: month,
-                date_labels: newLabels,
-                attendance: newData,
+                month: m,
+                date_labels: l,
+                attendance: d,
                 updated_at: new Date().toISOString()
             });
-        }, 2000);
+            pendingSaveRef.current = null;
+        };
+
+        if (immediate) {
+            doSave();
+        } else {
+            saveTimeoutRef.current = setTimeout(doSave, 800); // Faster saving
+        }
     };
 
+    // Cleanup: Flush pending save on unmount
+    useEffect(() => {
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+            if (pendingSaveRef.current && selectedSection) {
+                const { month, data, labels } = pendingSaveRef.current;
+                saveSF2Sheet({
+                    id: `${selectedSection}_${useAppStore.getState().activeSchoolYear}_${month}`,
+                    section_id: selectedSection,
+                    school_year: useAppStore.getState().activeSchoolYear,
+                    month,
+                    date_labels: labels,
+                    attendance: data,
+                    updated_at: new Date().toISOString()
+                });
+            }
+        };
+    }, [selectedSection, saveSF2Sheet]);
+
     const sortedSections = useMemo(() => {
-        return [...sections].sort((a, b) => {
+        return [...filterAttendanceSections(user, sections)].sort((a, b) => {
             // Extract numeric grade level (e.g. "Grade 7" -> 7)
             const gradeA = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
             const gradeB = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
@@ -67,65 +120,139 @@ export function AttendancePage() {
             if (gradeA !== gradeB) return gradeA - gradeB;
             return a.section_name.localeCompare(b.section_name);
         });
-    }, [sections]);
+    }, [sections, user]);
 
-    const autoFillDates = () => {
+    useEffect(() => {
+        if (sortedSections.length !== 1) return;
+        const onlySectionName = sortedSections[0].section_name;
+        if (selectedSection !== onlySectionName) {
+            setSelectedSection(onlySectionName);
+        }
+    }, [sortedSections, selectedSection]);
+
+    const selectedSectionObj = useMemo(() => {
+        return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
+    }, [sections, selectedSection]);
+
+    const isRecoveredAdviserPlaceholder = (value?: string | null) => {
+        const normalized = (value || '').trim().toLowerCase();
+        return normalized === 'recovered adviser' || normalized === 'recovered advisor';
+    };
+
+    const canEditCurrentSection = useMemo(() => {
+        if (!selectedSectionObj) return false;
+        return canEditAttendanceSection(user, selectedSectionObj);
+    }, [user, selectedSectionObj]);
+
+    const buildAutoFilledDateLabels = (month: string): DateLabels => {
+        const sy = useAppStore.getState().activeSchoolYear;
+        const filled: Record<number, string> = {};
+
         const monthMap: Record<string, number> = {
             'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
             'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
         };
-        const monthIndex = monthMap[selectedMonth];
-        const [startYear, endYear] = useAppStore.getState().activeSchoolYear.split('-').map(Number);
+        const monthIndex = monthMap[month];
+        const [startYear, endYear] = sy.split('-').map(Number);
         const year = monthIndex >= 5 ? startYear : endYear;
 
-        const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+        if (sy === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
+            // Use Hardcoded Calendar for SY 2026-2027 with Accurate Week Positioning
+            const calendarDays = SCHOOL_CALENDAR_2026_2027[month];
+            
+            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
+            const firstDateOfMonth = new Date(year, monthIndex, 1);
+            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
 
-        let firstSchoolDayDate = 0;
-        let firstSchoolDayDow = 0;
+            calendarDays.forEach((d) => {
+                const dateObj = new Date(year, monthIndex, d);
+                const dow = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
+                
+                if (dow >= 1 && dow <= 5) {
+                    // Calculate which week of the month this date falls into
+                    // (d + offset - 1) / 7 gives the 0-indexed week number
+                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                    const weekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                    
+                    // Column index logic: (weekIndex * 5) + (Mon=0..Fri=4)
+                    const colIndex = (weekIndex * 5) + (dow - 1);
+                    
+                    if (colIndex >= 0 && colIndex < totalColumns) {
+                        filled[days[colIndex]] = d.toString();
+                    }
+                }
+            });
+        } else {
+            // Fallback to Dynamic Mon-Fri logic for other years
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-        // Find first school day (1..5)
-        for (let d = 1; d <= 7; d++) {
-            const date = new Date(year, monthIndex, d);
-            const dow = date.getDay();
-            if (dow >= 1 && dow <= 5) {
-                firstSchoolDayDate = d;
-                firstSchoolDayDow = dow;
-                break;
+            let firstSchoolDayDate = 0;
+            let firstSchoolDayDow = 0;
+
+            // Find first school day (1..5)
+            for (let d = 1; d <= 7; d++) {
+                const date = new Date(year, monthIndex, d);
+                const dow = date.getDay();
+                if (dow >= 1 && dow <= 5) {
+                    firstSchoolDayDate = d;
+                    firstSchoolDayDow = dow;
+                    break;
+                }
             }
-        }
 
-        if (firstSchoolDayDate === 0) return; // No school days?
+            if (firstSchoolDayDate === 0) return filled; // No school days?
 
-        const filled: Record<number, string> = {};
-        let currentIndex = firstSchoolDayDow - 1; // 1(Mon)->0, 2(Tue)->1...
+            let currentIndex = firstSchoolDayDow - 1; // 1(Mon)->0, 2(Tue)->1...
 
-        for (let d = firstSchoolDayDate; d <= daysInMonth; d++) {
-            const date = new Date(year, monthIndex, d);
-            const dow = date.getDay();
+            for (let d = firstSchoolDayDate; d <= daysInMonth; d++) {
+                const date = new Date(year, monthIndex, d);
+                const dow = date.getDay();
 
-            if (dow >= 1 && dow <= 5) {
-                if (currentIndex < totalColumns) {
-                    filled[days[currentIndex]] = d.toString();
-                    currentIndex++;
+                if (dow >= 1 && dow <= 5) {
+                    if (currentIndex < totalColumns) {
+                        filled[days[currentIndex]] = d.toString();
+                        currentIndex++;
+                    }
                 }
             }
         }
 
+        return filled;
+    };
+
+    const applyAutoFillDates = (month: string, immediate = false) => {
+        const filled = buildAutoFilledDateLabels(month);
+
         setMonthDateLabels(prev => ({
             ...prev,
-            [selectedMonth]: filled
+            [month]: filled
         }));
 
-        triggerSave(selectedMonth, attendanceData[selectedMonth] || {}, filled);
+        // Persist only when current user is allowed to edit this section.
+        if (selectedSection && canEditCurrentSection) {
+            triggerSave(month, attendanceData[month] || {}, filled, immediate);
+        }
     };
+
+    // Auto-populate date labels whenever month/section changes and labels are empty.
+    useEffect(() => {
+        if (!selectedSection || !selectedMonth) return;
+
+        const existingLabels = monthDateLabels[selectedMonth] || {};
+        const hasAnyLabel = Object.values(existingLabels).some(v => String(v).trim() !== '');
+
+        if (!hasAnyLabel) {
+            applyAutoFillDates(selectedMonth, true);
+        }
+    }, [selectedSection, selectedMonth, monthDateLabels, canEditCurrentSection]);
 
 
 
     const sectionStudents = useMemo(() => {
-        return selectedSection
-            ? students.filter((s) => s.student_section === selectedSection)
-            : [];
-    }, [selectedSection, students]);
+        if (!selectedSection) return [];
+        const sectionId = sections.find(s => s.section_name === selectedSection)?.id;
+        return students.filter((s) => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
+    }, [selectedSection, students, sections]);
 
     const displayStudents = useMemo(() => {
         const males = sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => a.last_name.localeCompare(b.last_name));
@@ -137,6 +264,8 @@ export function AttendancePage() {
     const dayLetters = ['M', 'T', 'W', 'TH', 'F'];
 
     const toggleAttendance = (studentId: string, day: number) => {
+        if (!canEditCurrentSection) return;
+
         setAttendanceData(prev => {
             const monthData = prev[selectedMonth] || {};
             const studentRecord = monthData[studentId] || {};
@@ -203,8 +332,13 @@ export function AttendancePage() {
         }, 0);
     };
 
-    const handlePrint = () => window.print();
-
+    const handlePrint = () => {
+        const selectedSectionName = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_name || 'Record';
+        const originalTitle = document.title;
+        document.title = `SF2_${schoolProfile.name || 'School'}_${selectedSectionName}_${selectedMonth}_${useAppStore.getState().activeSchoolYear}`;
+        window.print();
+        document.title = originalTitle;
+    };
     const totalMaleAbsent = displayStudents.males.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
     const totalFemaleAbsent = displayStudents.females.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
     const totalMalePresent = displayStudents.males.reduce((sum, s) => sum + (Math.max(0, filledDaysCount - countStats(s.lrn, 'absent'))), 0);
@@ -216,11 +350,9 @@ export function AttendancePage() {
         let maleLate = 0, femaleLate = 0;
         let maleRegistered = 0, femaleRegistered = 0;
 
-        const isLate = (s: any) => {
+        const isLate = (s: { enrollment_date?: string }) => {
             if (!s.enrollment_date) return false;
-            // Simplification: Late if enrolled in current selected Month (and NOT June/default)
             const d = new Date(s.enrollment_date);
-            // Verify valid date
             if (isNaN(d.getTime())) return false;
             const m = d.toLocaleString('en-US', { month: 'long' }).toUpperCase();
             return m === selectedMonth && selectedMonth !== 'JUNE';
@@ -229,7 +361,7 @@ export function AttendancePage() {
         displayStudents.males.forEach(s => {
             maleRegistered++;
             if (isLate(s)) maleLate++;
-            else maleBaseline++; // Assume baseline if not late
+            else maleBaseline++; 
         });
         displayStudents.females.forEach(s => {
             femaleRegistered++;
@@ -246,15 +378,14 @@ export function AttendancePage() {
         const femalePerc = femaleRegistered > 0 ? (femaleADA / femaleRegistered) * 100 : 0;
 
         // 5 Consecutive Absences
-        const hasConsecutiveAbsences = (s: any) => {
+        const hasConsecutiveAbsences = (s: { lrn: string }) => {
             const records = attendanceData[selectedMonth]?.[s.lrn] || {};
-            // Get valid school days (indices that have a date label)
             const validDays = days.filter(d => monthDateLabels[selectedMonth]?.[d]);
 
             let consecutive = 0;
             for (const d of validDays) {
-                const status = records[d]; // 'x' or '' or undefined
-                if (status === 'x') {
+                const status = records[d];
+                if (status === 'absent') {
                     consecutive++;
                     if (consecutive >= 5) return true;
                 } else {
@@ -276,61 +407,135 @@ export function AttendancePage() {
             malePerc, femalePerc,
             maleConsecutive, femaleConsecutive
         };
-    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels]);
+    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days]);
 
+    const singleSection = sortedSections.length === 1 ? sortedSections[0] : null;
 
     return (
-        <div className="flex flex-col bg-gray-100 min-h-screen overflow-auto print:bg-white print:overflow-visible" style={{ fontFamily: "'Arial Narrow', Arial, sans-serif", fontSize: '10px' }}>
-            {/* Controls Bar */}
-            <div className="flex justify-between items-center bg-white p-2 mb-2 rounded shadow-sm border border-gray-200 mx-4 mt-4 print:hidden">
-                <div className="flex gap-4 items-center">
-                    <div className="flex flex-col">
-                        <label className="font-bold text-gray-700 text-[10px] uppercase">Section</label>
-                        <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)}
-                            className="border border-gray-300 rounded px-2 py-1 text-sm">
-                            <option value="">Select Section</option>
-                            {sortedSections.map(section => (
-                                <option key={section.id} value={section.section_name}>
-                                    {section.section_name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex flex-col">
-                        <label className="font-bold text-gray-700 text-[10px] uppercase">Month</label>
-                        <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-                            className="border border-gray-300 rounded px-2 py-1 text-sm">
-                            {months.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
+        <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+             {/* Sticky Premium Top Toolbar */}
+             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
+                <div className="flex items-center gap-8">
+                    {/* Brand/Back Hook */}
+                    <div className="flex items-center gap-5">
+                        <button 
+                            onClick={() => setCurrentView('school-forms')}
+                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            title="Back to Hub"
+                        >
+                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <div className="flex flex-col">
+                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF2 Attendance</h2>
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Daily Report</p>
+                        </div>
                     </div>
 
-                    <button onClick={autoFillDates}
-                        className="bg-green-600 text-white px-3 py-1 rounded shadow hover:bg-green-700 transition-colors text-[10px] font-bold uppercase tracking-wider ml-4 h-8"
-                        title="Auto-fill school days (Mon-Fri)">
-                        Auto-Fill Dates
-                    </button>
+                    <div className="h-8 w-px bg-slate-200 mx-2" />
+
+                    <div className="flex items-center gap-4">
+                        {/* Section Selector (hide when only one section exists) */}
+                        {!singleSection && (
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Section</span>
+                                <div className="relative group">
+                                    <select
+                                        value={selectedSection}
+                                        onChange={(e) => setSelectedSection(e.target.value)}
+                                        className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[200px]"
+                                    >
+                                        <option value="">Choose Section</option>
+                                        {sortedSections.map(section => (
+                                            <option key={section.id} value={section.section_name}>{section.section_name}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Month Selector */}
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Month</span>
+                            <div className="relative group">
+                                <select 
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                    className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[160px]"
+                                >
+                                    {months.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
 
-                <button onClick={handlePrint} className="flex gap-2 items-center bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition-colors text-xs font-bold uppercase tracking-wider">
-                    <Printer size={16} /> Print SF2
-                </button>
-            </div>
+                <div className="flex items-center gap-6">
+                    {/* Zoom Control */}
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
+                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                            <button 
+                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                            >
+                                <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button 
+                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
 
+                    <div className="h-10 w-px bg-slate-200" />
 
-            {/* Print styles for 8.5 x 13 folio landscape */}
-            <style>{`
-                @media print {
-                    @page {
-                        size: 13in 8.5in landscape;
-                        margin: 0.3in;
-                    }
-                    body { margin: 0; padding: 0; }
-                    .no-print, .print\\:hidden { display: none !important; }
-                }
-            `}</style>
+                    {/* Print Primary Button */}
+                    <button
+                        onClick={handlePrint}
+                        disabled={!selectedSection}
+                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
+                    >
+                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+                        Print Official SF2
+                    </button>
+                </div>
+             </div>
 
-            {/* Paper */}
-            <div className="bg-white mx-auto w-[1350px] print:w-full shadow-lg print:shadow-none border print:border-none mb-8 p-6 print:p-2 print:m-0">
+             {/* Main Workspace Area */}
+             <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
+                {!selectedSection ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-10 p-10 z-10">
+                        <div className="relative">
+                            <div className="absolute -inset-20 bg-blue-500/5 blur-[100px] rounded-full" />
+                            <div className="relative w-48 h-48 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform -rotate-6 border-dashed">
+                                <Search className="w-20 h-20 text-slate-200" />
+                                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-xl">
+                                    <span className="text-2xl font-black text-blue-600 italic">SF2</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="max-w-md space-y-4">
+                            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Attendance Hub</h2>
+                            <p className="text-slate-500 font-bold leading-relaxed">
+                                Please select a section and month from the toolbar above to manage learner attendance records.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="w-full min-h-full flex justify-center py-20 px-8 print:p-0 print:block overflow-x-auto">
+                        <div 
+                            className="transition-all duration-700 ease-out origin-top print:scale-100"
+                            style={{ transform: `scale(${zoom})` }}
+                        >
+                            <div className="bg-white mx-auto w-[1350px] print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-8 p-6 print:p-2 print:m-0 rounded-sm">
 
                 {/* === HEADER === */}
                 <div className="flex items-center mb-1">
@@ -351,7 +556,7 @@ export function AttendancePage() {
                     <span className="font-bold mr-1 whitespace-nowrap">School ID</span>
                     <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">307014</div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">School Year</span>
-                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">2025-2026</div>
+                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">2026-2027</div>
                     <span className="flex-1"></span>
                     <span className="font-bold mr-1 whitespace-nowrap">Report for the Month of</span>
                     <div className="border border-black bg-[#BDD7EE] px-2 py-0.5 w-32 text-center font-bold uppercase">{selectedMonth}</div>
@@ -360,9 +565,9 @@ export function AttendancePage() {
                 {/* Row 2: Name of School | Grade Level | Section */}
                 <div className="flex items-center mb-1.5 text-[10px]">
                     <span className="font-bold mr-1 whitespace-nowrap">Name of School</span>
-                    <div className="border border-black px-2 py-0.5 flex-1 text-center font-bold uppercase">CALIBUNGAN HIGH SCHOOL</div>
+                    <div className="border border-black px-2 py-0.5 w-[340px] text-center font-bold uppercase">CALIBUNGAN HIGH SCHOOL</div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">Grade Level</span>
-                    <div className="border border-black px-2 py-0.5 w-10 text-center font-bold">
+                    <div className="border border-black px-2 py-0.5 w-20 text-center font-bold whitespace-nowrap">
                         {sections.find(s => s.section_name === selectedSection)?.section_grade_level || '7'}
                     </div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">Section</span>
@@ -405,7 +610,9 @@ export function AttendancePage() {
                                         type="text"
                                         maxLength={2}
                                         value={currentDateLabels[d] || ''}
+                                        readOnly={!canEditCurrentSection}
                                         onChange={(e) => {
+                                            if (!canEditCurrentSection) return;
                                             const val = e.target.value;
                                             setMonthDateLabels(prev => {
                                                 const newLabels = {
@@ -447,8 +654,8 @@ export function AttendancePage() {
                                     {student.last_name}, {student.first_name}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border border-black text-center cursor-pointer hover:bg-yellow-50 p-0${getBorderClass(i)}`}
-                                        onClick={() => toggleAttendance(student.lrn, d)}>
+                                    <td key={d} className={`border border-black text-center p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
@@ -486,8 +693,8 @@ export function AttendancePage() {
                                     {student.last_name}, {student.first_name}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border border-black text-center cursor-pointer hover:bg-yellow-50 p-0${getBorderClass(i)}`}
-                                        onClick={() => toggleAttendance(student.lrn, d)}>
+                                    <td key={d} className={`border border-black text-center p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
@@ -655,11 +862,6 @@ export function AttendancePage() {
                                         ? ((Number(row.m) + Number(row.f)) / 2).toFixed(0) // Avg of percentages? Usually it is recalculated from totals.
                                         : (Number(row.m) + Number(row.f)).toFixed(row.label.includes('Average') ? 2 : 0)
                                     }
-                                    {/* Actually for percentages, Average Percentage is tricky. 
-                                        Percentage of Enrolment Total = ((M_Reg + F_Reg) / (M_Base + F_Base)) * 100.
-                                        Percentage of Attendance Total = ((M_ADA + F_ADA) / (M_Reg + F_Reg)) * 100.
-                                        I should approximate or calculate correctly.
-                                     */}
                                 </div>
                             </div>
                         ))}
@@ -671,18 +873,19 @@ export function AttendancePage() {
                                 <div className="font-bold border-b border-black w-48 mx-auto uppercase">
                                     {(() => {
                                         const sec = sections.find(s => s.section_name === selectedSection);
-                                        if (!sec) return '';
-                                        // Priority 1: Explicit name in section
-                                        if (sec.adviser_name) return sec.adviser_name;
-                                        // Priority 2: Lookup by adviser_id
-                                        if (sec.adviser_id) {
-                                            const teacher = teachers.find(t => t.uid === sec.adviser_id);
-                                            if (teacher && teacher.displayName) return teacher.displayName;
+                                        const fromProfile = (schoolProfile?.adviser_name || '').trim();
+
+                                        if (!sec) return fromProfile || user?.displayName || '';
+
+                                        const fromTeacher = sec.adviser_id
+                                            ? teachers.find(t => t.uid === sec.adviser_id)?.displayName
+                                            : '';
+                                        const fromSection = (fromTeacher || sec.adviser_name || '').trim();
+
+                                        if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
+                                            return fromSection;
                                         }
-                                        // Priority 3: Current User if they are the one generating (and implicit adviser)
-                                        // But careful, user said "It was admin that shows". User wants REAL adviser.
-                                        // If real adviser is missing, maybe showing Admin is okay, OR showing nothing/placeholder?
-                                        // Logic used: Fallback to user.displayName
+                                        if (fromProfile) return fromProfile;
                                         return user?.displayName || '';
                                     })()}
                                 </div>
@@ -699,8 +902,12 @@ export function AttendancePage() {
                     </div>
                 </div>
 
-                <div className="text-center text-[8px] mt-1 text-gray-500 italic">Generated thru LIS</div>
+                <div className="text-center text-[8px] mt-1 text-gray-500 italic mb-20 print:mb-0">Generated thru LIS</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div >
+        </div>
     );
 }

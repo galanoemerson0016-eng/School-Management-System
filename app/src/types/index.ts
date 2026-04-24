@@ -1,5 +1,20 @@
 // TypeScript interfaces for the School Management System
 
+export interface CurriculumSubject {
+    name: string;
+    code?: string;
+    grade_levels?: string[]; // Which grades have this subject
+}
+
+export interface SchoolCurriculum {
+    school_id: string;
+    grade_7_subjects?: CurriculumSubject[];
+    grade_8_subjects?: CurriculumSubject[];
+    grade_9_subjects?: CurriculumSubject[];
+    grade_10_subjects?: CurriculumSubject[];
+    is_custom?: boolean; // Flag to indicate custom curriculum
+}
+
 export interface SchoolProfile {
     school_id: string;
     name: string;
@@ -10,14 +25,22 @@ export interface SchoolProfile {
     head_position: string;
     grade_levels_offered: string;
     logo_url?: string;
+    head_signature_url?: string;
+    adviser_name?: string;
+    grade_level?: string;
+    section?: string;
+    curriculum?: SchoolCurriculum; // Custom curriculum config
 }
 
 export interface SchoolYear {
     sy_id: string;
     label: string;
     is_active: boolean;
-    start_date: Date;
-    end_date: Date;
+    start_date?: string;
+    end_date?: string;
+    is_locked?: boolean;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface Student {
@@ -35,41 +58,53 @@ export interface Student {
     student_section?: string;
     track?: string;
     strand?: string;
+    weight?: number | string;
+    height?: number | string;
+    heightSquared?: number | string;
+    bmi?: number | string;
+    bmi_category?: string;
+    hfa?: string;
+    remarks?: string;
     enrollment_date?: string;
     photo_url?: string;
-    // Elementary completer info
+    // Elementary completer info (SF10 Eligibility)
     elementary_school?: string;
     elementary_school_id?: string;
     elementary_school_address?: string;
     sy_last_attended?: string;
     average_grade?: string;
     citation?: string;
-    // High School completer info (SF10)
-    shs_admission_date?: string;
-    hs_gen_average?: string;
-    jhs_gen_average?: string;
-    graduation_date?: string;
-    hs_school_name?: string;
-    hs_school_address?: string;
-    // Other credentials
+    // Other credentials (PEPT / ALS)
     pept_rating?: string;
-    pept_date?: string;
+    pept_date?: string; // Date of Examination/Assessment
     als_rating?: string;
-    testing_center?: string;
-    other_credentials?: string;
+    testing_center?: string; // Name and Address of Testing Center
+    other_credentials?: string; // Others (Pls. Specify)
+    // High School completer info (SF10 Page 2 Certification)
     // Parent info
     parent_name?: string;
     parent_contact?: string;
     parent_email?: string;
+    mother_tongue?: string;
+    is_ip?: boolean;
+    ethnic_group?: string;
+    religion?: string;
+    father_name?: string;
+    mother_name?: string;
+    guardian_name?: string;
+    guardian_relationship?: string;
 }
 
 export interface Section {
     id: string;
     section_name: string;
     section_grade_level: string;
-    section_room?: string;
     adviser_id?: string;
     adviser_name?: string; // Teacher/Adviser Name
+    subject_name?: string; // Keep for legacy/compatibility
+    taught_subjects?: string[]; // List of subjects taught in this section
+    is_teaching_load?: boolean; // Keep for legacy
+    is_advisory?: boolean; // Flag for advisory class
 }
 
 export interface Subject {
@@ -79,6 +114,8 @@ export interface Subject {
     grade_level: string;
     section_id?: string; // Link to specific section
     teacher_id?: string; // Assigned teacher
+    order?: number; // Display order for reordering
+    is_teaching_load?: boolean; // Flag for separate E-Class subjects
 }
 
 export interface ClassRecord {
@@ -92,14 +129,16 @@ export interface ClassRecord {
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;
     final_grade?: number | string;
+    is_teaching_load?: boolean; // Flag for records created as part of teaching load
 }
 
 export interface Enrollment {
     id: string;
     student_lrn: string;
-    section_id: string;
     school_year: string;
-    enrolled_at: Date;
+    grade_level?: string;
+    student_section?: string;
+    enrolled_at?: string;
 }
 
 export interface Announcement {
@@ -121,12 +160,29 @@ export interface AttendanceRecord {
     section_id: string;
 }
 
-export type UserRole = 'admin' | 'teacher' | 'parent';
+export type UserRole =
+    | 'admin'
+    | 'teacher'
+    | 'adviser'
+    | 'principal'
+    | 'registrar'
+    | 'parent'
+    | 'guidance_counselor'
+    | 'staff'
+    | 'subject_leader_english'
+    | 'subject_leader_mathematics'
+    | 'subject_leader_science'
+    | 'subject_leader_filipino'
+    | 'subject_leader_ap'
+    | 'subject_leader_tle'
+    | 'subject_leader_mapeh'
+    | 'subject_leader_esp';
 
 export interface User {
     uid: string;
     email: string;
     role: UserRole;
+    roles?: UserRole[];
     displayName?: string;
 }
 
@@ -173,7 +229,7 @@ export interface CalendarEvent {
     description?: string;
     date: string; // YYYY-MM-DD
     end_date?: string; // YYYY-MM-DD for multi-day events
-    type: 'holiday' | 'exam' | 'event' | 'deadline' | 'meeting';
+    type: 'holiday' | 'exam' | 'event' | 'deadline' | 'meeting' | 'break' | 'national';
     color?: string;
     created_by?: string;
 }

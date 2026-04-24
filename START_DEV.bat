@@ -1,5 +1,6 @@
 @echo off
-echo Starting School Management System Development Server...
-cd /d "c:\Users\Emerson\Desktop\School Management System\app"
-npm run dev
+echo Starting FormEase G7 Development Server...
+echo Running on http://localhost:3001...
+cd /d "%~dp0app"
+npm run dev -- --port 3001
 pause

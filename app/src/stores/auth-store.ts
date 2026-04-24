@@ -1,110 +1,158 @@
+/**
+ * Auth Store (Offline-First Single User)
+ * 
+ * Simple authentication for single-user offline app.
+ * Credentials stored locally - no cloud auth service.
+ */
+
 import { create } from 'zustand';
-import { auth, db } from '../lib/firebase';
-import {
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
-} from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import type { User, UserRole } from '../types';
+import type { User } from '../types';
 
 interface AuthState {
-    user: User | null;
-    isLoading: boolean;
-    isAuthenticated: boolean;
-    error: string | null;
-    login: (username: string, password: string) => Promise<boolean>;
-    logout: () => Promise<void>;
-    setUser: (user: User | null) => void;
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  error: string | null;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  setUser: (user: User | null) => void;
 }
 
-// Helper to convert username to email
-const DOMAIN = 'chs.307014'; // Configured domain
-const toEmail = (username: string) => {
-    if (username.includes('@')) return username; // Allow actual emails too
-    return `${username}@${DOMAIN}`;
+const DEFAULT_USER: User = {
+  uid: 'local-user',
+  email: 'teacher@school.local',
+  displayName: 'Teacher',
+  role: 'teacher',
+  roles: ['teacher'],
 };
 
+/**
+ * Get stored credentials from localStorage
+ */
+function getStoredCredentials(): { username: string; password: string } | null {
+  try {
+    const stored = localStorage.getItem('formease-credentials');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Error retrieving credentials:', error);
+  }
+  return null;
+}
+
+/**
+ * Store credentials in localStorage
+ */
+function storeCredentials(username: string, password: string): void {
+  try {
+    localStorage.setItem('formease-credentials', JSON.stringify({ username, password }));
+  } catch (error) {
+    console.error('Error storing credentials:', error);
+  }
+}
+
+/**
+ * Clear stored credentials
+ */
+function clearCredentials(): void {
+  try {
+    localStorage.removeItem('formease-credentials');
+  } catch (error) {
+    console.error('Error clearing credentials:', error);
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
-    user: null,
-    isLoading: true, // Start loading to wait for auth check
-    isAuthenticated: false,
-    error: null,
+  user: null,
+  isLoading: true,
+  isAuthenticated: false,
+  error: null,
 
-    login: async (username, password) => {
-        set({ isLoading: true, error: null });
-        try {
-            const email = toEmail(username);
-            await signInWithEmailAndPassword(auth, email, password);
-            // Listener will handle state update
-            return true;
-        } catch (error: any) {
-            console.error("Login failed:", error);
-            let message = "Login failed";
-            if (error.code === 'auth/invalid-credential') message = "Invalid username or password";
-            if (error.code === 'auth/too-many-requests') message = "Too many failed attempts. Try again later.";
+  login: async (username, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Simple validation - in production, add proper password hashing
+      if (!username || !password) {
+        throw new Error('Username and password required');
+      }
 
-            set({ isLoading: false, error: message });
-            return false;
-        }
-    },
+      if (username.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+      }
 
-    logout: async () => {
-        try {
-            await signOut(auth);
-            set({ user: null, isAuthenticated: false });
-        } catch (error) {
-            console.error("Logout failed:", error);
-        }
-    },
+      // Store credentials for future sessions
+      storeCredentials(username, password);
 
-    setUser: (user) => {
-        set({ user, isAuthenticated: !!user, isLoading: false });
-    },
+      // Create user object
+      const user: User = {
+        ...DEFAULT_USER,
+        uid: `user-${username}`,
+        displayName: username.charAt(0).toUpperCase() + username.slice(1),
+        email: `${username}@school.local`,
+      };
+
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      console.log('✅ Logged in as:', user.displayName);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      set({
+        isLoading: false,
+        error: message,
+      });
+      console.error('Login error:', error);
+      return false;
+    }
+  },
+
+  logout: async () => {
+    try {
+      clearCredentials();
+      set({
+        user: null,
+        isAuthenticated: false,
+        error: null,
+      });
+      console.log('✅ Logged out');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  },
+
+  setUser: (user) => {
+    set({
+      user,
+      isAuthenticated: !!user,
+      isLoading: false,
+    });
+  },
 }));
 
-// Initialize Firebase Auth Listener
-onAuthStateChanged(auth, async (firebaseUser) => {
-    const store = useAuthStore.getState();
-
-    if (firebaseUser) {
-        let role: UserRole = 'teacher'; // Default role
-        let isValidUser = false; // Must exist in Firestore (unless admin superuser)
-
-        // Auto-assign admin if username starts with admin (Backdoor/Bootstrap)
-        if (firebaseUser.email?.startsWith('admin')) {
-            role = 'admin';
-            isValidUser = true;
-        }
-
-        let userData: any = null; // Store fetched data
-        try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userDoc.exists()) {
-                userData = userDoc.data();
-                if (userData.role) role = userData.role as UserRole;
-                isValidUser = true;
-            }
-        } catch (e) {
-            console.error("Failed to fetch user role", e);
-        }
-
-        if (!isValidUser) {
-            console.warn("User authenticated but not found in database. Logging out.");
-            await signOut(auth);
-            store.setUser(null);
-            return;
-        }
-
-        const user: User = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            // Prioritize Firestore displayName, then Auth displayName, then Email logic
-            displayName: (userData?.displayName) || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            role: role,
-        };
-        store.setUser(user);
+/**
+ * Check for saved credentials on app startup
+ */
+export async function initializeAuthStore() {
+  try {
+    const stored = getStoredCredentials();
+    if (stored) {
+      const { username, password } = stored;
+      const success = await useAuthStore.getState().login(username, password);
+      if (!success) {
+        console.warn('⚠️  Saved credentials invalid - user must login again');
+        clearCredentials();
+      }
     } else {
-        store.setUser(null);
+      useAuthStore.setState({ isLoading: false });
     }
-});
+  } catch (error) {
+    console.error('Error initializing auth:', error);
+    useAuthStore.setState({ isLoading: false });
+  }
+}

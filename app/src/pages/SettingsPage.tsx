@@ -1,26 +1,105 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore, useAppStore } from '../stores';
-import { auth } from '../lib/firebase';
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { Moon, Sun, Bell, Database, Lock, User, Shield, Info, Mail, Facebook, Trash2 } from 'lucide-react';
+import { db } from '../services/database';
+import { Database, Lock, User, Shield, Upload } from 'lucide-react';
+import { canPurgeMaintenance } from '../lib/rbac';
+import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
+import { BackupRestoreModal } from '../components/BackupRestoreModal';
+import { ExportOptionsModal, type ExportOptions } from '../components/ExportOptionsModal';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { TextInputConfirmationModal } from '../components/ui/TextInputConfirmationModal';
+import { encryptBackup, createEncryptedBackupFile } from '../utils/backup-encryption';
+import { compareBackupSizes } from '../utils/backup-compression';
+import { createBackupMetadata, saveBackupMetadata } from '../utils/backup-metadata';
 
 export function SettingsPage() {
     const { user } = useAuthStore();
-    const { students, sections, subjects, deleteStudent, deleteSection } = useAppStore();
+    const {
+        students,
+        studentProfiles,
+        sections,
+        subjects,
+        classRecords,
+        observedValues,
+        hpsRecords,
+        sf2Sheets,
+        announcements,
+        schoolProfile,
+        activeSchoolYear,
+        schoolYears,
+        enrollments,
+        deleteStudent,
+        deleteSection,
+        updateStudent,
+        updateSection,
+        updateSubject,
+    } = useAppStore();
+    const canPurge = canPurgeMaintenance(user);
 
-    // Dark Mode
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        return localStorage.getItem('sms-dark-mode') === 'true';
+    type MaintenanceProgress = {
+        active: boolean;
+        title: string;
+        currentStep: string;
+        completed: number;
+        total: number;
+    };
+
+    const [maintenanceProgress, setMaintenanceProgress] = useState<MaintenanceProgress>({
+        active: false,
+        title: '',
+        currentStep: '',
+        completed: 0,
+        total: 0,
     });
+    const [pendingConfirmation, setPendingConfirmation] = useState<{
+        title: string;
+        message: string;
+        details?: string;
+        confirmLabel?: string;
+        intent?: 'danger' | 'warning' | 'info';
+        onConfirm: () => Promise<void> | void;
+    } | null>(null);
 
-    useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-        localStorage.setItem('sms-dark-mode', String(isDarkMode));
-    }, [isDarkMode]);
+    const runPendingConfirmation = async () => {
+        if (!pendingConfirmation) return;
+        const action = pendingConfirmation.onConfirm;
+        setPendingConfirmation(null);
+        await action();
+    };
+
+    const startProgress = (title: string, total: number, step: string) => {
+        setMaintenanceProgress({
+            active: true,
+            title,
+            currentStep: step,
+            completed: 0,
+            total,
+        });
+    };
+
+    const setProgressStep = (step: string) => {
+        setMaintenanceProgress((prev) => ({
+            ...prev,
+            currentStep: step,
+        }));
+    };
+
+    const setProgressCompleted = (completed: number) => {
+        setMaintenanceProgress((prev) => ({
+            ...prev,
+            completed,
+        }));
+    };
+
+    const finishProgress = (step: string) => {
+        setMaintenanceProgress((prev) => ({
+            ...prev,
+            currentStep: step,
+            completed: prev.total,
+            active: false,
+        }));
+    };
+
 
     // Change Password
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -46,12 +125,17 @@ export function SettingsPage() {
 
         setIsChangingPassword(true);
         try {
-            const firebaseUser = auth.currentUser;
-            if (!firebaseUser || !firebaseUser.email) throw new Error('No user');
+            const raw = localStorage.getItem('formease-credentials');
+            if (!raw) throw new Error('No local account found. Please log in first.');
+            const parsed = JSON.parse(raw) as { username?: string; password?: string };
+            if (!parsed.password || parsed.password !== currentPassword) {
+                throw new Error('Current password is incorrect');
+            }
 
-            const credential = EmailAuthProvider.credential(firebaseUser.email, currentPassword);
-            await reauthenticateWithCredential(firebaseUser, credential);
-            await updatePassword(firebaseUser, newPassword);
+            localStorage.setItem('formease-credentials', JSON.stringify({
+                username: parsed.username || user?.displayName || 'teacher',
+                password: newPassword,
+            }));
 
             setPasswordSuccess('Password changed successfully!');
             setCurrentPassword('');
@@ -61,12 +145,9 @@ export function SettingsPage() {
                 setShowPasswordModal(false);
                 setPasswordSuccess('');
             }, 2000);
-        } catch (error: any) {
-            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                setPasswordError('Current password is incorrect');
-            } else {
-                setPasswordError(error.message || 'Failed to change password');
-            }
+        } catch (error: unknown) {
+            const err = error as { message?: string };
+            setPasswordError(err.message || 'Failed to change password');
         } finally {
             setIsChangingPassword(false);
         }
@@ -74,34 +155,138 @@ export function SettingsPage() {
 
     // Export Data
     const [isExporting, setIsExporting] = useState(false);
+    const [showExportOptions, setShowExportOptions] = useState(false);
+    const [currentBackup, setCurrentBackup] = useState<ComprehensiveBackup | null>(null);
+    
     const handleExportData = async () => {
+        try {
+            // Create comprehensive backup with all data
+            const backup = await createComprehensiveBackup(
+                schoolProfile,
+                schoolYears,
+                activeSchoolYear,
+                enrollments,
+                students,
+                studentProfiles,
+                sections,
+                subjects,
+                classRecords,
+                observedValues,
+                hpsRecords,
+                sf2Sheets,
+                announcements,
+                user?.email || 'unknown',
+            );
+
+            // Validate backup integrity
+            const validation = validateBackup(backup);
+            if (!validation.isValid) {
+                const issuesList = validation.issues.join('\n- ');
+                alert(`⚠️ Backup validation found issues:\n- ${issuesList}\n\nPlease review before exporting.`);
+                return;
+            }
+
+            // Show options modal
+            setCurrentBackup(backup);
+            setShowExportOptions(true);
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Export failed: ' + error);
+        }
+    };
+
+    const handleExportWithOptions = async (options: ExportOptions) => {
+        if (!currentBackup) return;
+
         setIsExporting(true);
         try {
-            // Get all data from localStorage and store
-            const exportData = {
-                exportDate: new Date().toISOString(),
-                version: '1.0.0',
-                note: 'Full backup export from DepEd SMS',
-            };
+            const backupJson = JSON.stringify(currentBackup, null, 2);
+            const timestamp = new Date().toISOString().split('T')[0];
+            let exportData = backupJson;
+            let filename = `SMS_Backup_Comprehensive_${timestamp}`;
 
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `SMS_Backup_${new Date().toISOString().split('T')[0]}.json`;
-            link.click();
-            URL.revokeObjectURL(url);
+            // Handle encryption
+            if (options.encrypt && options.password) {
+                const { encrypted, iv, salt } = await encryptBackup(backupJson, options.password);
+                const encryptedFile = createEncryptedBackupFile(
+                    encrypted,
+                    iv,
+                    salt,
+                    backupJson.length
+                );
+                exportData = JSON.stringify(encryptedFile, null, 2);
+                filename += '_ENCRYPTED';
+            }
+
+            // Download backup file
+            const backupBlob = new Blob([exportData], { type: 'application/json' });
+            const backupUrl = URL.createObjectURL(backupBlob);
+            const backupLink = document.createElement('a');
+            backupLink.href = backupUrl;
+            backupLink.download = `${filename}.json`;
+            document.body.appendChild(backupLink);
+            backupLink.click();
+            document.body.removeChild(backupLink);
+            URL.revokeObjectURL(backupUrl);
+
+            // Download report if requested
+            if (options.includeReport) {
+                const report = generateBackupReport(currentBackup);
+                const reportBlob = new Blob([report], { type: 'text/plain' });
+                const reportUrl = URL.createObjectURL(reportBlob);
+                const reportLink = document.createElement('a');
+                reportLink.href = reportUrl;
+                reportLink.download = `SMS_Backup_Report_${timestamp}.txt`;
+                document.body.appendChild(reportLink);
+                reportLink.click();
+                document.body.removeChild(reportLink);
+                URL.revokeObjectURL(reportUrl);
+            }
+
+            // Save metadata if requested
+            if (options.saveMetadata) {
+                const metadata = createBackupMetadata(
+                    currentBackup,
+                    backupBlob.size,
+                    user?.email || 'unknown',
+                    options.encrypt || false,
+                    options.compress || false
+                );
+                await saveBackupMetadata(metadata);
+            }
+
+            const sizes = compareBackupSizes(backupJson);
+            alert(
+                `✅ Backup Exported Successfully!\n\n` +
+                `📦 Version: ${currentBackup.metadata.version}\n` +
+                `🔒 Encrypted: ${options.encrypt ? 'Yes' : 'No'}\n` +
+                `📦 Compressed: ${options.compress ? 'Yes' : 'No'}\n\n` +
+                `📊 Summary:\n` +
+                `• Students: ${currentBackup.summary.students}\n` +
+                `• Grades: ${currentBackup.summary.grades}\n` +
+                `• Sections: ${currentBackup.summary.sections}\n` +
+                `• Users: ${currentBackup.summary.users}\n\n` +
+                `📏 File Sizes:\n` +
+                `• Original: ${sizes.original}\n` +
+                `• Minified: ${sizes.minified}\n\n` +
+                `✅ Backup saved to history for easy recovery!`
+            );
         } catch (error) {
+            console.error('Export failed:', error);
             alert('Export failed: ' + error);
         } finally {
             setIsExporting(false);
+            setShowExportOptions(false);
+            setCurrentBackup(null);
         }
     };
+
+    // Restore Data from Backup
+    const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
     // Database Maintenance (Ghost Students Cleanup)
     const [isCleaning, setIsCleaning] = useState(false);
     const handleCleanGhostStudents = async () => {
-        setIsCleaning(true);
         try {
             const ghostStudents = students.filter(s => !sections.some(sec => sec.section_name === s.student_section));
             
@@ -110,22 +295,34 @@ export function SettingsPage() {
                 return;
             }
             
-            if (confirm(`Warning: You are about to permanently delete ${ghostStudents.length} unassigned (ghost) student(s) from the system.\n\nProceed?`)) {
-                for (const student of ghostStudents) {
-                    await deleteStudent(student.lrn);
-                }
-                alert(`Success! Purged ${ghostStudents.length} ghost student record(s) from the database.`);
-            }
+            setPendingConfirmation({
+                title: `Delete ${ghostStudents.length} ghost student(s)?`,
+                message: 'These unassigned student records will be permanently removed from the system.',
+                details: 'This action cannot be undone.',
+                confirmLabel: 'Delete Students',
+                intent: 'danger',
+                onConfirm: async () => {
+                    setIsCleaning(true);
+                    try {
+                        for (const student of ghostStudents) {
+                            await deleteStudent(student.lrn);
+                        }
+                        alert(`Success! Purged ${ghostStudents.length} ghost student record(s) from the database.`);
+                    } catch (error) {
+                        alert('Failed to perform database clean-up: ' + error);
+                    } finally {
+                        setIsCleaning(false);
+                    }
+                },
+            });
+            return;
         } catch (error) {
             alert('Failed to perform database clean-up: ' + error);
-        } finally {
-            setIsCleaning(false);
         }
     };
     
     const [isPurgingSections, setIsPurgingSections] = useState(false);
     const handleCleanGhostSections = async () => {
-        setIsPurgingSections(true);
         try {
             const ghostSections = sections.filter(sec => {
                 const hasStudents = students.some(s => s.student_section === sec.section_name);
@@ -138,206 +335,660 @@ export function SettingsPage() {
                 return;
             }
             
-            if (confirm(`Warning: You are about to permanently delete ${ghostSections.length} empty section(s) from the system.\n\nThese sections have NO students and NO subjects assigned.\n\nProceed?`)) {
-                for (const section of ghostSections) {
-                    await deleteSection(section.id);
-                }
-                alert(`Success! Purged ${ghostSections.length} ghost section record(s).`);
-            }
+            setPendingConfirmation({
+                title: `Delete ${ghostSections.length} empty section(s)?`,
+                message: 'These sections have no students and no subjects assigned.',
+                details: 'This action is permanent.',
+                confirmLabel: 'Delete Sections',
+                intent: 'danger',
+                onConfirm: async () => {
+                    setIsPurgingSections(true);
+                    try {
+                        for (const section of ghostSections) {
+                            await deleteSection(section.id);
+                        }
+                        alert(`Success! Purged ${ghostSections.length} ghost section record(s).`);
+                    } catch (error) {
+                        alert('Failed to purge sections: ' + error);
+                    } finally {
+                        setIsPurgingSections(false);
+                    }
+                },
+            });
+            return;
         } catch (error) {
             alert('Failed to purge sections: ' + error);
-        } finally {
-            setIsPurgingSections(false);
         }
     };
 
+    const [isClearingAllStudents, setIsClearingAllStudents] = useState(false);
+    const handleClearAllCurrentStudents = async () => {
+        if (students.length === 0) {
+            alert('No students found in the current school year view.');
+            return;
+        }
+
+        setPendingConfirmation({
+            title: 'Clear current student enrollments?',
+            message: `This will remove ${students.length} student enrollment record(s) from the current school year view.`,
+            details: 'Grade records are not deleted by this action.',
+            confirmLabel: 'Clear Students',
+            intent: 'warning',
+            onConfirm: async () => {
+                setIsClearingAllStudents(true);
+                try {
+                    let removed = 0;
+                    const toRemove = [...students];
+                    startProgress('Fresh Start: Clear Current Students', toRemove.length, 'Removing current student enrollments...');
+                    for (const student of toRemove) {
+                        await deleteStudent(student.lrn);
+                        removed++;
+                        setProgressCompleted(removed);
+                    }
+                    alert(`Fresh start complete. Removed ${removed} student enrollment record(s).`);
+                    setCleanupPreview(null);
+                    finishProgress('Completed');
+                } catch (error) {
+                    finishProgress('Failed');
+                    alert('Failed to clear current students: ' + error);
+                } finally {
+                    setIsClearingAllStudents(false);
+                }
+            },
+        });
+    };
+
+    const [isClearingStudentsAndGrades, setIsClearingStudentsAndGrades] = useState(false);
+    const [isRunningHardReset, setIsRunningHardReset] = useState(false);
+    const [showHardResetTextInput, setShowHardResetTextInput] = useState<{
+        profileLrns: string[];
+        enrollmentIdsToDelete: string[];
+        gradeIdsToDelete: string[];
+    } | null>(null);
+
+    const deleteByCollectionIds = async (
+        collectionName: string,
+        ids: string[],
+        onProgress?: (deletedCount: number) => void
+    ) => {
+        const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+        let deletedSoFar = 0;
+
+        const mapStore = (name: string) => {
+            if (name === 'grades') return 'classRecords';
+            return name;
+        };
+
+        const storeName = mapStore(collectionName);
+
+        for (const id of uniqueIds) {
+            await db.deleteRecord(storeName, id);
+            deletedSoFar += 1;
+            onProgress?.(deletedSoFar);
+        }
+    };
+
+    const handleClearStudentsAndOrphanGrades = async () => {
+        const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+        const studentLrns = new Set(effectiveStudents.map((s) => s.lrn));
+        const subjectIds = new Set(subjects.map((s) => s.id));
+        const currentStudentLrns = new Set(students.map((s) => s.lrn));
+
+        const gradeIdsToDelete = classRecords
+            .filter((record) => {
+                const isForCurrentStudent = currentStudentLrns.has(record.student_lrn);
+                const isOrphan = !studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id);
+                return isForCurrentStudent || isOrphan;
+            })
+            .map((record) => record.id);
+
+        if (students.length === 0 && gradeIdsToDelete.length === 0) {
+            alert('Nothing to clear. No current students or orphan/related grade records found.');
+            return;
+        }
+
+        setPendingConfirmation({
+            title: 'Clear students and orphan grades?',
+            message: `This will remove ${students.length} current student enrollment record(s) and ${gradeIdsToDelete.length} grade record(s).`,
+            details: 'This is a destructive maintenance action.',
+            confirmLabel: 'Clear Records',
+            intent: 'danger',
+            onConfirm: async () => {
+                setIsClearingStudentsAndGrades(true);
+                try {
+                    const toRemove = [...students];
+                    let removedStudents = 0;
+                    const totalWork = toRemove.length + gradeIdsToDelete.length;
+                    startProgress(
+                        'Fresh Start: Clear Students + Grades',
+                        totalWork,
+                        'Removing current student enrollments...'
+                    );
+
+                    for (const student of toRemove) {
+                        await deleteStudent(student.lrn);
+                        removedStudents++;
+                        setProgressCompleted(removedStudents);
+                    }
+
+                    setProgressStep('Removing grade records...');
+                    await deleteByCollectionIds('grades', gradeIdsToDelete, (deletedGradeCount) => {
+                        setProgressCompleted(removedStudents + deletedGradeCount);
+                    });
+
+                    alert(
+                        `Fresh start cleanup complete.\n\n` +
+                        `Removed student enrollments: ${removedStudents}\n` +
+                        `Removed grade records: ${gradeIdsToDelete.length}`
+                    );
+                    setCleanupPreview(null);
+                    finishProgress('Completed');
+                } catch (error) {
+                    finishProgress('Failed');
+                    alert('Failed to clear current students and grades: ' + error);
+                } finally {
+                    setIsClearingStudentsAndGrades(false);
+                }
+            },
+        });
+    };
+
+    const handleFullHardReset = async () => {
+        const profileLrns = Array.from(new Set(studentProfiles.map((s) => s.lrn)));
+        const enrollmentIdsToDelete = enrollments
+            .filter((entry) => profileLrns.includes(entry.student_lrn))
+            .map((entry) => entry.id);
+        const gradeIdsToDelete = classRecords
+            .filter((record) => profileLrns.includes(record.student_lrn))
+            .map((record) => record.id);
+
+        if (profileLrns.length === 0) {
+            alert('No student profiles found to reset.');
+            return;
+        }
+
+        setPendingConfirmation({
+            title: 'Run full hard reset?',
+            message: 'This will permanently delete student profiles, enrollments, and grade records for the current backup set.',
+            details: `Student profiles: ${profileLrns.length}\nEnrollment records: ${enrollmentIdsToDelete.length}\nGrade records: ${gradeIdsToDelete.length}\n\nYou will be asked to confirm with text in the next step.`,
+            confirmLabel: 'Continue',
+            intent: 'danger',
+            onConfirm: async () => {
+                setShowHardResetTextInput({ profileLrns, enrollmentIdsToDelete, gradeIdsToDelete });
+            },
+        });
+    };
+
+    const handleHardResetTextConfirm = async () => {
+        if (!showHardResetTextInput) return;
+        const { profileLrns, enrollmentIdsToDelete, gradeIdsToDelete } = showHardResetTextInput;
+        setShowHardResetTextInput(null);
+
+        setIsRunningHardReset(true);
+        try {
+            const totalWork = gradeIdsToDelete.length + enrollmentIdsToDelete.length + profileLrns.length;
+            startProgress('Full Hard Reset', totalWork, 'Deleting grade records...');
+
+            await deleteByCollectionIds('grades', gradeIdsToDelete, (deletedGrades) => {
+                setProgressCompleted(deletedGrades);
+            });
+
+            setProgressStep('Deleting enrollment records...');
+            await deleteByCollectionIds('enrollments', enrollmentIdsToDelete, (deletedEnrollments) => {
+                setProgressCompleted(gradeIdsToDelete.length + deletedEnrollments);
+            });
+
+            setProgressStep('Deleting student profiles...');
+            await deleteByCollectionIds('students', profileLrns, (deletedProfiles) => {
+                setProgressCompleted(gradeIdsToDelete.length + enrollmentIdsToDelete.length + deletedProfiles);
+            });
+
+            alert(
+                `Hard reset complete.\n\n` +
+                `Deleted student profiles: ${profileLrns.length}\n` +
+                `Deleted enrollments: ${enrollmentIdsToDelete.length}\n` +
+                `Deleted grades: ${gradeIdsToDelete.length}`
+            );
+            setCleanupPreview(null);
+            finishProgress('Completed');
+        } catch (error) {
+            finishProgress('Failed');
+            alert('Hard reset failed: ' + error);
+        } finally {
+            setIsRunningHardReset(false);
+        }
+    };
+
+    type RecordCleanupPreview = {
+        studentUpdates: number;
+        subjectUpdates: number;
+        sectionUpdates: number;
+        orphanGrades: number;
+        orphanGradeSample: string[];
+    };
+
+    const [cleanupPreview, setCleanupPreview] = useState<RecordCleanupPreview | null>(null);
+    const [isPreviewingCleanup, setIsPreviewingCleanup] = useState(false);
+    const [isNormalizingRecords, setIsNormalizingRecords] = useState(false);
+    const [isDeletingOrphanGrades, setIsDeletingOrphanGrades] = useState(false);
+    const [showDangerZone, setShowDangerZone] = useState(false);
+
+    const normalizeSpaces = (value?: string) => {
+        if (!value) return value;
+        return value.replace(/\s+/g, ' ').trim();
+    };
+
+    const normalizeName = (value?: string) => {
+        const normalized = normalizeSpaces(value);
+        if (!normalized) return normalized;
+        return normalized
+            .split(' ')
+            .map((part) => {
+                if (!part) return part;
+                if (part.length <= 2 && part === part.toUpperCase()) return part;
+                return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+            })
+            .join(' ');
+    };
+
+    const buildCleanupPreview = (): RecordCleanupPreview => {
+        const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+        const studentLrns = new Set(effectiveStudents.map((s) => s.lrn));
+        const subjectIds = new Set(subjects.map((s) => s.id));
+
+        let studentUpdates = 0;
+        for (const student of effectiveStudents) {
+            const willChange =
+                normalizeName(student.first_name) !== student.first_name ||
+                normalizeName(student.middle_name) !== student.middle_name ||
+                normalizeName(student.last_name) !== student.last_name ||
+                normalizeName(student.name_extension) !== student.name_extension ||
+                normalizeSpaces(student.address) !== student.address;
+            if (willChange) studentUpdates++;
+        }
+
+        let subjectUpdates = 0;
+        for (const subject of subjects) {
+            const willChange =
+                normalizeSpaces(subject.subject_name) !== subject.subject_name ||
+                normalizeSpaces(subject.subject_code) !== subject.subject_code;
+            if (willChange) subjectUpdates++;
+        }
+
+        let sectionUpdates = 0;
+        for (const section of sections) {
+            const willChange =
+                normalizeSpaces(section.section_name) !== section.section_name ||
+                normalizeName(section.adviser_name) !== section.adviser_name;
+            if (willChange) sectionUpdates++;
+        }
+
+        const orphanGradeIds: string[] = [];
+        for (const record of classRecords) {
+            if (!studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id)) {
+                orphanGradeIds.push(record.id);
+            }
+        }
+
+        return {
+            studentUpdates,
+            subjectUpdates,
+            sectionUpdates,
+            orphanGrades: orphanGradeIds.length,
+            orphanGradeSample: orphanGradeIds.slice(0, 5),
+        };
+    };
+
+    const handlePreviewRecordCleanup = () => {
+        setIsPreviewingCleanup(true);
+        try {
+            const preview = buildCleanupPreview();
+            setCleanupPreview(preview);
+        } finally {
+            setIsPreviewingCleanup(false);
+        }
+    };
+
+    const handleNormalizeRecords = async () => {
+        const preview = cleanupPreview || buildCleanupPreview();
+        if (
+            preview.studentUpdates === 0 &&
+            preview.subjectUpdates === 0 &&
+            preview.sectionUpdates === 0
+        ) {
+            alert('No student/subject/section text cleanup needed.');
+            setCleanupPreview(preview);
+            return;
+        }
+
+        setPendingConfirmation({
+            title: 'Apply text cleanup?',
+            message: 'This will normalize names and spacing in existing student, subject, and section records.',
+            details: `Students to update: ${preview.studentUpdates}\nSubjects to update: ${preview.subjectUpdates}\nSections to update: ${preview.sectionUpdates}`,
+            confirmLabel: 'Apply Cleanup',
+            intent: 'warning',
+            onConfirm: async () => {
+                setIsNormalizingRecords(true);
+                try {
+                    const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+                    let studentApplied = 0;
+                    let subjectApplied = 0;
+                    let sectionApplied = 0;
+
+                    for (const student of effectiveStudents) {
+                        const updates: Record<string, string> = {};
+                        const firstName = normalizeName(student.first_name);
+                        const middleName = normalizeName(student.middle_name);
+                        const lastName = normalizeName(student.last_name);
+                        const extension = normalizeName(student.name_extension);
+                        const address = normalizeSpaces(student.address);
+
+                        if (firstName !== undefined && firstName !== student.first_name) updates.first_name = firstName;
+                        if (middleName !== undefined && middleName !== student.middle_name) updates.middle_name = middleName;
+                        if (lastName !== undefined && lastName !== student.last_name) updates.last_name = lastName;
+                        if (extension !== undefined && extension !== student.name_extension) updates.name_extension = extension;
+                        if (address !== undefined && address !== student.address) updates.address = address;
+
+                        if (Object.keys(updates).length > 0) {
+                            await updateStudent(student.lrn, updates);
+                            studentApplied++;
+                        }
+                    }
+
+                    for (const subject of subjects) {
+                        const subjectName = normalizeSpaces(subject.subject_name);
+                        const subjectCode = normalizeSpaces(subject.subject_code);
+                        if (subjectName !== subject.subject_name || subjectCode !== subject.subject_code) {
+                            await updateSubject({
+                                ...subject,
+                                subject_name: subjectName || subject.subject_name,
+                                subject_code: subjectCode,
+                            });
+                            subjectApplied++;
+                        }
+                    }
+
+                    for (const section of sections) {
+                        const sectionName = normalizeSpaces(section.section_name);
+                        const adviserName = normalizeName(section.adviser_name);
+                        if (sectionName !== section.section_name || adviserName !== section.adviser_name) {
+                            await updateSection({
+                                ...section,
+                                section_name: sectionName || section.section_name,
+                                adviser_name: adviserName,
+                            });
+                            sectionApplied++;
+                        }
+                    }
+
+                    alert(
+                        `Cleanup complete!\n\n` +
+                        `Students updated: ${studentApplied}\n` +
+                        `Subjects updated: ${subjectApplied}\n` +
+                        `Sections updated: ${sectionApplied}`
+                    );
+
+                    setCleanupPreview(buildCleanupPreview());
+                } catch (error) {
+                    alert('Record normalization failed: ' + error);
+                } finally {
+                    setIsNormalizingRecords(false);
+                }
+            },
+        });
+    };
+
+    const handleDeleteOrphanGradeRecords = async () => {
+        const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+        const studentLrns = new Set(effectiveStudents.map((s) => s.lrn));
+        const subjectIds = new Set(subjects.map((s) => s.id));
+        const orphanIds = classRecords
+            .filter((record) => !studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id))
+            .map((record) => record.id);
+
+        if (orphanIds.length === 0) {
+            alert('No orphan grade records found.');
+            return;
+        }
+
+        setPendingConfirmation({
+            title: `Delete ${orphanIds.length} orphan grade record(s)?`,
+            message: 'These grade records are no longer linked to a valid student or subject.',
+            details: 'This action is permanent.',
+            confirmLabel: 'Delete Grades',
+            intent: 'danger',
+            onConfirm: async () => {
+                setIsDeletingOrphanGrades(true);
+                try {
+                    startProgress('Delete Orphan Grade Records', orphanIds.length, 'Deleting orphan grade records...');
+                    await deleteByCollectionIds('grades', orphanIds, (deletedCount) => {
+                        setProgressCompleted(deletedCount);
+                    });
+                    alert(`Deleted ${orphanIds.length} orphan grade record(s).`);
+                    setCleanupPreview(buildCleanupPreview());
+                    finishProgress('Completed');
+                } catch (error) {
+                    finishProgress('Failed');
+                    alert('Failed to delete orphan grade records: ' + error);
+                } finally {
+                    setIsDeletingOrphanGrades(false);
+                }
+            },
+        });
+    };
+
     return (
-        <div className="space-y-6 max-w-4xl">
-            <div>
-                <h2 className="text-3xl font-extrabold text-deped-blue tracking-tight">Settings</h2>
-                <p className="text-gray-500 font-medium mt-1">Manage your account and system preferences</p>
+        <div className="max-w-5xl space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-sky-50 p-6">
+                <h2 className="text-3xl font-black tracking-tight text-slate-900">Settings</h2>
+                <p className="mt-1 text-sm font-medium text-slate-600">Manage account access, backup, and maintenance.</p>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        S.Y. {activeSchoolYear}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold capitalize text-slate-700">
+                        Role: {user?.role || 'N/A'}
+                    </span>
+                </div>
             </div>
 
-            {/* Account Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white flex items-center gap-3">
-                    <User className="w-5 h-5" />
-                    <h3 className="text-lg font-bold">Account Settings</h3>
-                </div>
-                <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Display Name</p>
-                            <p className="text-lg font-bold text-gray-800">{user?.displayName || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Email</p>
-                            <p className="text-lg font-bold text-gray-800">{user?.email || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Role</p>
-                            <p className="text-lg font-bold text-gray-800 capitalize flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-deped-blue" />
-                                {user?.role || 'N/A'}
-                            </p>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">User ID</p>
-                            <p className="text-sm font-mono text-gray-600 break-all">{user?.uid || 'N/A'}</p>
-                        </div>
-                    </div>
+            <ConfirmationModal
+                open={pendingConfirmation !== null}
+                title={pendingConfirmation?.title || ''}
+                message={pendingConfirmation?.message || ''}
+                details={pendingConfirmation?.details}
+                confirmLabel={pendingConfirmation?.confirmLabel}
+                intent={pendingConfirmation?.intent}
+                onConfirm={runPendingConfirmation}
+                onCancel={() => setPendingConfirmation(null)}
+            />
 
-                    <div className="mt-6 pt-6 border-t border-gray-100">
+            <TextInputConfirmationModal
+                open={showHardResetTextInput !== null}
+                title="Confirm Hard Reset"
+                message="This is the final step. Type the confirmation text exactly as shown below."
+                details="HARD RESET"
+                inputPlaceholder="Enter confirmation text"
+                requiredText="HARD RESET"
+                confirmLabel="Execute Hard Reset"
+                intent="danger"
+                onConfirm={handleHardResetTextConfirm}
+                onCancel={() => setShowHardResetTextInput(null)}
+            />
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-2">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <User className="h-5 w-5 text-deped-blue" />
+                            <h3 className="text-lg font-bold text-slate-900">Account & Security</h3>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Display Name</p>
+                                <p className="text-base font-bold text-slate-800">{user?.displayName || 'N/A'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email</p>
+                                <p className="text-base font-bold text-slate-800">{user?.email || 'N/A'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Role</p>
+                                <p className="flex items-center gap-2 text-base font-bold capitalize text-slate-800">
+                                    <Shield className="h-4 w-4 text-deped-blue" />
+                                    {user?.role || 'N/A'}
+                                </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">User ID</p>
+                                <p className="break-all font-mono text-xs text-slate-600">{user?.uid || 'N/A'}</p>
+                            </div>
+                        </div>
                         <button
                             onClick={() => setShowPasswordModal(true)}
-                            className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2"
+                            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-deped-blue px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
                         >
-                            <Lock className="w-4 h-4" />
+                            <Lock className="h-4 w-4" />
                             Change Password
                         </button>
                     </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <Database className="h-5 w-5 text-blue-600" />
+                            <h3 className="text-lg font-bold text-slate-900">Backup & Restore</h3>
+                        </div>
+                        <p className="mb-4 text-sm text-slate-500">Create secure backups and restore school data when needed.</p>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setIsRestoreModalOpen(true)}
+                                className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700"
+                            >
+                                <Upload className="h-4 w-4" />
+                                Restore
+                            </button>
+                            <button
+                                onClick={handleExportData}
+                                disabled={isExporting}
+                                className="rounded-xl bg-deped-blue px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {isExporting ? 'Exporting...' : 'Export Backup'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            {/* System Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white flex items-center gap-3">
-                    <Info className="w-5 h-5" />
-                    <h3 className="text-lg font-bold">System Settings</h3>
-                </div>
-                <div className="p-6 space-y-4">
-                    {/* Dark Mode */}
-                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className={`p-2.5 rounded-lg ${isDarkMode ? 'bg-indigo-100 text-indigo-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                                {isDarkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                            </div>
-                            <div>
-                                <p className="font-bold text-gray-800">Dark Mode</p>
-                                <p className="text-sm text-gray-500">Switch to dark theme for reduced eye strain</p>
-                            </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={isDarkMode}
-                                onChange={() => setIsDarkMode(!isDarkMode)}
-                            />
-                            <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-deped-blue"></div>
-                        </label>
-                    </div>
+                <div className="space-y-4 lg:col-span-1">
+                    <div className="rounded-2xl border border-red-200 bg-white p-5">
+                        <h3 className="text-lg font-bold text-slate-900">Database Maintenance</h3>
+                        <p className="mt-1 text-sm text-slate-500">Clean records and run reset tools with progress tracking.</p>
 
-                    {/* Notifications */}
-                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 rounded-lg bg-green-100 text-green-600">
-                                <Bell className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-gray-800">Push Notifications</p>
-                                <p className="text-sm text-gray-500">Receive alerts for announcements and updates</p>
-                            </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" defaultChecked />
-                            <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-deped-blue"></div>
-                        </label>
-                    </div>
+                        {canPurge ? (
+                            <div className="mt-4 space-y-2">
+                                <button
+                                    onClick={handlePreviewRecordCleanup}
+                                    disabled={isPreviewingCleanup}
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                                >
+                                    {isPreviewingCleanup ? 'Scanning...' : 'Preview Record Cleanup'}
+                                </button>
+                                <button
+                                    onClick={handleNormalizeRecords}
+                                    disabled={isNormalizingRecords}
+                                    className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                                >
+                                    {isNormalizingRecords ? 'Applying...' : 'Normalize Names & Text'}
+                                </button>
+                                <button
+                                    onClick={handleCleanGhostStudents}
+                                    disabled={isCleaning}
+                                    className="w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                >
+                                    {isCleaning ? 'Cleaning...' : 'Purge Ghost Students'}
+                                </button>
+                                <button
+                                    onClick={handleCleanGhostSections}
+                                    disabled={isPurgingSections}
+                                    className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                    {isPurgingSections ? 'Purging...' : 'Purge Ghost Sections'}
+                                </button>
 
-                    {/* Auto-Backup / Export */}
-                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 rounded-lg bg-blue-100 text-blue-600">
-                                <Database className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-gray-800">Data Backup</p>
-                                <p className="text-sm text-gray-500">Export your data for safekeeping</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleExportData}
-                            disabled={isExporting}
-                            className="px-4 py-2 bg-deped-blue text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all disabled:opacity-50"
-                        >
-                            {isExporting ? 'Exporting...' : 'Export Data'}
-                        </button>
-                    </div>
+                                <button
+                                    onClick={() => setShowDangerZone((prev) => !prev)}
+                                    className="mt-2 w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-left text-sm font-bold text-red-700 hover:bg-red-50"
+                                >
+                                    {showDangerZone ? 'Hide Danger Zone' : 'Show Danger Zone'}
+                                </button>
 
-                    {/* Database Maintenance */}
-                    <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 rounded-lg bg-red-100 text-red-600">
-                                <Trash2 className="w-5 h-5" />
+                                {showDangerZone && (
+                                    <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
+                                        <button
+                                            onClick={handleDeleteOrphanGradeRecords}
+                                            disabled={isDeletingOrphanGrades}
+                                            className="w-full rounded-lg bg-red-100 px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                        >
+                                            {isDeletingOrphanGrades ? 'Deleting...' : 'Delete Orphan Grades'}
+                                        </button>
+                                        <button
+                                            onClick={handleClearAllCurrentStudents}
+                                            disabled={isClearingAllStudents}
+                                            className="w-full rounded-lg bg-rose-600 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                                        >
+                                            {isClearingAllStudents ? 'Clearing...' : 'Fresh Start: Clear Current Students'}
+                                        </button>
+                                        <button
+                                            onClick={handleClearStudentsAndOrphanGrades}
+                                            disabled={isClearingStudentsAndGrades}
+                                            className="w-full rounded-lg bg-red-600 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                                        >
+                                            {isClearingStudentsAndGrades ? 'Clearing...' : 'Fresh Start: Clear Students + Grades'}
+                                        </button>
+                                        <button
+                                            onClick={handleFullHardReset}
+                                            disabled={isRunningHardReset}
+                                            className="w-full rounded-lg bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                                        >
+                                            {isRunningHardReset ? 'Resetting...' : 'Full Hard Reset (Delete Profiles)'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <div>
-                                <p className="font-bold text-gray-800">Database Maintenance</p>
-                                <p className="text-sm text-gray-500">Purge unassigned "ghost" students and empty sections from the system</p>
+                        ) : (
+                            <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Maintenance tools are restricted to administrators.</p>
+                        )}
+
+                        {cleanupPreview && (
+                            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                                <p className="font-semibold text-slate-900">Record Cleanup Preview</p>
+                                <p>Student text fixes: {cleanupPreview.studentUpdates}</p>
+                                <p>Subject text fixes: {cleanupPreview.subjectUpdates}</p>
+                                <p>Section text fixes: {cleanupPreview.sectionUpdates}</p>
+                                <p>Orphan grade records: {cleanupPreview.orphanGrades}</p>
+                                {cleanupPreview.orphanGradeSample.length > 0 && (
+                                    <p className="mt-1 text-xs text-slate-500">Sample IDs: {cleanupPreview.orphanGradeSample.join(', ')}</p>
+                                )}
                             </div>
-                        </div>
-                                <div className="flex flex-wrap gap-3 mt-4">
-                                    <button
-                                        onClick={handleCleanGhostStudents}
-                                        disabled={isCleaning}
-                                        className="px-5 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-100 transition-all flex items-center gap-2 border border-rose-100 disabled:opacity-50"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        {isCleaning ? 'Cleaning...' : 'Purge Ghost Students'}
-                                    </button>
-                                    <button
-                                        onClick={handleCleanGhostSections}
-                                        disabled={isPurgingSections}
-                                        className="px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm hover:bg-amber-100 transition-all flex items-center gap-2 border border-amber-100 disabled:opacity-50"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        {isPurgingSections ? 'Purging...' : 'Purge Ghost Sections'}
-                                    </button>
+                        )}
+
+                        {maintenanceProgress.total > 0 && (
+                            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                                <p className="font-semibold text-blue-900">{maintenanceProgress.title}</p>
+                                <p className="mt-1 text-sm text-blue-800">{maintenanceProgress.currentStep}</p>
+                                <p className="mt-1 text-xs text-blue-700">
+                                    {maintenanceProgress.completed} / {maintenanceProgress.total} records
+                                    ({Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%)
+                                </p>
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-blue-100">
+                                    <div
+                                        className="h-full bg-blue-600 transition-all duration-300"
+                                        style={{
+                                            width: `${Math.round((maintenanceProgress.completed / Math.max(1, maintenanceProgress.total)) * 100)}%`,
+                                        }}
+                                    />
                                 </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* About */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white flex items-center gap-3">
-                    <Info className="w-5 h-5" />
-                    <h3 className="text-lg font-bold">About</h3>
-                </div>
-                <div className="p-6 text-center">
-                    <div className="text-4xl mb-4">🎓</div>
-                    <h4 className="text-xl font-bold text-deped-blue">DepEd SMS</h4>
-                    <p className="text-gray-600 font-medium mb-4">Comprehensive School Management System</p>
-                    
-                    <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed mb-6">
-                        An integrated digital ecosystem designed in compliance with the Department of Education's standards. 
-                        It modernizes academic processes by streamlining the generation of electronic class records, 
-                        SF9, SF10, and SF2 attendance reports, ensuring fast, accurate, and secure educational data management.
-                    </p>
-
-                    <div className="mt-4 mb-8 flex flex-wrap justify-center gap-2">
-                        <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">E-Class Record</span>
-                        <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">SF9 Report Card</span>
-                        <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">SF10 Record</span>
-                        <span className="px-2.5 py-1 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold">Attendance SF2</span>
-                        <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Reports & Analytics</span>
-                        <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold">Calendar</span>
-                    </div>
-
-                    <div className="pt-6 border-t border-gray-100">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Developed By</p>
-                        <h5 className="text-xl font-black text-gray-800">Emerson M. Galano</h5>
-                        
-                        <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-                            <a href="mailto:emerson.galano@deped.gov.ph" className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-deped-blue transition-colors bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 hover:border-deped-blue/30 shadow-sm">
-                                <Mail className="w-4 h-4 text-deped-blue" />
-                                emerson.galano@deped.gov.ph
-                            </a>
-                            <a href="https://www.facebook.com/xshame14/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 hover:border-blue-600/30 shadow-sm">
-                                <Facebook className="w-4 h-4 text-blue-600" />
-                                Facebook Profile
-                            </a>
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -403,6 +1054,21 @@ export function SettingsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Backup Restore Modal */}
+            <BackupRestoreModal
+                isOpen={isRestoreModalOpen}
+                onClose={() => setIsRestoreModalOpen(false)}
+            />
+
+            {/* Export Options Modal */}
+            <ExportOptionsModal
+                isOpen={showExportOptions}
+                onClose={() => setShowExportOptions(false)}
+                backup={currentBackup}
+                onExport={handleExportWithOptions}
+                isExporting={isExporting}
+            />
         </div>
     );
 }

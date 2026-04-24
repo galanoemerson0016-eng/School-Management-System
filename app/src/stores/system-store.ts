@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { useAuthStore } from './auth-store';
+import { canManagePublicPosts } from '../lib/rbac';
 
 interface SystemState {
     loginAnnouncement: string;
@@ -10,25 +10,15 @@ interface SystemState {
 }
 
 export const useSystemStore = create<SystemState>((set) => ({
-    loginAnnouncement: "Early Registration for SY 2026-2027: Jan 31 - Feb 27, 2026.", // Default fallback
+    loginAnnouncement: "Welcome to FormEase G7 Special. Please login with your credentials to continue.", // Default fallback
     isLoading: false,
 
     fetchSystemSettings: async () => {
         set({ isLoading: true });
         try {
-            const docRef = doc(db, "system_settings", "login_config");
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data.announcement) {
-                    set({ loginAnnouncement: data.announcement });
-                }
-            } else {
-                // Create default if not exists
-                const defaultAnnouncement = "Early Registration for SY 2026-2027: Jan 31 - Feb 27, 2026.";
-                await setDoc(docRef, { announcement: defaultAnnouncement });
-                set({ loginAnnouncement: defaultAnnouncement });
+            const saved = localStorage.getItem('system_login_announcement');
+            if (saved && saved.trim()) {
+                set({ loginAnnouncement: saved });
             }
         } catch (error) {
             console.error("Error fetching system settings:", error);
@@ -40,8 +30,12 @@ export const useSystemStore = create<SystemState>((set) => ({
     updateLoginAnnouncement: async (text: string) => {
         set({ isLoading: true });
         try {
-            const docRef = doc(db, "system_settings", "login_config");
-            await setDoc(docRef, { announcement: text }, { merge: true });
+            const user = useAuthStore.getState().user;
+            if (!canManagePublicPosts(user)) {
+                throw new Error('Access denied: you are not allowed to update login announcement.');
+            }
+
+            localStorage.setItem('system_login_announcement', text);
             set({ loginAnnouncement: text });
         } catch (error) {
             console.error("Error updating login announcement:", error);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     useReactTable,
     getCoreRowModel,
@@ -9,20 +9,31 @@ import {
     type SortingState,
 } from '@tanstack/react-table';
 import { useAppStore, useAuthStore } from '../stores';
-import type { Student } from '../types';
+import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
-import { parseSF1 } from '../utils/sf1-parser';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Upload, Trash2, ArrowLeft, Search, MapPin, Edit3, Trash, ChevronRight, Download } from 'lucide-react';
+import { Users, UserPlus, Trash2, Search, MapPin, Edit3, Trash, ChevronRight, Download, X, ArrowLeft, RotateCcw, FileSpreadsheet } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
+import { parseSF1 } from '../utils/sf1-parser';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { useRef } from 'react';
 
 export function StudentsPage() {
-    const { students, sections, addStudent, deleteStudent, clearSection } = useAppStore();
+    const {
+        students,
+        sections,
+        teachers,
+        schoolProfile,
+        deleteStudent,
+        clearSection,
+        importStudentsFromSF1,
+    } = useAppStore();
     const { user } = useAuthStore();
     const isAdmin = user?.role === 'admin';
 
     const [viewMode, setViewMode] = useState<'overview' | 'section_detail'>('overview');
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+    const [overviewSearch, setOverviewSearch] = useState('');
     const [genderFilter, setGenderFilter] = useState<'All' | 'Male' | 'Female'>('All');
     const [addressFilter, setAddressFilter] = useState<string>('All');
 
@@ -31,7 +42,11 @@ export function StudentsPage() {
     const [globalFilter, setGlobalFilter] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    const [formDataForModal, setFormDataForModal] = useState<Partial<Student> | undefined>(undefined);
     const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
+    const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const toggleGrade = (grade: string) => {
         setCollapsedGrades(prev => ({ ...prev, [grade]: !prev[grade] }));
@@ -45,14 +60,82 @@ export function StudentsPage() {
         setCollapsedGrades(newState);
     };
 
-    // Import State
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isImporting, setIsImporting] = useState(false);
+    const [pendingAction, setPendingAction] = useState<
+        | { kind: 'clear-section'; sectionName: string; count: number }
+        | null
+    >(null);
 
-    const getSelectedSectionObj = () => sections.find(s => s.id === selectedSectionId);
+    const officialSections = useMemo(() => sections, [sections]);
+
+    const getSelectedSectionObj = () => officialSections.find(s => s.id === selectedSectionId);
     const selectedSectionObj = getSelectedSectionObj();
-    const isAdviser = user?.uid && selectedSectionObj?.adviser_id === user.uid;
-    const canEdit = isAdmin || isAdviser;
+
+    const isPlaceholderSectionName = (value?: string) => {
+        const text = (value || '').trim();
+        return /^G\d+\s*-\s*[A-Za-z0-9]+$/i.test(text);
+    };
+
+    const resolveSectionDisplayName = (section?: Section | null) => {
+        const fromSection = (section?.section_name || '').trim();
+        if (fromSection && !isPlaceholderSectionName(fromSection)) return fromSection;
+
+        const fromProfile = (schoolProfile?.section || '').trim();
+        if (fromProfile) return fromProfile;
+
+        return fromSection || 'Section';
+    };
+
+    const resolveSectionGradeDisplay = (section?: Section | null) => {
+        const fromSection = (section?.section_grade_level || '').trim();
+        const fromProfile = (schoolProfile?.grade_level || '').trim();
+        return fromProfile || fromSection || 'Grade';
+    };
+
+
+    const getSectionAliases = (section?: Section | null) => {
+        if (!section) return [] as string[];
+        const aliases = [section.section_name, resolveSectionDisplayName(section), section.id]
+            .map((value) => (value || '').trim())
+            .filter(Boolean);
+        return Array.from(new Set(aliases));
+    };
+
+    const resolveAdviserName = (section?: Section | null) => {
+        if (!section) return 'TBA';
+        const fromSection = section.adviser_name || teachers.find((teacher) => teacher.uid === section.adviser_id)?.displayName;
+        if (fromSection && fromSection.trim() && fromSection.trim().toLowerCase() !== 'tba') return fromSection;
+
+        // Only fallback to school profile for ADVISORY sections
+        const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
+        if (isAdvisory) {
+            const fromProfile = (schoolProfile?.adviser_name || '').trim();
+            if (fromProfile) return fromProfile;
+        }
+
+        return 'TBA';
+    };
+    const selectedSectionAdviser = resolveAdviserName(selectedSectionObj);
+    const selectedSectionDisplayName = resolveSectionDisplayName(selectedSectionObj);
+    const selectedSectionGradeDisplay = resolveSectionGradeDisplay(selectedSectionObj);
+    const userAdvisorySections = useMemo(() => officialSections.filter(s => s.adviser_id === user?.uid), [officialSections, user]);
+    const isAdviserOfAny = userAdvisorySections.length > 0;
+    const isAdviserOfCurrent = user?.uid && selectedSectionObj?.adviser_id === user.uid;
+    const isCurrentSectionAdvisory = selectedSectionObj ? (selectedSectionObj.is_advisory ?? !selectedSectionObj.is_teaching_load) : true;
+    const isSimplifiedMode = viewMode === 'section_detail' && !isCurrentSectionAdvisory;
+
+    const canEdit = isAdmin || isAdviserOfCurrent;
+    const canAddGlobally = isAdmin || isAdviserOfAny;
+
+    useEffect(() => {
+        if (!selectedSectionId && officialSections.length > 0) {
+            const firstSection = officialSections[0];
+            setSelectedSectionId(firstSection.id);
+            if (officialSections.length === 1) {
+                setViewMode('section_detail');
+            }
+        }
+    }, [selectedSectionId, officialSections]);
+
 
     const handleExportStudents = () => {
         exportToCSV(displayedStudents.map(s => ({
@@ -60,14 +143,61 @@ export function StudentsPage() {
             'Last Name': s.last_name,
             'First Name': s.first_name,
             'Middle Name': s.middle_name || '',
+            'Name Extension': s.name_extension || '',
             'Gender': s.gender,
             'Birthday': s.birthday,
             'Age': s.age,
+            'Contact Number': s.contact_number || '',
             'Address': s.address,
-            'Contact': s.contact_number || '',
             'Grade Level': s.grade_level,
             'Section': s.student_section || '',
+            'Track': s.track || '',
+            'Strand': s.strand || '',
+            'Weight (kg)': s.weight ?? '',
+            'Height (m)': s.height ?? '',
+            'Elementary School': s.elementary_school || '',
+            'Elementary School ID': s.elementary_school_id || '',
+            'Elementary School Address': s.elementary_school_address || '',
+            'General Average': s.average_grade || '',
+            'Citation': s.citation || '',
+            'PEPT Rating': s.pept_rating || '',
+            'PEPT Date': s.pept_date || '',
+            'ALS Rating': s.als_rating || '',
+            'Testing Center': s.testing_center || '',
+            'Other Credentials': s.other_credentials || '',
         })), `Students_${selectedSectionObj?.section_name || 'All'}`);
+    };
+
+    const handleSF1Import = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedSectionObj) return;
+
+        setIsImporting(true);
+        try {
+            const parsedStudents = await parseSF1(file);
+            
+            // Tag students with the current grade and section and FILTER results
+            const studentsToImport = parsedStudents
+                .filter(s => s && s.lrn)
+                .map(s => ({
+                    ...s,
+                    grade_level: selectedSectionObj.section_grade_level,
+                    student_section: selectedSectionObj.section_name
+                }));
+
+            if (studentsToImport.length === 0) {
+                alert('No valid student records found in the file. Please check if the names and LRNs are in the correct columns.');
+                return;
+            }
+
+            await importStudentsFromSF1(studentsToImport, selectedSectionObj.section_name);
+        } catch (error) {
+            console.error('SF1 Import Failed:', error);
+            alert(`SF1 Import Failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
     // Animation Variants
@@ -97,29 +227,59 @@ export function StudentsPage() {
 
     const sectionsByGrade = useMemo(() => {
         const grouped: Record<string, typeof sections> = {};
-        sections.forEach((section) => {
+        officialSections.forEach((section) => {
             const grade = section.section_grade_level || 'No Grade';
             if (!grouped[grade]) grouped[grade] = [];
             grouped[grade].push(section);
         });
         return grouped;
-    }, [sections]);
+    }, [officialSections]);
 
     const sectionStudents = useMemo(() => {
         if (viewMode === 'overview') return [];
-        const section = sections.find(s => s.id === selectedSectionId);
+        const section = officialSections.find(s => s.id === selectedSectionId);
         if (!section) return [];
-        const filtered = students.filter(s => s.student_section === section.section_name);
+        const filtered = students.filter(s => s.student_section === section.section_name || s.student_section === section.id);
         return filtered.sort((a, b) => {
             if (a.gender !== b.gender) return a.gender === 'Male' ? -1 : 1;
             return a.last_name.localeCompare(b.last_name);
         });
-    }, [students, sections, selectedSectionId, viewMode]);
+    }, [students, officialSections, selectedSectionId, viewMode]);
+
+    const filteredSectionsByGrade = useMemo(() => {
+        const query = overviewSearch.trim().toLowerCase();
+        if (!query) return sectionsByGrade;
+
+        const filtered: Record<string, typeof sections> = {};
+        Object.entries(sectionsByGrade).forEach(([grade, gradeSections]) => {
+            const matches = gradeSections.filter((section) => {
+                const adviser = resolveAdviserName(section).toLowerCase();
+                const sectionDisplayName = resolveSectionDisplayName(section).toLowerCase();
+                const sectionGradeDisplay = resolveSectionGradeDisplay(section).toLowerCase();
+                return (
+                    grade.toLowerCase().includes(query) ||
+                    sectionGradeDisplay.includes(query) ||
+                    section.section_name.toLowerCase().includes(query) ||
+                    sectionDisplayName.includes(query) ||
+                    adviser.includes(query)
+                );
+            });
+
+            if (matches.length > 0) {
+                filtered[grade] = matches;
+            }
+        });
+
+        return filtered;
+    }, [overviewSearch, sectionsByGrade]);
 
     const uniqueAddresses = useMemo(() => {
         const counts: Record<string, number> = {};
         sectionStudents.forEach(s => {
-            if (s.address) counts[s.address] = (counts[s.address] || 0) + 1;
+            if (s.address) {
+                const addr = s.address.split(',')[0].trim(); // Take barangay or street
+                counts[addr] = (counts[addr] || 0) + 1;
+            }
         });
         return Object.entries(counts).sort((a, b) => b[1] - a[1]);
     }, [sectionStudents]);
@@ -127,9 +287,21 @@ export function StudentsPage() {
     const displayedStudents = useMemo(() => {
         let filtered = sectionStudents;
         if (genderFilter !== 'All') filtered = filtered.filter(s => s.gender === genderFilter);
-        if (addressFilter !== 'All') filtered = filtered.filter(s => s.address === addressFilter);
+        if (addressFilter !== 'All') {
+            filtered = filtered.filter(s => s.address?.includes(addressFilter));
+        }
+        if (globalFilter.trim()) {
+            const q = globalFilter.toLowerCase();
+            filtered = filtered.filter(s => 
+                s.lrn.includes(q) || 
+                `${s.last_name} ${s.first_name}`.toLowerCase().includes(q)
+            );
+        }
         return filtered;
-    }, [sectionStudents, genderFilter, addressFilter]);
+    }, [sectionStudents, genderFilter, addressFilter, globalFilter]);
+
+    const hasActiveFilters = genderFilter !== 'All' || addressFilter !== 'All' || globalFilter.trim().length > 0;
+
 
     const handleSectionClick = (sectionId: string) => {
         setSelectedSectionId(sectionId);
@@ -138,12 +310,33 @@ export function StudentsPage() {
         setViewMode('section_detail');
     };
 
-    const handleBackToOverview = () => {
-        setViewMode('overview');
-        setSelectedSectionId(null);
-        setGlobalFilter('');
+    const resetDetailFilters = () => {
         setGenderFilter('All');
         setAddressFilter('All');
+        setGlobalFilter('');
+    };
+
+
+    const handleEdit = useCallback((student: Student) => {
+        setEditingStudent(student);
+        setIsModalOpen(true);
+    }, []);
+
+    const handleDelete = useCallback((student: Student) => {
+        setDeleteTarget(student);
+    }, []);
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+
+        const target = deleteTarget;
+        setDeleteTarget(null);
+
+        try {
+            await deleteStudent(target.lrn);
+        } catch (error) {
+            console.error('Failed to delete student:', error);
+        }
     };
 
     const columns = useMemo<ColumnDef<Student>[]>(
@@ -172,10 +365,10 @@ export function StudentsPage() {
                         );
                     }
                 },
-                {
+                ...(isCurrentSectionAdvisory ? [{
                     accessorKey: 'birthday',
                     header: 'Birthday',
-                    cell: (info) => {
+                    cell: (info: any) => {
                         const dateStr = info.getValue() as string;
                         if (!dateStr) return <span className="text-gray-300 italic text-xs">N/A</span>;
                         const parts = dateStr.split('-');
@@ -185,7 +378,7 @@ export function StudentsPage() {
                         }
                         return dateStr;
                     },
-                },
+                }] : []),
             ];
 
             if (canEdit) {
@@ -206,7 +399,7 @@ export function StudentsPage() {
             }
             return baseColumns;
         },
-        [canEdit]
+        [canEdit, handleEdit, handleDelete]
     );
 
     const table = useReactTable({
@@ -219,17 +412,6 @@ export function StudentsPage() {
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
     });
-
-    const handleEdit = (student: Student) => {
-        setEditingStudent(student);
-        setIsModalOpen(true);
-    };
-
-    const handleDelete = (student: Student) => {
-        if (confirm(`Delete ${student.first_name} ${student.last_name}?`)) {
-            deleteStudent(student.lrn);
-        }
-    };
 
     const handleAdd = () => {
         setEditingStudent(null);
@@ -245,68 +427,46 @@ export function StudentsPage() {
         if (!selectedSectionObj) return;
         const count = sectionStudents.length;
         if (count === 0) return;
-        if (confirm(`⚠️ DANGER: Delete ALL ${count} students in ${selectedSectionObj.section_name}?`)) {
-            try {
-                await clearSection(selectedSectionObj.section_name);
-                alert("Section cleared successfully.");
-            } catch (e) {
-                alert("Error clearing section: " + e);
-            }
-        }
+        setPendingAction({ kind: 'clear-section', sectionName: selectedSectionObj.section_name, count });
     };
 
-    const handleImportClick = () => fileInputRef.current?.click();
 
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file || !selectedSectionObj) return;
+    const handleConfirmPendingAction = async () => {
+        if (!pendingAction) return;
+        const action = pendingAction;
+        setPendingAction(null);
 
-        setIsImporting(true);
         try {
-            const importedStudents = await parseSF1(file);
-            if (importedStudents.length === 0) {
-                alert("No valid students found.");
-                setIsImporting(false);
-                return;
-            }
-
-            if (confirm(`Found ${importedStudents.length} students. Import into ${selectedSectionObj.section_name}?`)) {
-                let successCount = 0;
-                for (const student of importedStudents) {
-                    const enrichedStudent: Student = {
-                        ...student,
-                        grade_level: selectedSectionObj.section_grade_level,
-                        student_section: selectedSectionObj.section_name,
-                        age: student.birthday ? new Date().getFullYear() - new Date(student.birthday).getFullYear() : 0
-                    };
-                    try {
-                        await addStudent(enrichedStudent);
-                        successCount++;
-                    } catch (e) {
-                        console.error(`Failed to add ${student.last_name}:`, e);
-                    }
-                }
-                alert(`Successfully imported ${successCount} students!`);
+            if (action.kind === 'clear-section') {
+                await clearSection(action.sectionName);
             }
         } catch (error) {
-            alert(`Import Failed: ${error}`);
-        } finally {
-            setIsImporting(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            console.error('Action failed:', error);
         }
     };
 
-    const getStudentCount = (sectionName: string) => students.filter(s => s.student_section === sectionName).length;
-    const getMaleCount = (sectionName: string) => students.filter(s => s.student_section === sectionName && s.gender === 'Male').length;
-    const getFemaleCount = (sectionName: string) => students.filter(s => s.student_section === sectionName && s.gender === 'Female').length;
+    const getStudentCount = (section?: Section | null) => {
+        const aliases = getSectionAliases(section);
+        return students.filter((student) => aliases.includes((student.student_section || '').trim())).length;
+    };
+    const getMaleCount = (section?: Section | null) => {
+        const aliases = getSectionAliases(section);
+        return students.filter((student) => aliases.includes((student.student_section || '').trim()) && student.gender === 'Male').length;
+    };
+    const getFemaleCount = (section?: Section | null) => {
+        const aliases = getSectionAliases(section);
+        return students.filter((student) => aliases.includes((student.student_section || '').trim()) && student.gender === 'Female').length;
+    };
 
     const validStudents = useMemo(() => {
-        return students.filter(s => sections.some(sec => sec.section_name === s.student_section));
-    }, [students, sections]);
+        return students.filter(s => officialSections.some(sec => sec.section_name === s.student_section));
+    }, [students, officialSections]);
 
     const totalStudents = validStudents.length;
     const totalMale = validStudents.filter(s => s.gender === 'Male').length;
     const totalFemale = validStudents.filter(s => s.gender === 'Female').length;
+
+    const statsSectionsCount = officialSections.length;
 
     return (
         <div className="space-y-6 pb-8">
@@ -317,44 +477,42 @@ export function StudentsPage() {
                 className="flex flex-wrap gap-4 justify-between items-center"
             >
                 <div>
-                    <h2 className="text-3xl font-extrabold text-deped-blue tracking-tight flex items-center gap-3">
-                        {viewMode === 'section_detail' && (
-                            <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleBackToOverview}
-                                className="p-2 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 hover:bg-gray-50 transition-all"
-                            >
-                                <ArrowLeft className="w-5 h-5 text-gray-600" />
-                            </motion.button>
-                        )}
-                        {viewMode === 'overview' ? 'Student Information' : selectedSectionObj?.section_name}
+                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        {viewMode === 'overview' ? 'Student Information' : selectedSectionDisplayName}
                     </h2>
                     {viewMode === 'overview' ? (
-                        <p className="text-gray-500 font-medium mt-1">{totalStudents} Learners • {sections.length} Sections</p>
+                        <p className="text-gray-500 font-medium mt-1">{totalStudents} Learners • {statsSectionsCount} Sections</p>
                     ) : (
-                        <p className="text-gray-500 font-medium mt-1">
-                            {selectedSectionObj?.section_grade_level} • Room {selectedSectionObj?.section_room || 'TBA'}
-                            {isAdviser && <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">Adviser</span>}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase tracking-wider border border-slate-200/50">
+                                {selectedSectionGradeDisplay}
+                            </span>
+                            <span className="text-slate-300">/</span>
+                            <p className="text-slate-500 font-bold text-xs">
+                                Adviser: {selectedSectionAdviser}
+                            </p>
+                        </div>
                     )}
                 </div>
 
                 <div className="flex gap-2">
+                    {viewMode === 'section_detail' && (
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                                setViewMode('overview');
+                                setSelectedSectionId(null);
+                            }}
+                            className="px-4 py-2.5 bg-white text-gray-600 border border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center gap-2"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Sections
+                        </motion.button>
+                    )}
+
                     {viewMode === 'section_detail' && canEdit && (
                         <>
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xls,.xlsx" className="hidden" />
-                            <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={handleImportClick}
-                                disabled={isImporting}
-                                className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-emerald-600 transition-all flex items-center gap-2 disabled:opacity-50"
-                            >
-                                <Upload className="w-4 h-4" />
-                                {isImporting ? 'Importing...' : 'Import SF1'}
-                            </motion.button>
-
                             {sectionStudents.length > 0 && (
                                 <motion.button
                                     whileHover={{ scale: 1.02 }}
@@ -381,16 +539,53 @@ export function StudentsPage() {
                         </motion.button>
                     )}
 
-                    {canEdit && (
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleAdd}
-                            className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                        >
-                            <UserPlus className="w-4 h-4" />
-                            Add Student
-                        </motion.button>
+                    {viewMode === 'section_detail' && canEdit && (
+                        <>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleSF1Import}
+                                accept=".xlsx, .xls"
+                                className="hidden"
+                            />
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isImporting}
+                                className="px-4 py-2.5 bg-white text-emerald-600 border border-emerald-200 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-all flex items-center gap-2"
+                            >
+                                <FileSpreadsheet className="w-4 h-4" />
+                                {isImporting ? 'Importing...' : 'Import SF1'}
+                            </motion.button>
+                        </>
+                    )}
+
+                    {(viewMode === 'section_detail' && canEdit) && (
+                        <div className="flex gap-2">
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                    // If we are in section detail, pre-fill with that section
+                                    if (selectedSectionObj) {
+                                        setEditingStudent(null);
+                                        setFormDataForModal({
+                                            grade_level: selectedSectionObj.section_grade_level,
+                                            student_section: selectedSectionObj.section_name
+                                        });
+                                    } else {
+                                        setEditingStudent(null);
+                                        setFormDataForModal(undefined);
+                                    }
+                                    setIsModalOpen(true);
+                                }}
+                                className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Add Learner
+                            </motion.button>
+                        </div>
                     )}
                 </div>
             </motion.div>
@@ -407,7 +602,19 @@ export function StudentsPage() {
                         className="space-y-8"
                     >
                         {/* Quick Stats & Controls */}
-                        <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
+                        <div className="flex flex-col gap-4">
+                            <div className="relative max-w-lg w-full">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={overviewSearch}
+                                    onChange={(e) => setOverviewSearch(e.target.value)}
+                                    placeholder="Search section, adviser, or grade"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all shadow-sm"
+                                />
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
                                 {[
                                     { label: 'Total Learners', value: totalStudents, icon: Users, color: 'blue' },
@@ -432,7 +639,12 @@ export function StudentsPage() {
                                 ))}
                             </div>
                             
-                            <div className="flex gap-2 mb-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                {overviewSearch.trim() && (
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mr-1">
+                                        {Object.values(filteredSectionsByGrade).reduce((total, list) => total + list.length, 0)} section(s) matched
+                                    </p>
+                                )}
                                 <motion.button
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
@@ -449,11 +661,22 @@ export function StudentsPage() {
                                 >
                                     Collapse All
                                 </motion.button>
+                                {overviewSearch.trim() && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => setOverviewSearch('')}
+                                        className="px-3 py-1.5 bg-white border border-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-gray-50 transition-all"
+                                    >
+                                        Clear Search
+                                    </motion.button>
+                                )}
+                            </div>
                             </div>
                         </div>
 
                         {/* Section Cards by Grade */}
-                        {Object.entries(sectionsByGrade)
+                        {Object.entries(filteredSectionsByGrade)
                             .sort(([a], [b]) => {
                                 const getGradeNum = (g: string) => {
                                     const match = g.match(/Grade\s*(\d+)/i);
@@ -502,10 +725,12 @@ export function StudentsPage() {
                                                     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
                                                 >
                                         {gradeSections.map((section) => {
-                                            const count = getStudentCount(section.section_name);
-                                            const maleCount = getMaleCount(section.section_name);
-                                            const femaleCount = getFemaleCount(section.section_name);
+                                            const count = getStudentCount(section);
+                                            const maleCount = getMaleCount(section);
+                                            const femaleCount = getFemaleCount(section);
                                             const malePercent = count > 0 ? (maleCount / count) * 100 : 50;
+                                            const adviserDisplayName = resolveAdviserName(section);
+                                            const sectionDisplayName = resolveSectionDisplayName(section);
 
                                             return (
                                                 <motion.div
@@ -523,11 +748,8 @@ export function StudentsPage() {
                                                         <div className="flex justify-between items-start mb-3">
                                                             <div>
                                                                 <h4 className="text-xl font-black text-gray-800 group-hover:text-deped-blue transition-colors">
-                                                                    {section.section_name}
+                                                                    {sectionDisplayName}
                                                                 </h4>
-                                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">
-                                                                    Room {section.section_room || 'TBA'}
-                                                                </p>
                                                             </div>
                                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg transition-all ${count > 0 ? 'bg-gradient-to-br from-deped-blue to-blue-500 text-white shadow-lg' : 'bg-gray-100 text-gray-400'}`}>
                                                                 {count}
@@ -556,10 +778,33 @@ export function StudentsPage() {
 
                                                         <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                                                             <p className="text-xs text-gray-400 font-medium">
-                                                                <span className="text-gray-500">Adviser:</span> TBA
+                                                                <span className="text-gray-500">
+                                                                    {section.is_advisory ? 'Adviser:' : 'Teacher:'}
+                                                                </span> {adviserDisplayName}
                                                             </p>
-                                                            <div className="flex items-center gap-1 text-deped-blue font-bold text-xs opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                                                                View <ChevronRight className="w-3 h-3" />
+                                                            <div className="flex items-center gap-2">
+                                                                {(isAdmin || section.adviser_id === user?.uid) && (
+                                                                    <motion.button
+                                                                        whileHover={{ scale: 1.1 }}
+                                                                        whileTap={{ scale: 0.9 }}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingStudent(null);
+                                                                            setFormDataForModal({
+                                                                                grade_level: section.section_grade_level,
+                                                                                student_section: section.section_name
+                                                                            });
+                                                                            setIsModalOpen(true);
+                                                                        }}
+                                                                        className="p-1.5 bg-deped-blue/10 text-deped-blue rounded-lg hover:bg-deped-blue hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                                                        title="Add Learner"
+                                                                    >
+                                                                        <UserPlus className="w-3.5 h-3.5" />
+                                                                    </motion.button>
+                                                                )}
+                                                                <div className="flex items-center gap-1 text-deped-blue font-bold text-xs opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                                                                    View <ChevronRight className="w-3 h-3" />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -582,11 +827,47 @@ export function StudentsPage() {
                                     <Users className="w-10 h-10 text-gray-300" />
                                 </div>
                                 <h3 className="text-xl font-bold text-gray-800 mb-2">No Sections Found</h3>
-                                <p className="text-gray-500">Go to Classes/Sections to create your first section.</p>
+                                <p className="text-gray-500">Go to Institute Profile to set up advisory grade level and section details.</p>
+                            </motion.div>
+                        )}
+
+                        {sections.length > 0 && Object.keys(filteredSectionsByGrade).length === 0 && (
+                            <motion.div
+                                variants={fadeSlide}
+                                className="text-center py-16 bg-white/70 backdrop-blur-md rounded-3xl shadow-sm border border-white/20"
+                            >
+                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Search className="w-7 h-7 text-gray-300" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-2">No matching sections</h3>
+                                <p className="text-gray-500 mb-4">Try a different search term for section, adviser, or grade.</p>
+                                <button
+                                    onClick={() => setOverviewSearch('')}
+                                    className="px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-sm"
+                                >
+                                    Clear Search
+                                </button>
                             </motion.div>
                         )}
                     </motion.div>
                 )}
+
+                <ConfirmationModal
+                    open={pendingAction !== null}
+                    title={pendingAction?.kind === 'clear-section'
+                        ? `Delete all ${pendingAction.count} students in ${pendingAction.sectionName}?`
+                        : ''}
+                    message={pendingAction?.kind === 'clear-section'
+                        ? 'This will permanently remove every student enrolled in the selected section.'
+                        : ''}
+                    details={pendingAction?.kind === 'clear-section'
+                        ? 'This action cannot be undone.'
+                        : ''}
+                    confirmLabel={pendingAction?.kind === 'clear-section' ? 'Delete Students' : 'Confirm'}
+                    intent={pendingAction?.kind === 'clear-section' ? 'danger' : 'info'}
+                    onConfirm={handleConfirmPendingAction}
+                    onCancel={() => setPendingAction(null)}
+                />
 
                 {/* Detail Mode */}
                 {viewMode === 'section_detail' && (
@@ -625,36 +906,40 @@ export function StudentsPage() {
                                 </motion.div>
                             ))}
 
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
-                                <div className="text-2xl">🎂</div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Avg Age</p>
-                                    <p className="text-xl font-black text-orange-500">
-                                        {sectionStudents.length > 0 ? Math.round(sectionStudents.reduce((acc, s) => acc + (s.age || 0), 0) / sectionStudents.length) : 0}
-                                    </p>
-                                </div>
-                            </div>
+                            {isCurrentSectionAdvisory && (
+                                <>
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                                        <div className="text-2xl">🎂</div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Avg Age</p>
+                                            <p className="text-xl font-black text-orange-500">
+                                                {sectionStudents.length > 0 ? Math.round(sectionStudents.reduce((acc, s) => acc + (s.age || 0), 0) / sectionStudents.length) : 0}
+                                            </p>
+                                        </div>
+                                    </div>
 
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
-                                <MapPin className="w-5 h-5 text-emerald-500" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
-                                    <select
-                                        value={addressFilter}
-                                        onChange={(e) => setAddressFilter(e.target.value)}
-                                        className="w-full text-xs font-bold border-none p-0 focus:ring-0 cursor-pointer text-gray-700 bg-transparent truncate"
-                                    >
-                                        <option value="All">All ({uniqueAddresses.length})</option>
-                                        {uniqueAddresses.map(([addr, count]) => (
-                                            <option key={addr} value={addr}>{addr} ({count})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                                        <MapPin className="w-5 h-5 text-emerald-500" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
+                                            <select
+                                                value={addressFilter}
+                                                onChange={(e) => setAddressFilter(e.target.value)}
+                                                className="w-full text-xs font-bold border-none p-0 focus:ring-0 cursor-pointer text-gray-700 bg-transparent truncate"
+                                            >
+                                                <option value="All">All ({uniqueAddresses.length})</option>
+                                                {uniqueAddresses.map(([addr, count]) => (
+                                                    <option key={addr} value={addr}>{addr} ({count})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Search Bar */}
-                        <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 justify-between items-center">
                             <div className="relative max-w-md flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <input
@@ -665,9 +950,20 @@ export function StudentsPage() {
                                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
                                 />
                             </div>
-                            <p className="text-sm text-gray-500 font-medium ml-4">
-                                Showing <span className="font-bold text-gray-800">{displayedStudents.length}</span> students
-                            </p>
+                            <div className="flex items-center gap-3 ml-auto">
+                                <p className="text-sm text-gray-500 font-medium">
+                                    Showing <span className="font-bold text-gray-800">{displayedStudents.length}</span> students
+                                </p>
+                                {hasActiveFilters && (
+                                    <button
+                                        onClick={resetDetailFilters}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold"
+                                    >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Reset Filters
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Table */}
@@ -676,15 +972,22 @@ export function StudentsPage() {
                                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Users className="w-8 h-8 text-gray-300" />
                                 </div>
-                                <p className="text-gray-500 font-medium mb-4">No students enrolled yet.</p>
-                                {canEdit && (
-                                    <div className="flex justify-center gap-3">
-                                        <button onClick={handleAdd} className="px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-sm">
-                                            Add Manually
-                                        </button>
-                                        <button onClick={handleImportClick} className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-sm">
-                                            Import SF1
-                                        </button>
+                                <p className="text-gray-500 font-medium mb-4">
+                                    {sectionStudents.length > 0 ? 'No learners match your current filters.' : 'No students enrolled yet.'}
+                                </p>
+                                {sectionStudents.length > 0 && hasActiveFilters && (
+                                    <button
+                                        onClick={resetDetailFilters}
+                                        className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm mr-3"
+                                    >
+                                        Clear Filters
+                                    </button>
+                                )}
+                                {canEdit && sectionStudents.length === 0 && (
+                                    <div className="flex justify-center">
+                                        <p className="text-xs font-bold text-deped-blue/60 uppercase tracking-widest italic animate-pulse">
+                                            Ready to populate section records...
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -753,11 +1056,59 @@ export function StudentsPage() {
                             <StudentForm
                                 student={editingStudent}
                                 onClose={handleCloseModal}
-                                initialData={viewMode === 'section_detail' && selectedSectionObj ? {
-                                    grade_level: selectedSectionObj.section_grade_level,
-                                    student_section: selectedSectionObj.section_name
-                                } : undefined}
+                                initialData={formDataForModal}
+                                isSimplified={isSimplifiedMode}
                             />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {deleteTarget && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
+                        onClick={() => setDeleteTarget(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 16, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.95, y: 16, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] border border-slate-200"
+                        >
+                            <div className="bg-gradient-to-r from-rose-600 to-red-600 px-6 py-5 text-white">
+                                <p className="text-[10px] font-black uppercase tracking-[0.24em] opacity-80">Confirm Delete</p>
+                                <h3 className="mt-2 text-2xl font-black tracking-tight">Delete {deleteTarget.last_name}, {deleteTarget.first_name}?</h3>
+                            </div>
+
+                            <div className="px-6 py-5 space-y-4">
+                                <p className="text-sm text-slate-600 leading-relaxed">
+                                    This will permanently remove the learner record from Student Information and enrollment data.
+                                </p>
+                                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700 border border-slate-200">
+                                    <div><span className="font-black uppercase text-slate-400 text-[10px] tracking-[0.2em]">LRN</span> {deleteTarget.lrn}</div>
+                                    <div className="mt-1"><span className="font-black uppercase text-slate-400 text-[10px] tracking-[0.2em]">Section</span> {deleteTarget.student_section || 'N/A'}</div>
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button
+                                        onClick={() => setDeleteTarget(null)}
+                                        className="h-11 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => void confirmDelete()}
+                                        className="h-11 rounded-xl bg-rose-600 px-5 text-sm font-black text-white hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200"
+                                    >
+                                        Delete Student
+                                    </button>
+                                </div>
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}
