@@ -24,6 +24,7 @@ import {
   CertificateGeneratorPage,
   SchoolFormsPage,
   AboutPage,
+  ActivationPage,
 } from './pages';
 import { Toast } from './components/ui/Toast';
 import { AccessDenied } from './components/auth/AccessDenied';
@@ -83,7 +84,7 @@ function App() {
 
   useEffect(() => {
     const schoolName = schoolProfile?.name?.trim();
-    document.title = schoolName && schoolName !== 'School Name' ? schoolName : 'School Management System';
+    document.title = schoolName && schoolName !== 'School Name' ? schoolName : 'FormEase Pro';
   }, [schoolProfile?.name]);
 
   // Initialize auth and app data from local storage on mount
@@ -91,12 +92,17 @@ function App() {
     void initializeAuthStore();
     void initializeAppStore();
   }, []);
-  // Show loading splash while auth state is resolving — prevents login page flash
+  // 1. Show loading splash while auth state is resolving
   if (isLoading) {
     return <LoadingSplash />;
   }
 
-  // Show login page if not authenticated
+  // 2. Commercial Activation Check (Serial Key & Adviser Name)
+  if (!schoolProfile.is_activated) {
+    return <ActivationPage />;
+  }
+
+  // 3. Show login page if not authenticated
   if (!isAuthenticated) {
     return <LoginPage />;
   }

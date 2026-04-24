@@ -20,6 +20,39 @@ interface SF10SpecRendererProps {
     onUpdate?: (path: string, value: string) => void;
 }
 
+const AutoShrinkText: React.FC<{ text: string; minScale?: number }> = ({ text, minScale = 0.5 }) => {
+    const [scale, setScale] = React.useState(1);
+    const textRef = React.useRef<HTMLSpanElement>(null);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useLayoutEffect(() => {
+        if (textRef.current && containerRef.current) {
+            const textWidth = textRef.current.scrollWidth;
+            const containerWidth = containerRef.current.clientWidth;
+            if (textWidth > containerWidth && containerWidth > 0) {
+                setScale(Math.max(minScale, containerWidth / textWidth));
+            } else {
+                setScale(1);
+            }
+        }
+    }, [text]);
+
+    return (
+        <div ref={containerRef} className="w-full h-full flex items-end justify-center overflow-hidden relative">
+            <span 
+                ref={textRef} 
+                className="inline-block whitespace-nowrap"
+                style={{ 
+                    transform: `scaleX(${scale})`, 
+                    transformOrigin: 'center bottom',
+                }}
+            >
+                {text}
+            </span>
+        </div>
+    );
+};
+
 export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, data, onUpdate }) => {
     
     // Helper to resolve nested data paths (e.g., 'learner.lastName')
@@ -84,8 +117,8 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
     // PAGE 2 (High-Fidelity Implementation)
     if (pageNumber === 2) {
         return (
-            <div className="sf10-container print:bg-white bg-[#525659] py-10 print:py-0 flex flex-col items-center min-h-screen font-['Arial_Narrow',Arial,sans-serif] antialiased">
-                <div className="page w-[8.5in] h-[13in] bg-white shadow-2xl p-[25pt_0.35in_0.25in_0.35in] flex flex-col justify-start box-border relative print:shadow-none print:m-0 overflow-hidden leading-[1.15]">
+            <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
+                <div className="page w-[8.5in] h-[12.95in] bg-white p-[20pt_0.35in_0.3in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
                     <style dangerouslySetInnerHTML={{ __html: `
                         @page { size: 8.5in 13in; margin: 0in; }
                         body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
@@ -104,16 +137,16 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                         }
                         .sf-header-shade { background-color: #C4BD97 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         .excel-table { width: 100%; border-collapse: collapse; border: 1px solid black; }
-                        .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 4px; height: 16px; min-height: 16px; }
+                        .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 4px; height: 14px; min-height: 14px; font-size: 10px; }
                         .border-thick { border: 1.5pt solid black !important; }
                         .border-thick-b { border-bottom: 1.5pt solid black !important; }
-                        .h-spacer td { height: 6pt !important; min-height: 0 !important; padding: 0 !important; line-height: 0; }
-                        .h-subject-row td { height: 12px !important; min-height: 0 !important; padding: 0px 4px !important; }
+                        .h-spacer td { height: 3pt !important; min-height: 0 !important; padding: 0 !important; line-height: 0; }
+                        .h-subject-row td { height: 14px !important; min-height: 14px !important; padding: 0px 4px !important; }
                     ` }} />
 
                     <div className="flex-grow">
                         {/* Page 2 Header */}
-                        <div className="flex justify-between items-start mb-0 px-1 text-[10px] font-bold mt-[-6pt]">
+                        <div className="flex justify-between items-start mb-0 px-1 text-[10px] font-bold mt-1">
                             <div>SF10-JHS</div>
                             <div>Page 2 of <span className="fill-blank min-w-[20px]"></span></div>
                         </div>
@@ -182,7 +215,16 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                                     const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
                                                     return (
                                                         <tr key={rIdx} className="h-subject-row">
-                                                            <td className={`text-left ${getLearningAreaIndentClass(row)}`}>{row.label}</td>
+                                                            <td className={`text-left ${getLearningAreaIndentClass(row)}`}>
+                                                                {row.key.startsWith('extra') ? (
+                                                                    <input 
+                                                                        type="text" 
+                                                                        className="w-full border-none bg-transparent focus:outline-none uppercase"
+                                                                        value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`)}
+                                                                        onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)}
+                                                                    />
+                                                                ) : row.label}
+                                                            </td>
                                                             <td>{asString(sub.q1)}</td>
                                                             <td>{asString(sub.q2)}</td>
                                                             <td>{asString(sub.q3)}</td>
@@ -220,7 +262,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                                 <td className="w-[30%]">Learning Areas</td>
                                                 <td className="w-[15%]">Final Rating</td>
                                                 <td className="w-[20%]">Remedial Class Mark</td>
-                                                <td className="w-[20%] leading-tight text-[8px]">Recomputed<br/>Final Grade</td>
+                                                <td className="w-[20%] uppercase text-[8px]">Recomputed Final Grade</td>
                                                 <td className="w-[15%]">Remarks</td>
                                             </tr>
                                         </thead>
@@ -304,7 +346,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                         />
                                     </span>
                                 </div>
-                                <div className="flex justify-between items-end mt-8 px-4 pb-0">
+                                <div className="flex justify-between items-end mt-3 px-4 pb-0">
                                     <div className="min-w-[100px] text-center relative group">
                                         <div className="border-b border-black w-full mb-[2px] min-h-[15px] font-bold text-center flex justify-center uppercase px-2">
                                             <input 
@@ -362,7 +404,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     @media print {
                         html, body { height: 13in !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
                         .sf10-container { background: white !important; padding: 0 !important; margin: 0 !important; height: 13in !important; min-height: 13in !important; display: block !important; overflow: hidden !important; }
-                        .page { box-shadow: none !important; margin: 0 !important; padding: 25pt 0.35in 0in 0.35in !important; height: 13in !important; width: 8.5in !important; display: block !important; break-after: avoid-page !important; position: relative !important; overflow: hidden !important; }
+                        .page { box-shadow: none !important; margin: 0 !important; padding: 5pt 0.35in 0.35in 0.35in !important; height: 12.95in !important; width: 8.5in !important; display: block !important; break-after: avoid-page !important; position: relative !important; }
                     }
                 ` }} />
             </div>
@@ -371,9 +413,9 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
 
     // PAGE 1 (Matching User Template Exactly)
     return (
-        <div className="sf10-container print:bg-white bg-[#525659] py-10 print:py-0 flex flex-col items-center min-h-screen font-['Arial_Narrow',Arial,sans-serif] antialiased">
+        <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
             
-            <div className="page w-[8.5in] h-[13in] bg-white shadow-2xl p-[25pt_0.35in_0.25in_0.35in] flex flex-col justify-start box-border relative print:shadow-none print:m-0 overflow-hidden leading-[1.15]">
+            <div className="page w-[8.5in] h-[12.95in] bg-white p-[30pt_0.35in_0.2in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
                 <style dangerouslySetInnerHTML={{ __html: `
                     @page { size: 8.5in 13in; margin: 0in; }
                     body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
@@ -392,10 +434,10 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     }
                     .sf-header-shade { background-color: #C4BD97 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     .excel-table { width: 100%; border-collapse: collapse; border: 1px solid black; }
-                    .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 4px; height: 16px; min-height: 16px; }
+                    .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 4px; height: 14px; min-height: 14px; font-size: 10px; }
                     .border-thick { border: 1.5pt solid black !important; }
                     .border-thick-b { border-bottom: 1.5pt solid black !important; }
-                    .h-spacer td { height: 6pt !important; min-height: 0 !important; padding: 0 !important; line-height: 0; }
+                    .h-spacer td { height: 3pt !important; min-height: 0 !important; padding: 0 !important; line-height: 0; }
                 ` }} />
 
                 <div className="flex-grow">
@@ -438,7 +480,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                 <span className="mx-4 whitespace-nowrap">Birthdate (mm/dd/yyyy):</span>
                                 <span className="fill-blank min-w-[100px] px-2 uppercase">{formatDate(getVal('learner.birthdate'))}</span>
                                 <span className="mx-4 whitespace-nowrap">Sex:</span>
-                                <span className="fill-blank min-w-[50px] px-1 uppercase">{getVal('learner.sex')}</span>
+                                <span className="fill-blank flex-grow px-1 uppercase">{getVal('learner.sex')}</span>
                             </div>
                         </div>
                     </div>
@@ -447,48 +489,68 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     <div className="mt-1 mb-1 border-thick overflow-hidden">
                         <div className="text-center font-bold sf-header-shade border-thick-b py-0.5 text-[14pt]">ELIGIBILITY FOR JHS ENROLMENT</div>
                         <div className="p-1 px-2 text-[10pt]">
-                            <div className="flex items-end mb-1">
-                                <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px]">
+                            <div className="flex items-end mb-1 flex-nowrap shrink-0">
+                                <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
                                     {getVal('eligibility.elementaryCompleter.checked') ? '✓' : ''}
                                 </div>
-                                <span className="mr-1">Elementary School Completer</span>
-                                <span className="mx-2">General Average:</span>
-                                <span className="fill-blank min-w-[60px] px-1 uppercase">{getVal('eligibility.elementaryCompleter.generalAverage')}</span>
-                                <span className="mx-2">Citation (if any):</span>
-                                <span className="fill-blank flex-grow px-1 uppercase">{getVal('eligibility.elementaryCompleter.citation')}</span>
+                                <span className="mr-1 whitespace-nowrap">Elementary School Completer</span>
+                                <span className="mx-1 whitespace-nowrap">General Average:</span>
+                                <span className="fill-blank min-w-[40px] px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.elementaryCompleter.generalAverage')} />
+                                </span>
+                                <span className="mx-2 whitespace-nowrap">Citation (if any):</span>
+                                <span className="fill-blank flex-grow px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.elementaryCompleter.citation')} />
+                                </span>
                             </div>
-                            <div className="flex items-end mb-1">
-                                <span className="mr-1">Name of Elementary School:</span>
-                                <span className="fill-blank min-w-[250px] px-2 uppercase">{getVal('eligibility.nameOfElementarySchool')}</span>
-                                <span className="mx-2">School ID:</span>
-                                <span className="fill-blank min-w-[80px] px-1 uppercase">{getVal('eligibility.schoolId')}</span>
-                                <span className="mx-2">Address of School:</span>
-                                <span className="fill-blank flex-grow px-2 uppercase leading-none">{getVal('eligibility.addressOfSchool')}</span>
+                            <div className="flex items-end mb-1 flex-nowrap shrink-0">
+                                <span className="mr-1 whitespace-nowrap">Name of Elementary School:</span>
+                                <span className="fill-blank min-w-[150px] flex-grow px-2 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.nameOfElementarySchool')} />
+                                </span>
+                                <span className="mx-2 whitespace-nowrap">School ID:</span>
+                                <span className="fill-blank min-w-[60px] px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.schoolId')} />
+                                </span>
+                                <span className="mx-2 whitespace-nowrap">Address of School:</span>
+                                <span className="fill-blank flex-grow px-2 uppercase leading-none text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.addressOfSchool')} />
+                                </span>
                             </div>
-                            <div className="flex items-end mb-0">
-                                <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px]">
+                            <div className="flex items-end mb-0 flex-nowrap shrink-0">
+                                <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
                                     {getVal('eligibility.peptPasser.checked') ? '✓' : ''}
                                 </div>
-                                <span className="mr-1">PEPT Passer</span>
-                                <span className="mx-2">Rating:</span>
-                                <span className="fill-blank min-w-[60px] px-1 uppercase">{getVal('eligibility.peptPasser.rating')}</span>
-                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px]">
+                                <span className="mr-1 whitespace-nowrap">PEPT Passer</span>
+                                <span className="mx-2 whitespace-nowrap">Rating:</span>
+                                <span className="fill-blank min-w-[50px] px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.peptPasser.rating')} />
+                                </span>
+                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
                                     {getVal('eligibility.alsPasser.checked') ? '✓' : ''}
                                 </div>
-                                <span className="mr-1">ALS A&E Passer</span>
-                                <span className="mx-2">Rating:</span>
-                                <span className="fill-blank min-w-[60px] px-1 uppercase">{getVal('eligibility.alsPasser.rating')}</span>
-                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px]">
+                                <span className="mr-1 whitespace-nowrap">ALS A&E Passer</span>
+                                <span className="mx-2 whitespace-nowrap">Rating:</span>
+                                <span className="fill-blank min-w-[50px] px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.alsPasser.rating')} />
+                                </span>
+                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
                                     {getVal('eligibility.other.checked') ? '✓' : ''}
                                 </div>
-                                <span className="mr-1">Others (Specify):</span>
-                                <span className="fill-blank min-w-[100px] px-1 uppercase">{getVal('eligibility.other.specify')}</span>
+                                <span className="mr-1 whitespace-nowrap">Others (Specify):</span>
+                                <span className="fill-blank min-w-[80px] flex-grow px-1 uppercase text-[9pt]">
+                                    <AutoShrinkText text={getVal('eligibility.other.specify')} />
+                                </span>
                             </div>
-                            <div className="flex items-end mb-1 mt-1">
-                                <span className="mr-2">Date of Examination/Assessment (mm/dd/yyyy):</span>
-                                <span className="fill-blank min-w-[100px] px-2 uppercase">{formatDate(getVal('eligibility.dateOfExamination'))}</span>
-                                <span className="mx-1">Name and Address of Testing Center:</span>
-                                <span className="fill-blank flex-grow px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('eligibility.testingCenter') || getVal('eligibility.nameAndAddressOfTestingCenter')}</span>
+                            <div className="flex items-end mb-1 mt-1 flex-nowrap shrink-0">
+                                <span className="mr-2 whitespace-nowrap">Date of Examination/Assessment (mm/dd/yyyy):</span>
+                                <span className="fill-blank min-w-[100px] px-2 uppercase text-[9pt]">
+                                    <AutoShrinkText text={formatDate(getVal('eligibility.dateOfExamination'))} />
+                                </span>
+                                <span className="mx-2 whitespace-nowrap">Name and Address of Testing Center:</span>
+                                <span className="fill-blank flex-grow px-2 uppercase text-[9pt]" style={{ fontWeight: 'bold' }}>
+                                    <AutoShrinkText text={getVal('eligibility.testingCenter') || getVal('eligibility.nameAndAddressOfTestingCenter')} />
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -497,7 +559,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     {[0, 1].map((blockIdx) => (
                         <div key={blockIdx} className="mt-1 mb-1 border-thick overflow-hidden">
                         {blockIdx === 0 && (
-                            <div className="text-center font-bold sf-header-shade border-thick-b py-0.5 text-[14pt]">SCHOLASTIC RECORD</div>
+                            <div className="text-center font-bold sf-header-shade border-thick-b py-0.5 text-[12pt]">SCHOLASTIC RECORD</div>
                         )}
                             <div className="p-0 text-[11px]">
                                 <div className="px-2 py-1 space-y-0.5 border-thick-b">
@@ -562,7 +624,16 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                             const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
                                             return (
                                                 <tr key={rIdx} className="h-subject-row">
-                                                    <td className={`text-left ${getLearningAreaIndentClass(row)}`}>{row.label}</td>
+                                                    <td className={`text-left ${getLearningAreaIndentClass(row)}`}>
+                                                        {row.key.startsWith('extra') ? (
+                                                            <input 
+                                                                type="text" 
+                                                                className="w-full border-none bg-transparent focus:outline-none uppercase"
+                                                                value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`)}
+                                                                onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)}
+                                                            />
+                                                        ) : row.label}
+                                                    </td>
                                                     <td>{asString(sub.q1)}</td>
                                                     <td>{asString(sub.q2)}</td>
                                                     <td>{asString(sub.q3)}</td>
@@ -596,17 +667,17 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                             <span className="font-normal normal-case text-[10px] ml-6">to (mm/dd/yyyy) </span><span className="fill-blank w-24"></span>
                                         </td>
                                     </tr>
-                                    <tr className="uppercase text-[9px] h-[18px]">
+                                    <tr className="uppercase text-[9px] h-[17px]">
                                         <td className="w-[30%]">Learning Areas</td>
                                         <td className="w-[15%]">Final Rating</td>
                                         <td className="w-[20%]">Remedial Class Mark</td>
-                                        <td className="w-[20%] leading-tight text-[8px]">Recomputed<br/>Final Grade</td>
+                                        <td className="w-[20%] uppercase text-[8px]">Recomputed Final Grade</td>
                                         <td className="w-[15%]">Remarks</td>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr className="h-[16px]"><td></td><td></td><td></td><td></td><td></td></tr>
-                                    <tr className="h-[16px]"><td></td><td></td><td></td><td></td><td></td></tr>
+                                    <tr className="h-[15px]"><td></td><td></td><td></td><td></td><td></td></tr>
+                                    <tr className="h-[15px]"><td></td><td></td><td></td><td></td><td></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -614,7 +685,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
 
                     {/* Certification */}
                     <div className="mt-1 mb-1 border-thick bg-white overflow-hidden">
-                        <div className="text-center font-bold sf-header-shade border-thick-b py-0.5 text-[14pt]">CERTIFICATION</div>
+                        <div className="text-center font-bold sf-header-shade border-thick-b py-0.5 text-[12pt]">CERTIFICATION</div>
                         <div className="p-2 px-4 text-[11px] leading-relaxed">
                             <div className="flex items-end mb-0 mt-0 flex-nowrap shrink-0">
                                 <span className="mr-1 whitespace-nowrap">I CERTIFY that this is a true record of</span>
@@ -680,9 +751,9 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     />
                                 </span>
                             </div>
-                            <div className="flex justify-between items-end mt-8 px-4 pb-0">
+                            <div className="flex justify-between items-end mt-3 px-4 pb-0">
                                 <div className="min-w-[100px] text-center relative group">
-                                    <div className="border-b border-black w-full mb-[2px] min-h-[16px] font-bold text-center flex justify-center uppercase px-2">
+                                    <div className="border-b border-black w-full mb-[2px] min-h-[12px] font-bold text-center flex justify-center uppercase px-2">
                                         <input 
                                             type="text"
                                             className={`border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent ${getVal('certification.page1.date') === 'HIDDEN' ? 'opacity-0' : 'opacity-100'}`}
@@ -706,7 +777,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     </button>
                                 </div>
                                 <div className="flex-grow mx-8 text-center">
-                                    <div className="border-b border-black w-full mb-[2px] min-h-[16px] flex items-center justify-center">
+                                    <div className="border-b border-black w-full mb-[2px] min-h-[12px] flex items-center justify-center">
                                         <input 
                                             type="text"
                                             className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent text-[11px]"
@@ -718,7 +789,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     <div className="text-[11px] uppercase leading-tight pt-1">Signature of Principal/School Head over Printed Name</div>
                                 </div>
                                 <div className="w-[150px] text-center pb-[2px]">
-                                    <div className="text-[11px] uppercase">(Affix School Seal Here)</div>
+                                    <div className="text-[10px] uppercase">(Affix School Seal Here)</div>
                                 </div>
                             </div>
                         </div>
@@ -733,7 +804,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                 @media print {
                     html, body { height: 13in !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
                     .sf10-container { background: white !important; padding: 0 !important; margin: 0 !important; height: 13in !important; min-height: 13in !important; display: block !important; overflow: hidden !important; }
-                    .page { box-shadow: none !important; margin: 0 !important; padding: 25pt 0.35in 0in 0.35in !important; height: 13in !important; width: 8.5in !important; display: block !important; break-after: avoid-page !important; position: relative !important; overflow: hidden !important; }
+                    .page { box-shadow: none !important; margin: 0 !important; padding: 30pt 0.35in 0.1in 0.35in !important; height: 12.9in !important; width: 8.5in !important; display: block !important; break-after: avoid-page !important; position: relative !important; }
                 }
             ` }} />
         </div>

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, screen, Menu } = require('electron');
+const { app, BrowserWindow, screen, Menu, ipcMain } = require('electron');
 const path = require('path');
+const { machineIdSync } = require('node-machine-id');
 
 const isDev = !app.isPackaged;
  
@@ -81,4 +82,14 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 }
+
+// IPC Handlers
+ipcMain.handle('get-machine-id', () => {
+  try {
+    return machineIdSync();
+  } catch (error) {
+    console.error('Failed to get machine ID:', error);
+    return 'UNKNOWN-DEVICE';
+  }
+});
 

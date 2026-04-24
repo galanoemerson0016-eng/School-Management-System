@@ -174,7 +174,7 @@ export const LoginPage = () => {
     const t = language === 'EN' ? {
         republic: 'REPUBLIC OF THE PHILIPPINES',
         welcome: 'Welcome to your official',
-        sms: 'Student Management System',
+        sms: 'FormEase Pro',
         portal: 'portal.',
         depedBadge: 'Department of Education',
         digitalPortal: 'Digital Management Portal',
@@ -194,7 +194,7 @@ export const LoginPage = () => {
     } : {
         republic: 'REPUBLIKA NG PILIPINAS',
         welcome: 'Maligayang pagdating sa inyong opisyal na',
-        sms: 'Student Management System',
+        sms: 'FormEase Pro',
         portal: 'portal.',
         depedBadge: 'Kagawaran ng Edukasyon',
         digitalPortal: 'Digital Management Portal',

@@ -8,10 +8,10 @@ import type { CertificateType, HonorsInfo } from '../utils/certificateUtils';
 import { getHonorsInfo, calculateStudentAverage } from '../utils/certificateUtils';
 
 const TEMPLATE_CONFIG: Record<CertificateType, { excellenceAward: string, dateMonth: string }> = {
-    'EOSY': { excellenceAward: 'Academic Excellence Awardee', dateMonth: 'March' },
-    'T1': { excellenceAward: 'Unang Term Academic Achiever', dateMonth: 'November' },
-    'T2': { excellenceAward: 'Ikalawang Term Academic Achiever', dateMonth: 'January' },
-    'T3': { excellenceAward: 'Ikatlong Term Academic Achiever', dateMonth: 'March' },
+    'EOSY': { excellenceAward: 'Academic Excellence Awardee (Academic Excellence Awardee)', dateMonth: 'March' },
+    'T1': { excellenceAward: 'Nagkamit ng Karangalan para sa Unang Termino (First Term Academic Achiever)', dateMonth: 'November' },
+    'T2': { excellenceAward: 'Nagkamit ng Karangalan para sa Ikalawang Termino (Second Term Academic Achiever)', dateMonth: 'January' },
+    'T3': { excellenceAward: 'Nagkamit ng Karangalan para sa Ikatlong Termino (Third Term Academic Achiever)', dateMonth: 'March' },
 };
 
 export interface CertificateData {
@@ -29,6 +29,15 @@ export interface CertificateData {
     signatory2Name: string;
     signatory2TitleTagalog: string;
     signatory2TitleEnglish: string;
+    givenInTagalog: string;
+    givenInEnglish: string;
+    headerRegionTagalog: string;
+    headerRegionEnglish: string;
+    headerDivisionTagalog: string;
+    headerDivisionEnglish: string;
+    headerDistrictTagalog: string;
+    headerDistrictEnglish: string;
+    headerSchoolName: string;
 }
 
 interface BatchStudent {
@@ -56,6 +65,7 @@ export function CertificateGeneratorPage() {
     const [isBatchScanning, setIsBatchScanning] = useState(false);
     const [certSidebarWidth, setCertSidebarWidth] = useState(336); // Default w-84 is 336px
     const [isCertResizing, setIsCertResizing] = useState(false);
+    const [showAdvancedHeader, setShowAdvancedHeader] = useState(false);
     const certSidebarRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -145,13 +155,71 @@ export function CertificateGeneratorPage() {
         dateDate: todayParts.day,
         dateMonth: todayParts.month,
         dateYear: todayParts.year,
-        signatory1Name: '', // Will be Class Adviser
+        signatory1Name: schoolProfile?.adviser_name || '', 
         signatory1TitleTagalog: 'Tagapayo',
         signatory1TitleEnglish: 'Adviser',
-        signatory2Name: 'AGAPITO S. GONZAGA',
-        signatory2TitleTagalog: 'Punong-Guro',
-        signatory2TitleEnglish: 'Officer-in-Charge, School Head'
+        signatory2Name: schoolProfile?.head_name || 'AGAPITO S. GONZAGA',
+        signatory2TitleTagalog: schoolProfile?.head_position?.toLowerCase().includes('principal') 
+            ? schoolProfile.head_position.replace(/Principal/i, 'Punong-Guro') 
+            : 'Punong-Guro',
+        signatory2TitleEnglish: schoolProfile?.head_position || 'Officer-in-Charge, School Head',
+        givenInTagalog: (schoolProfile?.division?.toLowerCase().includes('city') ? 'Lungsod ng ' : 'Lalawigan ng ') + (schoolProfile?.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag'),
+        givenInEnglish: (schoolProfile?.division?.toLowerCase().includes('city') ? 'City of ' : 'Province of ') + (schoolProfile?.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag'),
+        headerRegionTagalog: schoolProfile?.region?.replace(/Region/i, 'Rehiyon') || 'Rehiyon III',
+        headerRegionEnglish: schoolProfile?.region || 'REGION III',
+        headerDivisionTagalog: (schoolProfile?.division || 'Sangay ng Lalawigan ng Tarlac')
+            .replace(/Schools Division of/i, 'Sangay ng')
+            .replace(/Province/i, 'Lalawigan')
+            .replace(/City/i, 'Lungsod'),
+        headerDivisionEnglish: schoolProfile?.division || 'SCHOOLS DIVISION OF TARLAC PROVINCE',
+        headerDistrictTagalog: (() => {
+            let d = schoolProfile?.district || 'Victoria East District';
+            const base = d.replace(/District/i, '').trim();
+            let translated = base.replace(/East/i, 'Silangang').replace(/West/i, 'Kanlurang').replace(/North/i, 'Hilagang').replace(/South/i, 'Timog');
+            if (translated.endsWith('Silangang')) translated = 'Silangang ' + translated.replace('Silangang', '').trim();
+            else if (translated.endsWith('Kanlurang')) translated = 'Kanlurang ' + translated.replace('Kanlurang', '').trim();
+            else if (translated.endsWith('Hilagang')) translated = 'Hilagang ' + translated.replace('Hilagang', '').trim();
+            else if (translated.endsWith('Timog')) translated = 'Timog ' + translated.replace('Timog', '').trim();
+            return d.toLowerCase().includes('district') ? `Distrito ng ${translated}` : d;
+        })(),
+        headerDistrictEnglish: schoolProfile?.district || 'VICTORIA EAST DISTRICT',
+        headerSchoolName: schoolProfile?.name || 'School Name'
     });
+
+    // Sync with school profile updates
+    useEffect(() => {
+        if (schoolProfile) {
+            setCertData(prev => ({
+                ...prev,
+                signatory2Name: schoolProfile.head_name || prev.signatory2Name,
+                signatory2TitleTagalog: schoolProfile.head_position?.toLowerCase().includes('principal') 
+                    ? schoolProfile.head_position.replace(/Principal/i, 'Punong-Guro') 
+                    : 'Punong-Guro',
+                signatory2TitleEnglish: schoolProfile.head_position || prev.signatory2TitleEnglish,
+                signatory1Name: prev.signatory1Name || schoolProfile.adviser_name || '',
+                givenInTagalog: prev.givenInTagalog === 'Lalawigan ng Matatag' || prev.givenInTagalog === '' 
+                    ? (schoolProfile.division?.toLowerCase().includes('city') ? 'Lungsod ng ' : 'Lalawigan ng ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
+                    : prev.givenInTagalog,
+                givenInEnglish: prev.givenInEnglish === 'Province of Matatag' || prev.givenInEnglish === ''
+                    ? (schoolProfile.division?.toLowerCase().includes('city') ? 'City of ' : 'Province of ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
+                    : prev.givenInEnglish,
+                headerRegionTagalog: prev.headerRegionTagalog === 'Rehiyon III' || prev.headerRegionTagalog === '' ? schoolProfile.region?.replace(/Region/i, 'Rehiyon') : prev.headerRegionTagalog,
+                headerRegionEnglish: prev.headerRegionEnglish === 'REGION III' || prev.headerRegionEnglish === '' ? schoolProfile.region : prev.headerRegionEnglish,
+                headerDivisionTagalog: prev.headerDivisionTagalog === 'Sangay ng Lalawigan ng Tarlac' || prev.headerDivisionTagalog === '' ? schoolProfile.division?.replace(/Schools Division of/i, 'Sangay ng').replace(/Province/i, 'Lalawigan').replace(/City/i, 'Lungsod') : prev.headerDivisionTagalog,
+                headerDivisionEnglish: prev.headerDivisionEnglish === 'SCHOOLS DIVISION OF TARLAC PROVINCE' || prev.headerDivisionEnglish === '' ? schoolProfile.division : prev.headerDivisionEnglish,
+                headerDistrictTagalog: prev.headerDistrictTagalog === 'Distrito ng Silangang Victoria' || prev.headerDistrictTagalog === '' ? (() => {
+                    let d = schoolProfile.district;
+                    const base = d.replace(/District/i, '').trim();
+                    let translated = base.replace(/East/i, 'Silangang').replace(/West/i, 'Kanlurang').replace(/North/i, 'Hilagang').replace(/South/i, 'Timog');
+                    if (translated.endsWith('Silangang')) translated = 'Silangang ' + translated.replace('Silangang', '').trim();
+                    else if (translated.endsWith('Kanlurang')) translated = 'Kanlurang ' + translated.replace('Kanlurang', '').trim();
+                    return d.toLowerCase().includes('district') ? `Distrito ng ${translated}` : d;
+                })() : prev.headerDistrictTagalog,
+                headerDistrictEnglish: prev.headerDistrictEnglish === 'VICTORIA EAST DISTRICT' || prev.headerDistrictEnglish === '' ? schoolProfile.district : prev.headerDistrictEnglish,
+                headerSchoolName: prev.headerSchoolName === 'School Name' || prev.headerSchoolName === '' ? schoolProfile.name : prev.headerSchoolName
+            }));
+        }
+    }, [schoolProfile]);
 
     // Batch Scanning Logic
     const handleBatchScan = () => {
@@ -412,6 +480,80 @@ export function CertificateGeneratorPage() {
                                     />
                                 </div>
                             </div>
+                            <div className="mt-4 space-y-3">
+                                <div>
+                                    <p className="text-[8px] font-bold text-gray-400 uppercase mb-1 ml-1">Given In (Tagalog)</p>
+                                    <input 
+                                        type="text" 
+                                        value={certData.givenInTagalog}
+                                        onChange={(e) => setCertData(prev => ({ ...prev, givenInTagalog: e.target.value }))}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-700 dark:text-gray-200"
+                                        placeholder="e.g. Lalawigan ng Matatag"
+                                    />
+                                </div>
+                                <div>
+                                    <p className="text-[8px] font-bold text-gray-400 uppercase mb-1 ml-1">Given In (English)</p>
+                                    <input 
+                                        type="text" 
+                                        value={certData.givenInEnglish}
+                                        onChange={(e) => setCertData(prev => ({ ...prev, givenInEnglish: e.target.value }))}
+                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-700 dark:text-gray-200"
+                                        placeholder="e.g. Province of Matatag"
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Institutional Header Customization */}
+                        <section className="p-4 bg-slate-50/50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                            <button 
+                                onClick={() => setShowAdvancedHeader(!showAdvancedHeader)}
+                                className="w-full flex items-center justify-between group"
+                            >
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 group-hover:text-deped-blue transition-colors">
+                                    <Layers className="w-3.5 h-3.5" /> Institutional Header
+                                </h3>
+                                <span className="text-[10px] text-slate-400">{showAdvancedHeader ? '−' : '+'}</span>
+                            </button>
+                            
+                            {showAdvancedHeader && (
+                                <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">Region (TG)</p>
+                                            <input type="text" value={certData.headerRegionTagalog} onChange={(e) => setCertData(prev => ({ ...prev, headerRegionTagalog: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">Region (EN)</p>
+                                            <input type="text" value={certData.headerRegionEnglish} onChange={(e) => setCertData(prev => ({ ...prev, headerRegionEnglish: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">Division (TG)</p>
+                                            <input type="text" value={certData.headerDivisionTagalog} onChange={(e) => setCertData(prev => ({ ...prev, headerDivisionTagalog: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">Division (EN)</p>
+                                            <input type="text" value={certData.headerDivisionEnglish} onChange={(e) => setCertData(prev => ({ ...prev, headerDivisionEnglish: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">District (TG)</p>
+                                            <input type="text" value={certData.headerDistrictTagalog} onChange={(e) => setCertData(prev => ({ ...prev, headerDistrictTagalog: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">District (EN)</p>
+                                            <input type="text" value={certData.headerDistrictEnglish} onChange={(e) => setCertData(prev => ({ ...prev, headerDistrictEnglish: e.target.value }))} className="cert-sidebar-input" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase mb-1 ml-1">School Name</p>
+                                        <input type="text" value={certData.headerSchoolName} onChange={(e) => setCertData(prev => ({ ...prev, headerSchoolName: e.target.value }))} className="cert-sidebar-input" />
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                          {/* Signature Management */}

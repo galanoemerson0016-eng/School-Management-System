@@ -3,6 +3,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, Download, Lock, Unlock, RefreshCcw, Trash2 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
+import { getSubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
 import type { Subject, ClassRecord, HPSRecord, Student } from '../types';
 
 type QuarterGrades = {
@@ -50,7 +51,7 @@ const getQuarterGradeDetail = (value: QuarterGradeCell | undefined) => {
 };
 
 const SUBJECT_COLUMN_WIDTH = 55;
-const MAPEH_SUBCOLUMN_WIDTH = 64;
+const MAPEH_SUBCOLUMN_WIDTH = 48;
 const GENERAL_AVERAGE_COLUMN_WIDTH = 66;
 const AVERAGE_COLUMN_WIDTH = GENERAL_AVERAGE_COLUMN_WIDTH;
 const showLegacyQuarter4 = false;
@@ -140,7 +141,7 @@ const GradeInput = ({
                 disabled={isSaving}
                 data-row={row}
                 data-col={col}
-                className={`grade-input-field w-full h-full bg-transparent text-center focus:bg-blue-50 focus:outline-none transition-colors border-none p-0 hide-number-arrows text-[11px] font-medium ${isSaving ? 'opacity-50' : ''} ${className || ''}`}
+                className={`grade-input-field w-full h-full bg-transparent text-center focus:bg-blue-50 focus:outline-none transition-colors border-none p-0 hide-number-arrows text-[9px] font-medium ${isSaving ? 'opacity-50' : ''} ${className || ''}`}
                 style={{ appearance: 'none', MozAppearance: 'textfield' }}
             />
             {/* Subtle hover indicator */}
@@ -164,6 +165,9 @@ export function ConsolidatedGradesPage() {
 
     const [selectedTerm, setSelectedTerm] = useState<'q1' | 'q2' | 'q3' | 'all'>('q1');
     const [isSyncing, setIsSyncing] = useState(false);
+    const showGenAvg = selectedTerm !== 'all';
+
+
 
     // Derived State
     const sectionObj = useMemo(() => sections.find(s => s.section_name === selectedSection), [sections, selectedSection]);
@@ -205,112 +209,94 @@ export function ConsolidatedGradesPage() {
         }
     }, [availableSections, selectedSection, setSelectedSection]);
 
-    // SECTION SUBJECTS
+    // SECTION SUBJECTS - Strictly following the Subjects Page (Source of Truth)
     const sectionSubjects = useMemo(() => {
         if (!sectionObj) return [];
 
-        const ORDER = [
-            'Filipino',
-            'English',
-            'Mathematics',
-            'Science',
-            'Araling Panlipunan',
-            'Values Education',
-            'Edukasyon sa Pagpapakatao',
-            'Technology and Livelihood Education',
-            'MAPEH'
-        ];
-
-        const isMusicArts = (name: string) => {
-            const n = name.trim().toLowerCase();
-            return n === 'arts' || n === 'music' || n === 'music and arts';
-        };
-        const isPEHealth = (name: string) => {
-            const n = name.trim().toLowerCase();
-            return n === 'health' || n === 'physical education' || n === 'pe' || n === 'physical education and health';
-        };
-        const isMapeh = (name: string) => {
-            return name.trim().toUpperCase() === 'MAPEH';
-        };
-
-        const rawSubjects = subjects.filter(s => s.section_id === sectionObj.id);
-        const sectionGradeLevel = sectionObj.section_grade_level;
-
-        const standardSubjectNames = (sectionGradeLevel.includes('7') || sectionGradeLevel.includes('8') || sectionGradeLevel.includes('9') || sectionGradeLevel.includes('10'))
-            ? ORDER.filter(name => name !== 'Edukasyon sa Pagpapakatao')
-            : [];
-
-        const normalizeName = (name: string) => {
-            return name.trim()
-                .toLowerCase()
-                .replace(/\s*\(.*?\)\s*/g, '')
-                .trim();
-        };
-
-        const displaySubjectsMap = new Map<string, VirtualSectionSubject>();
-
-        rawSubjects.forEach(s => {
-            if (!isMusicArts(s.subject_name) && !isPEHealth(s.subject_name) && !isMapeh(s.subject_name)) {
-                const normalized = normalizeName(s.subject_name);
-                if (!displaySubjectsMap.has(normalized)) {
-                    displaySubjectsMap.set(normalized, s as VirtualSectionSubject);
-                }
-            }
-        });
-
-        if (standardSubjectNames.length > 0) {
-            standardSubjectNames.forEach(name => {
-                const normalized = normalizeName(name);
-                if (!displaySubjectsMap.has(normalized) && !isMapeh(name)) {
-                    displaySubjectsMap.set(normalized, {
-                        id: `virtual-${normalized}-${sectionObj.id}`,
-                        subject_name: name,
-                        section_id: sectionObj.id,
-                        grade_level: sectionGradeLevel,
-                        is_virtual: true
-                    } as any);
-                }
+        // 1. Get the official list of subjects for this grade level from the curriculum
+        const intendedSubjects = getSubjectsForGrade(sectionObj.section_grade_level, schoolProfile.curriculum);
+        
+        // 2. Get all actual subject records for this section or grade level from the database
+        const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
+        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id);
+        
+        // If no section-specific subjects exist, look for grade-level templates
+        if (sectionDbSubjects.length === 0) {
+            sectionDbSubjects = subjects.filter(s => {
+                const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+                return !s.section_id && subjectGradeNum === sectionGradeNum;
             });
         }
 
-        const musicArtsComponents = rawSubjects.filter(s => isMusicArts(s.subject_name) && !isMapeh(s.subject_name));
-        const peHealthComponents = rawSubjects.filter(s => isPEHealth(s.subject_name) && !isMapeh(s.subject_name));
-        const hasMapehSubject = rawSubjects.find(s => isMapeh(s.subject_name));
+        // 3. Determine the base list of subjects
+        // If there are actual subjects in the DB for this section, we use those as the primary source.
+        // If the section is new/empty, we fall back to the curriculum/standard list.
+        let baseList: VirtualSectionSubject[] = [];
 
-        const finalSubjects: VirtualSectionSubject[] = Array.from(displaySubjectsMap.values());
+        if (sectionDbSubjects.length > 0) {
+            // Use existing DB subjects
+            baseList = sectionDbSubjects.map(s => ({ ...s, is_virtual: false } as VirtualSectionSubject));
+            
+            // Special Case: If we have MAPEH components but no MAPEH header row in the DB, create a virtual one
+            const hasMapehHeader = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+            const hasMapehComponents = sectionDbSubjects.some(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('musicandarts') || n.includes('musicarts') || 
+                       n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+            });
 
-        if (hasMapehSubject) {
-            const mapehSubject = { ...hasMapehSubject } as VirtualSectionSubject;
-            mapehSubject._mapehGroups = {
-                musicArts: musicArtsComponents,
-                peHealth: peHealthComponents
-            };
-            finalSubjects.push(mapehSubject);
-        } else if (musicArtsComponents.length > 0 || peHealthComponents.length > 0 || standardSubjectNames.some(n => isMapeh(n))) {
-            finalSubjects.push({
-                id: `virtual-mapeh-${sectionObj.id}`,
-                subject_name: 'MAPEH',
+            if (hasMapehComponents && !hasMapehHeader) {
+                baseList.push({
+                    id: `virtual-mapeh-${sectionObj.id}`,
+                    subject_name: 'MAPEH',
+                    section_id: sectionObj.id,
+                    grade_level: sectionObj.section_grade_level,
+                    is_virtual: true
+                } as VirtualSectionSubject);
+            }
+        } else {
+            // Fallback to intended curriculum (Standard/Custom config)
+            baseList = intendedSubjects.map(intended => ({
+                id: `virtual-${normalizeSubjectName(intended.name)}-${sectionObj.id}`,
+                subject_name: intended.name,
                 section_id: sectionObj.id,
-                grade_level: sectionGradeLevel,
-                is_virtual: true,
-                _mapehGroups: {
-                    musicArts: musicArtsComponents,
-                    peHealth: peHealthComponents
-                }
-            } as any);
+                grade_level: sectionObj.section_grade_level,
+                is_virtual: true
+            } as VirtualSectionSubject));
         }
 
-        return finalSubjects.sort((a, b) => {
-            const indexA = ORDER.findIndex(o => a.subject_name.trim().toLowerCase().includes(o.toLowerCase()));
-            const indexB = ORDER.findIndex(o => b.subject_name.trim().toLowerCase().includes(o.toLowerCase()));
-
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-
-            return a.subject_name.localeCompare(b.subject_name);
+        // 4. Post-process: Identify MAPEH groups for all items in the list
+        const finalSubjects = baseList.map(base => {
+            const norm = normalizeSubjectName(base.subject_name);
+            if (norm === 'mapeh') {
+                return {
+                    ...base,
+                    _mapehGroups: {
+                        musicArts: sectionDbSubjects.filter(s => {
+                            const n = normalizeSubjectName(s.subject_name);
+                            return n.includes('musicandarts') || n.includes('musicarts');
+                        }),
+                        peHealth: sectionDbSubjects.filter(s => {
+                            const n = normalizeSubjectName(s.subject_name);
+                            return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                        })
+                    }
+                };
+            }
+            return base;
         });
-    }, [subjects, sectionObj]);
+
+        // 5. Filter out individual MAPEH components from the main row list (they are sub-columns)
+        return finalSubjects.filter(sub => {
+            const norm = normalizeSubjectName(sub.subject_name);
+            const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
+                               norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');
+            
+            return !isComponent || norm === 'mapeh';
+        });
+    }, [subjects, sectionObj, schoolProfile.curriculum]);
+
+
 
     const selectableSubjects = useMemo(() => {
         return sectionSubjects.filter((subject) => subject.subject_name.toUpperCase() !== 'MAPEH');
@@ -319,20 +305,32 @@ export function ConsolidatedGradesPage() {
     const [subjectColumnSelections, setSubjectColumnSelections] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        setSubjectColumnSelections((prev) => {
-            const next: Record<string, string> = {};
+        if (sectionObj?.section_metadata?.sf9SubjectSelections) {
+            setSubjectColumnSelections(sectionObj.section_metadata.sf9SubjectSelections);
+        } else {
+            setSubjectColumnSelections({});
+        }
+    }, [sectionObj]);
 
-            sectionSubjects.forEach((subject) => {
-                if (subject.subject_name.toUpperCase() === 'MAPEH') return;
-
-                const preservedSelection = prev[subject.id];
-                const exists = selectableSubjects.some((option) => option.id === preservedSelection);
-                next[subject.id] = exists ? preservedSelection : subject.id;
-            });
-
-            return next;
-        });
-    }, [sectionSubjects, selectableSubjects]);
+    const handleUpdateSubjectSelection = async (baseId: string, selectedId: string) => {
+        if (!sectionObj) return;
+        
+        const newSelections = { ...subjectColumnSelections, [baseId]: selectedId };
+        setSubjectColumnSelections(newSelections);
+        
+        try {
+            const updatedSection = {
+                ...sectionObj,
+                section_metadata: {
+                    ...sectionObj.section_metadata,
+                    sf9SubjectSelections: newSelections
+                }
+            };
+            await useAppStore.getState().updateSection(updatedSection);
+        } catch (error) {
+            console.error('Failed to save subject selection:', error);
+        }
+    };
 
     const subjectColumns = useMemo(() => {
         return sectionSubjects.map((baseSubject) => {
@@ -363,34 +361,40 @@ export function ConsolidatedGradesPage() {
             return currentName.length > longest.length ? currentName : longest;
         }, '');
 
+        // Since font size was reduced to 7px, we use a smaller multiplier (approx 5px per char)
         const estimatedWidth = longestName.length > 0
-            ? Math.ceil(longestName.length * 7.2 + 34)
-            : 220;
+            ? Math.ceil(longestName.length * 5.2 + 28)
+            : 160;
 
-        return Math.max(220, Math.min(estimatedWidth, 340));
+        // Min 150px, Max 280px to save space for subjects
+        return Math.max(150, Math.min(estimatedWidth, 280));
     }, [sectionStudents]);
 
+    // Dynamic Column Adjustment - Proportionally reduce width to fit the page
     const subjectColumnWidth = useMemo(() => {
-        if (selectedTerm === 'all') return 28;
+        if (selectedTerm === 'all') return 30;
 
-        const subjectLabels = sectionSubjects.flatMap((sub) => {
-            if (sub.subject_name.toUpperCase() === 'MAPEH') {
-                return ['Music and Arts', 'Physical Education and Health'];
-            }
+        // 1. Calculate total logical sub-columns (MAPEH takes 3 slots, others take 1)
+        const totalSubCols = sectionSubjects.reduce((acc, sub) => {
+            if (sub.subject_name.toUpperCase() === 'MAPEH') return acc + 3;
+            return acc + 1;
+        }, 0);
 
-            return [sub.subject_name];
-        });
+        if (totalSubCols === 0) return SUBJECT_COLUMN_WIDTH;
 
-        const longestLabel = subjectLabels.reduce((longest, label) => {
-            return label.length > longest.length ? label : longest;
-        }, '');
+        // 2. Determine available width for subjects
+        // Standard Folio Landscape (13in) is approx 1248px at 96dpi
+        const pageWidth = 1200; 
+        const avgColsWidth = showGenAvg ? (AVERAGE_COLUMN_WIDTH + GENERAL_AVERAGE_COLUMN_WIDTH) : 0;
+        const availableWidth = pageWidth - learnerNameColumnWidth - avgColsWidth - 100; // 100px for padding/borders
 
-        const estimatedWidth = longestLabel.length > 0
-            ? Math.ceil(longestLabel.length * 2.2 + 14)
-            : SUBJECT_COLUMN_WIDTH;
+        // 3. Compute dynamic width per slot
+        const dynamicWidth = Math.floor(availableWidth / totalSubCols);
 
-        return Math.max(60, Math.min(96, estimatedWidth));
-    }, [sectionSubjects, selectedTerm]);
+        // 4. Clamp to ensure readability but prioritize fitting the page
+        // Minimum 45px (enough for 3 digits), Maximum 120px
+        return Math.max(45, Math.min(120, dynamicWidth));
+    }, [sectionSubjects, selectedTerm, learnerNameColumnWidth, showGenAvg]);
 
     const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
     const femaleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
@@ -435,7 +439,10 @@ export function ConsolidatedGradesPage() {
                             
                             const ma = maAvg || 0;
                             const ph = phAvg || 0;
-                            const qAvg = (ma > 0 || ph > 0) ? Math.round((ma + ph) / 2) : null;
+                            let qAvg = null;
+                            if (ma > 0 && ph > 0) qAvg = Math.round((ma + ph) / 2);
+                            else if (ma > 0) qAvg = ma;
+                            else if (ph > 0) qAvg = ph;
 
                             subjectGrades[qKey] = {
                                 value: qAvg,
@@ -511,10 +518,14 @@ export function ConsolidatedGradesPage() {
             // Calculate average for the selected term using visible subject columns
             const activeTerm = selectedTerm === 'all' ? null : selectedTerm;
             if (activeTerm) {
+                const seenSubjectIds = new Set<string>();
                 let termTotal = 0;
                 let termSubjectCount = 0;
-
                 subjectColumns.forEach(({ subject }) => {
+                    // Avoid double-counting if the same subject is selected for multiple columns
+                    if (seenSubjectIds.has(subject.id)) return;
+                    seenSubjectIds.add(subject.id);
+
                     const sData = studentData[subject.id];
                     if (sData) {
                         const val = getQuarterGradeValue(sData[activeTerm as QuarterKey]);
@@ -524,8 +535,11 @@ export function ConsolidatedGradesPage() {
                         }
                     }
                 });
+
                 if (termSubjectCount > 0) {
-                    const computedTermAverage = String(Math.round(termTotal / termSubjectCount));
+                    const avg = termTotal / termSubjectCount;
+                    // For DepEd, usually round to the nearest whole number for the report card/master sheet
+                    const computedTermAverage = String(Math.round(avg));
                     studentData.termAverage = computedTermAverage;
                     // In term-specific reports, General Average should reflect the same selected-term basis.
                     studentData.generalAverage = computedTermAverage;
@@ -541,7 +555,7 @@ export function ConsolidatedGradesPage() {
         return data;
     }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, selectedTerm]);
 
-    const showGenAvg = selectedTerm !== 'all';
+
 
     const getSubjectHeaderStyle = (sub: VirtualSectionSubject) => {
         if (showGenAvg && sub.subject_name.toUpperCase() === 'MAPEH') {
@@ -726,7 +740,7 @@ export function ConsolidatedGradesPage() {
                         </div>
 
                         {/* Table Section */}
-                        <table className="consolidated-print-table consolidated-grades-table w-full border-collapse border border-black text-[10px]">
+                        <table className="consolidated-print-table consolidated-grades-table w-full border-collapse border border-black text-[8px]">
                             <thead>
                                 <tr className="bg-gray-50/80">
                                     <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
@@ -735,24 +749,21 @@ export function ConsolidatedGradesPage() {
                                             <th
                                                 key={`subject-column-${column.baseId}-${index}`}
                                                 rowSpan={2}
-                                                className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[9px] leading-tight bg-gray-50/50"
+                                                className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
                                                 title={column.subject.subject_name}
                                                 style={getSubjectHeaderStyle(column.subject)}
                                             >
                                                 {selectedTerm === 'q1' ? (
                                                     <div className="relative w-full">
-                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[8px] leading-tight px-0.5 pointer-events-none">
+                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
                                                             {column.subject.subject_name}
                                                         </span>
                                                         <select
                                                             value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                            onChange={(e) => {
-                                                                const nextId = e.target.value;
-                                                                setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                            }}
-                                                            className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                            aria-label={`Select subject for column ${index + 1}`}
+                                                            onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                                         >
+                                                            <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
                                                             {selectableSubjects.map((option) => (
                                                                 <option key={option.id} value={option.id}>
                                                                     {option.subject_name}
@@ -761,19 +772,19 @@ export function ConsolidatedGradesPage() {
                                                         </select>
                                                     </div>
                                                 ) : (
-                                                    <span className="block whitespace-normal break-words text-center font-bold uppercase text-[8px] leading-tight px-0.5">
+                                                    <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5">
                                                         {column.subject.subject_name}
                                                     </span>
                                                 )}
                                             </th>
                                         ) : (
-                                            <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[9px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                            <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
                                                 {column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
                                                     column.subject.subject_name
                                                 ) : (
                                                     selectedTerm === 'q1' ? (
                                                         <div className="relative w-full">
-                                                            <span className="block whitespace-normal break-words text-center font-bold uppercase text-[8px] leading-tight px-0.5 pointer-events-none">
+                                                            <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
                                                                 {column.subject.subject_name}
                                                             </span>
                                                             <select
@@ -793,7 +804,7 @@ export function ConsolidatedGradesPage() {
                                                             </select>
                                                         </div>
                                                     ) : (
-                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[8px] leading-tight px-0.5">
+                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5">
                                                             {column.subject.subject_name}
                                                         </span>
                                                     )
@@ -803,8 +814,8 @@ export function ConsolidatedGradesPage() {
                                     ))}
                                     {showGenAvg && (
                                         <>
-                                            <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[9px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                            <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[9px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                            <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                            <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
                                         </>
                                     )}
                                 </tr>
@@ -813,9 +824,9 @@ export function ConsolidatedGradesPage() {
                                         <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
                                             {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && (
                                                 <>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[8px] leading-tight" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music and Arts</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[8px] leading-tight" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Physical Education and Health</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[8px] leading-tight" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL GRADE</th>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
                                                 </>
                                             )}
                                             
@@ -833,7 +844,7 @@ export function ConsolidatedGradesPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-xs uppercase">MALE</td></tr>
+                                <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase">MALE</td></tr>
                                 {(() => {
                                     let globalRowIndex = 0;
                                     return (
@@ -849,7 +860,7 @@ export function ConsolidatedGradesPage() {
                                                 return (
                                                     <tr key={student.lrn} className="hover:bg-blue-50/20">
                                                         <td className="consolidated-learner-name border border-black p-1 pl-2 font-medium truncate whitespace-nowrap uppercase" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
-                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[9px]">{studentRow + 1}</span> 
+                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px]">{studentRow + 1}</span> 
                                                             {formatLearnerName(student)}
                                                         </td>
                                                         {subjectColumns.map((column, index) => {
@@ -971,7 +982,7 @@ export function ConsolidatedGradesPage() {
                                                 );
                                             })}
 
-                                            <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-xs uppercase">FEMALE</td></tr>
+                                            <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase">FEMALE</td></tr>
                                             {femaleStudents.map((student) => {
                                                 const data = gradesData[student.lrn] || {};
                                                 const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
@@ -983,7 +994,7 @@ export function ConsolidatedGradesPage() {
                                                 return (
                                                     <tr key={student.lrn} className="hover:bg-blue-50/20">
                                                         <td className="consolidated-learner-name border border-black p-1 pl-2 font-medium truncate whitespace-nowrap uppercase" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
-                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[9px]">{studentRow + 1}</span> 
+                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px]">{studentRow + 1}</span> 
                                                             {formatLearnerName(student)}
                                                         </td>
                                                         {subjectColumns.map((column, index) => {

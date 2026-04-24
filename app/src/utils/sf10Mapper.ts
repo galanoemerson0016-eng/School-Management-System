@@ -1,5 +1,5 @@
-import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum } from '../types';
-import { getSubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
+import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
+import { getSubjectsForGrade, normalizeSubjectName, getSF10RowsForGrade } from '../lib/subjectConfig';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
@@ -17,6 +17,9 @@ const STANDARD_JHS_SUBJECTS_G79 = [
   { label: 'Music and Arts', key: 'musicAndArts' },
   { label: 'Physical Education and Health', key: 'peAndHealth' },
   { label: 'Specialization', key: 'specialization' },
+  { label: ' ', key: 'extra1' },
+  { label: ' ', key: 'extra2' },
+  { label: ' ', key: 'extra3' },
 ];
 
 const STANDARD_JHS_SUBJECTS_G10 = [
@@ -31,6 +34,9 @@ const STANDARD_JHS_SUBJECTS_G10 = [
   { label: 'Music and Arts', key: 'musicAndArts' },
   { label: 'Physical Education and Health', key: 'peAndHealth' },
   { label: 'Specialization', key: 'specialization' },
+  { label: ' ', key: 'extra1' },
+  { label: ' ', key: 'extra2' },
+  { label: ' ', key: 'extra3' },
 ];
 
 /**
@@ -38,19 +44,7 @@ const STANDARD_JHS_SUBJECTS_G10 = [
  * Uses custom curriculum if available, otherwise returns standard subjects
  */
 export function getStandardJhsSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum) {
-  if (customCurriculum) {
-    const curriculumSubjects = getSubjectsForGrade(gradeLevel, customCurriculum);
-    // Convert custom curriculum format to SF10 format with auto-generated keys
-    return curriculumSubjects.map((subj, idx) => ({
-      label: subj.name,
-      key: `subject_${idx}` // Auto-generate keys for custom subjects
-    }));
-  }
-
-  if (parseInt(String(gradeLevel)) >= 7 && parseInt(String(gradeLevel)) <= 9) {
-    return STANDARD_JHS_SUBJECTS_G79;
-  }
-  return STANDARD_JHS_SUBJECTS_G10;
+  return getSF10RowsForGrade(gradeLevel, customCurriculum);
 }
 
 /** Creates a blank subject grade entry */
@@ -75,29 +69,28 @@ function blankSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum) 
   subjects.generalAverage = '';
   return subjects;
 }
-
 /**
  * Tries to match a subject name from the database to a standard SF10 subject key.
  * Returns the matched key or null if no match.
  */
 function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): string | null {
-  const name = subjectName.toLowerCase().trim();
+  const name = normalizeSubjectName(subjectName);
 
   let key: string | null = null;
   if (name.includes('filipino')) key = 'filipino';
   else if (name.includes('english')) key = 'english';
-  else if (name.includes('math')) key = 'mathematics';
+  else if (name.includes('mathematics') || name.includes('math')) key = 'mathematics';
   else if (name.includes('science')) key = 'science';
-  else if (name.includes('araling') || name === 'ap' || name.includes('panlipunan')) key = 'ap';
-  else if (name.includes('values education') || name.includes('values')) key = 'valuesEducation';
+  else if (name.includes('aralingpanlipunan') || name === 'ap') key = 'ap';
+  else if (name.includes('valueseducation') || name.includes('values')) key = 'valuesEducation';
   else if (name.includes('edukasyon') || name === 'esp' || name.includes('pagpapakatao')) key = 'esp';
-  else if (name.includes('tle') || name.includes('technology') || name.includes('livelihood')) key = 'tle';
-  else if (name === 'mapeh') key = 'mapeh';
-  else if (name.includes('music and arts')) key = 'musicAndArts';
-  else if (name.includes('physical education and health')) key = 'peAndHealth';
+  else if (name.includes('technologyandlivelihood') || name.includes('tle')) key = 'tle';
+  else if (name.includes('musicandarts') || name.includes('musicarts')) key = 'musicAndArts';
+  else if (name.includes('physicaleducationandhealth') || name.includes('peandhealth') || name.includes('pehealth')) key = 'peAndHealth';
+  else if (name.includes('mapeh')) key = 'mapeh';
   else if (name.includes('music') || name.includes('musika')) key = 'music';
   else if (name.includes('arts') || name.includes('sining')) key = 'arts';
-  else if (name.includes('physical education') || name === 'pe' || name.includes('p.e.')) key = 'physicalEducation';
+  else if (name.includes('physicaleducation') || name === 'pe' || name.includes('pe.')) key = 'physicalEducation';
   else if (name.includes('health') || name.includes('kalusugan')) key = 'health';
   else if (name.includes('specialization')) key = 'specialization';
 
@@ -160,38 +153,87 @@ export function mapStudentToSpecData({
   // If school curriculum exists but doesn't yet include Specialization,
   // augment it using actual subject entries found in the database per grade.
   const effectiveCurriculum: SchoolCurriculum | undefined = (() => {
-    if (!profile.curriculum) return undefined;
-
-    const hasSpecializationInGrade = (grade: number) =>
-      dbSubjects.some((subject) => {
-        const subjectGradeNum = parseInt(subject.grade_level?.replace(/\D/g, '') || '0');
-        return subjectGradeNum === grade && normalizeSubjectName(subject.subject_name) === 'specialization';
+    const augmentGradeSubjects = (grade: number, currentList: CurriculumSubject[] | undefined) => {
+      // Get all subjects for this grade from the database
+      let dbSubjectsForGrade = dbSubjects.filter(s => {
+        const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+        return subjectGradeNum === grade;
       });
 
-    const addSpecializationIfNeeded = (subjectsList: Array<{ name: string; code?: string }>) => {
-      const hasSpecialization = subjectsList.some(
-        (subject) => normalizeSubjectName(subject.name) === 'specialization'
-      );
-      if (!hasSpecialization) {
-        subjectsList.push({ name: 'Specialization', code: '' });
+      // CRITICAL FIX: Deduplicate by name to avoid repeating subjects from different sections
+      // However, if it's the current grade, we prioritize the student's current section
+      if (grade === currentGradeNum && studentSection) {
+        dbSubjectsForGrade = dbSubjectsForGrade.filter(s => s.section_id === studentSection.id);
+      } else {
+        // For other grades, just deduplicate by normalized name
+        const seen = new Set<string>();
+        dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+          const norm = normalizeSubjectName(s.subject_name);
+          if (seen.has(norm)) return false;
+          seen.add(norm);
+          return true;
+        });
       }
-      return subjectsList;
+
+      // If we have manual selections for the current grade, use that order!
+      if (grade === currentGradeNum && studentSection?.section_metadata?.sf9SubjectSelections) {
+          const selections = studentSection.section_metadata.sf9SubjectSelections;
+          const orderedList: CurriculumSubject[] = [];
+          
+          for (let i = 0; i < 13; i++) {
+              const subjId = selections[i];
+              if (subjId && subjId !== 'none') {
+                  const subj = dbSubjects.find(s => s.id === subjId);
+                  if (subj) {
+                      orderedList.push({ name: subj.subject_name, code: subj.subject_code || '' });
+                      
+                      // Handle MAPEH components auto-insertion logic for SF10
+                      if (normalizeSubjectName(subj.subject_name) === 'mapeh') {
+                          const components = dbSubjects.filter(s => {
+                              if (s.section_id !== studentSection.id) return false;
+                              const n = normalizeSubjectName(s.subject_name);
+                              return n.includes('musicandarts') || n.includes('musicarts') || 
+                                     n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                          });
+                          components.forEach(c => orderedList.push({ name: c.subject_name, code: c.subject_code || 'MAPEH' }));
+                      }
+                  }
+              }
+          }
+          
+          if (orderedList.length > 0) return orderedList;
+      }
+
+      if (dbSubjectsForGrade.length > 0) {
+        const newList: CurriculumSubject[] = dbSubjectsForGrade.map(s => ({
+          name: s.subject_name,
+          code: s.subject_code || ''
+        }));
+
+        // Ensure MAPEH header row exists if components are present
+        const hasMapehHeader = newList.some(s => normalizeSubjectName(s.name) === 'mapeh');
+        const hasMapehComponents = newList.some(s => {
+          const n = normalizeSubjectName(s.name);
+          return n.includes('musicandarts') || n.includes('musicarts') || 
+                 n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+        });
+
+        if (hasMapehComponents && !hasMapehHeader) {
+          newList.push({ name: 'MAPEH' });
+        }
+
+        return newList;
+      }
+
+      return currentList ? [...currentList] : [];
     };
 
-    const nextCurriculum: SchoolCurriculum = { ...profile.curriculum };
+    const nextCurriculum: SchoolCurriculum = profile.curriculum ? { ...profile.curriculum } : { school_id: profile.school_id };
 
-    if (hasSpecializationInGrade(7) && nextCurriculum.grade_7_subjects?.length) {
-      nextCurriculum.grade_7_subjects = addSpecializationIfNeeded([...nextCurriculum.grade_7_subjects]);
-    }
-    if (hasSpecializationInGrade(8) && nextCurriculum.grade_8_subjects?.length) {
-      nextCurriculum.grade_8_subjects = addSpecializationIfNeeded([...nextCurriculum.grade_8_subjects]);
-    }
-    if (hasSpecializationInGrade(9) && nextCurriculum.grade_9_subjects?.length) {
-      nextCurriculum.grade_9_subjects = addSpecializationIfNeeded([...nextCurriculum.grade_9_subjects]);
-    }
-    if (hasSpecializationInGrade(10) && nextCurriculum.grade_10_subjects?.length) {
-      nextCurriculum.grade_10_subjects = addSpecializationIfNeeded([...nextCurriculum.grade_10_subjects]);
-    }
+    nextCurriculum.grade_7_subjects = augmentGradeSubjects(7, nextCurriculum.grade_7_subjects);
+    nextCurriculum.grade_8_subjects = augmentGradeSubjects(8, nextCurriculum.grade_8_subjects);
+    nextCurriculum.grade_9_subjects = augmentGradeSubjects(9, nextCurriculum.grade_9_subjects);
+    nextCurriculum.grade_10_subjects = augmentGradeSubjects(10, nextCurriculum.grade_10_subjects);
 
     return nextCurriculum;
   })();
@@ -250,61 +292,57 @@ export function mapStudentToSpecData({
         }
       }
 
-      // Special handling for MAPEH using preferred combined components, with fallback for legacy split records.
+      // Compute MAPEH from components
       ['q1', 'q2', 'q3', 'q4'].forEach(qKey => {
         const q = qKey as 'q1' | 'q2' | 'q3' | 'q4';
 
-        // Matatag Curriculum Correction: MAPEH = (Music and Arts + PE and Health) / 2
         const musicArts = getSubjectGradeEntry(subjectsData, 'musicAndArts');
         const peHealth = getSubjectGradeEntry(subjectsData, 'peAndHealth');
+        const mapehRow = getSubjectGradeEntry(subjectsData, 'mapeh');
         
         let maGrade = Number(musicArts?.[q]) || 0;
         let peGrade = Number(peHealth?.[q]) || 0;
 
-        // Fallback for independent components if the composite subjects are missing
-        if (maGrade <= 0) {
-          const m = Number(getSubjectGradeEntry(subjectsData, 'music')?.[q]) || 0;
-          const a = Number(getSubjectGradeEntry(subjectsData, 'arts')?.[q]) || 0;
-          if (m > 0 && a > 0) maGrade = Math.round((m + a) / 2);
-          else if (m > 0) maGrade = m;
-          else if (a > 0) maGrade = a;
-        }
-
-        if (peGrade <= 0) {
-          const p = Number(getSubjectGradeEntry(subjectsData, 'physicalEducation')?.[q]) || 0;
-          const h = Number(getSubjectGradeEntry(subjectsData, 'health')?.[q]) || 0;
-          if (p > 0 && h > 0) peGrade = Math.round((p + h) / 2);
-          else if (p > 0) peGrade = p;
-          else if (h > 0) peGrade = h;
-        }
-
-        const mapeh = getSubjectGradeEntry(subjectsData, 'mapeh');
-        if (mapeh) {
+        if (mapehRow) {
           if (maGrade > 0 && peGrade > 0) {
-            mapeh[q] = String(Math.round((maGrade + peGrade) / 2));
+            mapehRow[q] = String(Math.round((maGrade + peGrade) / 2));
           } else if (maGrade > 0) {
-            mapeh[q] = String(maGrade);
+            mapehRow[q] = String(maGrade);
           } else if (peGrade > 0) {
-            mapeh[q] = String(peGrade);
+            mapehRow[q] = String(peGrade);
           }
         }
       });
 
-      // Compute final ratings and general average for subjects that have grades
+      // Compute final ratings and general average
       let totalFinal = 0;
       let countFinal = 0;
+
+      // Identify subjects that should be included in the General Average
+      // Rule: Include all main subjects (including MAPEH header), but exclude individual components.
+      const excludedFromGPA = [
+        'music', 'arts', 'physicalEducation', 'health', 
+        'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'
+      ];
 
       for (const s of standardSubjectsForGrade) {
         const sub = getSubjectGradeEntry(subjectsData, s.key);
         if (!sub) continue;
+
         const terms = [sub.q1, sub.q2, sub.q3].map(Number).filter(v => v > 0);
-        if (terms.length === 3) {
-          const avg = Math.round(terms.reduce((a: number, b: number) => a + b, 0) / 3);
+        const isComplete = terms.length === 3;
+
+        if (isComplete) {
+          const avg = Math.round(terms.reduce((a: number, b: number) => a + b, 0) / terms.length);
           sub.finalRating = String(avg);
           sub.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
-          // Only count main subjects (not MAPEH sub-components) for gen average
-          const subComponents = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth'];
-          if (!subComponents.includes(s.key)) {
+
+          // GPA Calculation
+          // Include main subjects and MAPEH (even if it's a header)
+          const isMapeh = s.key === 'mapeh';
+          const isStandardSubject = !excludedFromGPA.includes(s.key) && (!s.isHeader || isMapeh);
+          
+          if (isStandardSubject && !s.key.startsWith('extra_reserved')) {
             totalFinal += avg;
             countFinal++;
           }
@@ -383,27 +421,25 @@ export function mapStudentToSpecData({
     eligibility: {
       elementaryCompleter: {
         checked: !!student.elementary_school,
+        generalAverage: student.average_grade || '',
+        citation: student.citation || '',
       },
-      generalAverage: student.average_grade || '',
-      citation: student.citation || '',
-      elementarySchoolName: student.elementary_school || '',
-      elementarySchoolId: student.elementary_school_id || '',
-      elementarySchoolAddress: student.elementary_school_address || '',
-      pept: {
+      nameOfElementarySchool: student.elementary_school || '',
+      schoolId: student.elementary_school_id || '',
+      addressOfSchool: student.elementary_school_address || '',
+      peptPasser: {
         checked: !!student.pept_rating,
         rating: student.pept_rating || '',
-        examDate: student.pept_date || '',
       },
-      als: {
+      alsPasser: {
         checked: !!student.als_rating,
         rating: student.als_rating || '',
-        testingCenter: student.testing_center || '',
       },
-      others: {
+      other: {
         checked: !!student.other_credentials,
-        specification: student.other_credentials || '',
+        specify: student.other_credentials || '',
       },
-      // Aliases for the renderer
+      // Keep these for direct lookup if needed
       dateOfExamination: student.pept_date || '',
       testingCenter: student.testing_center || '',
     },

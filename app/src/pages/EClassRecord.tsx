@@ -44,10 +44,7 @@ export function EClassRecord() {
     const [selectedSubject, setSelectedSubject] = useState(globalSubject || '');
     const [quarter, setQuarter] = useState<1 | 2 | 3>(1);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
-    const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
-    
-    // Form States
-    const [newSubject, setNewSubject] = useState({ name: '', code: '' });
+
 
     const formatStudentFullName = (student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
@@ -619,14 +616,7 @@ export function EClassRecord() {
                             <label className="block text-sm font-semibold text-deped-blue">
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
                             </label>
-                            {selectedSection && (
-                                <button 
-                                    onClick={() => setIsAddSubjectOpen(true)}
-                                    className="text-[10px] font-bold text-blue-600 hover:underline uppercase"
-                                >
-                                    + Add
-                                </button>
-                            )}
+
                         </div>
                         <select
                             value={selectedSubject}
@@ -1300,83 +1290,6 @@ export function EClassRecord() {
                     </div>
                 </div>
             </div>
-
-
-
-            {/* ADD SUBJECT MODAL */}
-            <AnimatePresence>
-                {isAddSubjectOpen && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4 no-print">
-                        <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: 20, opacity: 0 }}
-                            className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
-                        >
-                            <div className="p-6 border-b flex justify-between items-center bg-blue-50">
-                                <div>
-                                    <h3 className="text-xl font-black text-blue-800">Add Subject</h3>
-                                    <p className="text-[10px] font-bold text-blue-600 uppercase">For {sectionGradeLevel} - {selectedSection}</p>
-                                </div>
-                                <button onClick={() => setIsAddSubjectOpen(false)} className="text-blue-400 hover:text-blue-600"><X /></button>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Subject Name (e.g. Science)</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input"
-                                        placeholder="e.g. Mathematics"
-                                        value={newSubject.name}
-                                        onChange={(e) => setNewSubject(prev => ({ ...prev, name: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Subject Code (Optional)</label>
-                                    <input 
-                                        type="text" 
-                                        className="form-input uppercase"
-                                        placeholder="e.g. MATH 7"
-                                        value={newSubject.code}
-                                        onChange={(e) => setNewSubject(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                                    />
-                                </div>
-                            </div>
-                            <div className="p-6 bg-gray-50 flex gap-3">
-                                <button 
-                                    onClick={() => setIsAddSubjectOpen(false)}
-                                    className="flex-1 py-3 bg-white border border-gray-200 text-gray-500 font-bold rounded-2xl hover:bg-gray-100 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    onClick={async () => {
-                                        if (!newSubject.name.trim() || !selectedSectionObj) return;
-                                        const subId = `${selectedSectionObj.id}-${newSubject.name.toLowerCase().replace(/\s+/g, '-')}`;
-                                        const sub: Subject = {
-                                            id: subId,
-                                            subject_name: newSubject.name,
-                                            subject_code: newSubject.code || undefined,
-                                            grade_level: selectedSectionObj.section_grade_level,
-                                            section_id: selectedSectionObj.id,
-                                            teacher_id: user?.uid,
-                                            is_teaching_load: true
-                                        };
-                                        await addSubject(sub);
-                                        onSubjectChange(subId);
-                                        setIsAddSubjectOpen(false);
-                                        setNewSubject({ name: '', code: '' });
-                                        showNotification(`${newSubject.name} added!`, 'success');
-                                    }}
-                                    className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/30 active:scale-95 transition-all"
-                                >
-                                    Save Subject
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }

@@ -149,17 +149,17 @@ interface AppState {
 }
 
 const defaultSchoolProfile: SchoolProfile = {
-  school_id: 'formease-school-profile',
+  school_id: '123456',
   name: 'School Name',
-  region: 'Region III',
-  division: 'Schools Division of Tarlac Province',
-  district: 'Victoria East District',
-  head_name: '-',
-  head_position: '-',
-  grade_levels_offered: '-',
-  adviser_name: 'Julius Q. Balansag',
+  region: 'Region XXX',
+  division: 'Matatag',
+  district: 'Matatag East District',
+  head_name: 'Juan A. Dela Cruz',
+  head_position: 'Principal I',
+  grade_levels_offered: 'Grade 7 - 12',
+  adviser_name: '-',
   grade_level: '',
-  section: 'SPA',
+  section: '',
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -698,7 +698,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const subjects = await db.getAllRecords<Subject>('subjects');
       const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
       const announcements = await db.getAllRecords<Announcement>('announcements');
-      const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', 'formease-school-profile');
+      const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', defaultSchoolProfile.school_id);
 
       set({
         students,
@@ -742,13 +742,17 @@ export async function initializeAppStore() {
     const students = await loadStore<Student>('students');
     const sections = await loadStore<Section>('sections');
     const subjects = await loadStore<Subject>('subjects');
+    // Ensure subjects are blank if we are starting fresh with the new school ID
+    const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', defaultSchoolProfile.school_id);
+    const finalSubjects = schoolProfile ? subjects : [];
+
     const classRecords = await loadStore<ClassRecord>('classRecords');
     const enrollments = await loadStore<Enrollment>('enrollments');
     const announcements = await loadStore<Announcement>('announcements');
     const attendanceRecords = await loadStore<AttendanceRecord>('attendanceRecords');
     const gradingSheetRecords = await loadStore<ClassRecord>('gradingSheetRecords');
     const hpsRecords = await loadStore<HPSRecord>('hpsRecords');
-    const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', 'formease-school-profile');
+
 
     const advisorySection = sections.find(s => s.is_advisory || (s as any).is_advisory_class);
     
@@ -756,7 +760,7 @@ export async function initializeAppStore() {
       students,
       studentProfiles: students,
       sections,
-      subjects,
+      subjects: finalSubjects,
       classRecords,
       gradingSheetRecords,
       hpsRecords,

@@ -348,45 +348,32 @@ export function InstitutePage() {
                         <div className="relative">
                             <label className="block text-sm font-bold text-gray-700 mb-2 flex justify-between items-center">
                                 Adviser Name
-                                {!isAdvancedUnlocked && (
-                                    <button 
-                                        type="button"
-                                        onClick={() => setShowPasswordPrompt(true)}
-                                        className="text-[10px] text-deped-blue hover:underline flex items-center gap-1"
-                                    >
-                                        <Lock className="w-3 h-3" /> Unlock
-                                    </button>
-                                )}
+                                <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-widest">
+                                    <Lock className="w-2.5 h-2.5" /> Licensed
+                                </span>
                             </label>
                             <input
                                 type="text"
-                                className={`form-input ${!isAdvancedUnlocked ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+                                className="form-input bg-slate-50 text-slate-400 cursor-not-allowed font-bold"
                                 value={formData.adviser_name}
-                                onChange={e => setFormData({ ...formData, adviser_name: e.target.value })}
-                                disabled={!isAdvancedUnlocked}
+                                disabled={true}
                             />
                         </div>
                         <div className="relative">
-                            <label className="block text-sm font-bold text-gray-700 mb-2 flex justify-between items-center">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
                                 Grade Level
-                                {!isAdvancedUnlocked && (
-                                    <button 
-                                        type="button"
-                                        onClick={() => setShowPasswordPrompt(true)}
-                                        className="text-[10px] text-deped-blue hover:underline flex items-center gap-1"
-                                    >
-                                        <Lock className="w-3 h-3" /> Unlock
-                                    </button>
-                                )}
                             </label>
-                            <input
-                                type="text"
-                                className={`form-input ${!isAdvancedUnlocked ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+                            <select
+                                className="form-input"
                                 value={formData.grade_level}
                                 onChange={e => setFormData({ ...formData, grade_level: e.target.value })}
-                                placeholder="e.g. Grade 7"
-                                disabled={!isAdvancedUnlocked}
-                            />
+                            >
+                                <option value="">Select Grade Level</option>
+                                <option value="Grade 7">Grade 7</option>
+                                <option value="Grade 8">Grade 8</option>
+                                <option value="Grade 9">Grade 9</option>
+                                <option value="Grade 10">Grade 10</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Section</label>

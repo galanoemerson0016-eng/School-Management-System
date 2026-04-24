@@ -20,3 +20,4 @@ export { CertificateGeneratorPage } from './CertificateGeneratorPage';
 export { SchoolFormsPage } from './SchoolFormsPage';
 export { SectionsPage } from './SectionsPage';
 export { AboutPage } from './AboutPage';
+export { ActivationPage } from './ActivationPage';

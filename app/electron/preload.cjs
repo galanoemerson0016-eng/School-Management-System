@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // onMessage: (callback) => ipcRenderer.on('message', (_event, ...args) => callback(...args)),
   platform: process.platform,
   version: process.versions.electron,
+  getMachineId: () => ipcRenderer.invoke('get-machine-id'),
 });
 
 window.addEventListener('DOMContentLoaded', () => {

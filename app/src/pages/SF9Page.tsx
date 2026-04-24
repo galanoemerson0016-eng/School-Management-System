@@ -4,13 +4,13 @@ Font.registerHyphenationCallback(word => [word]);
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, X, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
-import { getSF9SubjectsForGrade } from '../lib/subjectConfig';
+import { getSF9SubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
 
 // SF9-JHS Official Template - Landscape Format
 const styles = StyleSheet.create({
-    page: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 30, fontSize: 10, fontFamily: 'Times-Roman' },
+    page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'Times-Roman' },
     // PAGE 1 STYLES
     page1Container: { flexDirection: 'row', height: '100%' },
     leftColumn: { width: '50%', paddingRight: 15 },
@@ -61,10 +61,10 @@ const styles = StyleSheet.create({
 
     // Learning Progress Table Styles
     lpTable: { borderWidth: 1, borderColor: '#000', width: '100%', marginBottom: 6, flex: 1 },
-    lpHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', backgroundColor: '#FFFFFF', height: 32 },
-    lpRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', flex: 1 },
-    lpCell: { borderRightWidth: 1, borderColor: '#000', padding: 4, fontSize: 9, justifyContent: 'center' },
-    lpCellLast: { padding: 4, fontSize: 9, justifyContent: 'center' },
+    lpHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', backgroundColor: '#FFFFFF', minHeight: 32 },
+    lpRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', flex: 1, minHeight: 20.5 },
+    lpCell: { borderRightWidth: 1, borderColor: '#000', padding: 4, fontSize: 8.5, justifyContent: 'center' },
+    lpCellLast: { padding: 4, fontSize: 8.5, justifyContent: 'center' },
     lpHeaderCell: { borderRightWidth: 1, borderColor: '#000', padding: 2, fontSize: 8, fontWeight: 'bold', textAlign: 'center', justifyContent: 'center' },
 
     // Observed Values Table Styles
@@ -110,14 +110,128 @@ const CORE_VALUES = [
     },
 ];
 
-function normalizeSubjectName(name: string) {
-    return name.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
-}
 
-function computeStudentGrades(student: Student, sectionObj: Section, subjects: Subject[], gradingSheetRecords: ClassRecord[], schoolYear: string, schoolProfile?: SchoolProfile) {
+
+function computeStudentGrades(
+    student: Student, 
+    sectionObj: Section, 
+    subjects: Subject[], 
+    gradingSheetRecords: ClassRecord[], 
+    schoolYear: string, 
+    schoolProfile?: SchoolProfile,
+    subjectSelections?: Record<number, string>
+) {
     const grades: Record<string, number[]> = {};
     const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-    const currentSubjects = getSF9SubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+    // Determine the base list of subjects for SF9
+    // 1. Get DB subjects for this section
+    let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id);
+    
+    // 2. If none, get DB subjects for this grade level
+    if (sectionDbSubjects.length === 0) {
+        sectionDbSubjects = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            return !s.section_id && subjectGradeNum === gradeLevelNum;
+        });
+    }
+
+    let baseSubjects: { name: string; isHeader?: boolean; isComponent?: boolean; isReserved?: boolean }[] = [];
+
+    if (sectionDbSubjects.length > 0) {
+        // Use DB Subjects
+        baseSubjects = sectionDbSubjects.map(s => ({ name: s.subject_name }));
+        
+        // Ensure MAPEH Header exists if missing but components exist
+        const hasMapehHeader = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+        const hasMapehComponents = sectionDbSubjects.some(s => {
+            const n = normalizeSubjectName(s.subject_name);
+            return n.includes('musicandarts') || n.includes('musicarts') || 
+                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+        });
+
+        if (hasMapehComponents && !hasMapehHeader) {
+            baseSubjects.push({ name: 'MAPEH', isHeader: true });
+        }
+    } else {
+        // Fallback to Curriculum
+        baseSubjects = getSF9SubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+    }
+
+    // Build the final order for SF9 display
+    let currentSubjects: any[] = [];
+    
+    // If we have manual selections, use them to build the list
+    if (subjectSelections && Object.keys(subjectSelections).length > 0) {
+        for (let i = 0; i < 13; i++) {
+            const selectedId = subjectSelections[i];
+            if (selectedId && selectedId !== 'none') {
+                const subject = subjects.find(s => s.id === selectedId);
+                if (subject) {
+                    currentSubjects.push({ name: subject.subject_name, id: subject.id });
+                    
+                    // Automatically add components if it's MAPEH
+                    if (normalizeSubjectName(subject.subject_name) === 'mapeh') {
+                        const components = subjects.filter(s => {
+                            if (s.section_id !== sectionObj.id) return false;
+                            const n = normalizeSubjectName(s.subject_name);
+                            return n.includes('musicandarts') || n.includes('musicarts') || 
+                                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                        });
+                        components.forEach(c => currentSubjects.push({ name: c.subject_name, id: c.id, isComponent: true }));
+                    }
+                } else {
+                    currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true } as any);
+                }
+            } else {
+                currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true } as any);
+            }
+        }
+    } else {
+        // Fallback to Automatic Order logic
+        // 1. Standard Core Subjects (Filipino to TLE)
+        const coreNames = ['filipino', 'english', 'mathematics', 'science', 'aralingpanlipunan', 'valueseducation', 'technologyandlivelihoodeducation'];
+        const standardCore = baseSubjects.filter(s => {
+            const n = normalizeSubjectName(s.name);
+            return coreNames.some(cn => n === cn || n.includes(cn));
+        });
+        standardCore.forEach(s => currentSubjects.push(s));
+
+        // 2. MAPEH Group (Immediately after TLE)
+        const mapehHeader = baseSubjects.find(s => normalizeSubjectName(s.name) === 'mapeh') || (baseSubjects.some(s => {
+            const n = normalizeSubjectName(s.name);
+            return n.includes('musicandarts') || n.includes('peandhealth');
+        }) ? { name: 'MAPEH', isHeader: true } : null);
+        
+        const mapehComponents = baseSubjects.filter(s => {
+            const n = normalizeSubjectName(s.name);
+            return n.includes('musicandarts') || n.includes('musicarts') || 
+                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+        });
+
+        if (mapehHeader) {
+            currentSubjects.push(mapehHeader);
+            mapehComponents.forEach(c => currentSubjects.push({ ...c, isComponent: true }));
+        }
+
+        // 3. Specialization Subjects (After MAPEH)
+        const specializationSubjects = baseSubjects.filter(s => {
+            const n = normalizeSubjectName(s.name);
+            return n.includes('specialization') && !currentSubjects.some(cs => cs.name === s.name);
+        });
+        specializationSubjects.forEach(s => currentSubjects.push(s));
+
+        // 4. Any other remaining subjects
+        baseSubjects.forEach(s => {
+            if (!currentSubjects.some(cs => cs.name === s.name)) {
+                currentSubjects.push(s);
+            }
+        });
+
+        // Ensure we have at least 13 rows for subjects (Learning Areas) to maintain table size
+        while (currentSubjects.length < 13) {
+            currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true } as any);
+        }
+    }
 
     const getSubjectGrades = (subjectName: string) => {
         const normalizedTarget = normalizeSubjectName(subjectName);
@@ -150,29 +264,49 @@ function computeStudentGrades(student: Student, sectionObj: Section, subjects: S
         return [0, 0, 0];
     };
 
+    // Pre-calculate MAPEH components for the Final Average row
+    const musicArtsGrades = getSubjectGrades('Music and Arts');
+    const peHealthGrades = getSubjectGrades('Physical Education and Health');
+    const mapehFinalGrades = [0, 1, 2].map(qIdx => {
+        const ma = musicArtsGrades[qIdx] || 0;
+        const pe = peHealthGrades[qIdx] || 0;
+        if (ma > 0 && pe > 0) return Math.round((ma + pe) / 2);
+        if (ma > 0) return ma;
+        if (pe > 0) return pe;
+        return 0;
+    });
+
     currentSubjects.forEach(sf9Subject => {
-        if (sf9Subject.name === 'MAPEH') {
-            const musicArtsGrades = getSubjectGrades('Music and Arts');
-            const peHealthGrades = getSubjectGrades('Physical Education and Health');
-
-            const mapehGrades = [0, 1, 2].map(qIdx => {
-                const ma = musicArtsGrades[qIdx] || 0;
-                const pe = peHealthGrades[qIdx] || 0;
-
-                // MATATAG Rule: MAPEH = (Music and Arts + Physical Education and Health) / 2
-                if (ma > 0 || pe > 0) {
-                    return Math.round((ma + pe) / 2);
-                }
-                return 0;
-            });
-
-            grades[sf9Subject.name] = mapehGrades;
+        if (normalizeSubjectName(sf9Subject.name) === 'mapeh') {
+            // MAPEH Header shows the average of components
+            grades[sf9Subject.name] = mapehFinalGrades;
         } else {
             grades[sf9Subject.name] = getSubjectGrades(sf9Subject.name);
         }
     });
 
-    return grades;
+    return { subjects: currentSubjects, grades };
+}
+
+function calculateGeneralAverage(grades: Record<string, number[]>) {
+    let total = 0;
+    let count = 0;
+    Object.keys(grades).forEach(key => {
+        const norm = normalizeSubjectName(key);
+        // Exclude components from the average count (they are part of MAPEH)
+        const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
+                           norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');
+        // Exclude reserved rows and components
+        if (!key.startsWith('reserved_extra') && !isComponent) {
+            const gradeRow = grades[key] || [0, 0, 0];
+            const finalGrade = calculateFinalGrade(gradeRow);
+            if (finalGrade > 0) {
+                total += finalGrade;
+                count++;
+            }
+        }
+    });
+    return count > 0 ? Math.round(total / count) : 0;
 }
 
 function computeStudentValues(student: Student, observedValues: ObservedValues[], schoolYear: string) {
@@ -254,22 +388,6 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     };
 }
 
-function calculateGeneralAverage(grades: Record<string, number[]>): number {
-    let totalSum = 0;
-    let subjectCount = 0;
-    const excludedSubjects = ['Music and Arts', 'Physical Education and Health'];
-    Object.entries(grades).forEach(([subjectName, qGrades]) => {
-        if (excludedSubjects.includes(subjectName)) return;
-        const allTermsComplete = qGrades.length === 3 && qGrades.every(g => g > 0);
-        if (allTermsComplete) {
-            const avg = qGrades.reduce((a, b) => a + b, 0) / 3;
-            totalSum += avg;
-            subjectCount++;
-        }
-    });
-    return subjectCount > 0 ? Math.round(totalSum / subjectCount) : 0;
-}
-
 function calculateFinalGrade(quarterGrades: number[]): number {
     if (quarterGrades.length !== 3 || !quarterGrades.every(g => g > 0)) return 0;
     return Math.round(quarterGrades.reduce((a, b) => a + b, 0) / 3);
@@ -292,6 +410,7 @@ interface SF9ExactDocumentProps {
     principal: string;
     principalTitle: string;
     grades: Record<string, number[]>;
+    subjects: any[];
     observedValues: Record<string, string[]>;
     attendance: {
         months: string[];
@@ -306,7 +425,7 @@ interface SF9ExactDocumentProps {
 
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
-    adviser, principal, principalTitle, grades, observedValues, attendance, pageSize, logoUrl, schoolProfile
+    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, schoolProfile
 }: SF9ExactDocumentProps) {
 
     return (
@@ -463,30 +582,29 @@ function SF9Pages({
                                 <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }]}><Text>FINAL GRADE</Text></View>
                                 <View style={[styles.lpHeaderCell, { width: '15%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text>REMARKS</Text></View>
                             </View>
-                            {(() => {
-                                const gradeLevelNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
-                                const currentSubjects = getSF9SubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
-                                return currentSubjects.map((subj, idx) => {
-                                    const gradeRow = grades[subj.name] || [0, 0, 0, 0];
-                                    const finalGrade = calculateFinalGrade(gradeRow);
-                                    return (
-                                        <View key={idx} style={styles.lpRow}>
-                                            <View style={[styles.lpCell, { width: '40%', paddingLeft: subj.isComponent ? 15 : 4 }]}> 
-                                                <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold' }}>{subj.name}</Text>
-                                            </View>
-                                            <View style={[styles.lpCell, { width: '34%', padding: 0 }]}>
-                                                <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                    <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[0] || ''}</Text></View>
-                                                    <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[1] || ''}</Text></View>
-                                                    <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[2] || ''}</Text></View>
-                                                </View>
-                                            </View>
-                                            <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }]}><Text>{finalGrade || ''}</Text></View>
-                                            <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{getRemarks(finalGrade)}</Text></View>
+                            {currentSubjects.map((subj, idx) => {
+                                const gradeRow = grades[subj.name] || [0, 0, 0];
+                                const finalGrade = calculateFinalGrade(gradeRow);
+                                const isReserved = (subj as any).isReserved;
+                                return (
+                                    <View key={idx} style={styles.lpRow}>
+                                        <View style={[styles.lpCell, { width: '40%', paddingLeft: subj.isComponent ? 15 : 4 }]}> 
+                                            <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5 }}>
+                                                {isReserved ? '' : subj.name}
+                                            </Text>
                                         </View>
-                                    );
-                                });
-                            })()}
+                                        <View style={[styles.lpCell, { width: '34%', padding: 0 }]}>
+                                            <View style={{ flexDirection: 'row', flex: 1 }}>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[0] || ''}</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[1] || ''}</Text></View>
+                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[2] || ''}</Text></View>
+                                            </View>
+                                        </View>
+                                        <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }]}><Text>{finalGrade || ''}</Text></View>
+                                        <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{getRemarks(finalGrade)}</Text></View>
+                                    </View>
+                                );
+                            })}
                             <View style={[styles.lpRow, { borderBottomWidth: 0 }]}>
                                 <View style={[styles.lpCell, { width: '40%', alignItems: 'flex-end', paddingRight: 5 }]}><Text style={{ fontWeight: 'bold' }}>General Average</Text></View>
                                 <View style={[styles.lpCell, { width: '34%' }]}><Text></Text></View>
@@ -616,7 +734,7 @@ function SF9BatchDocument({
     return (
         <Document title={`SF9 Batch - ${sectionObj.section_name}`}>
             {students.map((student) => {
-                const grades = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile);
+                const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj);
                 
@@ -638,6 +756,7 @@ function SF9BatchDocument({
                         principal={schoolProfile.head_name || ''}
                         principalTitle={schoolProfile.head_position || 'Secondary School Principal I'}
                         grades={grades}
+                        subjects={computedSubjects}
                         observedValues={values}
                         attendance={attendance}
                         pageSize={pageSize}
@@ -667,8 +786,10 @@ export function SF9Page() {
     const [showCompletionModal, setShowCompletionModal] = useState(false);
     const [isStabilizing, setIsStabilizing] = useState(false);
     const [isPending, startTransition] = useTransition();
+    const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const stabilizationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Local state for Evaluated Values to prevent lag
     const [pendingChanges, setPendingChanges] = useState<Record<number, Record<string, string>>>({});
 
@@ -703,6 +824,32 @@ export function SF9Page() {
         return t?.displayName || '';
     }, [selectedSectionObj, teacherList, schoolProfile.adviser_name]);
 
+    // Derived subject selections from section metadata
+    const currentSubjectSelections = useMemo(() => {
+        if (!selectedSectionObj) return {};
+        return selectedSectionObj.section_metadata?.sf9SubjectSelections || {};
+    }, [selectedSectionObj]);
+
+    const handleUpdateLayout = async (selections: Record<number, string>) => {
+        if (!selectedSectionObj) return;
+        
+        try {
+            const updatedSection = {
+                ...selectedSectionObj,
+                section_metadata: {
+                    ...selectedSectionObj.section_metadata,
+                    sf9SubjectSelections: selections
+                }
+            };
+            await useAppStore.getState().updateSection(updatedSection);
+            setIsLayoutModalOpen(false);
+            useAppStore.getState().showNotification('SF9 subject layout saved', 'success');
+        } catch (error) {
+            console.error('Failed to save layout:', error);
+            useAppStore.getState().showNotification('Failed to save layout', 'error');
+        }
+    };
+
     const studentValues = useMemo(() => {
         if (!selectedStudent) return {};
         const values: Record<string, string[]> = {};
@@ -727,9 +874,9 @@ export function SF9Page() {
     const females = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => a.last_name.localeCompare(b.last_name)), [sectionStudents]);
 
     const studentGrades = useMemo(() => {
-        if (!selectedStudent || !selectedSectionObj) return {};
-        return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile);
-    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile]);
+        if (!selectedStudent || !selectedSectionObj) return { subjects: [], grades: {} };
+        return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+    }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections]);
 
     const singleDocument = useMemo(() => {
         if (!selectedStudent || !selectedSectionObj) return null;
@@ -751,7 +898,8 @@ export function SF9Page() {
                 adviser={adviserName} 
                 principal={schoolProfile.head_name || ''} 
                 principalTitle={schoolProfile.head_position || 'Secondary School Principal I'} 
-                grades={studentGrades} 
+                grades={studentGrades.grades || {}} 
+                subjects={studentGrades.subjects || []}
                 observedValues={studentValues} 
                 attendance={attendance}
                 pageSize={pageSize} 
@@ -765,21 +913,41 @@ export function SF9Page() {
         if (!isGeneratingBatch || !selectedSectionObj || sectionStudents.length === 0) return null;
         const sortedStudents = [...males, ...females];
         return (
-            <SF9BatchDocument 
-                students={sortedStudents}
-                sections={sections}
-                sectionObj={selectedSectionObj}
-                subjects={subjects}
-                gradingSheetRecords={gradingSheetRecords}
-                schoolProfile={schoolProfile}
-                activeSchoolYear={activeSchoolYear}
-                observedValues={observedValues}
-                sf2Sheets={sf2Sheets}
-                adviser={adviserName}
-                pageSize={pageSize}
-            />
+            <Document title={`SF9 Batch - ${selectedSectionObj.section_name}`}>
+                {sortedStudents.map((student) => {
+                    const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                    const values = computeStudentValues(student, observedValues, activeSchoolYear);
+                    const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj);
+                    
+                    const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
+                    const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+
+                    return (
+                        <SF9PagesMemo 
+                            key={student.lrn}
+                            student={student}
+                            schoolName={schoolProfile.name}
+                            schoolYear={activeSchoolYear}
+                            section={sectionName}
+                            region={schoolProfile.region}
+                            division={schoolProfile.division}
+                            district={schoolProfile.district}
+                            adviser={adviserName}
+                            principal={schoolProfile.head_name || ''}
+                            principalTitle={schoolProfile.head_position || 'Secondary School Principal I'}
+                            grades={grades}
+                            subjects={compSubjects}
+                            observedValues={values}
+                            attendance={attendance}
+                            pageSize={pageSize}
+                            logoUrl={schoolProfile.logo_url || ''}
+                            schoolProfile={schoolProfile}
+                        />
+                    );
+                })}
+            </Document>
         );
-    }, [isGeneratingBatch, sectionStudents, selectedSectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviserName, pageSize, sections, males, females]);
+    }, [isGeneratingBatch, sectionStudents, selectedSectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviserName, pageSize, sections, males, females, currentSubjectSelections]);
 
     useEffect(() => {
         if (isGeneratingBatch && batchDocument) {
@@ -970,6 +1138,18 @@ export function SF9Page() {
                                 Letter
                             </button>
                         </div>
+                    </div>
+
+                    {/* Subject Layout */}
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Subjects</span>
+                        <button
+                            onClick={() => setIsLayoutModalOpen(true)}
+                            className="h-10 px-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-2 shadow-sm"
+                        >
+                            <Settings2 className="w-3.5 h-3.5" />
+                            Layout
+                        </button>
                     </div>
 
                     {/* Zoom Control */}
@@ -1321,6 +1501,127 @@ export function SF9Page() {
                     </div>
                 )}
             </AnimatePresence>
+
+            <AnimatePresence>
+                {isLayoutModalOpen && (
+                    <SF9LayoutModal 
+                        isOpen={isLayoutModalOpen}
+                        onClose={() => setIsLayoutModalOpen(false)}
+                        currentSelections={currentSubjectSelections}
+                        subjects={subjects.filter(s => s.section_id === selectedSectionObj?.id)}
+                        onSave={handleUpdateLayout}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+interface LayoutModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    currentSelections: Record<number, string>;
+    subjects: Subject[];
+    onSave: (selections: Record<number, string>) => Promise<void>;
+}
+
+function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }: LayoutModalProps) {
+    const [localSelections, setLocalSelections] = useState<Record<number, string>>(currentSelections);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(localSelections);
+            onClose();
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={onClose}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+                initial={{ scale: 0.9, y: 20, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.9, y: 20, opacity: 0 }}
+                className="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+            >
+                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-600">
+                            <Settings2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Configure SF9 Subject Order</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Select subjects for each of the 13 slots</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Array.from({ length: 13 }).map((_, idx) => {
+                            const slotNum = idx;
+                            return (
+                                <div key={slotNum} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-100 transition-all bg-slate-50/30">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0">
+                                        {slotNum + 1}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <select
+                                            value={localSelections[slotNum] || 'none'}
+                                            onChange={(e) => {
+                                                setLocalSelections(prev => ({ ...prev, [slotNum]: e.target.value }));
+                                            }}
+                                            className="w-full bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 focus:outline-none p-0 cursor-pointer"
+                                        >
+                                            <option value="none">-- Reserved Row --</option>
+                                            {subjects.map(subj => (
+                                                <option key={subj.id} value={subj.id}>{subj.subject_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <button 
+                        onClick={() => setLocalSelections({})}
+                        className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all"
+                    >
+                        Clear All
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={onClose}
+                            className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="px-8 py-3 rounded-2xl bg-blue-600 text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-2"
+                        >
+                            {isSaving ? 'Saving...' : 'Save & Apply Layout'}
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
         </div>
     );
 }

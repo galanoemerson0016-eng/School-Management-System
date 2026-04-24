@@ -30,6 +30,8 @@ export interface SchoolProfile {
     grade_level?: string;
     section?: string;
     curriculum?: SchoolCurriculum; // Custom curriculum config
+    is_activated?: boolean;
+    activation_key?: string;
 }
 
 export interface SchoolYear {
@@ -105,6 +107,9 @@ export interface Section {
     taught_subjects?: string[]; // List of subjects taught in this section
     is_teaching_load?: boolean; // Keep for legacy
     is_advisory?: boolean; // Flag for advisory class
+    section_metadata?: {
+        sf9SubjectSelections?: Record<number, string>;
+    };
 }
 
 export interface Subject {
