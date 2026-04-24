@@ -5,6 +5,9 @@ const isDev = !app.isPackaged;
  
 // Optimization for Sharp Text and High-DPI Screens
 app.commandLine.appendSwitch('high-dpi-support', '1');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
 // If blurriness persists on some Windows laptops, uncomment the line below:
 // app.disableHardwareAcceleration();
 

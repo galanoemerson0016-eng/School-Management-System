@@ -50,15 +50,15 @@ const Particles = ({ darkMode }: { darkMode: boolean }) => {
 const BackgroundOrbs = ({ darkMode }: { darkMode: boolean }) => (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div
-            className={`absolute top-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full blur-[120px] animate-blob ${darkMode ? 'bg-blue-900/30' : 'bg-blue-100/50'
+            className={`absolute top-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full blur-[40px] animate-blob ${darkMode ? 'bg-blue-900/20' : 'bg-blue-100/40'
                 }`}
         />
         <div
-            className={`absolute bottom-[-20%] left-[-15%] w-[60%] h-[60%] rounded-full blur-[100px] animate-blob animation-delay-4000 ${darkMode ? 'bg-indigo-900/20' : 'bg-sky-100/40'
+            className={`absolute bottom-[-20%] left-[-15%] w-[60%] h-[60%] rounded-full blur-[30px] animate-blob animation-delay-4000 ${darkMode ? 'bg-indigo-900/15' : 'bg-sky-100/30'
                 }`}
         />
         <div
-            className={`absolute top-[40%] left-[40%] w-[30%] h-[30%] rounded-full blur-[80px] animate-blob animation-delay-2000 ${darkMode ? 'bg-amber-900/10' : 'bg-amber-50/30'
+            className={`absolute top-[40%] left-[40%] w-[30%] h-[30%] rounded-full blur-[20px] animate-blob animation-delay-2000 ${darkMode ? 'bg-amber-900/10' : 'bg-amber-50/20'
                 }`}
         />
     </div>

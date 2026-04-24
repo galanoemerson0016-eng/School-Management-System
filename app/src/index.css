@@ -186,6 +186,7 @@
     border-radius: 50%;
     pointer-events: none;
     animation: float-particle linear infinite;
+    will-change: transform, opacity;
   }
 
   /* Logo float animation */
