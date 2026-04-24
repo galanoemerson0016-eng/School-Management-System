@@ -2,6 +2,11 @@ const { app, BrowserWindow, screen, Menu } = require('electron');
 const path = require('path');
 
 const isDev = !app.isPackaged;
+ 
+// Optimization for Sharp Text and High-DPI Screens
+app.commandLine.appendSwitch('high-dpi-support', '1');
+// If blurriness persists on some Windows laptops, uncomment the line below:
+// app.disableHardwareAcceleration();
 
 // SINGLE INSTANCE LOCK
 const gotTheLock = app.requestSingleInstanceLock();
