@@ -21,11 +21,12 @@
     "appId": "com.formease.g7",
     "productName": "FormEase G7 Special",
     "copyright": "Copyright © 2026 Department of Education",
+    "icon": "public/app-logo.png",
+    "asar": true,
     "directories": {
       "output": "release"
     },
     "win": {
-      "icon": "public/app-logo.png",
       "target": [
         "nsis"
       ]
@@ -36,7 +37,6 @@
       "shortcutName": "FormEase G7"
     },
     "mac": {
-      "icon": "public/app-logo.png",
       "category": "public.app-category.education",
       "target": [
         {
@@ -54,10 +54,6 @@
           ]
         }
       ]
-    },
-    "dmg": {
-      "title": "FormEase G7",
-      "icon": "public/app-logo.png"
     },
     "files": [
       "dist/**/*",
