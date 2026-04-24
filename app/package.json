@@ -24,7 +24,8 @@
     "icon": "public/app-logo.png",
     "asar": true,
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "public"
     },
     "win": {
       "target": [

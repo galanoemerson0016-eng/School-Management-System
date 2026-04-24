@@ -26,10 +26,9 @@ jobs:
         run: npm install
 
       - name: Build macOS App
-        working-directory: ./app
         env:
-          CSC_LINK: null # Bypasses code signing for now
-        run: npm run electron:build:mac
+          CSC_LINK: null
+        run: npm run electron:build:mac --prefix app
 
       - name: Upload Mac DMG
         uses: actions/upload-artifact@v4
