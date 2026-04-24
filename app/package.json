@@ -47,7 +47,11 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "extendInfo": {
+        "NSHighResolutionCapable": true,
+        "NSRequiresAquaSystemAppearance": false
+      }
     },
     "nsis": {
       "oneClick": false,
