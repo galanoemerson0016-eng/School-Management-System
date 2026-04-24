@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ann-5076c2a2",
+    "announcement_title": "Quarter 1 Reminders",
+    "announcement_content": "Please submit missing class records and validate student profiles before finalization.",
+    "announcement_type": "general",
+    "is_pinned": true,
+    "announcement_date": "2026-04-19T06:16:24.219Z",
+    "category": "system",
+    "created_by": "system"
+  },
+  {
+    "id": "ann-8f65f5a",
+    "announcement_title": "Parent Orientation",
+    "announcement_content": "Parents are invited to the orientation on records, attendance, and grading procedures.",
+    "announcement_type": "event",
+    "is_pinned": false,
+    "announcement_date": "2026-04-19T06:16:24.219Z",
+    "category": "system",
+    "created_by": "system"
+  },
+  {
+    "id": "ann-5993c11f",
+    "announcement_title": "Advisory Check",
+    "announcement_content": "Advisers should review sections and attendance logs for completeness.",
+    "announcement_type": "urgent",
+    "is_pinned": false,
+    "announcement_date": "2026-04-19T06:16:24.219Z",
+    "category": "system",
+    "created_by": "system"
+  }
+]

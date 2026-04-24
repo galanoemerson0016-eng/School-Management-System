@@ -1,0 +1,978 @@
+[
+  {
+    "id": "g10-ap",
+    "grade_level": "Grade 10",
+    "subject_name": "Araling Panlipunan (AP)"
+  },
+  {
+    "id": "g10-arts",
+    "subject_code": "MAPEH",
+    "subject_name": "Arts",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "g10-english",
+    "grade_level": "Grade 10",
+    "subject_name": "English"
+  },
+  {
+    "id": "g10-esp",
+    "grade_level": "Grade 10",
+    "subject_name": "Edukasyon sa Pagpapakatao (EsP)"
+  },
+  {
+    "id": "g10-filipino",
+    "grade_level": "Grade 10",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "g10-health",
+    "subject_name": "Health",
+    "grade_level": "Grade 10",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g10-mapeh",
+    "grade_level": "Grade 10",
+    "subject_name": "MAPEH"
+  },
+  {
+    "id": "g10-math",
+    "grade_level": "Grade 10",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "g10-music",
+    "subject_code": "MAPEH",
+    "subject_name": "Music",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "g10-pe",
+    "subject_name": "Physical Education (PE)",
+    "grade_level": "Grade 10",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g10-science",
+    "grade_level": "Grade 10",
+    "subject_name": "Science"
+  },
+  {
+    "id": "g10-tle",
+    "grade_level": "Grade 10",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "g7-ap",
+    "grade_level": "Grade 7",
+    "subject_name": "Araling Panlipunan"
+  },
+  {
+    "id": "g7-english",
+    "grade_level": "Grade 7",
+    "subject_name": "English"
+  },
+  {
+    "id": "g7-filipino",
+    "grade_level": "Grade 7",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "g7-mapeh",
+    "grade_level": "Grade 7",
+    "subject_name": "MAPEH"
+  },
+  {
+    "id": "g7-math",
+    "grade_level": "Grade 7",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "g7-music-arts",
+    "subject_name": "Music and Arts",
+    "grade_level": "Grade 7",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g7-pe-health",
+    "grade_level": "Grade 7",
+    "subject_name": "Physical Education and Health",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g7-science",
+    "grade_level": "Grade 7",
+    "subject_name": "Science"
+  },
+  {
+    "id": "g7-tle",
+    "grade_level": "Grade 7",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "g7-values",
+    "grade_level": "Grade 7",
+    "subject_name": "Values Education"
+  },
+  {
+    "id": "g8-ap",
+    "grade_level": "Grade 8",
+    "subject_name": "Araling Panlipunan"
+  },
+  {
+    "id": "g8-english",
+    "grade_level": "Grade 8",
+    "subject_name": "English"
+  },
+  {
+    "id": "g8-filipino",
+    "grade_level": "Grade 8",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "g8-mapeh",
+    "grade_level": "Grade 8",
+    "subject_name": "MAPEH"
+  },
+  {
+    "id": "g8-math",
+    "grade_level": "Grade 8",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "g8-music-arts",
+    "subject_code": "MAPEH",
+    "grade_level": "Grade 8",
+    "subject_name": "Music and Arts"
+  },
+  {
+    "id": "g8-pe-health",
+    "grade_level": "Grade 8",
+    "subject_name": "Physical Education and Health",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g8-science",
+    "grade_level": "Grade 8",
+    "subject_name": "Science"
+  },
+  {
+    "id": "g8-tle",
+    "grade_level": "Grade 8",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "g8-values",
+    "grade_level": "Grade 8",
+    "subject_name": "Values Education"
+  },
+  {
+    "id": "g9-ap",
+    "grade_level": "Grade 9",
+    "subject_name": "Araling Panlipunan (AP)"
+  },
+  {
+    "id": "g9-arts",
+    "subject_code": "MAPEH",
+    "grade_level": "Grade 9",
+    "subject_name": "Arts"
+  },
+  {
+    "id": "g9-english",
+    "grade_level": "Grade 9",
+    "subject_name": "English"
+  },
+  {
+    "id": "g9-esp",
+    "grade_level": "Grade 9",
+    "subject_name": "Edukasyon sa Pagpapakatao (EsP)"
+  },
+  {
+    "id": "g9-filipino",
+    "grade_level": "Grade 9",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "g9-health",
+    "grade_level": "Grade 9",
+    "subject_name": "Health",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "g9-mapeh",
+    "grade_level": "Grade 9",
+    "subject_name": "MAPEH"
+  },
+  {
+    "id": "g9-math",
+    "grade_level": "Grade 9",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "g9-music",
+    "subject_code": "MAPEH",
+    "subject_name": "Music",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "g9-pe",
+    "subject_code": "MAPEH",
+    "grade_level": "Grade 9",
+    "subject_name": "Physical Education (PE)"
+  },
+  {
+    "id": "g9-science",
+    "grade_level": "Grade 9",
+    "subject_name": "Science"
+  },
+  {
+    "id": "g9-tle",
+    "grade_level": "Grade 9",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "subject-1770590065907-3ul1qtz7l",
+    "subject_name": "Filipino",
+    "subject_code": "",
+    "section_id": "section-1770568393337",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590066400-tzbd51cid",
+    "grade_level": "Grade 7",
+    "subject_code": "",
+    "section_id": "section-1770568393337",
+    "subject_name": "English"
+  },
+  {
+    "id": "subject-1770590066556-zmhet7s97",
+    "section_id": "section-1770568393337",
+    "subject_code": "",
+    "subject_name": "Mathematics",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590066741-dgyy9ybar",
+    "subject_name": "Science",
+    "section_id": "section-1770568393337",
+    "teacher_id": "KrjjqQExlgS4HjFDi5F14IhBpYs1",
+    "subject_code": "",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590066889-he284ps7k",
+    "subject_code": "",
+    "section_id": "section-1770568393337",
+    "subject_name": "Araling Panlipunan",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590067035-1gfdy7u7d",
+    "grade_level": "Grade 7",
+    "subject_name": "Values Education",
+    "section_id": "section-1770568393337",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590067167-xa3ldk5my",
+    "subject_name": "Technology and Livelihood Education",
+    "subject_code": "",
+    "section_id": "section-1770568393337",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590067298-ejzbik1q2",
+    "grade_level": "Grade 7",
+    "subject_name": "Music and Arts",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770568393337"
+  },
+  {
+    "id": "subject-1770590067430-3bxrtn7wm",
+    "grade_level": "Grade 7",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770568393337",
+    "subject_name": "Physical Education and Health"
+  },
+  {
+    "id": "subject-1770590100620-mzgssymbt",
+    "subject_name": "Filipino",
+    "section_id": "section-1770566994212",
+    "subject_code": "",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590100754-imefwfujj",
+    "grade_level": "Grade 7",
+    "subject_code": "",
+    "section_id": "section-1770566994212",
+    "subject_name": "English"
+  },
+  {
+    "id": "subject-1770590100895-o47838oy4",
+    "grade_level": "Grade 7",
+    "section_id": "section-1770566994212",
+    "subject_code": "",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "subject-1770590101038-viuoco22g",
+    "grade_level": "Grade 7",
+    "subject_code": "",
+    "section_id": "section-1770566994212",
+    "subject_name": "Science"
+  },
+  {
+    "id": "subject-1770590101170-ab4dkhzc6",
+    "grade_level": "Grade 7",
+    "subject_name": "Araling Panlipunan",
+    "section_id": "section-1770566994212",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590101303-1zpirvjmu",
+    "grade_level": "Grade 7",
+    "section_id": "section-1770566994212",
+    "subject_code": "",
+    "subject_name": "Values Education"
+  },
+  {
+    "id": "subject-1770590101437-ddiqq0sx6",
+    "grade_level": "Grade 7",
+    "subject_code": "",
+    "section_id": "section-1770566994212",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "subject-1770590101570-sy3u1o5n9",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770566994212",
+    "subject_name": "Music and Arts",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590101705-77kydobkv",
+    "subject_name": "Physical Education and Health",
+    "section_id": "section-1770566994212",
+    "subject_code": "MAPEH",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590106515-w1sq7i9p7",
+    "grade_level": "Grade 7",
+    "section_id": "section-1770566985325",
+    "subject_code": "",
+    "order": 0,
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "subject-1770590106652-hs30c0hel",
+    "section_id": "section-1770566985325",
+    "subject_code": "",
+    "order": 1,
+    "subject_name": "English",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590106782-4yc6zmwqm",
+    "subject_name": "Mathematics",
+    "section_id": "section-1770566985325",
+    "subject_code": "",
+    "order": 2,
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590107048-wiq9ulavg",
+    "grade_level": "Grade 7",
+    "subject_code": "",
+    "order": 3,
+    "section_id": "section-1770566985325",
+    "subject_name": "Araling Panlipunan"
+  },
+  {
+    "id": "subject-1770590107179-3i2rob2ob",
+    "grade_level": "Grade 7",
+    "subject_name": "Values Education",
+    "section_id": "section-1770566985325",
+    "subject_code": "",
+    "order": 4
+  },
+  {
+    "id": "subject-1770590107310-bs2b282on",
+    "subject_code": "",
+    "order": 5,
+    "section_id": "section-1770566985325",
+    "subject_name": "Technology and Livelihood Education",
+    "grade_level": "Grade 7"
+  },
+  {
+    "id": "subject-1770590107445-9x4o5p7kg",
+    "grade_level": "Grade 7",
+    "subject_name": "Music and Arts",
+    "subject_code": "MAPEH",
+    "order": 6,
+    "section_id": "section-1770566985325"
+  },
+  {
+    "id": "subject-1770590107578-20cvyj6km",
+    "grade_level": "Grade 7",
+    "subject_name": "Physical Education and Health",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770566985325"
+  },
+  {
+    "id": "subject-1770590116331-22yqzfsjo",
+    "grade_level": "Grade 8",
+    "subject_name": "Filipino",
+    "section_id": "section-1770567025580",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590116471-d7l13mcb4",
+    "subject_name": "English",
+    "section_id": "section-1770567025580",
+    "subject_code": "",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590116605-q7a9zcgvs",
+    "subject_name": "Mathematics",
+    "subject_code": "",
+    "section_id": "section-1770567025580",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590116737-9ux85uyax",
+    "grade_level": "Grade 8",
+    "subject_name": "Science",
+    "subject_code": "",
+    "section_id": "section-1770567025580"
+  },
+  {
+    "id": "subject-1770590116872-j1oqcdliw",
+    "grade_level": "Grade 8",
+    "subject_name": "Araling Panlipunan",
+    "subject_code": "",
+    "section_id": "section-1770567025580"
+  },
+  {
+    "id": "subject-1770590117005-waddetk5c",
+    "subject_code": "",
+    "section_id": "section-1770567025580",
+    "subject_name": "Values Education",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590117137-eke8bqrj9",
+    "grade_level": "Grade 8",
+    "subject_name": "Technology and Livelihood Education",
+    "subject_code": "",
+    "section_id": "section-1770567025580"
+  },
+  {
+    "id": "subject-1770590117270-in7bun1as",
+    "grade_level": "Grade 8",
+    "subject_name": "Music and Arts",
+    "section_id": "section-1770567025580",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1770590117429-9v3j99f7n",
+    "grade_level": "Grade 8",
+    "subject_name": "Physical Education and Health",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567025580"
+  },
+  {
+    "id": "subject-1770590123324-j353y12l5",
+    "grade_level": "Grade 8",
+    "section_id": "section-1770567016285",
+    "subject_code": "",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "subject-1770590123452-obo22uy5p",
+    "grade_level": "Grade 8",
+    "subject_name": "English",
+    "subject_code": "",
+    "section_id": "section-1770567016285"
+  },
+  {
+    "id": "subject-1770590123585-9mwhhe8ry",
+    "grade_level": "Grade 8",
+    "subject_name": "Mathematics",
+    "subject_code": "",
+    "section_id": "section-1770567016285"
+  },
+  {
+    "id": "subject-1770590123714-th30jgxjf",
+    "subject_name": "Science",
+    "subject_code": "",
+    "section_id": "section-1770567016285",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590123846-97g7gunh3",
+    "subject_code": "",
+    "section_id": "section-1770567016285",
+    "subject_name": "Araling Panlipunan",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590123981-5mo0x7eaf",
+    "subject_code": "",
+    "section_id": "section-1770567016285",
+    "subject_name": "Values Education",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590124115-jtqgc72vk",
+    "grade_level": "Grade 8",
+    "section_id": "section-1770567016285",
+    "subject_code": "",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "subject-1770590124246-voe4t2vtm",
+    "section_id": "section-1770567016285",
+    "subject_code": "MAPEH",
+    "subject_name": "Music and Arts",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590124381-ryb3oqdsy",
+    "section_id": "section-1770567016285",
+    "subject_code": "MAPEH",
+    "subject_name": "Physical Education and Health",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590130117-2munczrdx",
+    "grade_level": "Grade 8",
+    "section_id": "section-1770567010380",
+    "subject_code": "",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "subject-1770590130248-b4443dfkw",
+    "subject_code": "",
+    "section_id": "section-1770567010380",
+    "subject_name": "English",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590130387-m2sxg2a2z",
+    "grade_level": "Grade 8",
+    "section_id": "section-1770567010380",
+    "subject_code": "",
+    "subject_name": "Mathematics"
+  },
+  {
+    "id": "subject-1770590130518-m756pcz69",
+    "grade_level": "Grade 8",
+    "subject_name": "Science",
+    "section_id": "section-1770567010380",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590130654-39ub3nxrt",
+    "subject_name": "Araling Panlipunan",
+    "section_id": "section-1770567010380",
+    "subject_code": "",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590130784-dypcjcbb0",
+    "subject_name": "Values Education",
+    "subject_code": "",
+    "section_id": "section-1770567010380",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590130917-jmgdiidiu",
+    "grade_level": "Grade 8",
+    "subject_name": "Technology and Livelihood Education",
+    "subject_code": "",
+    "section_id": "section-1770567010380"
+  },
+  {
+    "id": "subject-1770590131049-gin0le5fe",
+    "grade_level": "Grade 8",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567010380",
+    "subject_name": "Music and Arts"
+  },
+  {
+    "id": "subject-1770590131185-z43lzoh3p",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567010380",
+    "subject_name": "Physical Education and Health",
+    "grade_level": "Grade 8"
+  },
+  {
+    "id": "subject-1770590161099-vggz4tiih",
+    "subject_code": "",
+    "section_id": "section-1770567041244",
+    "subject_name": "Filipino",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590161239-ho3lj54ko",
+    "grade_level": "Grade 9",
+    "subject_name": "English",
+    "section_id": "section-1770567041244",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590161367-ig6jb0hm8",
+    "grade_level": "Grade 9",
+    "subject_name": "Mathematics",
+    "subject_code": "",
+    "section_id": "section-1770567041244"
+  },
+  {
+    "id": "subject-1770590161503-brdcga6lz",
+    "subject_code": "",
+    "section_id": "section-1770567041244",
+    "subject_name": "Science",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590161642-bheqwlp0u",
+    "grade_level": "Grade 9",
+    "section_id": "section-1770567041244",
+    "subject_code": "",
+    "subject_name": "Araling Panlipunan"
+  },
+  {
+    "id": "subject-1770590161775-6hjcxqtq2",
+    "subject_name": "Values Education",
+    "section_id": "section-1770567041244",
+    "subject_code": "",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590161917-q8j7z4m26",
+    "grade_level": "Grade 9",
+    "subject_name": "Technology and Livelihood Education",
+    "subject_code": "",
+    "section_id": "section-1770567041244"
+  },
+  {
+    "id": "subject-1770590162054-cykbqxwyb",
+    "grade_level": "Grade 9",
+    "section_id": "section-1770567041244",
+    "subject_code": "MAPEH",
+    "subject_name": "Music and Arts"
+  },
+  {
+    "id": "subject-1770590162188-z8vpbersp",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567041244",
+    "subject_name": "Physical Education and Health",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590168611-7ultpb122",
+    "subject_name": "Filipino",
+    "subject_code": "",
+    "section_id": "section-1770567034297",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590168749-9vzr3hql7",
+    "grade_level": "Grade 9",
+    "section_id": "section-1770567034297",
+    "subject_code": "",
+    "subject_name": "English"
+  },
+  {
+    "id": "subject-1770590168882-zt217lvaw",
+    "subject_name": "Mathematics",
+    "subject_code": "",
+    "section_id": "section-1770567034297",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590169017-slw1jyir8",
+    "subject_name": "Science",
+    "section_id": "section-1770567034297",
+    "subject_code": "",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590169156-fhoxzclhx",
+    "subject_name": "Araling Panlipunan",
+    "subject_code": "",
+    "section_id": "section-1770567034297",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590169287-4z9apjsuo",
+    "grade_level": "Grade 9",
+    "subject_name": "Values Education",
+    "subject_code": "",
+    "section_id": "section-1770567034297"
+  },
+  {
+    "id": "subject-1770590169424-sdf85h0wo",
+    "grade_level": "Grade 9",
+    "subject_code": "",
+    "section_id": "section-1770567034297",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "subject-1770590169551-w284qt98z",
+    "grade_level": "Grade 9",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567034297",
+    "subject_name": "Music and Arts"
+  },
+  {
+    "id": "subject-1770590169685-ccibwihzw",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567034297",
+    "subject_name": "Physical Education and Health",
+    "grade_level": "Grade 9"
+  },
+  {
+    "id": "subject-1770590180460-73wpfofhw",
+    "grade_level": "Grade 10",
+    "subject_name": "Filipino",
+    "section_id": "section-1770567065645",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590180591-qdwmo38z4",
+    "subject_name": "English",
+    "subject_code": "",
+    "section_id": "section-1770567065645",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590180733-3r7s7uxak",
+    "subject_name": "Mathematics",
+    "section_id": "section-1770567065645",
+    "subject_code": "",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590180866-o8xu4v24j",
+    "grade_level": "Grade 10",
+    "section_id": "section-1770567065645",
+    "subject_code": "",
+    "subject_name": "Science"
+  },
+  {
+    "id": "subject-1770590180998-zvqr6uqyv",
+    "subject_name": "Araling Panlipunan",
+    "subject_code": "",
+    "section_id": "section-1770567065645",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590181129-hlofhgpz6",
+    "subject_code": "",
+    "section_id": "section-1770567065645",
+    "subject_name": "Edukasyon sa Pagpapakatao",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590181260-91k756lzl",
+    "grade_level": "Grade 10",
+    "section_id": "section-1770567065645",
+    "subject_code": "",
+    "subject_name": "Technology and Livelihood Education"
+  },
+  {
+    "id": "subject-1770590181394-cfr0xictu",
+    "subject_name": "Music",
+    "section_id": "section-1770567065645",
+    "subject_code": "MAPEH",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590181521-hxvdwvffr",
+    "grade_level": "Grade 10",
+    "subject_name": "Arts",
+    "section_id": "section-1770567065645",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1770590181654-nee3xzzrs",
+    "grade_level": "Grade 10",
+    "subject_name": "Physical Education",
+    "section_id": "section-1770567065645",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1770590181785-6r1klb39e",
+    "grade_level": "Grade 10",
+    "subject_name": "Health",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567065645"
+  },
+  {
+    "id": "subject-1770590189461-tnz5tuir1",
+    "grade_level": "Grade 10",
+    "section_id": "section-1770567057204",
+    "subject_code": "",
+    "subject_name": "Filipino"
+  },
+  {
+    "id": "subject-1770590189600-lrjczcj8f",
+    "grade_level": "Grade 10",
+    "subject_name": "English",
+    "section_id": "section-1770567057204",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590189733-u8t4nqi0y",
+    "grade_level": "Grade 10",
+    "subject_name": "Mathematics",
+    "section_id": "section-1770567057204",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590189867-30dn21qxe",
+    "subject_name": "Science",
+    "subject_code": "",
+    "section_id": "section-1770567057204",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590189999-tcezpz2zb",
+    "grade_level": "Grade 10",
+    "subject_name": "Araling Panlipunan",
+    "section_id": "section-1770567057204",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590190129-wji9izifv",
+    "grade_level": "Grade 10",
+    "subject_name": "Edukasyon sa Pagpapakatao",
+    "subject_code": "",
+    "section_id": "section-1770567057204"
+  },
+  {
+    "id": "subject-1770590190264-xzr3oc41t",
+    "grade_level": "Grade 10",
+    "subject_name": "Technology and Livelihood Education",
+    "section_id": "section-1770567057204",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590190398-wpziw01n5",
+    "subject_name": "Music",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567057204",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590190533-1mxqe3711",
+    "grade_level": "Grade 10",
+    "subject_name": "Arts",
+    "section_id": "section-1770567057204",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1770590190670-p2ygxdpo7",
+    "grade_level": "Grade 10",
+    "subject_name": "Physical Education",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567057204"
+  },
+  {
+    "id": "subject-1770590190811-r6vhzo8wf",
+    "grade_level": "Grade 10",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567057204",
+    "subject_name": "Health"
+  },
+  {
+    "id": "subject-1770590196291-788eyv2mi",
+    "subject_name": "Filipino",
+    "subject_code": "",
+    "section_id": "section-1770567051469",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590196428-wpb3p31un",
+    "subject_code": "",
+    "section_id": "section-1770567051469",
+    "subject_name": "English",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590196560-d5cjrho5u",
+    "section_id": "section-1770567051469",
+    "subject_code": "",
+    "subject_name": "Mathematics",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590196709-xha150kz9",
+    "grade_level": "Grade 10",
+    "subject_code": "",
+    "section_id": "section-1770567051469",
+    "subject_name": "Science"
+  },
+  {
+    "id": "subject-1770590196859-0hcpy19qg",
+    "grade_level": "Grade 10",
+    "section_id": "section-1770567051469",
+    "subject_code": "",
+    "subject_name": "Araling Panlipunan"
+  },
+  {
+    "id": "subject-1770590197001-py3l4ukgt",
+    "grade_level": "Grade 10",
+    "subject_name": "Edukasyon sa Pagpapakatao",
+    "section_id": "section-1770567051469",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590197140-eertzv1sw",
+    "grade_level": "Grade 10",
+    "subject_name": "Technology and Livelihood Education",
+    "section_id": "section-1770567051469",
+    "subject_code": ""
+  },
+  {
+    "id": "subject-1770590197279-7zgoqm51r",
+    "grade_level": "Grade 10",
+    "subject_name": "Music",
+    "section_id": "section-1770567051469",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1770590197417-0nraw0ovr",
+    "grade_level": "Grade 10",
+    "subject_name": "Arts",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567051469"
+  },
+  {
+    "id": "subject-1770590197556-38wkrlewi",
+    "subject_name": "Physical Education",
+    "subject_code": "MAPEH",
+    "section_id": "section-1770567051469",
+    "grade_level": "Grade 10"
+  },
+  {
+    "id": "subject-1770590197696-dcki86vz1",
+    "grade_level": "Grade 10",
+    "subject_name": "Health",
+    "section_id": "section-1770567051469",
+    "subject_code": "MAPEH"
+  },
+  {
+    "id": "subject-1776182642448",
+    "grade_level": "Grade 7",
+    "subject_name": "Science",
+    "subject_code": "",
+    "section_id": "section-1770566985325",
+    "teacher_id": "d7XhuOHOhXQuSJDHrYDJUy0i0ho1"
+  }
+]
