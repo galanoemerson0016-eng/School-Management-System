@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -24,6 +24,12 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://formease-app-a3e68.web.app/updates"
+      }
+    ],
     "win": {
       "icon": "public/app-logo.png",
       "target": [
@@ -68,6 +74,7 @@
     "@tanstack/react-table": "^8.21.3",
     "buffer": "^6.0.3",
     "dom-to-image-more": "^3.7.2",
+    "electron-updater": "^6.8.3",
     "express": "^4.21.2",
     "firebase": "^12.12.1",
     "framer-motion": "^12.33.0",

@@ -481,7 +481,6 @@
     * {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
-      color-adjust: exact !important;
       box-shadow: none !important;
     }
 
@@ -493,14 +492,11 @@
       margin: 0;
     }
 
-    /* Keep these utility classes available */
-    .print-landscape {}
-
-    .print-portrait {}
-
-    .print-a4 {}
-
-    .print-legal {}
+    /* Keep these utility classes available as flags (no CSS styles needed) */
+    /* .print-landscape {} */
+    /* .print-portrait {} */
+    /* .print-a4 {} */
+    /* .print-legal {} */
 
     /* -------------------------------------------------
        HIDE NON-PRINT UI

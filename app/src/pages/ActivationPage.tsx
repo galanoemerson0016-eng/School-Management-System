@@ -36,7 +36,7 @@ export function ActivationPage() {
 
     try {
       const serial = key.trim().toUpperCase();
-      const projectId = 'formease-app-a3e68';
+      const projectId = 'form-ease-app';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
 
       // 1. Fetch License Data via REST API

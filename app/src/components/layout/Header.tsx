@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import { Bell, X } from 'lucide-react';
 import { canEditClassesAndSubjects } from '../../lib/rbac';
+import { UpdateStatus } from '../ui/UpdateStatus';
 
 const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -124,6 +125,9 @@ export function Header() {
                             </button>
                         )}
                     </div>
+
+                    {/* Update Status Checker */}
+                    <UpdateStatus />
 
                     {/* Notification Bell */}
                     <div className="relative">

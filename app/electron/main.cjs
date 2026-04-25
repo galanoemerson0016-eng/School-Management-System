@@ -1,6 +1,7 @@
 const { app, BrowserWindow, screen, Menu, ipcMain } = require('electron');
 const path = require('path');
 const { machineIdSync } = require('node-machine-id');
+const { autoUpdater } = require('electron-updater');
 
 const isDev = !app.isPackaged;
  
@@ -73,6 +74,13 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
   createWindow();
 
+  // Check for updates after the app is ready (only in production)
+  if (!isDev) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify();
+    }, 3000);
+  }
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -93,3 +101,40 @@ ipcMain.handle('get-machine-id', () => {
   }
 });
 
+// --- Auto Updater Logic ---
+function sendStatusToWindow(text) {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows[0].webContents.send('update-message', text);
+  }
+}
+
+autoUpdater.on('checking-for-update', () => {
+  sendStatusToWindow('Checking for updates...');
+});
+autoUpdater.on('update-available', (info) => {
+  sendStatusToWindow(`Update available (v${info.version}). Downloading...`);
+});
+autoUpdater.on('update-not-available', (info) => {
+  sendStatusToWindow('FormEase is up to date.');
+});
+autoUpdater.on('error', (err) => {
+  sendStatusToWindow('Error checking for updates.');
+});
+autoUpdater.on('download-progress', (progressObj) => {
+  sendStatusToWindow(`Downloading update: ${Math.round(progressObj.percent)}%`);
+});
+autoUpdater.on('update-downloaded', (info) => {
+  sendStatusToWindow('Update downloaded. Restarting app to install...');
+  setTimeout(() => {
+    autoUpdater.quitAndInstall();
+  }, 3000);
+});
+
+ipcMain.on('check-for-updates', () => {
+  if (!isDev) {
+    autoUpdater.checkForUpdatesAndNotify();
+  } else {
+    sendStatusToWindow('Auto-updates disabled in development mode.');
+  }
+});
