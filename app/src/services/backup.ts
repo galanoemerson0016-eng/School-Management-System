@@ -28,6 +28,7 @@ interface BackupFile {
     enrollments: Enrollment[];
     announcements: Announcement[];
     attendanceRecords: AttendanceRecord[];
+    sf2Sheets: any[];
     hpsRecords: any[];
   };
 }

@@ -8,6 +8,16 @@ import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settin
 import { filterSF9Sections } from '../lib/rbac';
 import { getSF9SubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
 
+// Print mode type for term-specific printing
+type SF9PrintMode = 'full' | 'term1' | 'term2' | 'term3';
+
+// Term-to-month mapping for attendance
+const TERM_MONTHS: Record<string, string[]> = {
+    term1: ['JUN', 'JUL', 'AUG'],
+    term2: ['SEP', 'OCT', 'NOV', 'DEC'],
+    term3: ['JAN', 'FEB', 'MAR', 'APR'],
+};
+
 // SF9-JHS Official Template - Landscape Format
 const styles = StyleSheet.create({
     page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'Times-Roman' },
@@ -330,14 +340,42 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     const daysAbsent: number[] = [];
 
     months.forEach(month => {
-        // Aggressive case-insensitive match by section name/id and month
+        // Aggressive fuzzy match by section name/id, month (full or abbr), and school year
         const sheet = sf2Sheets.find(s => {
-            const sectionMatch = 
-                (s.section_id?.toString().toLowerCase() === sectionObj?.id?.toString().toLowerCase()) ||
-                (s.section_id?.toString().toLowerCase() === sectionObj?.section_name?.toString().toLowerCase());
+            const sId = s.section_id?.toString().toLowerCase().trim();
+            const targetId = sectionObj?.id?.toString().toLowerCase().trim();
+            const targetName = sectionObj?.section_name?.toString().toLowerCase().trim();
             
-            const monthMatch = s.month?.toString().toUpperCase() === month.toUpperCase();
-            const yearMatch = s.school_year === schoolYear;
+            const sectionMatch = (sId === targetId) || 
+                                 (sId === targetName) || 
+                                 (sId && targetName?.includes(sId)) || 
+                                 (targetName && sId?.includes(targetName));
+            
+            const sMonth = s.month?.toString().toUpperCase().trim();
+            const targetMonth = month.toUpperCase();
+            const targetMonthAbbr = month.substring(0, 3).toUpperCase();
+            
+            // Numeric month mapping (1=JAN, 6=JUNE, etc.) and 0-indexed month mapping
+            const MONTH_MAP: Record<string, string> = {
+                '1': 'JANUARY', '2': 'FEBRUARY', '3': 'MARCH', '4': 'APRIL', '5': 'MAY', '6': 'JUNE',
+                '7': 'JULY', '8': 'AUGUST', '9': 'SEPTEMBER', '10': 'OCTOBER', '11': 'NOVEMBER', '12': 'DECEMBER'
+            };
+            const mappedMonth = sMonth ? MONTH_MAP[sMonth] : null;
+            const monthIdx = months.indexOf(month);
+            
+            const monthMatch = sMonth === targetMonth || 
+                               sMonth === targetMonthAbbr || 
+                               (sMonth && targetMonth.startsWith(sMonth)) ||
+                               (mappedMonth === targetMonth) ||
+                               (sMonth === monthIdx.toString()) ||
+                               (sMonth === (monthIdx + 1).toString());
+            
+            // Lenient year match (e.g., "2026" should match "2026-2027")
+            const sYear = s.school_year?.toString().trim();
+            const targetYear = schoolYear?.toString().trim();
+            const yearMatch = sYear === targetYear || 
+                               (sYear && targetYear?.includes(sYear)) || 
+                               (targetYear && sYear?.includes(targetYear?.substring(0, 4)));
             
             return sectionMatch && monthMatch && yearMatch;
         });
@@ -345,7 +383,7 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
         if (sheet) {
             const dateLabels = sheet.date_labels || {};
             
-            // Aggressive fuzzy LRN match (space-tolerant, case-insensitive, type-agnostic)
+            // Aggressive fuzzy LRN match
             const targetLRN = student.lrn.toString().trim().toLowerCase();
             const attendanceKeys = Object.keys(sheet.attendance || {});
             const matchedKey = attendanceKeys.find(k => k.toString().trim().toLowerCase() === targetLRN);
@@ -354,31 +392,41 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
             let mAbsent = 0;
             let mFilled = 0;
 
-            for (let d = 1; d <= 25; d++) {
-                const label = dateLabels[d];
-                if (label && (label as string).trim() !== '') {
+            // Get all days that have a valid date label (this defines a school day)
+            const dayKeys = Object.keys(dateLabels);
+            dayKeys.forEach(dayKey => {
+                const label = dateLabels[dayKey as any];
+                if (label && label.toString().trim() !== '') {
                     mFilled++;
-                    const status = studentAttendance[d];
+                    
+                    // Check student's status for this specific school day
+                    const status = studentAttendance[dayKey as any];
                     const normalizedStatus = (status || '').toString().toLowerCase().trim();
-                    if (normalizedStatus === 'absent' || normalizedStatus === 'x') {
+                    
+                    // Standard DEPED absence markers
+                    if (normalizedStatus === 'absent' || normalizedStatus === 'x' || normalizedStatus === 'a') {
                         mAbsent++;
                     }
                 }
-            }
+            });
             
             schoolDays.push(mFilled);
             daysAbsent.push(mAbsent);
             daysPresent.push(Math.max(0, mFilled - mAbsent));
         } else {
-            schoolDays.push(0);
-            daysPresent.push(0);
-            daysAbsent.push(0);
+            // Push -1 or null to signify "no data found" vs "zero data"
+            schoolDays.push(-1);
+            daysPresent.push(-1);
+            daysAbsent.push(-1);
         }
     });
 
-    const totalSchoolDays = schoolDays.reduce((a, b) => a + b, 0);
-    const totalPresent = daysPresent.reduce((a, b) => a + b, 0);
-    const totalAbsent = daysAbsent.reduce((a, b) => a + b, 0);
+    const sumFilter = (arr: number[]) => arr.filter(v => v >= 0).reduce((a, b) => a + b, 0);
+    const hasAnyData = schoolDays.some(v => v >= 0);
+
+    const totalSchoolDays = hasAnyData ? sumFilter(schoolDays) : -1;
+    const totalPresent = hasAnyData ? sumFilter(daysPresent) : -1;
+    const totalAbsent = hasAnyData ? sumFilter(daysAbsent) : -1;
 
     return {
         months: [...months.map(m => m.substring(0, 3)), 'TOTAL'],
@@ -421,66 +469,122 @@ interface SF9ExactDocumentProps {
     pageSize: 'A4' | 'LETTER';
     logoUrl: string;
     schoolProfile?: SchoolProfile;
+    printMode?: SF9PrintMode;
 }
 
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
-    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, schoolProfile
+    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, schoolProfile, printMode = 'full'
 }: SF9ExactDocumentProps) {
+
+    // Print mode helpers
+    const isValuesOnly = printMode === 'term2' || printMode === 'term3';
+    const transparentBorder = '#FFFFFF';
+    const borderColor = isValuesOnly ? transparentBorder : '#000';
+
+    // Determine which term columns to show values for
+    const showTermValue = (termIndex: number): boolean => {
+        if (printMode === 'full') return true;
+        if (printMode === 'term1') return termIndex === 0;
+        if (printMode === 'term2') return termIndex === 1;
+        if (printMode === 'term3') return termIndex === 2;
+        return true;
+    };
+
+    // Whether to show final grade & remarks (only in full or term3)
+    const showFinalAndRemarks = printMode === 'full' || printMode === 'term3';
+
+    // Filter attendance months by term
+    const getAttendanceValue = (idx: number, value: number): number | string => {
+        if (value < 0) return '';
+        if (printMode === 'full') return value;
+        const monthAbbr = attendance.months[idx];
+        if (monthAbbr === 'TOTAL') return '';
+        const termKey = printMode;
+        const termMonths = TERM_MONTHS[termKey] || [];
+        return termMonths.includes(monthAbbr) ? value : '';
+    };
+
+    // Recalculate attendance total for current term
+    const getTermTotal = (dataArr: number[]) => {
+        // If we are in T1 or T2, the user wants the total column blank
+        if (printMode === 'term1' || printMode === 'term2') return '';
+
+        // For Full and Term 3, show the GRAND TOTAL (T1+T2+T3)
+        // We exclude the last element because it's the pre-calculated total
+        const monthsOnly = dataArr.slice(0, -1);
+        const total = monthsOnly.filter(v => v >= 0).reduce((a, b) => a + b, 0);
+        
+        // If no data at all, return blank instead of 0
+        const hasAnyData = monthsOnly.some(v => v >= 0);
+        return hasAnyData ? total : '';
+    };
 
     return (
         <>
             <Page size={pageSize} orientation="landscape" style={styles.page}>
                 <View style={styles.page1Container}>
                     <View style={styles.leftColumn}>
-                        <Text style={styles.attendanceTitle}>REPORT ON ATTENDANCE</Text>
-                        <View style={styles.attendanceTable}>
-                            <View style={styles.attHeaderRow}>
-                                <View style={styles.attLabelCell}><Text> </Text></View>
+                        <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON ATTENDANCE</Text>
+                        <View style={[styles.attendanceTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                            <View style={[styles.attHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}> </Text></View>
                                 {attendance.months.map((month, idx) => (
-                                    <View key={idx} style={idx === attendance.months.length - 1 ? styles.attDataCellLast : styles.attMonthCell}>
-                                        <Text>{month}</Text>
+                                    <View key={idx} style={[idx === attendance.months.length - 1 ? styles.attDataCellLast : styles.attMonthCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                        <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{month}</Text>
                                     </View>
                                 ))}
                             </View>
-                            <View style={styles.attRow}>
-                                <View style={styles.attLabelCell}><Text>No. of school{'\n'}days</Text></View>
-                                {attendance.schoolDays.map((days, idx) => (
-                                    <View key={idx} style={idx === attendance.schoolDays.length - 1 ? styles.attDataCellLast : styles.attDataCell}>
-                                        <Text>{days}</Text>
-                                    </View>
-                                ))}
+                            <View style={[styles.attRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of school{'\n'}days</Text></View>
+                                {attendance.schoolDays.map((days, idx) => {
+                                    const isTotal = idx === attendance.schoolDays.length - 1;
+                                    const val = isTotal ? getTermTotal(attendance.schoolDays) : getAttendanceValue(idx, days);
+                                    return (
+                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text>{val !== '' ? val : ''}</Text>
+                                        </View>
+                                    );
+                                })}
                             </View>
-                            <View style={styles.attRow}>
-                                <View style={styles.attLabelCell}><Text>No. of days{'\n'}present</Text></View>
-                                {attendance.daysPresent.map((days, idx) => (
-                                    <View key={idx} style={idx === attendance.daysPresent.length - 1 ? styles.attDataCellLast : styles.attDataCell}>
-                                        <Text>{days}</Text>
-                                    </View>
-                                ))}
+                            <View style={[styles.attRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of days{'\n'}present</Text></View>
+                                {attendance.daysPresent.map((days, idx) => {
+                                    const isTotal = idx === attendance.daysPresent.length - 1;
+                                    const val = isTotal ? getTermTotal(attendance.daysPresent) : getAttendanceValue(idx, days);
+                                    return (
+                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text>{val !== '' ? val : ''}</Text>
+                                        </View>
+                                    );
+                                })}
                             </View>
-                            <View style={styles.attRowLast}>
-                                <View style={styles.attLabelCell}><Text>No. of days{'\n'}absent</Text></View>
-                                {attendance.daysAbsent.map((days, idx) => (
-                                    <View key={idx} style={idx === attendance.daysAbsent.length - 1 ? styles.attDataCellLast : styles.attDataCell}>
-                                        <Text>{days}</Text>
-                                    </View>
-                                ))}
+                            <View style={[styles.attRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of days{'\n'}absent</Text></View>
+                                {attendance.daysAbsent.map((days, idx) => {
+                                    const isTotal = idx === attendance.daysAbsent.length - 1;
+                                    const val = isTotal ? getTermTotal(attendance.daysAbsent) : getAttendanceValue(idx, days);
+                                    return (
+                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text>{val !== '' ? val : ''}</Text>
+                                        </View>
+                                    );
+                                })}
                             </View>
                         </View>
                         <View style={styles.parentSection}>
-                            <Text style={styles.parentTitle}>PARENT/GUARDIAN'S SIGNATURE</Text>
+                            <Text style={[styles.parentTitle, isValuesOnly ? { color: transparentBorder } : {}]}>PARENT/GUARDIAN'S SIGNATURE</Text>
                             {[{ num: '1', suffix: 'st' }, { num: '2', suffix: 'nd' }, { num: '3', suffix: 'rd' }].map((quarter, idx) => (
-                                <View key={idx} style={styles.signatureRow}>
-                                    <Text style={styles.quarterLabel}>{quarter.num}<Text style={{ fontSize: 7, verticalAlign: 'super' }}>{quarter.suffix}</Text>{' Term'}</Text>
-                                    <View style={styles.signatureLine} />
+                                <View key={idx} style={[styles.signatureRow, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                                    <Text style={[styles.quarterLabel, isValuesOnly ? { color: transparentBorder } : {}]}>{quarter.num}<Text style={{ fontSize: 7, verticalAlign: 'super' }}>{quarter.suffix}</Text>{' Term'}</Text>
+                                    <View style={[styles.signatureLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
                                 </View>
                             ))}
                         </View>
                     </View>
                     <View style={styles.rightColumn}>
-                        <Text style={styles.sf9Label}>SF9-JHS</Text>
-                        <View style={styles.headerContainer}>
+                        <Text style={[styles.sf9Label, isValuesOnly ? { color: transparentBorder } : {}]}>SF9-JHS</Text>
+                        <View style={[styles.headerContainer, isValuesOnly ? { opacity: 0 } : {}]}>
                             <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.logo} />
                             <View style={styles.headerCenter}>
                                 <Text style={styles.headerText}>Republic of the Philippines</Text>
@@ -491,9 +595,9 @@ function SF9Pages({
                             </View>
                             <Image src={logoUrl || `${import.meta.env.BASE_URL}deped_logo_right.png`} style={styles.logo} />
                         </View>
-                        <Text style={styles.schoolName}>{schoolName}</Text>
-                        <Text style={styles.reportTitle}>LEARNER'S PROGRESS REPORT CARD</Text>
-                        <View style={styles.studentInfoGrid}>
+                        <Text style={[styles.schoolName, isValuesOnly ? { color: transparentBorder } : {}]}>{schoolName}</Text>
+                        <Text style={[styles.reportTitle, isValuesOnly ? { color: transparentBorder } : {}]}>LEARNER'S PROGRESS REPORT CARD</Text>
+                        <View style={[styles.studentInfoGrid, isValuesOnly ? { opacity: 0 } : {}]}>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Name:</Text>
                                 <Text style={styles.infoValue}>{student.last_name}, {student.first_name} {student.middle_name}</Text>
@@ -517,14 +621,14 @@ function SF9Pages({
                                 <Text style={styles.infoValueShort}>{schoolYear}</Text>
                             </View>
                         </View>
-                        <Text style={{ marginTop: 20, textAlign: 'center', fontSize: 10, fontWeight: 'bold' }}>Dear Parents:</Text>
-                        <Text style={{ marginTop: 10, textAlign: 'center', lineHeight: 1.4, fontSize: 9 }}>
+                        <Text style={[{ marginTop: 20, textAlign: 'left', fontSize: 10, fontWeight: 'bold' }, isValuesOnly ? { color: transparentBorder } : {}]}>Dear Parents:</Text>
+                        <Text style={[{ marginTop: 10, textAlign: 'justify', lineHeight: 1.4, fontSize: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                             This report card shows the ability and progress your child has made in the different learning areas as well as his/her core values.
                         </Text>
-                        <Text style={{ marginTop: 5, textAlign: 'center', fontSize: 9 }}>
+                        <Text style={[{ marginTop: 5, textAlign: 'justify', fontSize: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                             The school welcomes you should you desire to know more about your child's progress.
                         </Text>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 30 }}>
+                        <View style={[{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 30 }, isValuesOnly ? { opacity: 0 } : {}]}>
                             <View style={{ width: '45%', alignItems: 'center' }}>
                                 <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2 }}>{principal?.toUpperCase()}</Text>
                                 <Text style={{ fontSize: 9 }}>{principalTitle || 'Secondary School Principal I'}</Text>
@@ -534,25 +638,25 @@ function SF9Pages({
                                 <Text style={{ fontSize: 9 }}>Teacher Adviser</Text>
                             </View>
                         </View>
-                        <View style={styles.transferSection}>
-                            <Text style={styles.transferTitle}>CERTIFICATE OF TRANSFER</Text>
+                        <View style={[styles.transferSection, isValuesOnly ? { borderTopColor: transparentBorder } : {}]}>
+                            <Text style={[styles.transferTitle, isValuesOnly ? { color: transparentBorder } : {}]}>CERTIFICATE OF TRANSFER</Text>
                             <View style={styles.transferRow}>
-                                <Text style={styles.transferLabel}>Admitted to Grade:</Text>
-                                <View style={styles.transferLine} />
-                                <Text style={[styles.transferLabel, { width: 60, marginLeft: 15 }]}>Section:</Text>
-                                <View style={styles.transferLine} />
+                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Admitted to Grade:</Text>
+                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                <Text style={[styles.transferLabel, { width: 60, marginLeft: 15 }, isValuesOnly ? { color: transparentBorder } : {}]}>Section:</Text>
+                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
                             </View>
                             <View style={styles.transferRow}>
-                                <Text style={styles.transferLabel}>Eligible for Admission to Grade:</Text>
-                                <View style={styles.transferLine} />
+                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Eligible for Admission to Grade:</Text>
+                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
                             </View>
-                            <View style={[styles.transferRow, { marginTop: 15 }]}>
-                                <Text style={styles.transferLabel}>Approved:</Text>
+                            <View style={[styles.transferRow, { marginTop: 15 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Approved:</Text>
                             </View>
-                            <View style={[styles.signatureLineBottom, { marginTop: 25 }]}>
+                            <View style={[styles.signatureLineBottom, { marginTop: 25 }, isValuesOnly ? { opacity: 0 } : {}]}>
                                 <View style={styles.signatureBlock}>
                                     <Text style={styles.signatureName}></Text>
-                                    <Text style={styles.signatureTitle}>OIC-School Head, HT-VI</Text>
+                                    <Text style={styles.signatureTitle}>{principalTitle || 'Secondary School Principal I'}</Text>
                                 </View>
                                 <View style={styles.signatureBlock}>
                                     <Text style={styles.signatureName}></Text>
@@ -567,57 +671,57 @@ function SF9Pages({
             <Page size={pageSize} orientation="landscape" style={styles.page}>
                 <View style={styles.page2Container}>
                     <View style={styles.page2Left}>
-                        <Text style={[styles.attendanceTitle, { fontSize: 11 }]}>REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</Text>
-                        <View style={styles.lpTable}>
-                            <View style={[styles.lpHeaderRow]}>
-                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, alignItems: 'center' }]}><Text>LEARNING AREAS</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '34%', padding: 0 }]}>
-                                    <View style={{ borderBottomWidth: 1, borderColor: '#000', padding: 2, alignItems: 'center' }}><Text>TERM</Text></View>
+                        <Text style={[styles.attendanceTitle, { fontSize: 11 }, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</Text>
+                        <View style={[styles.lpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                            <View style={[styles.lpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>LEARNING AREAS</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '34%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                    <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 2, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>TERM</Text></View>
                                     <View style={{ flexDirection: 'row', flex: 1 }}>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>1</Text></View>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>2</Text></View>
-                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>3</Text></View>
+                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>1</Text></View>
+                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>2</Text></View>
+                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>3</Text></View>
                                     </View>
                                 </View>
-                                <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }]}><Text>FINAL GRADE</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '15%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text>REMARKS</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>FINAL GRADE</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '15%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>REMARKS</Text></View>
                             </View>
                             {currentSubjects.map((subj, idx) => {
                                 const gradeRow = grades[subj.name] || [0, 0, 0];
                                 const finalGrade = calculateFinalGrade(gradeRow);
                                 const isReserved = (subj as any).isReserved;
                                 return (
-                                    <View key={idx} style={styles.lpRow}>
-                                        <View style={[styles.lpCell, { width: '40%', paddingLeft: subj.isComponent ? 15 : 4 }]}> 
-                                            <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5 }}>
+                                    <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.lpCell, { width: '40%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
+                                            <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
                                                 {isReserved ? '' : subj.name}
                                             </Text>
                                         </View>
-                                        <View style={[styles.lpCell, { width: '34%', padding: 0 }]}>
+                                        <View style={[styles.lpCell, { width: '34%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                             <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[0] || ''}</Text></View>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[1] || ''}</Text></View>
-                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{gradeRow[2] || ''}</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(0) ? (gradeRow[0] || '') : ''}</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(1) ? (gradeRow[1] || '') : ''}</Text></View>
+                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(2) ? (gradeRow[2] || '') : ''}</Text></View>
                                             </View>
                                         </View>
-                                        <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }]}><Text>{finalGrade || ''}</Text></View>
-                                        <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{getRemarks(finalGrade)}</Text></View>
+                                        <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (finalGrade || '') : ''}</Text></View>
+                                        <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(finalGrade) : ''}</Text></View>
                                     </View>
                                 );
                             })}
-                            <View style={[styles.lpRow, { borderBottomWidth: 0 }]}>
-                                <View style={[styles.lpCell, { width: '40%', alignItems: 'flex-end', paddingRight: 5 }]}><Text style={{ fontWeight: 'bold' }}>General Average</Text></View>
-                                <View style={[styles.lpCell, { width: '34%' }]}><Text></Text></View>
-                                <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }]}><Text>{calculateGeneralAverage(grades) || ''}</Text></View>
-                                <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{getRemarks(calculateGeneralAverage(grades))}</Text></View>
+                            <View style={[styles.lpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.lpCell, { width: '40%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
+                                <View style={[styles.lpCell, { width: '34%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
+                                <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (calculateGeneralAverage(grades) || '') : ''}</Text></View>
+                                <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(calculateGeneralAverage(grades)) : ''}</Text></View>
                             </View>
                         </View>
                         <View style={styles.legendContainer}>
-                            <Text style={styles.attendanceTitle}>Descriptors & Grading Scale</Text>
+                            <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>Descriptors & Grading Scale</Text>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                <View style={{ width: '40%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2 }}>Descriptors</Text></View>
-                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2 }}>Grading Scale</Text></View>
-                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2 }}>Remarks</Text></View>
+                                <View style={{ width: '40%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Descriptors</Text></View>
+                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Grading Scale</Text></View>
+                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Remarks</Text></View>
                             </View>
                             {[
                                 { desc: 'Advancing (Namumukod-tangi)', scale: '90-100', rem: 'Passed' },
@@ -627,48 +731,48 @@ function SF9Pages({
                                 { desc: 'Emerging (Nasisimula)', scale: '0-64', rem: 'Failed' },
                             ].map((item, idx) => (
                                 <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                    <View style={{ width: '40%' }}><Text>{item.desc}</Text></View>
-                                    <View style={{ width: '30%', alignItems: 'center' }}><Text>{item.scale}</Text></View>
-                                    <View style={{ width: '30%', alignItems: 'center' }}><Text>{item.rem}</Text></View>
+                                    <View style={{ width: '40%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.desc}</Text></View>
+                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.scale}</Text></View>
+                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.rem}</Text></View>
                                 </View>
                             ))}
                         </View>
                     </View>
                     <View style={styles.page2Right}>
-                        <Text style={[styles.attendanceTitle, { fontSize: 11 }]}>REPORT ON LEARNER'S OBSERVED VALUES</Text>
-                        <View style={styles.ovTable}>
-                            <View style={[styles.ovHeaderRow, { height: 30 }]}>
-                                <View style={[styles.lpHeaderCell, { width: '26%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'flex-start', paddingLeft: 4 }]}><Text>CORE VALUES</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'center' }]}><Text>BEHAVIOR STATEMENTS</Text></View>
+                        <Text style={[styles.attendanceTitle, { fontSize: 11 }, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON LEARNER'S OBSERVED VALUES</Text>
+                        <View style={[styles.ovTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                            <View style={[styles.ovHeaderRow, { height: 30 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                <View style={[styles.lpHeaderCell, { width: '26%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'flex-start', paddingLeft: 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>CORE VALUES</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>BEHAVIOR STATEMENTS</Text></View>
                                 <View style={[styles.lpHeaderCell, { width: '34%', padding: 0, borderRightWidth: 0 }]}>
-                                    <View style={{ borderBottomWidth: 1, borderColor: '#000', padding: 2, alignItems: 'center' }}><Text>TERM</Text></View>
+                                    <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 2, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>TERM</Text></View>
                                     <View style={{ flexDirection: 'row', flex: 1 }}>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>1</Text></View>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>2</Text></View>
-                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>3</Text></View>
+                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>1</Text></View>
+                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>2</Text></View>
+                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>3</Text></View>
                                     </View>
                                 </View>
                             </View>
                             {CORE_VALUES.map((cv, cvIdx) => {
                                 const grades = observedValues[cv.name] || [];
                                 return (
-                                    <View key={cvIdx} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', flex: cv.behaviors.length * 0.5 }}>
-                                        <View style={[styles.ovCell, { width: '26%', borderRightWidth: 1, borderBottomWidth: 0, justifyContent: 'center', textAlign: 'left', paddingLeft: 4, padding: 2 }]}>
-                                            <Text>{cv.name}</Text>
+                                    <View key={cvIdx} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: borderColor, flex: cv.behaviors.length * 0.5 }}>
+                                        <View style={[styles.ovCell, { width: '26%', borderRightWidth: 1, borderBottomWidth: 0, justifyContent: 'center', textAlign: 'left', paddingLeft: 4, padding: 2 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{cv.name}</Text>
                                         </View>
                                         <View style={{ width: '74%', flexDirection: 'column' }}>
                                             {cv.behaviors.map((behavior, bIdx) => {
                                                 const isLastBehavior = bIdx === cv.behaviors.length - 1;
                                                 return (
-                                                    <View key={bIdx} style={{ flexDirection: 'row', borderBottomWidth: isLastBehavior ? 0 : 1, borderColor: '#000', flex: 1 }}>
-                                                        <View style={{ width: '54%', padding: 2, fontSize: 9, borderRightWidth: 1, borderColor: '#000', justifyContent: 'center' }}>
-                                                            <Text>{behavior}</Text>
+                                                    <View key={bIdx} style={{ flexDirection: 'row', borderBottomWidth: isLastBehavior ? 0 : 1, borderColor: borderColor, flex: 1 }}>
+                                                        <View style={{ width: '54%', padding: 2, fontSize: 9, borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center' }}>
+                                                            <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{behavior}</Text>
                                                         </View>
                                                         <View style={{ width: '46%', padding: 0 }}>
                                                             <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{grades[bIdx * 3 + 0] || ''}</Text></View>
-                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text>{grades[bIdx * 3 + 1] || ''}</Text></View>
-                                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{grades[bIdx * 3 + 2] || ''}</Text></View>
+                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(0) ? (grades[bIdx * 3 + 0] || '') : ''}</Text></View>
+                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(1) ? (grades[bIdx * 3 + 1] || '') : ''}</Text></View>
+                                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(2) ? (grades[bIdx * 3 + 2] || '') : ''}</Text></View>
                                                             </View>
                                                         </View>
                                                     </View>
@@ -680,10 +784,10 @@ function SF9Pages({
                             })}
                         </View>
                         <View style={[styles.legendContainer, { marginTop: -5 }]}>
-                            <Text style={styles.attendanceTitle}>Non-numerical Rating</Text>
+                            <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>Non-numerical Rating</Text>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                <View style={{ width: '30%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2 }}>Marking</Text></View>
-                                <View style={{ width: '70%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2 }}>Non-numerical Rating</Text></View>
+                                <View style={{ width: '30%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Marking</Text></View>
+                                <View style={{ width: '70%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Non-numerical Rating</Text></View>
                             </View>
                             {[
                                 { mark: 'AO', rating: 'Always Observed' },
@@ -692,8 +796,8 @@ function SF9Pages({
                                 { mark: 'NO', rating: 'Not Observed' },
                             ].map((item, idx) => (
                                 <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                    <View style={{ width: '30%' }}><Text>{item.mark}</Text></View>
-                                    <View style={{ width: '70%' }}><Text>{item.rating}</Text></View>
+                                    <View style={{ width: '30%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.mark}</Text></View>
+                                    <View style={{ width: '70%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.rating}</Text></View>
                                 </View>
                             ))}
                         </View>
@@ -724,17 +828,19 @@ interface SF9BatchDocumentProps {
     sf2Sheets: SF2Sheet[];
     adviser: string;
     pageSize: 'A4' | 'LETTER';
+    printMode?: SF9PrintMode;
+    subjectSelections?: Record<number, string>;
 }
 
 const SF9PagesMemo = React.memo(SF9Pages);
 
 function SF9BatchDocument({
-    students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviser, pageSize
+    students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviser, pageSize, printMode = 'full', subjectSelections
 }: SF9BatchDocumentProps) {
     return (
         <Document title={`SF9 Batch - ${sectionObj.section_name}`}>
             {students.map((student) => {
-                const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile);
+                const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, subjectSelections);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj);
                 
@@ -762,6 +868,7 @@ function SF9BatchDocument({
                         pageSize={pageSize}
                         logoUrl={schoolProfile.logo_url || ''}
                         schoolProfile={schoolProfile}
+                        printMode={printMode}
                     />
                 );
             })}
@@ -787,6 +894,7 @@ export function SF9Page() {
     const [isStabilizing, setIsStabilizing] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
+    const [printMode, setPrintMode] = useState<SF9PrintMode>('full');
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const stabilizationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -905,9 +1013,62 @@ export function SF9Page() {
                 pageSize={pageSize} 
                 logoUrl={schoolProfile.logo_url || ''}
                 schoolProfile={schoolProfile}
+                printMode={printMode}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, sf2Sheets, pageSize, sections]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, sf2Sheets, pageSize, sections, printMode]);
+
+    const handlePrint = async () => {
+        if (!selectedStudent || !singleDocument) return;
+        try {
+            const { pdf } = await import('@react-pdf/renderer');
+            const blob = await pdf(singleDocument).toBlob();
+            const url = URL.createObjectURL(blob);
+            
+            // Create a hidden iframe for direct printing
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            
+            iframe.onload = () => {
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                    // Clean up after some time to allow print dialog to finish
+                    setTimeout(() => {
+                        if (document.body.contains(iframe)) {
+                            document.body.removeChild(iframe);
+                            URL.revokeObjectURL(url);
+                        }
+                    }, 5000);
+                }, 500);
+            };
+        } catch (error) {
+            console.error('Print failed:', error);
+        }
+    };
+
+    // Override Ctrl+P to use the official print engine
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                handlePrint();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [singleDocument, selectedStudent, handlePrint]);
+
+    const handlePrintBatch = () => {
+        if (!batchInstance.url) return;
+        const win = window.open(batchInstance.url, '_blank');
+        if (win) {
+            win.addEventListener('load', () => {
+                win.print();
+            });
+        }
+    };
 
     const batchDocument = useMemo(() => {
         if (!isGeneratingBatch || !selectedSectionObj || sectionStudents.length === 0) return null;
@@ -942,12 +1103,13 @@ export function SF9Page() {
                             pageSize={pageSize}
                             logoUrl={schoolProfile.logo_url || ''}
                             schoolProfile={schoolProfile}
+                            printMode={printMode}
                         />
                     );
                 })}
             </Document>
         );
-    }, [isGeneratingBatch, sectionStudents, selectedSectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviserName, pageSize, sections, males, females, currentSubjectSelections]);
+    }, [isGeneratingBatch, sectionStudents, selectedSectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviserName, pageSize, sections, males, females, currentSubjectSelections, printMode]);
 
     useEffect(() => {
         if (isGeneratingBatch && batchDocument) {
@@ -1031,169 +1193,162 @@ export function SF9Page() {
              <div className="h-20 px-6 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
                 <div className="flex items-center gap-5">
                     {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-3">
                         <button 
-                            onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
-                            title="Back to Hub"
+                            onClick={() => setCurrentView('main')}
+                            className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all group"
                         >
                             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                         </button>
                         <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF9 Report</h2>
-                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Progress Report Card</p>
+                            <h2 className="text-[13px] font-black text-slate-900 uppercase tracking-tighter leading-none mb-0.5">SF9 Report</h2>
+                            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.1em]">Progress Report</p>
                         </div>
                     </div>
 
                     <div className="h-8 w-px bg-slate-200 mx-1.5" />
 
-                    {/* Learner & Section Selector */}
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                         {filteredSections.length > 1 && (
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Grade & Section</span>
-                                <select 
-                                    className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-[12px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                                    value={selectedSection}
-                                    onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
-                                >
-                                    <option value="">Choose Section</option>
-                                    {filteredSections.map(s => <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>)}
-                                </select>
-                            </div>
+                            <select 
+                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                value={selectedSection}
+                                onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
+                            >
+                                <option value="">Section</option>
+                                {filteredSections.map(s => <option key={s.id} value={s.id}>{s.section_name}</option>)}
+                            </select>
                         )}
 
                         {!isBatchReady && (
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Learner Database</span>
-                                <select 
-                                    className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-[12px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer min-w-[200px] disabled:opacity-30"
-                                    value={selectedStudent?.lrn || ''}
-                                    onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                                    disabled={!selectedSection}
-                                >
-                                    <option value="">Select Student</option>
-                                    {males.length > 0 && (
-                                        <optgroup label="MALE">
-                                            {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                        </optgroup>
-                                    )}
-                                    {females.length > 0 && (
-                                        <optgroup label="FEMALE">
-                                            {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                        </optgroup>
-                                    )}
-                                </select>
-                            </div>
+                            <select 
+                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer min-w-[150px] disabled:opacity-30"
+                                value={selectedStudent?.lrn || ''}
+                                onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
+                                disabled={!selectedSection}
+                            >
+                                <option value="">Select Student</option>
+                                {males.length > 0 && (
+                                    <optgroup label="MALE">
+                                        {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                    </optgroup>
+                                )}
+                                {females.length > 0 && (
+                                    <optgroup label="FEMALE">
+                                        {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                    </optgroup>
+                                )}
+                            </select>
                         )}
 
-                        <div className="flex flex-col ml-1">
-                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mode</span>
-                             <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                            <button
+                                onClick={() => setIsBatchReady(false)}
+                                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${!isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                Indiv
+                            </button>
+                            <button
+                                onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
+                                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                Batch
+                            </button>
+                        </div>
+
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 ml-1">
+                            <button
+                                onClick={() => setPrintMode('full')}
+                                className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${printMode === 'full' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                Full
+                            </button>
+                            {['term1', 'term2', 'term3'].map((m, i) => (
                                 <button
-                                    onClick={() => setIsBatchReady(false)}
-                                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    key={m}
+                                    onClick={() => setPrintMode(m as any)}
+                                    className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${printMode === m ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
                                 >
-                                    Individual
+                                    T{i + 1}
                                 </button>
-                                <button
-                                    onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
-                                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Batch
-                                </button>
-                             </div>
+                            ))}
                         </div>
 
                         {selectedStudent && !isBatchReady && (
                             <button
-                                onClick={() => {
-                                    setPendingChanges({});
-                                    setIsValuesModalOpen(true);
-                                }}
-                                className="mt-5 h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 transition-all flex items-center gap-2"
+                                onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
+                                className="h-8 px-2.5 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm ml-1"
                             >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Edit3 className="w-3 h-3" />
                                 Values
                             </button>
                         )}
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    {/* Paper Size */}
-                    <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Paper</span>
-                        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            <button
-                                onClick={() => setPageSize('A4')}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${pageSize === 'A4' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                            >
-                                A4
-                            </button>
-                            <button
-                                onClick={() => setPageSize('LETTER')}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${pageSize === 'LETTER' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                            >
-                                Letter
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Subject Layout */}
-                    <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Subjects</span>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                         <button
-                            onClick={() => setIsLayoutModalOpen(true)}
-                            className="h-10 px-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-2 shadow-sm"
+                            onClick={() => setPageSize('A4')}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pageSize === 'A4' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
                         >
-                            <Settings2 className="w-3.5 h-3.5" />
-                            Layout
+                            A4
+                        </button>
+                        <button
+                            onClick={() => setPageSize('LETTER')}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pageSize === 'LETTER' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            LTR
                         </button>
                     </div>
 
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            <button 
-                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
-                            >
-                                <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
-                                {Math.round(zoom * 100)}%
-                            </span>
-                            <button 
-                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
-                        </div>
+                    <button
+                        onClick={() => setIsLayoutModalOpen(true)}
+                        className="h-8 px-2.5 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                        <Settings2 className="w-3 h-3" />
+                        Layout
+                    </button>
+
+                    <div className="flex items-center gap-2 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                        <button 
+                            onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                        >
+                            <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] font-black text-slate-900 w-10 text-center tabular-nums">
+                            {Math.round(zoom * 100)}%
+                        </span>
+                        <button 
+                            onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                        >
+                            <Plus className="w-3 h-3" />
+                        </button>
                     </div>
 
                     <div className="h-10 w-px bg-slate-200" />
 
-                    {/* Print Primary Button */}
-                    <div className="flex items-center gap-2">
-                        {!isBatchReady && singleDocument && (
-                                <PDFDownloadLink
-                                    document={singleDocument}
-                                    fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
-                                    className="h-12 px-6 rounded-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3 group whitespace-nowrap"
-                                >
-                                    {({ loading }) => (
-                                        <>
-                                            {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />}
-                                            {loading ? 'Generating...' : 'Print Official SF9'}
-                                        </>
-                                    )}
-                                </PDFDownloadLink>
-                            )
-                        }
-                    </div>
+                    {!isBatchReady && singleDocument && (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handlePrint}
+                                className="h-9 px-4 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Print SF9
+                            </button>
+                            <PDFDownloadLink
+                                document={singleDocument}
+                                fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
+                                className="h-9 w-9 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center"
+                                title="Download PDF"
+                            >
+                                <Download className="w-4 h-4" />
+                            </PDFDownloadLink>
+                        </div>
+                    )}
                 </div>
              </div>
 
@@ -1472,19 +1627,33 @@ export function SF9Page() {
 
                             <div className="pt-4 flex flex-col gap-3">
                                 {batchInstance.url && (
-                                    <a
-                                        href={batchInstance.url}
-                                        download={`SF9_BATCH_${selectedSectionObj?.section_name || 'Record'}_${activeSchoolYear}.pdf`}
-                                        onClick={() => {
-                                            setShowCompletionModal(false);
-                                            setIsGeneratingBatch(false);
-                                            setBatchProgress(0);
-                                        }}
-                                        className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-[12px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                        Download Official PDF
-                                    </a>
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={() => {
+                                                handlePrintBatch();
+                                                setShowCompletionModal(false);
+                                                setIsGeneratingBatch(false);
+                                                setBatchProgress(0);
+                                            }}
+                                            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-[12px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            Print Official Batch
+                                        </button>
+                                        <a
+                                            href={batchInstance.url}
+                                            download={`SF9_BATCH_${selectedSectionObj?.section_name || 'Record'}_${activeSchoolYear}.pdf`}
+                                            onClick={() => {
+                                                setShowCompletionModal(false);
+                                                setIsGeneratingBatch(false);
+                                                setBatchProgress(0);
+                                            }}
+                                            className="w-full py-4 rounded-2xl bg-blue-600 text-white font-black text-[12px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            Download Official PDF
+                                        </a>
+                                    </div>
                                 )}
                                 <button 
                                     onClick={() => {

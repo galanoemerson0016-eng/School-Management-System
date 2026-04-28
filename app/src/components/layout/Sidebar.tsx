@@ -214,8 +214,8 @@ export function Sidebar() {
                 </button>
 
                 <div className="pt-2 text-center">
-                    <span className={`text-[9px] uppercase font-bold tracking-widest text-slate-400/70 dark:text-slate-500/70 select-none ${isCollapsed ? 'block' : ''}`}>
-                        {isCollapsed ? 'v1.0' : 'Version 1.0.1'}
+                    <span className={`text-[9px] uppercase font-bold tracking-widest text-slate-400/70 dark:text-slate-50/70 select-none ${isCollapsed ? 'block' : ''}`}>
+                        {isCollapsed ? `v${__APP_VERSION__.split('.').slice(0, 2).join('.')}` : `Version ${__APP_VERSION__}`}
                     </span>
                 </div>
             </div>

@@ -26,6 +26,7 @@ import {
   AboutPage,
   ActivationPage,
 } from './pages';
+import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
 import { AccessDenied } from './components/auth/AccessDenied';
 
@@ -160,6 +161,7 @@ function App() {
 
   return (
     <div className="h-screen w-full overflow-hidden bg-[#f0f4f8] dark:bg-[#080d1a] relative text-slate-800 dark:text-slate-200">
+      <AutoBackupManager />
       {/* Global Animated Multi-Color Mesh Underlay */}
       <div className="absolute inset-0 z-0 opacity-60 dark:opacity-20 pointer-events-none animate-pulse print:hidden" style={{
         backgroundImage: `radial-gradient(circle at 10% 0%, #3A7BFF44 0%, transparent 50%), radial-gradient(circle at 90% 100%, #10b98133 0%, transparent 50%), radial-gradient(circle at 50% 50%, #fdb71411 0%, transparent 50%)`,

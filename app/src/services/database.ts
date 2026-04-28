@@ -28,7 +28,7 @@ import type {
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 interface BackupMetadata {
   id: string;
@@ -79,6 +79,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ['enrollments', 'id'],
         ['announcements', 'id'],
         ['attendanceRecords', 'id'],
+        ['sf2Sheets', 'id'],
         ['hpsRecords', 'id'],
         ['gradingSheetRecords', 'id'],
         ['backups', 'id'],
@@ -199,6 +200,7 @@ async function exportAllData() {
     enrollments: await getAllRecords<Enrollment>('enrollments'),
     announcements: await getAllRecords<Announcement>('announcements'),
     attendanceRecords: await getAllRecords<AttendanceRecord>('attendanceRecords'),
+    sf2Sheets: await getAllRecords<any>('sf2Sheets'),
     hpsRecords: await getAllRecords<any>('hpsRecords'),
   };
 
@@ -217,6 +219,7 @@ async function importFromBackup(backupData: {
   enrollments: Enrollment[];
   announcements: Announcement[];
   attendanceRecords: AttendanceRecord[];
+  sf2Sheets: any[];
   hpsRecords: any[];
 }) {
   // Clear existing data
@@ -229,6 +232,7 @@ async function importFromBackup(backupData: {
     'enrollments',
     'announcements',
     'attendanceRecords',
+    'sf2Sheets',
     'hpsRecords',
   ];
 
@@ -275,6 +279,11 @@ async function importFromBackup(backupData: {
   if (backupData.attendanceRecords) {
     for (const record of backupData.attendanceRecords) {
       await putRecord('attendanceRecords', record);
+    }
+  }
+  if ((backupData as any).sf2Sheets) {
+    for (const record of (backupData as any).sf2Sheets) {
+      await putRecord('sf2Sheets', record);
     }
   }
   if ((backupData as any).hpsRecords) {

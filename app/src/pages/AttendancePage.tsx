@@ -19,7 +19,7 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
     JANUARY: [4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29],
     FEBRUARY: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26],
     MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 29, 30, 31],
-    APRIL: [1, 5, 6, 7, 8],
+    APRIL: [1, 2, 5, 6, 7, 8],
 };
 
 
@@ -453,8 +453,7 @@ export function AttendancePage() {
                                 </div>
                             </div>
                         )}
-
-                        {/* Month Selector */}
+                        {/* Month Selector */}
                         <div className="flex flex-col">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Month</span>
                             <div className="relative group">
@@ -469,6 +468,23 @@ export function AttendancePage() {
                             </div>
                         </div>
 
+                        {/* Reset/Sync Dates Button */}
+                        {canEditCurrentSection && (
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Calendar Fix</span>
+                                <button
+                                    onClick={() => {
+                                        if (confirm("Reset current month's date headers to match official DEPED calendar?")) {
+                                            applyAutoFillDates(selectedMonth, true);
+                                        }
+                                    }}
+                                    className="h-10 px-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-2 shadow-sm"
+                                    title="Sync headers with official school calendar"
+                                >
+                                    Sync Dates
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 

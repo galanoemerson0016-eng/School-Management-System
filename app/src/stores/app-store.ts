@@ -168,7 +168,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSchoolProfile: (profile) => set({ schoolProfile: profile }),
   updateSchoolProfile: async (profile) => {
     try {
-      const updated = { ...get().schoolProfile, ...profile };
+      const currentProfile = get().schoolProfile;
+      const updated = { ...currentProfile, ...profile };
+
+      // If the school_id changed, delete the old record first so we don't
+      // leave a stale default entry (e.g. '123456') sitting in IndexedDB.
+      if (currentProfile.school_id && currentProfile.school_id !== updated.school_id) {
+        await db.deleteRecord('schoolProfile', currentProfile.school_id);
+      }
+
       set({ schoolProfile: updated });
       await db.putRecord('schoolProfile', updated);
       get().showNotification('School profile updated', 'success');
@@ -613,15 +621,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSF2Sheets: (sheets) => set({ sf2Sheets: sheets }),
   fetchSF2Sheet: async (sectionId, month) => {
     try {
-      console.log('Fetching SF2 sheet:', sectionId, month);
+      const sy = get().activeSchoolYear;
+      const id = `${sectionId}_${sy}_${month}`;
+      const sheet = await db.getRecord<SF2Sheet>('sf2Sheets', id);
+      if (sheet) {
+        set({ activeSF2Sheet: sheet });
+      } else {
+        set({ activeSF2Sheet: null });
+      }
     } catch (error) {
       console.error('Error fetching SF2 sheet:', error);
     }
   },
   saveSF2Sheet: async (sheet) => {
     try {
+      await db.putRecord('sf2Sheets', sheet);
       set((state) => ({
         sf2Sheets: [...state.sf2Sheets.filter((s) => s.id !== sheet.id), sheet],
+        activeSF2Sheet: sheet
       }));
     } catch (error) {
       console.error('Error saving SF2 sheet:', error);
@@ -698,7 +715,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const subjects = await db.getAllRecords<Subject>('subjects');
       const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
       const announcements = await db.getAllRecords<Announcement>('announcements');
-      const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', defaultSchoolProfile.school_id);
+      const allProfiles = await db.getAllRecords<SchoolProfile>('schoolProfile');
+      const schoolProfile = allProfiles.length > 0 ? allProfiles[0] : undefined;
 
       set({
         students,
@@ -742,8 +760,15 @@ export async function initializeAppStore() {
     const students = await loadStore<Student>('students');
     const sections = await loadStore<Section>('sections');
     const subjects = await loadStore<Subject>('subjects');
-    // Ensure subjects are blank if we are starting fresh with the new school ID
-    const schoolProfile = await db.getRecord<SchoolProfile>('schoolProfile', defaultSchoolProfile.school_id);
+    // Load the school profile by fetching all records.
+    // We do NOT use the hardcoded default school_id as the lookup key because
+    // the client may have changed their School ID, which changes the stored key.
+    // If somehow multiple records exist (legacy), prefer the non-default one.
+    const allProfiles = await db.getAllRecords<SchoolProfile>('schoolProfile');
+    const schoolProfile =
+      allProfiles.find(p => p.school_id !== defaultSchoolProfile.school_id) ??
+      allProfiles[0] ??
+      undefined;
     const finalSubjects = schoolProfile ? subjects : [];
 
     const classRecords = await loadStore<ClassRecord>('classRecords');
@@ -752,6 +777,7 @@ export async function initializeAppStore() {
     const attendanceRecords = await loadStore<AttendanceRecord>('attendanceRecords');
     const gradingSheetRecords = await loadStore<ClassRecord>('gradingSheetRecords');
     const hpsRecords = await loadStore<HPSRecord>('hpsRecords');
+    const sf2Sheets = await loadStore<SF2Sheet>('sf2Sheets');
 
 
     const advisorySection = sections.find(s => s.is_advisory || (s as any).is_advisory_class);
@@ -767,6 +793,7 @@ export async function initializeAppStore() {
       enrollments,
       announcements,
       attendanceRecords,
+      sf2Sheets,
       schoolProfile: schoolProfile || defaultSchoolProfile,
       isSyncReady: true,
       selectedSection: advisorySection ? advisorySection.section_name : null

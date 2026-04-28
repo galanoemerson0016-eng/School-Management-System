@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Remove previous listeners to prevent duplicates
     ipcRenderer.removeAllListeners('update-message');
     ipcRenderer.on('update-message', (_event, message) => callback(message));
-  }
+  },
+  saveAutoBackup: (data, filename) => ipcRenderer.invoke('save-auto-backup', { data, filename })
 });
 
 window.addEventListener('DOMContentLoaded', () => {

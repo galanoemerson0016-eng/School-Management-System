@@ -1,19 +1,17 @@
-const { app, BrowserWindow, screen, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('path');
-const { machineIdSync } = require('node-machine-id');
 const { autoUpdater } = require('electron-updater');
+const { machineIdSync } = require('node-machine-id');
+const fs = require('fs');
 
-const isDev = !app.isPackaged;
- 
-// Optimization for Sharp Text and High-DPI Screens
-app.commandLine.appendSwitch('high-dpi-support', '1');
-app.commandLine.appendSwitch('ignore-gpu-blacklist');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-// If blurriness persists on some Windows laptops, uncomment the line below:
-// app.disableHardwareAcceleration();
+const isDev = process.env.NODE_ENV === 'development';
 
-// SINGLE INSTANCE LOCK
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+if (require('electron-squirrel-startup')) {
+  app.quit();
+}
+
+// Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -29,75 +27,110 @@ if (!gotTheLock) {
   });
 
   function createWindow() {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
-  const mainWindow = new BrowserWindow({
-    width: width,
-    height: height,
-    minWidth: 1024,
-    minHeight: 768,
-    icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs'),
-    },
-    title: "FormEase G7 - School Management System",
-    autoHideMenuBar: true
-  });
+    const mainWindow = new BrowserWindow({
+      width: width,
+      height: height,
+      minWidth: 1024,
+      minHeight: 768,
+      icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.cjs'),
+      },
+      title: "FormEase Pro",
+      autoHideMenuBar: true
+    });
 
-  // Remove menu bar
-  Menu.setApplicationMenu(null);
+    // Hide the menu bar completely
+    mainWindow.setMenuBarVisibility(false);
 
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3001');
-  } else {
-    // In production, load the built index.html
-    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-    mainWindow.loadFile(indexPath);
-  }
-
-  // Prevent opening DevTools via keyboard shortcuts
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
-    const key = input.key.toLowerCase();
-
-    if ((isControlOrMeta && input.shift && key === 'i') || 
-        input.key === 'F12' ||
-        (isControlOrMeta && input.shift && key === 'j') ||
-        (isControlOrMeta && key === 'u')) {
-      event.preventDefault();
+    if (isDev) {
+      mainWindow.loadURL('http://localhost:3001');
+    } else {
+      // In production, load the built index.html
+      const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+      mainWindow.loadFile(indexPath);
     }
-  });
-}
 
-app.whenReady().then(() => {
-  createWindow();
+    // Prevent opening DevTools via keyboard shortcuts
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
+      const key = input.key.toLowerCase();
 
-  // Check for updates after the app is ready (only in production)
-  if (!isDev) {
-    setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
-    }, 3000);
+      if ((isControlOrMeta && input.shift && key === 'i') || 
+          input.key === 'F12' ||
+          (isControlOrMeta && input.shift && key === 'j') ||
+          (isControlOrMeta && key === 'u')) {
+        event.preventDefault();
+      }
+    });
   }
 
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
+  app.whenReady().then(() => {
+    createWindow();
 
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
-});
+    // Check for updates after the app is ready (only in production)
+    if (!isDev) {
+      setTimeout(() => {
+        autoUpdater.checkForUpdatesAndNotify();
+      }, 3000);
+    }
+
+    app.on('activate', function () {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', function () {
+    if (process.platform !== 'darwin') app.quit();
+  });
 }
 
-// IPC Handlers
+// --- IPC Handlers ---
+
 ipcMain.handle('get-machine-id', () => {
   try {
     return machineIdSync();
   } catch (error) {
     console.error('Failed to get machine ID:', error);
     return 'UNKNOWN-DEVICE';
+  }
+});
+
+ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const backupDir = path.join(userDataPath, 'backups');
+    
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    const filePath = path.join(backupDir, filename);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
+      .sort((a, b) => b.time - a.time);
+
+    if (files.length > 10) {
+      files.slice(10).forEach(f => {
+        try {
+          fs.unlinkSync(path.join(backupDir, f.name));
+        } catch (e) {
+          console.error('Failed to delete old backup:', e);
+        }
+      });
+    }
+
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Auto-backup failed:', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -110,31 +143,32 @@ function sendStatusToWindow(text) {
 }
 
 autoUpdater.on('checking-for-update', () => {
-  sendStatusToWindow('Checking for updates...');
+  sendStatusToWindow('Checking for update...');
 });
+
 autoUpdater.on('update-available', (info) => {
-  sendStatusToWindow(`Update available (v${info.version}). Downloading...`);
+  sendStatusToWindow('Update available! Downloading...');
 });
+
 autoUpdater.on('update-not-available', (info) => {
-  sendStatusToWindow('FormEase is up to date.');
+  sendStatusToWindow('App is up to date.');
 });
+
 autoUpdater.on('error', (err) => {
-  sendStatusToWindow('Error checking for updates.');
+  sendStatusToWindow('Error in auto-updater: ' + err);
 });
+
 autoUpdater.on('download-progress', (progressObj) => {
-  sendStatusToWindow(`Downloading update: ${Math.round(progressObj.percent)}%`);
+  let log_message = "Download speed: " + progressObj.bytesPerSecond;
+  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
+  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+  sendStatusToWindow(log_message);
 });
+
 autoUpdater.on('update-downloaded', (info) => {
-  sendStatusToWindow('Update downloaded. Restarting app to install...');
-  setTimeout(() => {
-    autoUpdater.quitAndInstall();
-  }, 3000);
+  sendStatusToWindow('Update downloaded. It will be installed on restart.');
 });
 
 ipcMain.on('check-for-updates', () => {
-  if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
-  } else {
-    sendStatusToWindow('Auto-updates disabled in development mode.');
-  }
+  autoUpdater.checkForUpdatesAndNotify();
 });
