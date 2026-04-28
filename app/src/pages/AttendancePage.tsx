@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search } from 'lucide-react';
+import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 
 type AttendanceDayStatus = string;
@@ -24,7 +24,7 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
 
 
 export function AttendancePage() {
-    const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView } = useAppStore();
+    const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
@@ -46,7 +46,7 @@ export function AttendancePage() {
 
     // Persistence: Sync store to local
     useEffect(() => {
-        if (activeSF2Sheet && activeSF2Sheet.month === selectedMonth && activeSF2Sheet.section_id === selectedSection && activeSF2Sheet.school_year === useAppStore.getState().activeSchoolYear) {
+        if (activeSF2Sheet && activeSF2Sheet.month === selectedMonth && activeSF2Sheet.section_id === selectedSection && activeSF2Sheet.school_year === activeSchoolYear) {
             setAttendanceData(prev => ({
                 ...prev,
                 [selectedMonth]: activeSF2Sheet.attendance || {}
@@ -72,9 +72,9 @@ export function AttendancePage() {
             if (!selectedSection || !pendingSaveRef.current) return;
             const { month: m, data: d, labels: l } = pendingSaveRef.current;
             saveSF2Sheet({
-                id: `${selectedSection}_${useAppStore.getState().activeSchoolYear}_${m}`,
+                id: `${selectedSection}_${activeSchoolYear}_${m}`,
                 section_id: selectedSection,
-                school_year: useAppStore.getState().activeSchoolYear,
+                school_year: activeSchoolYear,
                 month: m,
                 date_labels: l,
                 attendance: d,
@@ -99,9 +99,9 @@ export function AttendancePage() {
             if (pendingSaveRef.current && selectedSection) {
                 const { month, data, labels } = pendingSaveRef.current;
                 saveSF2Sheet({
-                    id: `${selectedSection}_${useAppStore.getState().activeSchoolYear}_${month}`,
+                    id: `${selectedSection}_${activeSchoolYear}_${month}`,
                     section_id: selectedSection,
-                    school_year: useAppStore.getState().activeSchoolYear,
+                    school_year: activeSchoolYear,
                     month,
                     date_labels: labels,
                     attendance: data,
@@ -145,7 +145,7 @@ export function AttendancePage() {
     }, [user, selectedSectionObj]);
 
     const buildAutoFilledDateLabels = (month: string): DateLabels => {
-        const sy = useAppStore.getState().activeSchoolYear;
+        const sy = activeSchoolYear;
         const filled: Record<number, string> = {};
 
         const monthMap: Record<string, number> = {
@@ -335,7 +335,7 @@ export function AttendancePage() {
     const handlePrint = () => {
         const selectedSectionName = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_name || 'Record';
         const originalTitle = document.title;
-        document.title = `SF2_${schoolProfile.name || 'School'}_${selectedSectionName}_${selectedMonth}_${useAppStore.getState().activeSchoolYear}`;
+        document.title = `SF2_${schoolProfile.name || 'School'}_${selectedSectionName}_${selectedMonth}_${activeSchoolYear}`;
         window.print();
         document.title = originalTitle;
     };
@@ -400,14 +400,14 @@ export function AttendancePage() {
         displayStudents.females.forEach(s => { if (hasConsecutiveAbsences(s)) femaleConsecutive++; });
 
         return {
-            maleBaseline, femaleBaseline,
-            maleLate, femaleLate,
-            maleRegistered, femaleRegistered,
-            maleADA, femaleADA,
-            malePerc, femalePerc,
-            maleConsecutive, femaleConsecutive
+            maleBaseline, femaleBaseline, totalBaseline: maleBaseline + femaleBaseline,
+            maleLate, femaleLate, totalLate: maleLate + femaleLate,
+            maleRegistered, femaleRegistered, totalRegistered: maleRegistered + femaleRegistered,
+            maleADA, femaleADA, totalADA: maleADA + femaleADA,
+            malePerc, femalePerc, totalPerc: (maleRegistered + femaleRegistered) > 0 ? ((maleADA + femaleADA) / (maleRegistered + femaleRegistered)) * 100 : 0,
+            maleConsecutive, femaleConsecutive, totalConsecutive: maleConsecutive + femaleConsecutive
         };
-    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days]);
+    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days, activeSchoolYear]);
 
     const singleSection = sortedSections.length === 1 ? sortedSections[0] : null;
 
@@ -425,9 +425,12 @@ export function AttendancePage() {
                         >
                             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                         </button>
+                        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                            <AppLogo className="w-6 h-6" />
+                        </div>
                         <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF2 Attendance</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Daily Report</p>
+                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF2 Daily Attendance</h2>
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">{schoolProfile.name} • S.Y. {activeSchoolYear}</p>
                         </div>
                     </div>
 
@@ -570,9 +573,9 @@ export function AttendancePage() {
                 {/* Row 1: School ID | School Year | Report for the Month of */}
                 <div className="flex items-center mb-0.5 text-[10px]">
                     <span className="font-bold mr-1 whitespace-nowrap">School ID</span>
-                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">307014</div>
+                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">{schoolProfile?.school_id}</div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">School Year</span>
-                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">2026-2027</div>
+                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">{activeSchoolYear}</div>
                     <span className="flex-1"></span>
                     <span className="font-bold mr-1 whitespace-nowrap">Report for the Month of</span>
                     <div className="border border-black bg-[#BDD7EE] px-2 py-0.5 w-32 text-center font-bold uppercase">{selectedMonth}</div>
@@ -581,13 +584,13 @@ export function AttendancePage() {
                 {/* Row 2: Name of School | Grade Level | Section */}
                 <div className="flex items-center mb-1.5 text-[10px]">
                     <span className="font-bold mr-1 whitespace-nowrap">Name of School</span>
-                    <div className="border border-black px-2 py-0.5 w-[340px] text-center font-bold uppercase">CALIBUNGAN HIGH SCHOOL</div>
+                    <div className="border border-black px-2 py-0.5 w-[340px] text-center font-bold uppercase">{schoolProfile?.name}</div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">Grade Level</span>
                     <div className="border border-black px-2 py-0.5 w-20 text-center font-bold whitespace-nowrap">
                         {sections.find(s => s.section_name === selectedSection)?.section_grade_level || '7'}
                     </div>
                     <span className="font-bold ml-4 mr-1 whitespace-nowrap">Section</span>
-                    <div className="border border-black px-2 py-0.5 w-36 text-center font-bold uppercase">{selectedSection || 'EMERALD'}</div>
+                    <div className="border border-black px-2 py-0.5 w-36 text-center font-bold uppercase">{selectedSection}</div>
                 </div>
 
                 {/* === MAIN TABLE === */}
@@ -858,26 +861,23 @@ export function AttendancePage() {
                         </div>
                         {/* Summary rows */}
                         {[
-                            { label: 'Enrolment as of (1st Friday of the school year)', m: summaryStats.maleBaseline, f: summaryStats.femaleBaseline },
-                            { label: 'Late Enrollment during the month (beyond cut-off)', m: summaryStats.maleLate, f: summaryStats.femaleLate },
-                            { label: 'Registered Learner as of end of the month', m: summaryStats.maleRegistered, f: summaryStats.femaleRegistered },
-                            { label: 'Percentage of Enrolment as of end of the month', m: (summaryStats.maleRegistered / summaryStats.maleBaseline * 100).toFixed(0), f: (summaryStats.femaleRegistered / summaryStats.femaleBaseline * 100).toFixed(0), isPerc: true },
-                            { label: 'Average Daily Attendance', m: summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA.toFixed(2) },
-                            { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc.toFixed(0), isPerc: true },
-                            { label: 'Number of students with 5 consecutive days of absences:', m: summaryStats.maleConsecutive, f: summaryStats.femaleConsecutive },
-                            { label: 'NLS', m: 0, f: 0 }, // Placeholder for now
-                            { label: 'Transferred out', m: 0, f: 0 }, // Placeholder
-                            { label: 'Transferred in', m: 0, f: 0 } // Placeholder
+                            { label: 'Enrolment as of (1st Friday of the school year)', m: summaryStats.maleBaseline, f: summaryStats.femaleBaseline, t: summaryStats.totalBaseline },
+                            { label: 'Late Enrollment during the month (beyond cut-off)', m: summaryStats.maleLate, f: summaryStats.femaleLate, t: summaryStats.totalLate },
+                            { label: 'Registered Learner as of end of the month', m: summaryStats.maleRegistered, f: summaryStats.femaleRegistered, t: summaryStats.totalRegistered },
+                            { label: 'Percentage of Enrolment as of end of the month', m: summaryStats.maleBaseline > 0 ? (summaryStats.maleRegistered / summaryStats.maleBaseline * 100).toFixed(0) : '0', f: summaryStats.femaleBaseline > 0 ? (summaryStats.femaleRegistered / summaryStats.femaleBaseline * 100).toFixed(0) : '0', t: summaryStats.totalBaseline > 0 ? (summaryStats.totalRegistered / summaryStats.totalBaseline * 100).toFixed(0) : '0', isPerc: true },
+                            { label: 'Average Daily Attendance', m: summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA.toFixed(2), t: summaryStats.totalADA.toFixed(2) },
+                            { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc.toFixed(0), t: summaryStats.totalPerc.toFixed(0), isPerc: true },
+                            { label: 'Number of students with 5 consecutive days of absences:', m: summaryStats.maleConsecutive, f: summaryStats.femaleConsecutive, t: summaryStats.totalConsecutive },
+                            { label: 'NLS', m: 0, f: 0, t: 0 },
+                            { label: 'Transferred out', m: 0, f: 0, t: 0 },
+                            { label: 'Transferred in', m: 0, f: 0, t: 0 }
                         ].map((row, i) => (
                             <div key={i} className="flex border-b border-black">
                                 <div className="flex-1 border-r border-black p-0.5 text-[8px] italic leading-tight">{row.label}</div>
                                 <div className="w-7 border-r border-black p-0.5 text-center text-[9px]">{row.m}</div>
                                 <div className="w-7 border-r border-black p-0.5 text-center text-[9px]">{row.f}</div>
                                 <div className="w-12 p-0.5 text-center text-[9px] font-bold">
-                                    {row.isPerc
-                                        ? ((Number(row.m) + Number(row.f)) / 2).toFixed(0) // Avg of percentages? Usually it is recalculated from totals.
-                                        : (Number(row.m) + Number(row.f)).toFixed(row.label.includes('Average') ? 2 : 0)
-                                    }
+                                    {row.t}
                                 </div>
                             </div>
                         ))}
@@ -910,7 +910,7 @@ export function AttendancePage() {
                             <div className="text-[9px] mb-1">Attested by:</div>
                             <div className="text-center">
                                 <div className="font-bold border-b border-black w-48 mx-auto uppercase">
-                                    {schoolProfile?.head_name || 'JUAN A. DELA CRUZ'}
+                                    {schoolProfile?.head_name}
                                 </div>
                                 <div className="text-[8px]">(Signature of School Head over Printed Name)</div>
                             </div>

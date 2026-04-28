@@ -6,11 +6,6 @@ const fs = require('fs');
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
-
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 

@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "1.0.8",
+  "version": "1.0.14",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",

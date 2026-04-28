@@ -1,6 +1,0 @@
-@echo off
-echo Starting FormEase G7 Development Server...
-echo Running on http://localhost:3001...
-cd /d "%~dp0app"
-npm run dev -- --port 3001
-pause
