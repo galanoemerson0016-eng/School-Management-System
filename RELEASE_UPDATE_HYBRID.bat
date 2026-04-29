@@ -72,45 +72,30 @@ echo.
 :: ============================================================
 echo [3/8] Pushing to GitHub and creating version tag...
 cd /d "%~dp0"
+echo  [DEBUG] Current Dir: %CD%
+pause
 call git add .
+echo  [DEBUG] git add finished
+pause
 call git commit -m "Release v%NEW_VERSION%"
-if %ERRORLEVEL% neq 0 (
-    echo  Note: Nothing new to commit or commit failed. Continuing to tag...
-)
+echo  [DEBUG] git commit finished
+pause
 
 echo  Creating tag v%NEW_VERSION%...
-:: Use -f to overwrite local tag if it exists from a previous failed run
 call git tag -f "v%NEW_VERSION%"
-if %ERRORLEVEL% neq 0 (
-    echo  ERROR: Failed to create tag.
-    pause
-    goto ERROR_EXIT
-)
+echo  [DEBUG] git tag finished
+pause
 
-echo  Pushing code and tags to GitHub (this may take a moment)...
+echo  Pushing code and tags to GitHub...
 call git push origin main --tags -f
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo  [!] Push failed. This usually means you need to pull first or check your connection.
-    echo  Attempting force push one last time...
-    call git push origin main --tags --force
-    if %ERRORLEVEL% neq 0 (
-        echo  CRITICAL ERROR: Could not push to GitHub.
-        pause
-        goto ERROR_EXIT
-    )
-)
-echo.
-echo  Code pushed. Tag v%NEW_VERSION% created.
-echo  macOS cloud build has been triggered!
-echo.
-echo  STAY OPEN: Successfully finished Step 3.
-echo.
+echo  [DEBUG] git push finished
+pause
 
 :: ============================================================
 :: [4] CREATE GITHUB RELEASE + UPLOAD WINDOWS EXE
 :: ============================================================
 echo [4/8] Creating GitHub Release and uploading Windows installer...
+pause
 
 :: Find the Windows EXE file
 set WIN_EXE=
