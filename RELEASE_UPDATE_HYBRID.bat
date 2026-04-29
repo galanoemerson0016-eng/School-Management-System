@@ -102,32 +102,34 @@ set WIN_EXE=
 for %%f in ("app\release\*.exe") do (
     set WIN_EXE=%%f
 )
+echo  [DEBUG] WIN_EXE found: !WIN_EXE!
+pause
 
 if "!WIN_EXE!"=="" (
     echo  WARNING: No .exe found in app\release\. Skipping Windows upload.
 ) else (
     echo  Found: !WIN_EXE!
     :: Create the release (or update if Mac build already created it)
-    gh release create "v%NEW_VERSION%" --title "FormEase Pro v%NEW_VERSION%" --notes "Release v%NEW_VERSION% - Windows and macOS" --latest 2>nul
-    if %ERRORLEVEL% neq 0 (
-        echo  Release may already exist (created by Mac build). Continuing...
-    )
+    echo  Running: gh release create "v%NEW_VERSION%"
+    call gh release create "v%NEW_VERSION%" --title "FormEase Pro v%NEW_VERSION%" --notes "Release v%NEW_VERSION% - Windows and macOS" --latest
+    echo  [DEBUG] gh release create finished
+    pause
     
     echo  Uploading Windows installer to GitHub...
-    gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber --no-progress
-    if %ERRORLEVEL% neq 0 (
-        echo  ERROR: Failed to upload Windows installer to GitHub.
-        pause
-        goto ERROR_EXIT
-    )
+    call gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber --no-progress
+    echo  [DEBUG] gh release upload finished
+    pause
+    
     echo  Windows EXE uploaded successfully!
 )
 echo.
+pause
 
 :: ============================================================
 :: [5] WAIT FOR MAC BUILD TO COMPLETE
 :: ============================================================
 echo [5/8] Waiting for macOS build to finish in the cloud...
+pause
 echo  This usually takes 4-6 minutes. Please wait...
 echo.
 
