@@ -110,7 +110,7 @@ if "!WIN_EXE!"=="" (
     )
     
     echo  Uploading Windows installer to GitHub...
-    gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber
+    gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber --no-progress
     if %ERRORLEVEL% neq 0 (
         echo  ERROR: Failed to upload Windows installer to GitHub.
         pause
@@ -180,12 +180,12 @@ set MAC_TEMP_DIR=%~dp0_mac_temp
 if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
 mkdir "%MAC_TEMP_DIR%"
 
-gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_TEMP_DIR%"
+gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_TEMP_DIR%" --no-progress
 
 if %ERRORLEVEL% neq 0 (
     echo  WARNING: Failed to download Mac artifacts from run. Trying download from Release...
-    gh release download "v%NEW_VERSION%" --pattern "*.dmg" --dir "%MAC_INSTALLERS_DIR%" --clobber 2>nul
-    gh release download "v%NEW_VERSION%" --pattern "latest-mac.yml" --dir "%MAC_TEMP_DIR%" --clobber 2>nul
+    gh release download "v%NEW_VERSION%" --pattern "*.dmg" --dir "%MAC_INSTALLERS_DIR%" --clobber --no-progress 2>nul
+    gh release download "v%NEW_VERSION%" --pattern "latest-mac.yml" --dir "%MAC_TEMP_DIR%" --clobber --no-progress 2>nul
     if not exist "%MAC_TEMP_DIR%\latest-mac.yml" (
         echo  WARNING: Could not find Mac metadata. Skipping Mac deployment.
         goto SKIP_MAC
@@ -202,12 +202,12 @@ echo.
 :: Upload Mac files to GitHub Release (if not already there)
 echo  Ensuring Mac files are in GitHub Release...
 for %%f in ("%MAC_INSTALLERS_DIR%\*.dmg") do (
-    gh release upload "v%NEW_VERSION%" "%%f" --clobber 2>nul
+    gh release upload "v%NEW_VERSION%" "%%f" --clobber --no-progress 2>nul
     echo  Verified: %%~nxf
 )
 :: Use temp dir for zip/metadata uploads
 for %%f in ("%MAC_TEMP_DIR%\app\release\*.zip") do (
-    gh release upload "v%NEW_VERSION%" "%%f" --clobber 2>nul
+    gh release upload "v%NEW_VERSION%" "%%f" --clobber --no-progress 2>nul
     echo  Verified: %%~nxf
 )
 echo.

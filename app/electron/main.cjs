@@ -130,10 +130,13 @@ ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
 });
 
 // --- Auto Updater Logic ---
-function sendStatusToWindow(text) {
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+
+function sendStatusToWindow(text, status = 'info') {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
-    windows[0].webContents.send('update-message', text);
+    windows[0].webContents.send('update-message', { text, status });
   }
 }
 
@@ -142,7 +145,22 @@ autoUpdater.on('checking-for-update', () => {
 });
 
 autoUpdater.on('update-available', (info) => {
-  sendStatusToWindow('Update available! Downloading...');
+  const { dialog } = require('electron');
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Available',
+    message: `A new version (${info.version}) of FormEase Pro is available. Would you like to download it now?`,
+    buttons: ['Download Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1
+  }).then(result => {
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate();
+      sendStatusToWindow('Downloading update...', 'downloading');
+    } else {
+      sendStatusToWindow('Update postponed.');
+    }
+  });
 });
 
 autoUpdater.on('update-not-available', (info) => {
@@ -150,18 +168,35 @@ autoUpdater.on('update-not-available', (info) => {
 });
 
 autoUpdater.on('error', (err) => {
-  sendStatusToWindow('Error in auto-updater: ' + err);
+  sendStatusToWindow('Error in auto-updater: ' + err, 'error');
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-  let log_message = "Download speed: " + progressObj.bytesPerSecond;
-  log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
-  log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
-  sendStatusToWindow(log_message);
+  const speedMB = (progressObj.bytesPerSecond / (1024 * 1024)).toFixed(2);
+  const percent = Math.round(progressObj.percent);
+  const transferredMB = (progressObj.transferred / (1024 * 1024)).toFixed(1);
+  const totalMB = (progressObj.total / (1024 * 1024)).toFixed(1);
+  
+  const message = `Downloading: ${percent}% (${transferredMB}MB / ${totalMB}MB) @ ${speedMB} MB/s`;
+  sendStatusToWindow(message, 'progress');
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  sendStatusToWindow('Update downloaded. It will be installed on restart.');
+  const { dialog } = require('electron');
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Ready',
+    message: 'The update has been downloaded and is ready to install. The app will restart now.',
+    buttons: ['Install and Restart', 'Later'],
+    defaultId: 0,
+    cancelId: 1
+  }).then(result => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    } else {
+      sendStatusToWindow('Update ready to install on next launch.');
+    }
+  });
 });
 
 ipcMain.on('check-for-updates', () => {
