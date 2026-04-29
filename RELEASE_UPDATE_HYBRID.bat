@@ -72,20 +72,39 @@ echo.
 :: ============================================================
 echo [3/8] Pushing to GitHub and creating version tag...
 cd /d "%~dp0"
-git add .
-git commit -m "Release v%NEW_VERSION%"
-:: Use -f to overwrite local tag if it exists from a previous failed run
-git tag -f "v%NEW_VERSION%"
-
-echo  Pushing to GitHub (this may take a moment)...
-git push origin main --tags -f
+call git add .
+call git commit -m "Release v%NEW_VERSION%"
 if %ERRORLEVEL% neq 0 (
-    echo  WARNING: Push failed. Attempting force push...
-    git push origin main --tags --force
+    echo  Note: Nothing new to commit or commit failed. Continuing to tag...
+)
+
+echo  Creating tag v%NEW_VERSION%...
+:: Use -f to overwrite local tag if it exists from a previous failed run
+call git tag -f "v%NEW_VERSION%"
+if %ERRORLEVEL% neq 0 (
+    echo  ERROR: Failed to create tag.
+    pause
+    goto ERROR_EXIT
+)
+
+echo  Pushing code and tags to GitHub (this may take a moment)...
+call git push origin main --tags -f
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo  [!] Push failed. This usually means you need to pull first or check your connection.
+    echo  Attempting force push one last time...
+    call git push origin main --tags --force
+    if %ERRORLEVEL% neq 0 (
+        echo  CRITICAL ERROR: Could not push to GitHub.
+        pause
+        goto ERROR_EXIT
+    )
 )
 echo.
 echo  Code pushed. Tag v%NEW_VERSION% created.
 echo  macOS cloud build has been triggered!
+echo.
+echo  STAY OPEN: Successfully finished Step 3.
 echo.
 
 :: ============================================================
