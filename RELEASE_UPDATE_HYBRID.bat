@@ -128,7 +128,7 @@ echo  This usually takes 4-6 minutes. Please wait...
 echo.
 
 :: Find the workflow run triggered by our tag
-set MAX_RETRIES=40
+set MAX_RETRIES=60
 set RETRY_COUNT=0
 
 :WAIT_LOOP
@@ -137,29 +137,34 @@ if %RETRY_COUNT% gtr %MAX_RETRIES% (
     echo.
     echo  TIMEOUT: Mac build did not complete in time.
     echo  You can check manually: https://github.com/galanoemerson0016-eng/School-Management-System/actions
-    echo  Continuing with Windows-only deployment...
-    goto SKIP_MAC
+    echo.
+    set /p CONTINUE="Continue with Windows-only deployment? (Y/N): "
+    if /i "!CONTINUE!"=="Y" goto SKIP_MAC
+    pause
+    exit /b 1
 )
 
-:: Check if the Mac workflow has a completed run for this tag
+:: Check for the latest run of the build-macos workflow
 set RUN_ID=
 set RUN_STATUS=
-for /f "tokens=1,2" %%a in ('gh run list --workflow "build-macos.yml" --limit 1 --json databaseId^,status --jq ".[0] | \"\(.databaseId) \(.status)\"" 2^>nul') do (
-    set RUN_ID=%%a
-    set RUN_STATUS=%%b
-)
+set RUN_BRANCH=
 
-if "!RUN_STATUS!"=="completed" (
-    echo.
-    echo  macOS build completed! Run ID: !RUN_ID!
-    goto MAC_DONE
-)
+for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul`) do set RUN_ID=%%a
+for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json status --jq ".[0].status" 2^>nul`) do set RUN_STATUS=%%a
+for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json headBranch --jq ".[0].headBranch" 2^>nul`) do set RUN_BRANCH=%%a
 
-if "!RUN_ID!"=="" (
-    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Waiting for workflow to start...
-) else (
+if "!RUN_BRANCH!"=="v%NEW_VERSION%" (
+    if "!RUN_STATUS!"=="completed" (
+        echo.
+        echo  macOS build completed! Run ID: !RUN_ID!
+        goto MAC_DONE
+    )
     echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Status: !RUN_STATUS! - waiting 20 seconds...
+) else (
+    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Waiting for workflow for v%NEW_VERSION% to start...
+    echo  (Currently seeing: !RUN_BRANCH! - !RUN_STATUS!)
 )
+
 timeout /t 20 /nobreak >nul
 goto WAIT_LOOP
 
