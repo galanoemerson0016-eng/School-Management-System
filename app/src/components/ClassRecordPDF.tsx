@@ -165,7 +165,7 @@ interface ClassRecordPDFProps {
     sectionName: string;
     teacherName: string;
     subjectName: string;
-    hps: { ww: number[]; pt: number[]; qa: number };
+    hps: { ww: (number | string)[]; pt: (number | string)[]; qa: number | string };
     currentWeights: { written_works: number; performance_tasks: number; quarterly_exam: number };
     maleStudents: Student[];
     femaleStudents: Student[];
@@ -277,15 +277,15 @@ export const ClassRecordPDF = ({
 
                     {/* Info Grid - Top Row */}
                     <View style={styles.infoGrid}>
-                        <View style={[styles.infoBox, { flex: 1, borderLeftWidth: 0 }]}>
+                        <View style={[styles.infoBox, { flex: 1.2, borderLeftWidth: 0 }]}>
                             <Text style={styles.infoLabel}>REGION</Text>
                             <Text style={styles.infoValue}>{schoolProfile.region}</Text>
                         </View>
-                        <View style={[styles.infoBox, { flex: 1 }]}>
+                        <View style={[styles.infoBox, { flex: 1.5 }]}>
                             <Text style={styles.infoLabel}>DIVISION</Text>
                             <Text style={styles.infoValue}>{schoolProfile.division}</Text>
                         </View>
-                        <View style={[styles.infoBox, { flex: 1 }]}>
+                        <View style={[styles.infoBox, { flex: 1.5 }]}>
                             <Text style={styles.infoLabel}>DISTRICT</Text>
                             <Text style={styles.infoValue}>{schoolProfile.district}</Text>
                         </View>
@@ -296,11 +296,11 @@ export const ClassRecordPDF = ({
                             <Text style={styles.infoLabel}>SCHOOL NAME</Text>
                             <Text style={styles.infoValue}>{schoolProfile.name}</Text>
                         </View>
-                        <View style={[styles.infoBox, { flex: 0.8 }]}>
+                        <View style={[styles.infoBox, { flex: 0.9 }]}>
                             <Text style={styles.infoLabel}>SCHOOL ID</Text>
                             <Text style={styles.infoValue}>{schoolProfile.school_id}</Text>
                         </View>
-                        <View style={[styles.infoBox, { flex: 0.8 }]}>
+                        <View style={[styles.infoBox, { flex: 0.9 }]}>
                             <Text style={styles.infoLabel}>SCHOOL YEAR</Text>
                             <Text style={styles.infoValue}>{activeSchoolYear}</Text>
                         </View>
@@ -367,12 +367,12 @@ export const ClassRecordPDF = ({
                     <View style={[styles.row, { height: 16 }]}>
                         <View style={[styles.cell, styles.nameCell, { backgroundColor: '#e0ffff' }]}><Text>HIGHEST POSSIBLE SCORE</Text></View>
                         {hps.ww.map((val, i) => <View style={[styles.cell, styles.scoreCell, { backgroundColor: '#ffffff' }]} key={`hps-ww-${i}`}><Text>{val || ''}</Text></View>)}
-                        <View style={[styles.cell, styles.totalCell, { backgroundColor: '#ffffff' }]}><Text>{hps.ww.reduce((a, b) => a + b, 0)}</Text></View>
+                        <View style={[styles.cell, styles.totalCell, { backgroundColor: '#ffffff' }]}><Text>{hps.ww.some(v => String(v) !== '') ? hps.ww.reduce((a: number, b) => a + Number(b), 0) : ''}</Text></View>
                         <View style={[styles.cell, styles.scoreCell, { backgroundColor: '#ffffff' }]}><Text>100.00</Text></View>
                         <View style={[styles.cell, styles.scoreCell, { fontWeight: 'bold', backgroundColor: '#d1d5db' }]}><Text>{Math.round(currentWeights.written_works * 100)}%</Text></View>
 
                         {hps.pt.map((val, i) => <View style={[styles.cell, styles.scoreCell, { backgroundColor: '#ffffff' }]} key={`hps-pt-${i}`}><Text>{val || ''}</Text></View>)}
-                        <View style={[styles.cell, styles.totalCell, { backgroundColor: '#ffffff' }]}><Text>{hps.pt.reduce((a, b) => a + b, 0)}</Text></View>
+                        <View style={[styles.cell, styles.totalCell, { backgroundColor: '#ffffff' }]}><Text>{hps.pt.some(v => String(v) !== '') ? hps.pt.reduce((a: number, b) => a + Number(b), 0) : ''}</Text></View>
                         <View style={[styles.cell, styles.scoreCell, { backgroundColor: '#ffffff' }]}><Text>100.00</Text></View>
                         <View style={[styles.cell, styles.scoreCell, { fontWeight: 'bold', backgroundColor: '#d1d5db' }]}><Text>{Math.round(currentWeights.performance_tasks * 100)}%</Text></View>
 

@@ -32,7 +32,7 @@ if %ERRORLEVEL% neq 0 (
     if %ERRORLEVEL% neq 0 (
         echo  ERROR: GitHub authentication failed. Please try again.
         pause
-        exit /b 1
+        goto ERROR_EXIT
     )
 )
 echo  GitHub CLI authenticated successfully.
@@ -61,7 +61,7 @@ call npm run electron:build:win
 if %ERRORLEVEL% neq 0 (
     echo  ERROR: Windows build failed!
     pause
-    exit /b 1
+    goto ERROR_EXIT
 )
 echo.
 echo  Windows build complete!
@@ -114,7 +114,7 @@ if "!WIN_EXE!"=="" (
     if %ERRORLEVEL% neq 0 (
         echo  ERROR: Failed to upload Windows installer to GitHub.
         pause
-        exit /b 1
+        goto ERROR_EXIT
     )
     echo  Windows EXE uploaded successfully!
 )
@@ -141,7 +141,7 @@ if %RETRY_COUNT% gtr %MAX_RETRIES% (
     set /p CONTINUE="Continue with Windows-only deployment? (Y/N): "
     if /i "!CONTINUE!"=="Y" goto SKIP_MAC
     pause
-    exit /b 1
+    goto ERROR_EXIT
 )
 
 :: Check for the latest run of the build-macos workflow
@@ -269,6 +269,9 @@ if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
 echo [8/8] Deploying update metadata to Firebase Hosting...
 cd /d "%~dp0update-server"
 call firebase deploy --only hosting
+if %ERRORLEVEL% neq 0 (
+    echo  WARNING: Firebase deployment failed. You may need to deploy manually.
+)
 
 echo.
 echo ========================================================
@@ -283,3 +286,11 @@ echo   Release: https://github.com/galanoemerson0016-eng/School-Management-Syste
 echo.
 echo ========================================================
 pause
+exit /b 0
+
+:ERROR_EXIT
+echo.
+echo [!] SCRIPT FAILED AT STEP %~1
+echo.
+pause
+exit /b 1

@@ -114,7 +114,7 @@ export function EClassRecord() {
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
         if (!selectedSubject) {
-            return { ww: Array(WW_COUNT).fill(0), pt: Array(PT_COUNT).fill(0), qa: Array(ST_COUNT).fill(0) };
+            return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
         const record = hpsRecords.find(r =>
@@ -125,14 +125,14 @@ export function EClassRecord() {
 
         const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
 
-        const hps_ww = normalizeScores(record?.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-        const hps_pt = normalizeScores(record?.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
+        const hps_ww = normalizeScores(record?.written_works, WW_COUNT).map(v => v === '' ? '' : Number(v));
+        const hps_pt = normalizeScores(record?.performance_tasks, PT_COUNT).map(v => v === '' ? '' : Number(v));
         const hps_qa = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
             if (i === 2 && (v === undefined || v === '')) {
                 const legacy = record?.quarterly_exam;
-                return (legacy === undefined || legacy === '') ? 0 : Number(legacy);
+                return (legacy === undefined || legacy === '') ? '' : Number(legacy);
             }
-            return v === '' ? 0 : Number(v);
+            return v === '' ? '' : Number(v);
         });
 
         return {
@@ -141,6 +141,7 @@ export function EClassRecord() {
             qa: hps_qa
         };
     }, [hpsRecords, selectedSubject, activeSchoolYear, quarter]);
+
 
     // Get current subject and its weight cluster
     const selectedSubjectObj = useMemo(() => {
@@ -701,39 +702,52 @@ export function EClassRecord() {
                                 <div className="text-center flex-1 mx-4">
                                     <h1 className="text-2xl font-bold font-serif tracking-wide text-black mb-0 uppercase">Class Record</h1>
                                     <p className="text-[12px] italic text-red-600 font-serif mb-2">(Pursuant to DepEd Order 8 series of 2015)</p>
-                                    <div className="grid grid-cols-[auto_auto_auto] gap-x-12 gap-y-2 text-[10px] font-bold uppercase mb-4 justify-center">
+                                    <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-[10px] font-bold uppercase mb-6 justify-center w-full px-2">
                                         {/* Row 1, Col 1: Region */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">REGION</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[140px] text-center bg-white">{schoolProfile.region}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">REGION</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[100px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
+                                                {schoolProfile.region}
+                                            </div>
                                         </div>
                                         {/* Row 1, Col 2: Division */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">DIVISION</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[180px] text-center bg-white">{schoolProfile.division}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">DIVISION</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
+                                                {schoolProfile.division}
+                                            </div>
                                         </div>
                                         {/* Row 1, Col 3: District */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">DISTRICT</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[150px] text-center bg-white">{schoolProfile.district || ''}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">DISTRICT</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
+                                                {schoolProfile.district || ''}
+                                            </div>
                                         </div>
 
                                         {/* Row 2, Col 1: School Name */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">SCHOOL NAME</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[140px] text-center bg-white">{schoolProfile.name}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL NAME</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[140px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
+                                                {schoolProfile.name}
+                                            </div>
                                         </div>
                                         {/* Row 2, Col 2: School ID */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">SCHOOL ID</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[180px] text-center bg-white">{schoolProfile.school_id}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL ID</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white whitespace-nowrap">
+                                                {schoolProfile.school_id}
+                                            </div>
                                         </div>
                                         {/* Row 2, Col 3: School Year */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-400 mr-2 w-24 text-right">SCHOOL YEAR</span>
-                                            <div className="border border-black px-3 py-0.5 min-w-[150px] text-center bg-white">{activeSchoolYear}</div>
+                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL YEAR</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white whitespace-nowrap">
+                                                {activeSchoolYear}
+                                            </div>
                                         </div>
                                     </div>
+
                                 </div>
                                 <div className="w-40 h-24 flex items-center justify-center">
                                     <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-auto object-contain" />
@@ -809,7 +823,7 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.ww.reduce((a, b) => a + b, 0)}</td>
+                                        <td className="border border-black bg-gray-100">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-gray-100">100.00</td>
                                         <td className="border border-black bg-gray-100">{currentWeights.written_works * 100}%</td>
                                         {hps.pt.map((val, i) => (
@@ -825,7 +839,7 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.pt.reduce((a, b) => a + b, 0)}</td>
+                                        <td className="border border-black bg-gray-100">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-gray-100">100.00</td>
                                         <td className="border border-black bg-gray-100">{currentWeights.performance_tasks * 100}%</td>
                                         {hps.qa.map((val, i) => (
@@ -841,7 +855,7 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.qa.reduce((a, b) => a + Number(b), 0)}</td>
+                                        <td className="border border-black bg-gray-100">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-gray-100">100.00</td>
                                         <td className="border border-black bg-gray-100">{currentWeights.quarterly_exam * 100}%</td>
                                     </tr>

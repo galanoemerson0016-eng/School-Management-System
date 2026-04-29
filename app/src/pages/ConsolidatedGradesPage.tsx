@@ -1,6 +1,7 @@
 import { useState, useMemo, Fragment, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, Download, Lock, Unlock, RefreshCcw, Trash2 } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, Download, Lock, Unlock, RefreshCcw, Trash2, FileSpreadsheet, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
@@ -32,6 +33,7 @@ type StudentGradeRow = Record<string, QuarterGrades> & {
 type GradesData = Record<string, StudentGradeRow>;
 
 type VirtualSectionSubject = Subject & { 
+    is_virtual?: boolean;
     _mapehGroups?: { 
         musicArts: Subject[], 
         peHealth: Subject[] 
@@ -155,11 +157,20 @@ const GradeInput = ({
     );
 };
 
+const WW_COUNT = 5;
+const PT_COUNT = 3;
+const ST_COUNT = 3;
+
+const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
+    const src = Array.isArray(scores) ? scores : [];
+    return Array.from({ length: count }, (_, i) => src[i] ?? '');
+};
+
 export function ConsolidatedGradesPage() {
     const {
         sections, subjects, students, gradingSheetRecords, updateGradingSheetRecord,
         activeSchoolYear, schoolProfile, setCurrentView,
-        selectedSection, setSelectedSection, classRecords
+        selectedSection, setSelectedSection, classRecords, hpsRecords, showNotification
     } = useAppStore();
     const { user } = useAuthStore();
 
@@ -167,10 +178,245 @@ export function ConsolidatedGradesPage() {
     const [isSyncing, setIsSyncing] = useState(false);
     const showGenAvg = selectedTerm !== 'all';
 
-
-
     // Derived State
     const sectionObj = useMemo(() => sections.find(s => s.section_name === selectedSection), [sections, selectedSection]);
+
+    // ADVISORY CHECK: Is the current user the adviser of this section?
+    const isAdviser = useMemo(() => {
+        if (!sectionObj || !user) return false;
+        
+        // 1. Check by ID if available
+        if (sectionObj.adviser_id === user.uid) return true;
+        
+        // 2. Check by Name if ID is missing (fallback)
+        const profileAdviser = (schoolProfile.adviser_name || '').trim().toLowerCase();
+        const sectionAdviser = (sectionObj.adviser_name || '').trim().toLowerCase();
+        const userDisplayName = (user.displayName || '').trim().toLowerCase();
+        
+        // Match either the school profile adviser or the section-specific adviser name
+        return (userDisplayName !== '' && (userDisplayName === profileAdviser || userDisplayName === sectionAdviser)) || sectionObj.is_advisory === true;
+    }, [sectionObj, user, schoolProfile.adviser_name]);
+
+    const handleSyncFromEClass = async () => {
+        if (!sectionObj || !isAdviser || selectedTerm === 'all') {
+            showNotification('Sync is only available for specific terms (Q1-Q3) in your Advisory Class.', 'info');
+            return;
+        }
+
+        const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
+        setIsSyncing(true);
+        let syncCount = 0;
+
+        try {
+            // Process each student in the section
+            for (const student of sectionStudents) {
+                // Process each subject in the section
+                for (const subject of sectionSubjects) {
+                    if (subject.is_virtual && subject.subject_name.toUpperCase() === 'MAPEH') continue;
+
+                    // 1. Find HPS for this subject/quarter
+                    const hpsRec = hpsRecords.find(r => 
+                        r.subject_id === subject.id && 
+                        r.school_year === activeSchoolYear && 
+                        Number(r.quarter) === quarter
+                    );
+
+                    if (!hpsRec) continue; // No E-Class setup for this subject yet
+
+                    // 2. Find Student Record
+                    const record = classRecords.find(r => 
+                        r.student_lrn === student.lrn && 
+                        r.subject_id === subject.id && 
+                        Number(r.quarter) === quarter
+                    );
+
+                    if (!record) continue;
+
+                    // 3. Calculation Logic (Matching EClassRecord.tsx)
+                    const hps_ww = normalizeScores(hpsRec.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
+                    const hps_pt = normalizeScores(hpsRec.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
+                    const rawHpsQa = (hpsRec as any).summative_tests;
+                    const hps_qa = normalizeScores(rawHpsQa, ST_COUNT).map((v, i) => {
+                        if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
+                        return Number(v) || 0;
+                    });
+
+                    const wwScores = normalizeScores(record.written_works, WW_COUNT).map(v => Number(v) || 0);
+                    const ptScores = normalizeScores(record.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+                    const rawQa = (record as any).summative_tests;
+                    const qaScores = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
+                        if (i === 2 && (v === undefined || v === '')) return Number(record.quarterly_exam) || 0;
+                        return Number(v) || 0;
+                    });
+
+                    const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
+                    const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
+                    const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
+                    const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
+                    const qaScore = qaScores.reduce((a, b) => a + b, 0);
+                    const qaHPS = hps_qa.reduce((a, b) => a + b, 0);
+
+                    const weights = getWeights(getSubjectCluster(subject.subject_name));
+                    const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
+                    const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
+                    const qaWS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100 * weights.quarterly_exam;
+
+                    const initialGrade = wwWS + ptWS + qaWS;
+                    const finalGrade = transmuteGrade(initialGrade);
+
+                    if (finalGrade > 0) {
+                        await updateGradingSheetRecord({
+                            id: `${student.lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
+                            student_lrn: student.lrn,
+                            subject_id: subject.id,
+                            section_id: sectionObj.id,
+                            quarter: quarter as 1 | 2 | 3 | 4,
+                            school_year: activeSchoolYear,
+                            final_grade: finalGrade,
+                            written_works: [],
+                            performance_tasks: [],
+                            quarterly_exam: 0
+                        });
+                        syncCount++;
+                    }
+                }
+            }
+            showNotification(`Successfully synced ${syncCount} grades from E-Class Records!`, 'success');
+        } catch (error) {
+            console.error('Sync error:', error);
+            showNotification('Failed to sync grades. Please check your connection.', 'error');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleExportTemplate = () => {
+        if (!sectionObj || selectedTerm === 'all') {
+            showNotification('Please select a specific term to download a template.', 'info');
+            return;
+        }
+
+        const termLabel = TERM_LABELS[selectedTerm];
+        const wb = XLSX.utils.book_new();
+
+        sectionSubjects.forEach(subject => {
+            if (subject.is_virtual && subject.subject_name.toUpperCase() === 'MAPEH') return;
+
+            // 1. Create Metadata Rows (Rows 1-5)
+            const metadata = [
+                ['SUBJECT_ID:', subject.id],
+                ['SUBJECT_NAME:', subject.subject_name],
+                ['SECTION:', sectionObj.section_name],
+                ['TERM:', termLabel],
+                ['INSTRUCTIONS:', 'PLEASE DO NOT EDIT COLUMNS A & B. INPUT GRADES IN COLUMN C ONLY.']
+            ];
+
+            // 2. Create Data Headers (Row 6)
+            const headers = [['LRN', 'Learner Name', 'Grade']];
+
+            // 3. Create Student Rows (Separated by Gender and Alphabetical)
+            const maleRows = maleStudents.map(student => [
+                student.lrn,
+                formatLearnerName(student),
+                ''
+            ]);
+
+            const femaleRows = femaleStudents.map(student => [
+                student.lrn,
+                formatLearnerName(student),
+                ''
+            ]);
+
+            // Combine all rows with Gender Headers
+            const allRows = [
+                ...metadata,
+                [''], // Spacer
+                ...headers,
+                ['MALE', '', ''],
+                ...maleRows,
+                [''], // Spacer
+                ['FEMALE', '', ''],
+                ...femaleRows
+            ];
+
+            // Create Worksheet
+            const ws = XLSX.utils.aoa_to_sheet(allRows);
+            
+            // Set column widths
+            ws['!cols'] = [{ wch: 20 }, { wch: 35 }, { wch: 10 }];
+            
+            XLSX.utils.book_append_sheet(wb, ws, subject.subject_name.substring(0, 31));
+        });
+
+        const fileName = `Grading_Template_${sectionObj.section_name}_${termLabel}_${activeSchoolYear}.xlsx`.replace(/\s+/g, '_');
+        XLSX.writeFile(wb, fileName);
+        showNotification('Professional grading template downloaded!', 'success');
+    };
+
+    const handleImportGrades = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !sectionObj || selectedTerm === 'all') return;
+
+        const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
+        const reader = new FileReader();
+        
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                let importCount = 0;
+
+                for (const sheetName of workbook.SheetNames) {
+                    const ws = workbook.Sheets[sheetName];
+                    // Convert to AOA (Array of Arrays) to read metadata from specific cells
+                    const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                    
+                    if (aoa.length < 6) continue;
+
+                    // Extract Subject ID from Row 1, Col 2 (Cell B1)
+                    const subjectId = String(aoa[0][1] || '').trim();
+                    const subject = subjects.find(s => s.id === subjectId);
+
+                    if (!subject) {
+                        console.warn(`Subject ID ${subjectId} in sheet ${sheetName} not found in system.`);
+                        continue;
+                    }
+
+                    // Data starts from Row 7 (Index 6)
+                    const dataRows = aoa.slice(6);
+
+                    for (const row of dataRows) {
+                        const lrn = String(row[0] || '').trim();
+                        const grade = parseFloat(row[2]); // Grade is in column 3 (Index 2)
+
+                        if (lrn && !isNaN(grade) && grade > 0) {
+                            await updateGradingSheetRecord({
+                                id: `${lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
+                                student_lrn: lrn,
+                                subject_id: subject.id,
+                                section_id: sectionObj.id,
+                                quarter: quarter,
+                                school_year: activeSchoolYear,
+                                final_grade: grade,
+                                written_works: [],
+                                performance_tasks: [],
+                                quarterly_exam: 0
+                            });
+                            importCount++;
+                        }
+                    }
+                }
+
+                showNotification(`Successfully imported ${importCount} grades with ID matching!`, 'success');
+                e.target.value = '';
+            } catch (error) {
+                console.error('Import error:', error);
+                showNotification('Failed to import Excel file. Please use the official template.', 'error');
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    };
 
     // Filter Sections for Select & Sort by Grade Level -> Name
     const availableSections = useMemo(() => {
@@ -612,76 +858,109 @@ export function ConsolidatedGradesPage() {
                     .no-print { display: none !important; }
                 }
             `}</style>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100 no-print">
-                <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setCurrentView('reports')} className="p-2 hover:bg-gray-100 rounded-full transition-colors group">
-                            <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-deped-blue" />
-                        </button>
-                        <h2 className="text-xl md:text-2xl font-bold text-deped-blue whitespace-nowrap">
-                            Grade Management
-                        </h2>
-                    </div>
-
-                    <div className="h-8 w-px bg-gray-200 hidden sm:block mx-2"></div>
-
-                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                        <div className="relative min-w-[180px]">
-                            <select
-                                className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-2.5 px-4 pr-10 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-deped-blue focus:ring-4 focus:ring-blue-500/10 transition-all cursor-pointer shadow-sm hover:border-gray-300"
-                                value={selectedSection ?? ''}
-                                onChange={(e) => setSelectedSection(e.target.value)}
-                            >
-                                <option value="" disabled>Select Section</option>
-                                {availableSections.map(s => (
-                                    <option key={s.id} value={s.section_name}>
-                                        {s.section_grade_level} - {s.section_name}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                                <ChevronDown className="w-4 h-4" />
-                            </div>
-                        </div>
-
-                        <div className="relative min-w-[180px]">
-                            <select
-                                className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-2.5 px-4 pr-10 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-deped-blue focus:ring-4 focus:ring-blue-500/10 transition-all cursor-pointer shadow-sm hover:border-gray-300"
-                                value={selectedTerm}
-                                onChange={(e) => setSelectedTerm(e.target.value as typeof selectedTerm)}
-                            >
-                                {Object.entries(TERM_LABELS).map(([value, label]) => (
-                                    <option key={value} value={value}>{label}</option>
-                                ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                                <ChevronDown className="w-4 h-4" />
-                            </div>
-                        </div>
-                    </div>
+            <div className="flex flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 no-print overflow-x-auto">
+                <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setCurrentView('reports')} className="p-2 hover:bg-gray-100 rounded-full transition-colors group" title="Back to Reports">
+                        <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-deped-blue" />
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                <div className="flex items-center gap-3 flex-1 justify-center min-w-0">
+                    <div className="relative w-48 shrink-0">
+                        <select
+                            className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-2 px-4 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 transition-all cursor-pointer shadow-sm hover:border-gray-300"
+                            value={selectedSection ?? ''}
+                            onChange={(e) => setSelectedSection(e.target.value)}
+                        >
+                            <option value="" disabled>Select Section</option>
+                            {availableSections.map(s => (
+                                <option key={s.id} value={s.section_name}>
+                                    {s.section_grade_level} - {s.section_name}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                            <ChevronDown className="w-4 h-4" />
+                        </div>
+                    </div>
+
+                    <div className="relative w-44 shrink-0">
+                        <select
+                            className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-2 px-4 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 transition-all cursor-pointer shadow-sm hover:border-gray-300"
+                            value={selectedTerm}
+                            onChange={(e) => setSelectedTerm(e.target.value as typeof selectedTerm)}
+                        >
+                            {Object.entries(TERM_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                            <ChevronDown className="w-4 h-4" />
+                        </div>
+                    </div>
+
+                    {selectedSection && isAdviser && selectedTerm !== 'all' && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                onClick={handleExportTemplate}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all font-bold text-xs shadow-sm"
+                                title="Download Template"
+                            >
+                                <FileSpreadsheet className="w-4 h-4" />
+                                <span className="hidden lg:inline">Template</span>
+                            </button>
+
+                            <div className="relative group">
+                                <input
+                                    type="file"
+                                    accept=".xlsx, .xls"
+                                    onChange={handleImportGrades}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                />
+                                <button
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-deped-blue border border-blue-200 hover:bg-blue-100 transition-all font-bold text-xs shadow-sm"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    <span className="hidden lg:inline">Import</span>
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={handleSyncFromEClass}
+                                disabled={isSyncing}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold text-xs shadow-sm border ${
+                                    isSyncing 
+                                    ? 'bg-gray-50 text-gray-400 border-gray-200' 
+                                    : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                }`}
+                            >
+                                <RefreshCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                                <span className="hidden lg:inline">Sync</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
                     {selectedSection && (
                         <>
                             <button
                                 onClick={async () => {
-                                    if (confirm('Are you sure you want to delete ALL grades in this Grade Management sheet? This cannot be undone.')) {
+                                    if (confirm('Are you sure you want to delete ALL grades?')) {
                                         await useAppStore.getState().clearGradingSheet();
                                     }
                                 }}
-                                className="bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-bold mr-2"
+                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                                 title="Clear All Grades"
                             >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="hidden sm:inline">Clear All</span>
+                                <Trash2 className="w-5 h-5" />
                             </button>
 
                             <button
                                 onClick={handlePrintConsolidated}
-                                className="bg-deped-blue text-white flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all hover:-translate-y-0.5 font-bold"
+                                className="bg-deped-blue text-white flex items-center gap-2 px-5 py-2 rounded-xl shadow-lg hover:shadow-blue-600 transition-all hover:-translate-y-0.5 font-bold text-sm"
                             >
-                                <Printer className="w-5 h-5" />
+                                <Printer className="w-4 h-4" />
                                 <span>Print</span>
                             </button>
                         </>
