@@ -74,10 +74,13 @@ echo [3/8] Pushing to GitHub and creating version tag...
 cd /d "%~dp0"
 git add .
 git commit -m "Release v%NEW_VERSION%"
-git tag "v%NEW_VERSION%"
-git push origin main --tags
+:: Use -f to overwrite local tag if it exists from a previous failed run
+git tag -f "v%NEW_VERSION%"
+
+echo  Pushing to GitHub (this may take a moment)...
+git push origin main --tags -f
 if %ERRORLEVEL% neq 0 (
-    echo  WARNING: Push failed. Trying force push...
+    echo  WARNING: Push failed. Attempting force push...
     git push origin main --tags --force
 )
 echo.
@@ -103,10 +106,17 @@ if "!WIN_EXE!"=="" (
     :: Create the release (or update if Mac build already created it)
     gh release create "v%NEW_VERSION%" --title "FormEase Pro v%NEW_VERSION%" --notes "Release v%NEW_VERSION% - Windows and macOS" --latest 2>nul
     if %ERRORLEVEL% neq 0 (
-        echo  Release may already exist (created by Mac build). Will upload to it.
+        echo  Release may already exist (created by Mac build). Continuing...
     )
+    
+    echo  Uploading Windows installer to GitHub...
     gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber
-    echo  Windows EXE uploaded to GitHub Release!
+    if %ERRORLEVEL% neq 0 (
+        echo  ERROR: Failed to upload Windows installer to GitHub.
+        pause
+        exit /b 1
+    )
+    echo  Windows EXE uploaded successfully!
 )
 echo.
 
@@ -118,7 +128,7 @@ echo  This usually takes 4-6 minutes. Please wait...
 echo.
 
 :: Find the workflow run triggered by our tag
-set MAX_RETRIES=30
+set MAX_RETRIES=40
 set RETRY_COUNT=0
 
 :WAIT_LOOP
@@ -132,17 +142,24 @@ if %RETRY_COUNT% gtr %MAX_RETRIES% (
 )
 
 :: Check if the Mac workflow has a completed run for this tag
-for /f "tokens=1,2" %%a in ('gh run list --workflow "build-macos.yml" --limit 1 --json databaseId^,status --jq ".[0] | \"\(.databaseId) \(.status)\""') do (
+set RUN_ID=
+set RUN_STATUS=
+for /f "tokens=1,2" %%a in ('gh run list --workflow "build-macos.yml" --limit 1 --json databaseId^,status --jq ".[0] | \"\(.databaseId) \(.status)\"" 2^>nul') do (
     set RUN_ID=%%a
     set RUN_STATUS=%%b
 )
 
 if "!RUN_STATUS!"=="completed" (
+    echo.
     echo  macOS build completed! Run ID: !RUN_ID!
     goto MAC_DONE
 )
 
-echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Status: !RUN_STATUS! - waiting 20 seconds...
+if "!RUN_ID!"=="" (
+    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Waiting for workflow to start...
+) else (
+    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Status: !RUN_STATUS! - waiting 20 seconds...
+)
 timeout /t 20 /nobreak >nul
 goto WAIT_LOOP
 
@@ -154,31 +171,44 @@ echo.
 :: ============================================================
 echo [6/8] Downloading macOS build artifacts...
 
-:: Create temp download folder
-set MAC_DOWNLOAD_DIR=%~dp0_mac_artifacts
-if exist "%MAC_DOWNLOAD_DIR%" rmdir /s /q "%MAC_DOWNLOAD_DIR%"
-mkdir "%MAC_DOWNLOAD_DIR%"
+:: Create permanent installers folder
+set MAC_INSTALLERS_DIR=%~dp0macOS_Installers\v%NEW_VERSION%
+if not exist "%MAC_INSTALLERS_DIR%" mkdir "%MAC_INSTALLERS_DIR%"
 
-gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_DOWNLOAD_DIR%"
+:: We still use a temp dir for the initial download to keep things clean
+set MAC_TEMP_DIR=%~dp0_mac_temp
+if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
+mkdir "%MAC_TEMP_DIR%"
+
+gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_TEMP_DIR%"
 
 if %ERRORLEVEL% neq 0 (
-    echo  WARNING: Failed to download Mac artifacts.
-    echo  Check: https://github.com/galanoemerson0016-eng/School-Management-System/actions/runs/!RUN_ID!
-    goto SKIP_MAC
+    echo  WARNING: Failed to download Mac artifacts from run. Trying download from Release...
+    gh release download "v%NEW_VERSION%" --pattern "*.dmg" --dir "%MAC_INSTALLERS_DIR%" --clobber 2>nul
+    gh release download "v%NEW_VERSION%" --pattern "latest-mac.yml" --dir "%MAC_TEMP_DIR%" --clobber 2>nul
+    if not exist "%MAC_TEMP_DIR%\latest-mac.yml" (
+        echo  WARNING: Could not find Mac metadata. Skipping Mac deployment.
+        goto SKIP_MAC
+    )
+) else (
+    :: Move DMGs to permanent folder
+    echo  Saving Mac installers to macOS_Installers folder...
+    move /Y "%MAC_TEMP_DIR%\app\release\*.dmg" "%MAC_INSTALLERS_DIR%\" >nul 2>nul
 )
 
-echo  Mac artifacts downloaded!
+echo  Mac artifacts ready!
 echo.
 
-:: Upload Mac DMG and ZIP to GitHub Release
-echo  Uploading Mac files to GitHub Release...
-for %%f in ("%MAC_DOWNLOAD_DIR%\app\release\*.dmg") do (
+:: Upload Mac files to GitHub Release (if not already there)
+echo  Ensuring Mac files are in GitHub Release...
+for %%f in ("%MAC_INSTALLERS_DIR%\*.dmg") do (
     gh release upload "v%NEW_VERSION%" "%%f" --clobber 2>nul
-    echo  Uploaded: %%~nxf
+    echo  Verified: %%~nxf
 )
-for %%f in ("%MAC_DOWNLOAD_DIR%\app\release\*.zip") do (
+:: Use temp dir for zip/metadata uploads
+for %%f in ("%MAC_TEMP_DIR%\app\release\*.zip") do (
     gh release upload "v%NEW_VERSION%" "%%f" --clobber 2>nul
-    echo  Uploaded: %%~nxf
+    echo  Verified: %%~nxf
 )
 echo.
 
@@ -192,33 +222,41 @@ echo [7/8] Preparing update metadata for Firebase...
 set UPDATE_DIR=update-server\updates
 if not exist "%~dp0%UPDATE_DIR%" mkdir "%~dp0%UPDATE_DIR%"
 
-:: Clean old exe files (Firebase Spark limit)
-del /Q "%~dp0%UPDATE_DIR%\*.exe" 2>nul
+:: Clean old files (Firebase Spark limit)
+del /Q "%~dp0%UPDATE_DIR%\*.blockmap" 2>nul
+del /Q "%~dp0%UPDATE_DIR%\latest*.yml" 2>nul
 
 :: Copy Windows metadata
 copy /Y "%~dp0app\release\latest.yml" "%~dp0%UPDATE_DIR%\" >nul 2>nul
 copy /Y "%~dp0app\release\*.blockmap" "%~dp0%UPDATE_DIR%\" >nul 2>nul
 
 :: Copy Mac metadata if available
-if exist "%MAC_DOWNLOAD_DIR%\app\release\latest-mac.yml" (
-    copy /Y "%MAC_DOWNLOAD_DIR%\app\release\latest-mac.yml" "%~dp0%UPDATE_DIR%\" >nul
+if exist "%MAC_TEMP_DIR%\app\release\latest-mac.yml" (
+    copy /Y "%MAC_TEMP_DIR%\app\release\latest-mac.yml" "%~dp0%UPDATE_DIR%\" >nul
+    echo  Copied latest-mac.yml to update server.
+) else if exist "%MAC_TEMP_DIR%\latest-mac.yml" (
+    copy /Y "%MAC_TEMP_DIR%\latest-mac.yml" "%~dp0%UPDATE_DIR%\" >nul
     echo  Copied latest-mac.yml to update server.
 )
-if exist "%MAC_DOWNLOAD_DIR%\app\release\*.blockmap" (
-    copy /Y "%MAC_DOWNLOAD_DIR%\app\release\*.blockmap" "%~dp0%UPDATE_DIR%\" >nul 2>nul
-    echo  Copied Mac blockmaps to update server.
-)
 
-:: Patch latest.yml - redirect download URL to GitHub Releases
+:: Patch latest.yml (Windows) - redirect to GitHub
 set TARGET_YML=%~dp0%UPDATE_DIR%\latest.yml
-set GITHUB_EXE_URL=https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v%NEW_VERSION%/FormEase.Pro.Setup.%NEW_VERSION%.exe
-powershell -Command "(gc '%TARGET_YML%') -replace 'url: FormEase Pro Setup %NEW_VERSION%.exe', 'url: %GITHUB_EXE_URL%' -replace 'path: FormEase Pro Setup %NEW_VERSION%.exe', 'path: %GITHUB_EXE_URL%' | Out-File -encoding utf8 '%TARGET_YML%'"
+set GITHUB_URL=https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v%NEW_VERSION%
+
+powershell -Command "$v='%NEW_VERSION%'; $url='%GITHUB_URL%/FormEase.Pro.Setup.'+$v+'.exe'; (gc '%TARGET_YML%') -replace 'url: FormEase Pro Setup '+$v+'.exe', 'url: '+$url -replace 'path: FormEase Pro Setup '+$v+'.exe', 'path: '+$url | Out-File -encoding utf8 '%TARGET_YML%'"
+
+:: Patch latest-mac.yml (macOS) - redirect to GitHub
+if exist "%~dp0%UPDATE_DIR%\latest-mac.yml" (
+    set MAC_YML=%~dp0%UPDATE_DIR%\latest-mac.yml
+    powershell -Command "(gc '!MAC_YML!') -replace 'url: FormEase Pro-', 'url: %GITHUB_URL%/FormEase.Pro-' -replace 'path: FormEase Pro-', 'path: %GITHUB_URL%/FormEase.Pro-' | Out-File -encoding utf8 '!MAC_YML!'"
+    echo  Mac metadata patched for GitHub URLs.
+)
 
 echo  All metadata prepared!
 echo.
 
 :: Clean up temp Mac downloads
-if exist "%MAC_DOWNLOAD_DIR%" rmdir /s /q "%MAC_DOWNLOAD_DIR%"
+if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
 
 :: ============================================================
 :: [8] DEPLOY TO FIREBASE

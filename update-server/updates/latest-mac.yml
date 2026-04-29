@@ -1,0 +1,17 @@
+version: 1.0.15
+files:
+  - url: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.15/FormEase.Pro-1.0.15-mac.zip
+    sha512: uSeJleJncNtdVjAb2Rp+WYcDwclfzz3/HB741iAwADPsOQOwUJuW5TKrQKGjgVE6dt3TM530EJK5ZvT3a9+IRw==
+    size: 177998734
+  - url: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.15/FormEase.Pro-1.0.15-arm64-mac.zip
+    sha512: as4dHP0tvEl31BHwl9INJ7Uh4NDLOC311xtTWlAPuUOpPIoHQwVIm7h/bzYpiT8m4vbhSCm53ZOnXukkB6n9Vw==
+    size: 172757310
+  - url: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.15/FormEase.Pro-1.0.15.dmg
+    sha512: RMYHUob0l8ujj3VFfzdqDIKSGo7E3oyVVI+aFo1WYPyOyPWuLidDvNrtcs5WcLFrDM+2Uy+AvZZ4XO6yn8mNPQ==
+    size: 184124346
+  - url: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.15/FormEase.Pro-1.0.15-arm64.dmg
+    sha512: voqFcL566DNacUHt4eJY1k94VRdpH2bJsmYCs6nrqGB5OnYk58NEkj8RuY1rVWi4UVjLvMG6uKmjOVjQ854gdw==
+    size: 178786682
+path: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.15/FormEase.Pro-1.0.15-mac.zip
+sha512: uSeJleJncNtdVjAb2Rp+WYcDwclfzz3/HB741iAwADPsOQOwUJuW5TKrQKGjgVE6dt3TM530EJK5ZvT3a9+IRw==
+releaseDate: '2026-04-29T11:05:41.746Z'

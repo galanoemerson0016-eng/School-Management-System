@@ -1,2 +1,14 @@
 # Update server (contains large .exe files)
-update-server/
+update-server/updates/*.exe
+update-server/updates/*.dmg
+update-server/updates/*.zip
+
+# Temp and local installers
+_mac_artifacts/
+_mac_temp/
+macOS_Installers/
+
+# App release folder
+app/release/
+node_modules/
+dist/
