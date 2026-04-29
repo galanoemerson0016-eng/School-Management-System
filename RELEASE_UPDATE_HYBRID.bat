@@ -13,7 +13,7 @@ echo   3. Push to GitHub + Create version tag
 echo   4. Upload Windows EXE to GitHub Release
 echo   5. Wait for Mac build to finish in the cloud
 echo   6. Download Mac artifacts automatically
-echo   7. Prepare all update metadata
+echo   7. Prepare all update metadata (with GitHub redirects)
 echo   8. Deploy everything to Firebase
 echo.
 echo ========================================================
@@ -22,17 +22,17 @@ pause
 
 :: ---- PRE-CHECK: Ensure gh CLI is authenticated ----
 echo [PRE-CHECK] Verifying GitHub CLI authentication...
-gh auth status >nul 2>&1
+call gh auth status >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo.
     echo  GitHub CLI is not authenticated!
     echo  Running login now... Follow the prompts in your browser.
     echo.
-    gh auth login --web --git-protocol https
+    call gh auth login --web --git-protocol https
     if %ERRORLEVEL% neq 0 (
         echo  ERROR: GitHub authentication failed. Please try again.
         pause
-        goto ERROR_EXIT
+        exit /b 1
     )
 )
 echo  GitHub CLI authenticated successfully.
@@ -61,9 +61,8 @@ call npm run electron:build:win
 if %ERRORLEVEL% neq 0 (
     echo  ERROR: Windows build failed!
     pause
-    goto ERROR_EXIT
+    exit /b 1
 )
-echo.
 echo  Windows build complete!
 echo.
 
@@ -72,103 +71,72 @@ echo.
 :: ============================================================
 echo [3/8] Pushing to GitHub and creating version tag...
 cd /d "%~dp0"
-echo  [DEBUG] Current Dir: %CD%
-pause
 call git add .
-echo  [DEBUG] git add finished
-pause
 call git commit -m "Release v%NEW_VERSION%"
-echo  [DEBUG] git commit finished
-pause
-
-echo  Creating tag v%NEW_VERSION%...
 call git tag -f "v%NEW_VERSION%"
-echo  [DEBUG] git tag finished
-pause
-
 echo  Pushing code and tags to GitHub...
 call git push origin main --tags -f
-echo  [DEBUG] git push finished
-pause
+echo  Code pushed. Tag v%NEW_VERSION% created.
+echo.
 
 :: ============================================================
 :: [4] CREATE GITHUB RELEASE + UPLOAD WINDOWS EXE
 :: ============================================================
 echo [4/8] Creating GitHub Release and uploading Windows installer...
-pause
 
 :: Find the Windows EXE file
-set WIN_EXE=
+set WIN_EXE_NAME=
+set WIN_EXE_PATH=
 for %%f in ("app\release\*.exe") do (
-    set WIN_EXE=%%f
+    set WIN_EXE_PATH=%%f
+    set WIN_EXE_NAME=%%~nxf
 )
-echo  [DEBUG] WIN_EXE found: !WIN_EXE!
-pause
 
-if "!WIN_EXE!"=="" (
-    echo  WARNING: No .exe found in app\release\. Skipping Windows upload.
+if "!WIN_EXE_PATH!"=="" (
+    echo  WARNING: No .exe found. Skipping upload.
 ) else (
-    echo  Found: !WIN_EXE!
-    :: Create the release (or update if Mac build already created it)
-    echo  Running: gh release create "v%NEW_VERSION%"
-    call gh release create "v%NEW_VERSION%" --title "FormEase Pro v%NEW_VERSION%" --notes "Release v%NEW_VERSION% - Windows and macOS" --latest
-    echo  [DEBUG] gh release create finished
-    pause
+    echo  Creating Release v%NEW_VERSION%...
+    call gh release create "v%NEW_VERSION%" --title "FormEase Pro v%NEW_VERSION%" --notes "Release v%NEW_VERSION%" --latest 2>nul
     
-    echo  Uploading Windows installer to GitHub...
-    call gh release upload "v%NEW_VERSION%" "!WIN_EXE!" --clobber --no-progress
-    echo  [DEBUG] gh release upload finished
-    pause
-    
+    echo  Uploading !WIN_EXE_NAME!...
+    call gh release upload "v%NEW_VERSION%" "!WIN_EXE_PATH!" --clobber
     echo  Windows EXE uploaded successfully!
 )
 echo.
-pause
 
 :: ============================================================
 :: [5] WAIT FOR MAC BUILD TO COMPLETE
 :: ============================================================
 echo [5/8] Waiting for macOS build to finish in the cloud...
-pause
 echo  This usually takes 4-6 minutes. Please wait...
 echo.
 
-:: Find the workflow run triggered by our tag
 set MAX_RETRIES=60
 set RETRY_COUNT=0
 
 :WAIT_LOOP
 set /a RETRY_COUNT+=1
 if %RETRY_COUNT% gtr %MAX_RETRIES% (
-    echo.
-    echo  TIMEOUT: Mac build did not complete in time.
-    echo  You can check manually: https://github.com/galanoemerson0016-eng/School-Management-System/actions
-    echo.
-    set /p CONTINUE="Continue with Windows-only deployment? (Y/N): "
-    if /i "!CONTINUE!"=="Y" goto SKIP_MAC
-    pause
-    goto ERROR_EXIT
+    echo  TIMEOUT: Mac build did not complete. Continuing with Windows only.
+    goto SKIP_MAC
 )
 
-:: Check for the latest run of the build-macos workflow
 set RUN_ID=
 set RUN_STATUS=
 set RUN_BRANCH=
 
-for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul`) do set RUN_ID=%%a
-for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json status --jq ".[0].status" 2^>nul`) do set RUN_STATUS=%%a
-for /f "usebackq tokens=*" %%a in (`gh run list --workflow "build-macos.yml" --limit 1 --json headBranch --jq ".[0].headBranch" 2^>nul`) do set RUN_BRANCH=%%a
+for /f "usebackq tokens=*" %%a in (`call gh run list --workflow "build-macos.yml" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul`) do set RUN_ID=%%a
+for /f "usebackq tokens=*" %%a in (`call gh run list --workflow "build-macos.yml" --limit 1 --json status --jq ".[0].status" 2^>nul`) do set RUN_STATUS=%%a
+for /f "usebackq tokens=*" %%a in (`call gh run list --workflow "build-macos.yml" --limit 1 --json headBranch --jq ".[0].headBranch" 2^>nul`) do set RUN_BRANCH=%%a
 
 if "!RUN_BRANCH!"=="v%NEW_VERSION%" (
     if "!RUN_STATUS!"=="completed" (
-        echo.
-        echo  macOS build completed! Run ID: !RUN_ID!
+        echo  macOS build completed!
         goto MAC_DONE
     )
-    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Status: !RUN_STATUS! - waiting 20 seconds...
+    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Status: !RUN_STATUS!...
 ) else (
-    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Waiting for workflow for v%NEW_VERSION% to start...
-    echo  (Currently seeing: !RUN_BRANCH! - !RUN_STATUS!)
+    echo  [Attempt %RETRY_COUNT%/%MAX_RETRIES%] Waiting for v%NEW_VERSION% workflow...
 )
 
 timeout /t 20 /nobreak >nul
@@ -181,122 +149,62 @@ echo.
 :: [6] DOWNLOAD MAC ARTIFACTS
 :: ============================================================
 echo [6/8] Downloading macOS build artifacts...
-
-:: Create permanent installers folder
-set MAC_INSTALLERS_DIR=%~dp0macOS_Installers\v%NEW_VERSION%
-if not exist "%MAC_INSTALLERS_DIR%" mkdir "%MAC_INSTALLERS_DIR%"
-
-:: We still use a temp dir for the initial download to keep things clean
 set MAC_TEMP_DIR=%~dp0_mac_temp
 if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
 mkdir "%MAC_TEMP_DIR%"
 
-gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_TEMP_DIR%" --no-progress
-
+call gh run download !RUN_ID! --name "formease-macos-artifacts" --dir "%MAC_TEMP_DIR%"
 if %ERRORLEVEL% neq 0 (
-    echo  WARNING: Failed to download Mac artifacts from run. Trying download from Release...
-    gh release download "v%NEW_VERSION%" --pattern "*.dmg" --dir "%MAC_INSTALLERS_DIR%" --clobber --no-progress 2>nul
-    gh release download "v%NEW_VERSION%" --pattern "latest-mac.yml" --dir "%MAC_TEMP_DIR%" --clobber --no-progress 2>nul
-    if not exist "%MAC_TEMP_DIR%\latest-mac.yml" (
-        echo  WARNING: Could not find Mac metadata. Skipping Mac deployment.
-        goto SKIP_MAC
-    )
-) else (
-    :: Move DMGs to permanent folder
-    echo  Saving Mac installers to macOS_Installers folder...
-    move /Y "%MAC_TEMP_DIR%\app\release\*.dmg" "%MAC_INSTALLERS_DIR%\" >nul 2>nul
+    echo  WARNING: Failed to download Mac artifacts. Skipping Mac metadata.
+    goto SKIP_MAC
 )
-
 echo  Mac artifacts ready!
-echo.
-
-:: Upload Mac files to GitHub Release (if not already there)
-echo  Ensuring Mac files are in GitHub Release...
-for %%f in ("%MAC_INSTALLERS_DIR%\*.dmg") do (
-    gh release upload "v%NEW_VERSION%" "%%f" --clobber --no-progress 2>nul
-    echo  Verified: %%~nxf
-)
-:: Use temp dir for zip/metadata uploads
-for %%f in ("%MAC_TEMP_DIR%\app\release\*.zip") do (
-    gh release upload "v%NEW_VERSION%" "%%f" --clobber --no-progress 2>nul
-    echo  Verified: %%~nxf
-)
 echo.
 
 :SKIP_MAC
 
 :: ============================================================
-:: [7] PREPARE UPDATE METADATA FOR FIREBASE
+:: [7] PREPARE UPDATE METADATA (WITH REDIRECTS)
 :: ============================================================
 echo [7/8] Preparing update metadata for Firebase...
 
 set UPDATE_DIR=update-server\updates
 if not exist "%~dp0%UPDATE_DIR%" mkdir "%~dp0%UPDATE_DIR%"
 
-:: Clean old files (Firebase Spark limit)
+:: Clean and Copy
 del /Q "%~dp0%UPDATE_DIR%\*.blockmap" 2>nul
 del /Q "%~dp0%UPDATE_DIR%\latest*.yml" 2>nul
+copy /Y "%~dp0app\release\latest.yml" "%~dp0%UPDATE_DIR%\" >nul
+copy /Y "%~dp0app\release\*.blockmap" "%~dp0%UPDATE_DIR%\" >nul
 
-:: Copy Windows metadata
-copy /Y "%~dp0app\release\latest.yml" "%~dp0%UPDATE_DIR%\" >nul 2>nul
-copy /Y "%~dp0app\release\*.blockmap" "%~dp0%UPDATE_DIR%\" >nul 2>nul
-
-:: Copy Mac metadata if available
 if exist "%MAC_TEMP_DIR%\app\release\latest-mac.yml" (
     copy /Y "%MAC_TEMP_DIR%\app\release\latest-mac.yml" "%~dp0%UPDATE_DIR%\" >nul
-    echo  Copied latest-mac.yml to update server.
-) else if exist "%MAC_TEMP_DIR%\latest-mac.yml" (
-    copy /Y "%MAC_TEMP_DIR%\latest-mac.yml" "%~dp0%UPDATE_DIR%\" >nul
-    echo  Copied latest-mac.yml to update server.
 )
 
-:: Patch latest.yml (Windows) - redirect to GitHub
-set TARGET_YML=%~dp0%UPDATE_DIR%\latest.yml
-set GITHUB_URL=https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v%NEW_VERSION%
+:: PATCH Windows latest.yml to point to GitHub
+set GITHUB_BASE=https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v%NEW_VERSION%
+:: We use powershell to replace the relative path with the absolute GitHub URL
+powershell -Command "$v='%NEW_VERSION%'; $base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest.yml'; (Get-Content $path) -replace 'url: (.*)', ('url: ' + $base + '/$1') -replace 'path: (.*)', ('path: ' + $base + '/$1') | Set-Content $path -Encoding UTF8"
 
-powershell -Command "$v='%NEW_VERSION%'; $url='%GITHUB_URL%/FormEase.Pro.Setup.'+$v+'.exe'; (gc '%TARGET_YML%') -replace 'url: FormEase Pro Setup '+$v+'.exe', 'url: '+$url -replace 'path: FormEase Pro Setup '+$v+'.exe', 'path: '+$url | Out-File -encoding utf8 '%TARGET_YML%'"
-
-:: Patch latest-mac.yml (macOS) - redirect to GitHub
+:: PATCH Mac latest-mac.yml if exists
 if exist "%~dp0%UPDATE_DIR%\latest-mac.yml" (
-    set MAC_YML=%~dp0%UPDATE_DIR%\latest-mac.yml
-    powershell -Command "(gc '!MAC_YML!') -replace 'url: FormEase Pro-', 'url: %GITHUB_URL%/FormEase.Pro-' -replace 'path: FormEase Pro-', 'path: %GITHUB_URL%/FormEase.Pro-' | Out-File -encoding utf8 '!MAC_YML!'"
-    echo  Mac metadata patched for GitHub URLs.
+    powershell -Command "$v='%NEW_VERSION%'; $base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest-mac.yml'; (Get-Content $path) -replace 'url: (.*)', ('url: ' + $base + '/$1') -replace 'path: (.*)', ('path: ' + $base + '/$1') | Set-Content $path -Encoding UTF8"
 )
 
-echo  All metadata prepared!
+echo  Update metadata patched and ready.
 echo.
 
-:: Clean up temp Mac downloads
+:: Clean up
 if exist "%MAC_TEMP_DIR%" rmdir /s /q "%MAC_TEMP_DIR%"
 
 :: ============================================================
 :: [8] DEPLOY TO FIREBASE
 :: ============================================================
-echo [8/8] Deploying update metadata to Firebase Hosting...
+echo [8/8] Deploying to Firebase...
 cd /d "%~dp0update-server"
 call firebase deploy --only hosting
-if %ERRORLEVEL% neq 0 (
-    echo  WARNING: Firebase deployment failed. You may need to deploy manually.
-)
-
 echo.
 echo ========================================================
-echo.
 echo   ALL DONE! FormEase Pro v%NEW_VERSION% is LIVE!
-echo.
-echo   Windows: EXE uploaded to GitHub Release
-echo   macOS:   DMG uploaded to GitHub Release
-echo   Updates: Metadata deployed to Firebase
-echo.
-echo   Release: https://github.com/galanoemerson0016-eng/School-Management-System/releases/tag/v%NEW_VERSION%
-echo.
 echo ========================================================
 pause
-exit /b 0
-
-:ERROR_EXIT
-echo.
-echo [!] SCRIPT FAILED AT STEP %~1
-echo.
-pause
-exit /b 1
