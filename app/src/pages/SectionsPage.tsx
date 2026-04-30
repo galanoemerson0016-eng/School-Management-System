@@ -24,23 +24,24 @@ export function SectionsPage() {
     // Auto-Sync Adviser Names from Institute Profile (Source of Truth)
     useEffect(() => {
         const profileName = (schoolProfile?.adviser_name || '').trim();
-        const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
+        if (!profileName || profileName.toLowerCase() === 'admin') return;
         
-        if (!isGenericProfile && profileName) {
-            sections.forEach(section => {
-                const isStale = (section.adviser_name || '').trim() !== profileName;
-                const isPlaceholder = (section.adviser_name || '').toLowerCase().includes('juan') || 
-                                    (section.adviser_name || '').toLowerCase().includes('recovered') ||
-                                    (section.adviser_name || '').toLowerCase() === 'tba';
-                
-                // If it's stale AND it's a placeholder OR it's missing an ID, sync it!
-                if (isStale && (isPlaceholder || !section.adviser_id)) {
-                    // Silent update to fix database stale names
-                    void updateSection({ ...section, adviser_name: profileName });
-                }
-            });
-        }
-    }, [schoolProfile?.adviser_name, sections.length]); // Only re-run if profile name or section count changes
+        let hasChanges = false;
+        sections.forEach(section => {
+            const currentName = (section.adviser_name || '').trim();
+            const isStale = currentName !== profileName;
+            const isPlaceholder = currentName.toLowerCase().includes('juan') || 
+                                currentName.toLowerCase().includes('recovered') ||
+                                currentName.toLowerCase() === 'tba' ||
+                                currentName === '';
+            
+            // If it's a known placeholder or stale advisory name, sync it
+            if (isStale && (isPlaceholder || section.is_advisory || !section.adviser_id)) {
+                void updateSection({ ...section, adviser_name: profileName });
+                hasChanges = true;
+            }
+        });
+    }, [schoolProfile?.adviser_name, sections, updateSection]);
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);

@@ -58,7 +58,9 @@ export function Toast() {
                                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{titles[notification.type]}</p>
                                 </div>
                                 <div className="text-sm font-semibold leading-relaxed text-slate-700 dark:text-slate-200">
-                                    {notification.message}
+                                    {typeof notification.message === 'object' 
+                                        ? (notification.message as any).text || JSON.stringify(notification.message) 
+                                        : notification.message}
                                 </div>
                             </div>
 

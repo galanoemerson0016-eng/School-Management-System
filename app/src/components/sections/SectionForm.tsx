@@ -114,14 +114,19 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
     useEffect(() => {
         if (section) {
+            const profileName = (schoolProfile?.adviser_name || '').trim();
+            const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
+            
             // Legacy Migration: If is_advisory is undefined, infer it
             setFormData({
                 ...section,
+                // Force update adviser name if profile name is set and current one is a placeholder or generic
+                adviser_name: (!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''),
                 is_advisory: section.is_advisory ?? !section.is_teaching_load,
                 taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : [])
             });
         }
-    }, [section]);
+    }, [section, schoolProfile?.adviser_name]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

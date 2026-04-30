@@ -8,12 +8,15 @@ export function UpdateStatus() {
   useEffect(() => {
     // Listen for update messages from the main process
     if ((window as any).electronAPI && (window as any).electronAPI.onUpdateMessage) {
-      (window as any).electronAPI.onUpdateMessage((message: string) => {
+      (window as any).electronAPI.onUpdateMessage((data: any) => {
+        const message = typeof data === 'object' ? data.text : data;
+        const msgStatus = typeof data === 'object' ? data.status : 'info';
+        
         setStatus(message);
-        setIsChecking(message.includes('Checking') || message.includes('Downloading'));
+        setIsChecking(message.includes('Checking') || message.includes('Downloading') || msgStatus === 'downloading' || msgStatus === 'progress');
         
         // Clear success/error messages after a while
-        if (message.includes('up to date') || message.includes('Error')) {
+        if (message.includes('up to date') || message.includes('Error') || msgStatus === 'error') {
           setTimeout(() => {
             setStatus('');
             setIsChecking(false);
