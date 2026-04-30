@@ -40,6 +40,33 @@ export function NameTagPage() {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
             <style dangerouslySetInnerHTML={{ __html: `
+                .print-page {
+                    width: 210mm;
+                    min-height: 297mm;
+                    padding: 0;
+                    margin: 20px auto;
+                    display: grid;
+                    grid-template-columns: repeat(2, 90mm);
+                    grid-template-rows: repeat(4, 60mm);
+                    gap: 8mm;
+                    place-content: center;
+                    background: white;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+                    border-radius: 4px;
+                    position: relative;
+                }
+
+                .name-tag-card {
+                    height: 55mm !important;
+                    width: 90mm !important;
+                    margin: auto !important;
+                    position: relative !important;
+                    overflow: hidden !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
+
                 @media print {
                     @page {
                         size: A4;
@@ -48,43 +75,17 @@ export function NameTagPage() {
                     body {
                         margin: 0;
                         padding: 0;
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
                     }
                     .print-page {
-                        width: 210mm;
-                        height: 297mm;
-                        padding: 0 !important;
-                        margin: 20px auto !important;
+                        margin: 0 !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
                         page-break-after: always;
-                        display: grid !important;
-                        grid-template-columns: repeat(2, 90mm) !important;
-                        grid-template-rows: repeat(4, 60mm) !important;
-                        gap: 8mm !important;
-                        place-content: center !important;
-                        background: white !important;
-                        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-                        border-radius: 4px;
-                    }
-                    @media print {
-                        .print-page {
-                            margin: 0 !important;
-                            box-shadow: none !important;
-                            border-radius: 0 !important;
-                        }
                     }
                     .name-tag-card {
                         break-inside: avoid;
                         page-break-inside: avoid;
-                        height: 55mm !important;
-                        width: 90mm !important;
-                        margin: auto !important;
-                        position: relative !important;
-                        overflow: hidden !important;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                        box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+                        box-shadow: none !important;
                     }
                     .no-print {
                         display: none !important;
@@ -178,7 +179,19 @@ export function NameTagPage() {
                         <div className="print:w-full flex flex-col items-center gap-8">
                             {/* PDF-like Paginated View */}
                             {Array.from({ length: Math.ceil(sectionStudents.length / 8) }).map((_, pageIdx) => (
-                                <div key={pageIdx} className="print-page grid grid-cols-2 bg-white shadow-2xl relative">
+                                <div key={pageIdx} className="print-page relative" style={{
+                                    width: '210mm',
+                                    minHeight: '297mm',
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, 90mm)',
+                                    gridTemplateRows: 'repeat(4, 60mm)',
+                                    gap: '8mm',
+                                    placeContent: 'center',
+                                    background: 'white',
+                                    boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+                                    borderRadius: '4px',
+                                    padding: '0',
+                                }}>
                                     {/* Page Number Indicator */}
                                     <div className="absolute -top-6 right-0 text-[10px] font-black text-slate-400 uppercase tracking-widest print:hidden">
                                         Page {pageIdx + 1} of {Math.ceil(sectionStudents.length / 8)}
@@ -247,7 +260,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                     <div className="mt-4 pt-4 border-t border-emerald-200/50 flex items-end justify-between">
                         <div className="space-y-1">
                             <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">{section?.section_grade_level} • {section?.section_name}</p>
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase italic">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                            <p className="text-[8.5px] font-bold text-emerald-600 uppercase italic">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
                         <div className="px-4 py-2 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] tracking-widest tabular-nums border border-emerald-200">
                             {student.lrn}
@@ -287,7 +300,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                     <div className="mt-auto pt-3 border-t border-slate-200/50 flex items-center justify-between">
                         <div className="space-y-0.5">
                             <p className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{section?.section_grade_level} • {section?.section_name}</p>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                            <p className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
                         <div className="text-right">
                             <span className="text-[6px] font-black text-slate-400 uppercase block mb-0.5 tracking-[0.3em]">LRN ID</span>
@@ -307,7 +320,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                 
                 <div className="relative z-10 p-6 flex flex-col h-full pl-6">
                     {/* Institutional Header */}
-                    <div className="flex items-start gap-4 mb-4">
+                    <div className="flex items-start gap-4 mb-2">
                         <div className="w-12 h-12 rounded-2xl bg-white shadow-xl shadow-black/5 border border-slate-100 flex items-center justify-center p-1.5 shrink-0">
                             <img src={logoUrl} className="w-full h-full object-contain" alt="School Logo" />
                         </div>
@@ -324,7 +337,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
 
                     {/* Learner Identity */}
                     <div className="flex-1 flex flex-col justify-center min-h-0">
-                        <h1 className={`${student.first_name.length > 12 ? 'text-2xl' : student.first_name.length > 8 ? 'text-3xl' : 'text-4xl'} font-black text-slate-900 uppercase tracking-tighter leading-tight mb-1`}>
+                        <h1 className={`${student.first_name.length > 12 ? 'text-2xl' : student.first_name.length > 8 ? 'text-3xl' : 'text-4xl'} font-black text-slate-900 uppercase tracking-tighter leading-[0.9] mb-0`}>
                             {student.first_name}
                         </h1>
                         <h2 className={`${student.last_name.length > 12 ? 'text-sm' : 'text-lg'} font-black ${theme.secondary} uppercase tracking-[0.15em] leading-tight`}>
@@ -333,15 +346,15 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                     </div>
 
                     {/* Information Footer */}
-                    <div className="mt-auto pt-2 flex items-end justify-between">
-                         <div className="space-y-1">
+                    <div className="mt-auto pt-1 flex items-end justify-between">
+                         <div className="space-y-0">
                             <div className="flex items-center gap-2 text-[10px] font-black text-slate-700 uppercase tracking-widest">
                                 <GraduationCap className={`w-3.5 h-3.5 ${theme.secondary}`} />
                                 {section?.section_grade_level} • {section?.section_name}
                             </div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-5 italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                            <p className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest pl-5 italic leading-none">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
-                        <div className={`px-3 py-1.5 ${theme.primary} text-white rounded-[1rem] shadow-lg shadow-current/20 flex flex-col items-center justify-center min-w-[90px] shrink-0 mb-1`}>
+                        <div className={`px-3 py-1.5 ${theme.primary} text-white rounded-[1rem] shadow-lg shadow-current/20 flex flex-col items-center justify-center min-w-[90px] shrink-0`}>
                             <span className="text-[6px] font-black opacity-70 uppercase tracking-widest leading-none mb-0.5">LRN ID</span>
                             <span className="text-[10px] font-black tracking-widest tabular-nums leading-none">
                                 {student.lrn}
@@ -384,7 +397,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                                 <GraduationCap className={`w-3.5 h-3.5 ${theme.secondary}`} />
                                 {section?.section_grade_level} • {section?.section_name}
                             </div>
-                            <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest pl-5 italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                            <p className="text-[8.5px] font-bold text-white/70 uppercase tracking-widest pl-5 italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
                         <div className={`px-4 py-2 rounded-2xl bg-white/20 border border-white/20 flex flex-col items-center shadow-lg backdrop-blur-sm shrink-0`}>
                             <span className="text-[6px] font-black text-white/70 uppercase tracking-[0.2em] mb-0.5">LRN ID</span>
@@ -416,7 +429,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                     <div className="mt-4 flex items-end justify-between border-t border-slate-100 pt-3">
                         <div>
                             <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">{section?.section_grade_level} • {section?.section_name}</p>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase mt-1 italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                             <p className="text-[8.5px] font-bold text-slate-500 uppercase mt-1 italic leading-tight">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-[7px] font-black text-slate-400 uppercase mb-0.5 tracking-widest">LRN ID</p>
@@ -446,7 +459,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                     <div className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black text-slate-600 uppercase">
                         {section?.section_grade_level} • {section?.section_name}
                     </div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase italic">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
+                    <p className="text-[8.5px] font-bold text-slate-500 uppercase italic">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                 </div>
             </div>
             <div className="absolute bottom-1 right-2 flex flex-col items-end">

@@ -183,15 +183,13 @@ if exist "%MAC_TEMP_DIR%\app\release\latest-mac.yml" (
 
 :: PATCH Windows latest.yml to point to GitHub
 set GITHUB_BASE=https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v%NEW_VERSION%
-:: We use powershell to replace spaces with dots and prepend the GitHub URL
-powershell -Command "$v='%NEW_VERSION%'; $base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest.yml'; $content = Get-Content $path; $content = $content -map { $_ -replace 'url: (.*)', 'url: $1' -replace 'path: (.*)', 'path: $1' }; $content = $content.ForEach({ if($_ -match 'url: |path: ') { $line = $_ -replace ' ', '.'; $line -replace 'url: ', ('url: ' + $base + '/') } else { $_ } }); $content | Set-Content $path -Encoding UTF8"
 
-:: Simplified but robust PowerShell patching
-powershell -Command "$base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest.yml'; (Get-Content $path) | ForEach-Object { if ($_ -match '^(url|path):') { $parts = $_ -split ': '; $newVal = $parts[1] -replace ' ', '.'; if ($_ -match '^url:') { 'url: ' + $base + '/' + $newVal } else { 'path: ' + $newVal } } else { $_ } } | Set-Content $path -Encoding UTF8"
+:: Robust PowerShell patching - handles both top-level and indented url/path lines
+powershell -Command "$base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest.yml'; (Get-Content $path) | ForEach-Object { if ($_ -match '^\s*-?\s*url:\s*(.+)$') { $prefix = $_ -replace '(^\s*-?\s*url:).*','$1'; $filename = $Matches[1].Trim() -replace ' ','.'; \"$prefix $base/$filename\" } elseif ($_ -match '^path:\s*(.+)$') { $filename = $Matches[1].Trim() -replace ' ','.'; \"path: $filename\" } else { $_ } } | Set-Content $path -Encoding UTF8"
 
 :: PATCH Mac latest-mac.yml if exists
 if exist "%~dp0%UPDATE_DIR%\latest-mac.yml" (
-    powershell -Command "$base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest-mac.yml'; (Get-Content $path) | ForEach-Object { if ($_ -match '^(url|path):') { $parts = $_ -split ': '; $newVal = $parts[1] -replace ' ', '.'; if ($_ -match '^url:') { 'url: ' + $base + '/' + $newVal } else { 'path: ' + $newVal } } else { $_ } } | Set-Content $path -Encoding UTF8"
+    powershell -Command "$base='%GITHUB_BASE%'; $path='%UPDATE_DIR%\latest-mac.yml'; (Get-Content $path) | ForEach-Object { if ($_ -match '^\s*-?\s*url:\s*(.+)$') { $prefix = $_ -replace '(^\s*-?\s*url:).*','$1'; $filename = $Matches[1].Trim() -replace ' ','.'; \"$prefix $base/$filename\" } elseif ($_ -match '^path:\s*(.+)$') { $filename = $Matches[1].Trim() -replace ' ','.'; \"path: $filename\" } else { $_ } } | Set-Content $path -Encoding UTF8"
 )
 
 echo  Update metadata patched and ready.

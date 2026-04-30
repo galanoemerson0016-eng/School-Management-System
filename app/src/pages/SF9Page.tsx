@@ -446,6 +446,15 @@ function getRemarks(grade: number): string {
     return grade >= 75 ? 'Passed' : 'Failed';
 }
 
+function getGeneralAverageRemarks(genAvg: number): string[] {
+    if (genAvg <= 0) return [''];
+    if (genAvg < 75) return ['Retained'];
+    if (genAvg <= 89) return ['Promoted'];
+    if (genAvg <= 94) return ['Promoted', 'With Honors'];
+    if (genAvg <= 97) return ['Promoted', 'With High Honors'];
+    return ['Promoted', 'With Highest Honors'];
+}
+
 interface SF9ExactDocumentProps {
     student: Student;
     schoolName: string;
@@ -674,8 +683,8 @@ function SF9Pages({
                         <Text style={[styles.attendanceTitle, { fontSize: 11 }, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</Text>
                         <View style={[styles.lpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                             <View style={[styles.lpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>LEARNING AREAS</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '34%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                <View style={[styles.lpHeaderCell, { width: '36%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>LEARNING AREAS</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                     <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 2, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>TERM</Text></View>
                                     <View style={{ flexDirection: 'row', flex: 1 }}>
                                         <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>1</Text></View>
@@ -684,7 +693,7 @@ function SF9Pages({
                                     </View>
                                 </View>
                                 <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>FINAL GRADE</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '15%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>REMARKS</Text></View>
+                                <View style={[styles.lpHeaderCell, { width: '23%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>REMARKS</Text></View>
                             </View>
                             {currentSubjects.map((subj, idx) => {
                                 const gradeRow = grades[subj.name] || [0, 0, 0];
@@ -692,12 +701,12 @@ function SF9Pages({
                                 const isReserved = (subj as any).isReserved;
                                 return (
                                     <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                        <View style={[styles.lpCell, { width: '40%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
+                                        <View style={[styles.lpCell, { width: '36%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
                                             <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
                                                 {isReserved ? '' : subj.name}
                                             </Text>
                                         </View>
-                                        <View style={[styles.lpCell, { width: '34%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                        <View style={[styles.lpCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                             <View style={{ flexDirection: 'row', flex: 1 }}>
                                                 <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(0) ? (gradeRow[0] || '') : ''}</Text></View>
                                                 <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(1) ? (gradeRow[1] || '') : ''}</Text></View>
@@ -705,15 +714,19 @@ function SF9Pages({
                                             </View>
                                         </View>
                                         <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (finalGrade || '') : ''}</Text></View>
-                                        <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(finalGrade) : ''}</Text></View>
+                                        <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(finalGrade) : ''}</Text></View>
                                     </View>
                                 );
                             })}
                             <View style={[styles.lpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.lpCell, { width: '40%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
-                                <View style={[styles.lpCell, { width: '34%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
+                                <View style={[styles.lpCell, { width: '36%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
+                                <View style={[styles.lpCell, { width: '30%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
                                 <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (calculateGeneralAverage(grades) || '') : ''}</Text></View>
-                                <View style={[styles.lpCellLast, { width: '15%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(calculateGeneralAverage(grades)) : ''}</Text></View>
+                                <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
+                                    {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades)).map((line, i) => (
+                                        <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>
+                                    )) : <Text></Text>}
+                                </View>
                             </View>
                         </View>
                         <View style={styles.legendContainer}>
@@ -1202,7 +1215,7 @@ export function SF9Page() {
     };
 
     const [isSpeaking, setIsSpeaking] = useState(false);
-    const [speechRate, setSpeechRate] = useState(0.85);
+    const [speechRate, setSpeechRate] = useState(2.5);
     const handleSpeak = () => {
         if (isSpeaking) {
             window.speechSynthesis.cancel();
@@ -1250,10 +1263,12 @@ export function SF9Page() {
             }
         });
 
-        // 4. General Average
+        // 4. General Average + Remarks
         const genAvg = calculateGeneralAverage(studentGrades.grades);
         if (genAvg > 0) {
-            textToSpeak += `General Average: ${genAvg}.`;
+            const remarksLines = getGeneralAverageRemarks(genAvg);
+            const remarksText = remarksLines.filter(l => l).join(', ');
+            textToSpeak += `General Average: ${genAvg}. ${remarksText}.`;
         }
 
         utterance.text = textToSpeak;

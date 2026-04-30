@@ -1,8 +1,8 @@
-﻿version: 1.0.31
+version: 1.0.32
 files:
-  - url: FormEase Pro Setup 1.0.31.exe
-    sha512: aufk0mzG+r/y+YtWXjT7dPppqCi9cf/vtZmc2BIsef4VLtXQd3dXAhVbVNCuHCYE7UEN8bjZ7mbUY3m0K/9LaQ==
-    size: 143590715
-path: FormEase.Pro.Setup.1.0.31.exe
-sha512: aufk0mzG+r/y+YtWXjT7dPppqCi9cf/vtZmc2BIsef4VLtXQd3dXAhVbVNCuHCYE7UEN8bjZ7mbUY3m0K/9LaQ==
-releaseDate: '2026-04-30T01:58:15.291Z'
+  - url: https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v1.0.32/FormEase.Pro.Setup.1.0.32.exe
+    sha512: 1l5yGqZE5Wh1RzYEn9wTmTUEs1anq+z7ePdIC/YcyLBGn7xymD6nJRwuX3Nne/ycLpApzqabAuHHpEnBIatetg==
+    size: 143596759
+path: FormEase.Pro.Setup.1.0.32.exe
+sha512: 1l5yGqZE5Wh1RzYEn9wTmTUEs1anq+z7ePdIC/YcyLBGn7xymD6nJRwuX3Nne/ycLpApzqabAuHHpEnBIatetg==
+releaseDate: '2026-04-30T07:41:19.595Z'
