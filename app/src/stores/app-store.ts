@@ -51,6 +51,7 @@ interface AppState {
   addSubject: (subject: Subject) => Promise<void>;
   updateSubject: (subject: Subject) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
+  deleteSubjectsBulk: (ids: string[]) => Promise<void>;
 
   // Class Records (Grades)
   classRecords: ClassRecord[];
@@ -494,7 +495,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       throw error;
     }
   },
-  deleteSubjectsBulk: async (ids) => {
+  deleteSubjectsBulk: async (ids: string[]) => {
     const previousSubjects = get().subjects;
     const previousSections = get().sections;
     const subjectsToDelete = previousSubjects.filter(s => ids.includes(s.id));
