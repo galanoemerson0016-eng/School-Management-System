@@ -4,7 +4,7 @@ import { Printer, ArrowLeft, ChevronDown, Download, Lock, Unlock, RefreshCcw, Tr
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
-import { getSubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
+import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import type { Subject, ClassRecord, HPSRecord, Student } from '../types';
 
 type QuarterGrades = {
@@ -512,7 +512,7 @@ export function ConsolidatedGradesPage() {
         }
 
         // 4. Post-process: Identify MAPEH groups for all items in the list
-        const finalSubjects = baseList.map(base => {
+        const withMapehData = baseList.map(base => {
             const norm = normalizeSubjectName(base.subject_name);
             if (norm === 'mapeh') {
                 return {
@@ -532,8 +532,11 @@ export function ConsolidatedGradesPage() {
             return base;
         });
 
-        // 5. Filter out individual MAPEH components from the main row list (they are sub-columns)
-        return finalSubjects.filter(sub => {
+        // 5. Apply Global Standard Ordering (Filipino -> English -> ... -> MAPEH -> Specialization)
+        const sortedSubjects = sortSubjects(withMapehData, s => s.subject_name);
+
+        // 6. Filter out individual MAPEH components from the main row list (they are sub-columns under MAPEH header)
+        return sortedSubjects.filter(sub => {
             const norm = normalizeSubjectName(sub.subject_name);
             const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
                                norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');

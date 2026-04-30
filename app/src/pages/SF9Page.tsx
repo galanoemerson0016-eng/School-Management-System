@@ -6,7 +6,7 @@ import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2S
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
-import { getSF9SubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
+import { getSF9SubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 
 // Print mode type for term-specific printing
 type SF9PrintMode = 'full' | 'term1' | 'term2' | 'term3';
@@ -197,47 +197,36 @@ function computeStudentGrades(
             }
         }
     } else {
-        // Fallback to Automatic Order logic
-        // 1. Standard Core Subjects (Filipino to TLE)
-        const coreNames = ['filipino', 'english', 'mathematics', 'science', 'aralingpanlipunan', 'valueseducation', 'technologyandlivelihoodeducation'];
-        const standardCore = baseSubjects.filter(s => {
-            const n = normalizeSubjectName(s.name);
-            return coreNames.some(cn => n === cn || n.includes(cn));
-        });
-        standardCore.forEach(s => currentSubjects.push(s));
-
-        // 2. MAPEH Group (Immediately after TLE)
-        const mapehHeader = baseSubjects.find(s => normalizeSubjectName(s.name) === 'mapeh') || (baseSubjects.some(s => {
-            const n = normalizeSubjectName(s.name);
-            return n.includes('musicandarts') || n.includes('peandhealth');
-        }) ? { name: 'MAPEH', isHeader: true } : null);
+        // 1. Sort base subjects according to standard priority
+        const sortedBase = sortSubjects(baseSubjects, s => s.name);
         
-        const mapehComponents = baseSubjects.filter(s => {
+        // 2. Identify and group MAPEH
+        const mapehHeader = sortedBase.find(s => normalizeSubjectName(s.name) === 'mapeh');
+        const mapehComponents = sortedBase.filter(s => {
             const n = normalizeSubjectName(s.name);
-            return n.includes('musicandarts') || n.includes('musicarts') || 
-                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+            return n !== 'mapeh' && (
+                n.includes('musicandarts') || n.includes('musicarts') || 
+                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')
+            );
         });
 
-        if (mapehHeader) {
-            currentSubjects.push(mapehHeader);
-            mapehComponents.forEach(c => currentSubjects.push({ ...c, isComponent: true }));
-        }
-
-        // 3. Specialization Subjects (After MAPEH)
-        const specializationSubjects = baseSubjects.filter(s => {
+        // 3. Construct final list
+        sortedBase.forEach(s => {
             const n = normalizeSubjectName(s.name);
-            return n.includes('specialization') && !currentSubjects.some(cs => cs.name === s.name);
-        });
-        specializationSubjects.forEach(s => currentSubjects.push(s));
+            const isComponent = mapehComponents.some(c => c.name === s.name);
+            
+            // Skip components here, we'll insert them after the header
+            if (isComponent) return;
 
-        // 4. Any other remaining subjects
-        baseSubjects.forEach(s => {
-            if (!currentSubjects.some(cs => cs.name === s.name)) {
-                currentSubjects.push(s);
+            currentSubjects.push(s);
+
+            // If this is the MAPEH header, insert components immediately after
+            if (n === 'mapeh') {
+                mapehComponents.forEach(c => currentSubjects.push({ ...c, isComponent: true }));
             }
         });
 
-        // Ensure we have at least 13 rows for subjects (Learning Areas) to maintain table size
+        // 4. Padding for table consistency
         while (currentSubjects.length < 13) {
             currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true } as any);
         }

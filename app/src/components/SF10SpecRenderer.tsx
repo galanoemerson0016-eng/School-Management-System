@@ -188,17 +188,27 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     {/* Grades Table */}
                                     <table className="excel-table text-[11px] text-center border-b-0 border-t-0 border-black">
                                         <thead className="bg-white font-bold">
-                                            <tr className="h-[17px]">
-                                                <td rowSpan={2} className="w-[30%] border-r-black border-r">LEARNING AREAS</td>
-                                                <td colSpan={3} className="border-l-black border-l">Term Rating</td>
-                                                <td rowSpan={2} className="w-[10%] leading-tight">FINAL<br/>RATING</td>
-                                                <td rowSpan={2} className="w-[16%]">REMARKS</td>
-                                            </tr>
-                                            <tr className="h-[17px] text-[10px]">
-                                                <td className="w-[8%] border-l-black border-l">1</td>
-                                                <td className="w-[8%]">2</td>
-                                                <td className="w-[8%]">3</td>
-                                            </tr>
+                                            {(() => {
+                                                const is3Term = !!getRaw(`scholasticRecords[${blockIdx}].is3Term`);
+                                                return (
+                                                    <>
+                                                        <tr className="h-[17px]">
+                                                            <td rowSpan={2} className="w-[30%] border-r-black border-r">LEARNING AREAS</td>
+                                                            <td colSpan={is3Term ? 3 : 4} className="border-l-black border-l">
+                                                                {is3Term ? 'Term Rating' : 'Quarterly Rating'}
+                                                            </td>
+                                                            <td rowSpan={2} className="w-[10%] leading-tight">FINAL<br/>RATING</td>
+                                                            <td rowSpan={2} className="w-[16%]">REMARKS</td>
+                                                        </tr>
+                                                        <tr className="h-[17px] text-[10px]">
+                                                            <td className={is3Term ? "w-[8%] border-l-black border-l" : "w-[6%] border-l-black border-l"}>1</td>
+                                                            <td className={is3Term ? "w-[8%]" : "w-[6%]"}>2</td>
+                                                            <td className={is3Term ? "w-[8%]" : "w-[6%]"}>3</td>
+                                                            {!is3Term && <td className="w-[6%]">4</td>}
+                                                        </tr>
+                                                    </>
+                                                );
+                                            })()}
                                         </thead>
                                         <tbody>
                                             {(() => {
@@ -208,6 +218,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                                     ? rawGradeLevelNum
                                                     : parseInt(rawGrade.replace(/\D/g, '')) || 0;
                                                 
+                                                const is3Term = !!getRaw(`scholasticRecords[${blockIdx}].is3Term`);
                                                 const customCurriculum = (getRaw('curriculum') as any);
                                                 const rows = getSF10RowsForGrade(gradeNum, customCurriculum);
                                                 
@@ -216,18 +227,20 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                                     return (
                                                         <tr key={rIdx} className="h-subject-row">
                                                             <td className={`text-left ${getLearningAreaIndentClass(row)}`}>
-                                                                {row.key.startsWith('extra') ? (
+                                                                {(row.key.startsWith('extra') || blockIdx === 4) ? (
                                                                     <input 
                                                                         type="text" 
                                                                         className="w-full border-none bg-transparent focus:outline-none uppercase"
-                                                                        value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`)}
+                                                                        value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`) || (row.label !== ' ' ? row.label : '')}
                                                                         onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)}
+                                                                        placeholder={row.label === ' ' ? '' : row.label}
                                                                     />
                                                                 ) : row.label}
                                                             </td>
                                                             <td>{asString(sub.q1)}</td>
                                                             <td>{asString(sub.q2)}</td>
                                                             <td>{asString(sub.q3)}</td>
+                                                            {!is3Term && <td>{asString(sub.q4)}</td>}
                                                             <td className="font-bold">{asString(sub.finalRating)}</td>
                                                             <td className="uppercase text-[9px]">{asString(sub.remarks)}</td>
                                                         </tr>
@@ -236,7 +249,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                             })()}
                                     <tr className="font-bold h-[15px]">
                                         <td></td>
-                                        <td colSpan={3} className="text-center uppercase">General Average</td>
+                                        <td colSpan={getRaw(`scholasticRecords[${blockIdx}].is3Term`) ? 3 : 4} className="text-center uppercase">General Average</td>
                                         <td>{getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)}</td>
                                         <td className="uppercase text-[9px]">
                                             {parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)) >= 75 ? 'PASSED' : ''}
@@ -597,17 +610,27 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                             {/* Grades Table */}
                             <table className="excel-table text-[11px] text-center border-b-0 border-t-0 border-black">
                                 <thead className="bg-white font-bold">
-                                    <tr className="h-[17px]">
-                                        <td rowSpan={2} className="w-[30%] border-r-black border-r">LEARNING AREAS</td>
-                                        <td colSpan={3} className="border-l-black border-l">Term Rating</td>
-                                        <td rowSpan={2} className="w-[10%] leading-tight">FINAL<br/>RATING</td>
-                                        <td rowSpan={2} className="w-[16%]">REMARKS</td>
-                                    </tr>
-                                    <tr className="h-[17px] text-[10px]">
-                                        <td className="w-[8%] border-l-black border-l">1</td>
-                                        <td className="w-[8%]">2</td>
-                                        <td className="w-[8%]">3</td>
-                                    </tr>
+                                    {(() => {
+                                        const is3Term = !!getRaw(`scholasticRecords[${blockIdx}].is3Term`);
+                                        return (
+                                            <>
+                                                <tr className="h-[17px]">
+                                                    <td rowSpan={2} className="w-[30%] border-r-black border-r">LEARNING AREAS</td>
+                                                    <td colSpan={is3Term ? 3 : 4} className="border-l-black border-l">
+                                                        {is3Term ? 'Term Rating' : 'Quarterly Rating'}
+                                                    </td>
+                                                    <td rowSpan={2} className="w-[10%] leading-tight">FINAL<br/>RATING</td>
+                                                    <td rowSpan={2} className="w-[16%]">REMARKS</td>
+                                                </tr>
+                                                <tr className="h-[17px] text-[10px]">
+                                                    <td className={is3Term ? "w-[8%] border-l-black border-l" : "w-[6%] border-l-black border-l"}>1</td>
+                                                    <td className={is3Term ? "w-[8%]" : "w-[6%]"}>2</td>
+                                                    <td className={is3Term ? "w-[8%]" : "w-[6%]"}>3</td>
+                                                    {!is3Term && <td className="w-[6%]">4</td>}
+                                                </tr>
+                                            </>
+                                        );
+                                    })()}
                                 </thead>
                                 <tbody>
                                     {(() => {
@@ -617,6 +640,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                             ? rawGradeLevelNum
                                             : parseInt(rawGrade.replace(/\D/g, '')) || 0;
                                         
+                                        const is3Term = !!getRaw(`scholasticRecords[${blockIdx}].is3Term`);
                                         const customCurriculum = (getRaw('curriculum') as any);
                                         const rows = getSF10RowsForGrade(gradeNum, customCurriculum);
                                         
@@ -625,18 +649,20 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                             return (
                                                 <tr key={rIdx} className="h-subject-row">
                                                     <td className={`text-left ${getLearningAreaIndentClass(row)}`}>
-                                                        {row.key.startsWith('extra') ? (
+                                                        {(row.key.startsWith('extra') || blockIdx === 4) ? (
                                                             <input 
                                                                 type="text" 
                                                                 className="w-full border-none bg-transparent focus:outline-none uppercase"
-                                                                value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`)}
+                                                                value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`) || (row.label !== ' ' ? row.label : '')}
                                                                 onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)}
+                                                                placeholder={row.label === ' ' ? '' : row.label}
                                                             />
                                                         ) : row.label}
                                                     </td>
                                                     <td>{asString(sub.q1)}</td>
                                                     <td>{asString(sub.q2)}</td>
                                                     <td>{asString(sub.q3)}</td>
+                                                    {!is3Term && <td>{asString(sub.q4)}</td>}
                                                     <td className="font-bold">{asString(sub.finalRating)}</td>
                                                     <td className="uppercase text-[9px]">{asString(sub.remarks)}</td>
                                                 </tr>
@@ -645,7 +671,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     })()}
                                     <tr className="font-bold h-[16px]">
                                         <td></td>
-                                        <td colSpan={3} className="text-center uppercase">General Average</td>
+                                        <td colSpan={getRaw(`scholasticRecords[${blockIdx}].is3Term`) ? 3 : 4} className="text-center uppercase">General Average</td>
                                         <td>{getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)}</td>
                                         <td className="uppercase text-[9px]">
                                             {parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)) >= 75 ? 'PASSED' : ''}

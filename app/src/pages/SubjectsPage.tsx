@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
-    Sparkles, BookText, X
+    Sparkles, BookText, X, Trash2
 } from 'lucide-react';
 import type { Subject } from '../types';
 import type { LucideIcon } from 'lucide-react';
@@ -98,7 +98,7 @@ const sectionMatchesGrade = (section: { section_grade_level?: string; section_na
 import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS } from '../lib/curriculum';
 
 export function SubjectsPage() {
-    const { subjects, sections, addSubject, deleteSubject, updateSubject, setCurrentView, showNotification } = useAppStore(); // Ensure updateSubject is available
+    const { subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); // Ensure updateSubject is available
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
@@ -125,6 +125,7 @@ export function SubjectsPage() {
     const [showCurriculumChoice, setShowCurriculumChoice] = useState(false);
     const [lastLoadedCurriculumType, setLastLoadedCurriculumType] = useState<'standard' | 'special' | null>(null);
     const [showLoadSuccessHighlight, setShowLoadSuccessHighlight] = useState(false);
+    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const templateLoadInFlightRef = useRef(false);
 
     // Derived Data
@@ -232,6 +233,19 @@ export function SubjectsPage() {
             console.error('Failed to save subject in background:', error);
             alert(error instanceof Error ? error.message : 'An error occurred while saving the subject.');
         });
+    };
+
+    const handleDeleteAll = async () => {
+        if (filteredSubjects.length === 0) return;
+        
+        const ids = filteredSubjects.map(s => s.id);
+        setShowDeleteAllConfirm(false);
+        
+        try {
+            await deleteSubjectsBulk(ids);
+        } catch (error) {
+            console.error('Failed to bulk delete subjects:', error);
+        }
     };
 
     const handleLoadStandardSubjects = async () => {
@@ -471,13 +485,25 @@ export function SubjectsPage() {
                         </button>
                     )}
                     {viewMode === 'subjects' && canEdit && (
-                        <button 
-                            onClick={openAddModal} 
-                            className="h-12 px-8 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-xl shadow-indigo-200 active:scale-95"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add New Subject
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {filteredSubjects.length > 0 && (
+                                <button 
+                                    onClick={() => setShowDeleteAllConfirm(true)}
+                                    className="h-12 px-5 bg-rose-50 text-rose-600 rounded-2xl font-bold text-sm hover:bg-rose-100 transition-all flex items-center gap-2 border border-rose-100 active:scale-95"
+                                    title="Delete all subjects in this view"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete All
+                                </button>
+                            )}
+                            <button 
+                                onClick={openAddModal} 
+                                className="h-12 px-8 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-xl shadow-indigo-200 active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add New Subject
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -807,6 +833,17 @@ export function SubjectsPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                open={showDeleteAllConfirm}
+                title={`Delete All Subjects for ${selectedSection?.section_name || selectedGrade}?`}
+                message={`This will permanently remove ALL ${filteredSubjects.length} subjects from the Hub.`}
+                details="This action cannot be undone and will also clear these subjects from any section teaching loads."
+                confirmLabel="Yes, Delete All"
+                intent="danger"
+                onConfirm={handleDeleteAll}
+                onCancel={() => setShowDeleteAllConfirm(false)}
+            />
 
             <ConfirmationModal
                 open={deleteTarget !== null}

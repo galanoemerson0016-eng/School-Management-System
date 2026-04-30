@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Section } from '../types';
 
 export function SectionsPage() {
-    const { sections, deleteSection, teachers, schoolProfile, updateSection } = useAppStore();
+    const { sections, subjects, deleteSection, teachers, schoolProfile, updateSection } = useAppStore();
     
     // Auto-Sync Adviser Names from Institute Profile (Source of Truth)
     useEffect(() => {
@@ -175,14 +175,29 @@ export function SectionsPage() {
                                     </span>
                                     {section.is_teaching_load && (
                                         <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[8px] font-black rounded-lg uppercase tracking-widest border border-amber-200/50">
-                                            {section.taught_subjects?.length || 0} Total
+                                            {section.taught_subjects?.filter(subj => {
+                                                const normalizedSubj = subj.toLowerCase().trim().replace(/\s+/g, ' ');
+                                                return subjects.some(s => 
+                                                    s.grade_level?.trim() === section.section_grade_level?.trim() &&
+                                                    s.subject_name.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedSubj &&
+                                                    (!s.section_id || s.section_id === section.id)
+                                                );
+                                            }).length || 0} Total
                                         </span>
                                     )}
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
                                     {section.is_teaching_load && (section.taught_subjects?.length || 0) > 0 ? (
-                                        section.taught_subjects?.map(subj => (
+                                        section.taught_subjects?.filter(subj => {
+                                            const normalizedSubj = subj.toLowerCase().trim().replace(/\s+/g, ' ');
+                                            
+                                            return subjects.some(s => 
+                                                s.grade_level?.trim() === section.section_grade_level?.trim() &&
+                                                s.subject_name.toLowerCase().trim().replace(/\s+/g, ' ') === normalizedSubj &&
+                                                (!s.section_id || s.section_id === section.id)
+                                            );
+                                        }).map(subj => (
                                             <span key={subj} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[9px] font-bold text-slate-600 uppercase tracking-tight shadow-sm hover:border-amber-400 hover:text-amber-600 transition-colors cursor-default">
                                                 {subj}
                                             </span>

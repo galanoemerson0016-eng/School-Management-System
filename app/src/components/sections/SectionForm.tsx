@@ -16,7 +16,7 @@ const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
 
 export function SectionForm({ section, onClose }: SectionFormProps) {
-    const { sections, addSection, updateSection, subjects, addSubject, schoolProfile, showNotification } = useAppStore();
+    const { sections, addSection, updateSection, subjects, addSubject, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -66,25 +66,49 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const grade = formData.section_grade_level as GradeLevel;
         const currentSectionId = section?.id || formData.id;
 
-        const hasSpecializationInSelection = subjects.some((subject) => {
-            const isSameGrade = subject.grade_level === grade;
-            const isSameScope = currentSectionId
-                ? subject.section_id === currentSectionId
-                : !subject.section_id;
-            const isSpecialization = normalizeSubjectLabel(subject.subject_name) === 'specialization';
-            return isSameGrade && isSameScope && isSpecialization;
-        });
-
-        const hasSpecializationInForm = (formData.taught_subjects || []).some(
-            (subjectName) => normalizeSubjectLabel(subjectName) === 'specialization'
+        // The Subjects Hub is the Source of Truth.
+        // We only show subjects that exist in the hub for this grade.
+        // This includes:
+        // 1. Grade-level templates (no section_id)
+        // 2. Subjects already assigned to this specific section
+        const hubSubjects = subjects.filter(s => 
+            s.grade_level === grade && 
+            (!s.section_id || s.section_id === currentSectionId) &&
+            !s.is_teaching_load
         );
 
-        if (hasSpecializationInSelection || hasSpecializationInForm) {
-            return SPECIAL_SUBJECTS[grade] || [];
-        }
+        // Map to the format expected by the UI and ensure uniqueness by name
+        const uniqueList: { name: string; code: string }[] = [];
+        const seenNames = new Set<string>();
 
-        return STANDARD_SUBJECTS[grade] || [];
-    }, [formData.id, formData.section_grade_level, formData.taught_subjects, section?.id, subjects]);
+        hubSubjects.forEach(s => {
+            const normalized = normalizeSubjectLabel(s.subject_name);
+            if (!seenNames.has(normalized)) {
+                seenNames.add(normalized);
+                uniqueList.push({ 
+                    name: s.subject_name, 
+                    code: s.subject_code || '' 
+                });
+            }
+        });
+
+        // Sort them according to standard DepEd order if possible, otherwise alphabetical
+        const standardOrder = [
+            'Filipino', 'English', 'Mathematics', 'Science', 'Araling Panlipunan (AP)', 
+            'Values Education', 'Technology and Livelihood Education (TLE)', 
+            'MAPEH', 'Music and Arts', 'Physical Education and Health', 'Specialization'
+        ];
+
+        return uniqueList.sort((a, b) => {
+            const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
+            const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
+            
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return a.name.localeCompare(b.name);
+        });
+    }, [formData.id, formData.section_grade_level, section?.id, subjects]);
 
     const handleAdvisoryChange = (checked: boolean) => {
         if (checked) {
@@ -149,6 +173,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         }
 
         try {
+            const validSubjectNames = new Set(availableSubjects.map(s => s.name));
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
                 section_name: formData.section_name!,
@@ -156,7 +181,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 adviser_id: formData.adviser_id || '',
                 adviser_name: formData.adviser_name || '',
                 subject_name: formData.subject_name,
-                taught_subjects: formData.is_teaching_load ? formData.taught_subjects : [],
+                taught_subjects: formData.is_teaching_load 
+                    ? (formData.taught_subjects || []).filter(s => validSubjectNames.has(s))
+                    : [],
                 is_teaching_load: !!formData.is_teaching_load,
                 is_advisory: !!formData.is_advisory
             };
@@ -171,33 +198,20 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 showNotification('Section created successfully.', 'success');
             }
 
-            // Sync Taught Subjects to Subjects Store
-            if (sectionData.is_teaching_load) {
-                const combinedSubjects = [...(sectionData.taught_subjects || [])];
-                if (sectionData.subject_name) {
-                    // Include any comma-separated custom subjects
-                    const custom = sectionData.subject_name.split(',').map(s => s.trim()).filter(Boolean);
-                    combinedSubjects.push(...custom);
-                }
-
-                const uniqueSubjects = Array.from(new Set(combinedSubjects));
-                
-                for (const subjectName of uniqueSubjects) {
-                    const exists = subjects.find(s => s.section_id === sectionId && s.subject_name === subjectName);
-                    if (!exists) {
-                        try {
-                            await addSubject({
-                                id: `subj_${sectionId}_${subjectName.replace(/\s+/g, '_')}_${Date.now()}`,
-                                subject_name: subjectName,
-                                grade_level: sectionData.section_grade_level,
-                                section_id: sectionId,
-                                teacher_id: user?.uid
-                            });
-                        } catch (err) {
-                            console.error(`Failed to auto-create subject ${subjectName}:`, err);
-                        }
-                    }
-                }
+            // Sync with Institute Profile if this is the Advisory Class
+            if (sectionData.is_advisory) {
+                await updateSchoolProfile({
+                    ...schoolProfile!,
+                    grade_level: sectionData.section_grade_level,
+                    section: sectionData.section_name
+                });
+            } else if (section && (section.is_advisory ?? !section.is_teaching_load)) {
+                // If it WAS an advisory class but is now NOT, clear the profile fields
+                await updateSchoolProfile({
+                    ...schoolProfile!,
+                    grade_level: '',
+                    section: ''
+                });
             }
 
             onClose();

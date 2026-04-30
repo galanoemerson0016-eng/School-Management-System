@@ -1,5 +1,5 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
-import { getSubjectsForGrade, normalizeSubjectName, getSF10RowsForGrade } from '../lib/subjectConfig';
+import { getSubjectsForGrade, normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
@@ -219,22 +219,45 @@ export function mapStudentToSpecData({
           code: s.subject_code || ''
         }));
 
-        // Ensure MAPEH header row exists if components are present
-        const hasMapehHeader = newList.some(s => normalizeSubjectName(s.name) === 'mapeh');
-        const hasMapehComponents = newList.some(s => {
-          const n = normalizeSubjectName(s.name);
-          return n.includes('musicandarts') || n.includes('musicarts') || 
-                 n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+        // 1. Sort the list according to global priority (Core -> MAPEH -> Specialization)
+        let sorted = sortSubjects(newList, s => s.name);
+
+        // 2. Specialized MAPEH logic: Ensure components follow header
+        const final: CurriculumSubject[] = [];
+        const mapehHeader = sorted.find(s => normalizeSubjectName(s.name) === 'mapeh');
+        const mapehComponents = sorted.filter(s => {
+            const n = normalizeSubjectName(s.name);
+            return n !== 'mapeh' && (
+                n.includes('musicandarts') || n.includes('musicarts') || 
+                n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')
+            );
         });
 
-        if (hasMapehComponents && !hasMapehHeader) {
-          newList.push({ name: 'MAPEH' });
+        // Add subjects, inserting components after header
+        sorted.forEach(s => {
+            const n = normalizeSubjectName(s.name);
+            const isComponent = mapehComponents.some(c => c.name === s.name);
+            if (isComponent) return; // Skip components for now
+
+            final.push(s);
+
+            if (n === 'mapeh') {
+                mapehComponents.forEach(c => final.push({ ...c, code: 'MAPEH' }));
+            }
+        });
+
+        // 3. Fallback: If components exist but no header was in the DB, add the header
+        if (mapehComponents.length > 0 && !mapehHeader) {
+            // Find insertion point (after TLE)
+            const tleIndex = final.findIndex(s => normalizeSubjectName(s.name).includes('tle'));
+            const insertIdx = tleIndex !== -1 ? tleIndex + 1 : 0;
+            final.splice(insertIdx, 0, { name: 'MAPEH' }, ...mapehComponents.map(c => ({ ...c, code: 'MAPEH' })));
         }
 
-        return newList;
+        return final;
       }
 
-      return currentList ? [...currentList] : [];
+      return currentList ? sortSubjects([...currentList], s => s.name) : [];
     };
 
     const nextCurriculum: SchoolCurriculum = profile.curriculum ? { ...profile.curriculum } : { school_id: profile.school_id };
@@ -268,6 +291,11 @@ export function mapStudentToSpecData({
         if (!dbSubject) return false;
         // Ensure the subject belongs to the grade level being built for this block
         const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
+        
+        // CRITICAL FIX: Only show grades for the current grade block if they match the active school year
+        // This prevents "ghost" data from previous years/tests from appearing when the user expects a blank sheet.
+        if (isCurrentGrade && r.school_year !== schoolYear) return false;
+        
         return subjectGradeNum === gradeLevel;
       });
 
@@ -338,8 +366,12 @@ export function mapStudentToSpecData({
         const sub = getSubjectGradeEntry(subjectsData, s.key);
         if (!sub) continue;
 
-        const terms = [sub.q1, sub.q2, sub.q3].map(Number).filter(v => v > 0);
-        const isComplete = terms.length === 3;
+        const is3Term = gradeLevel >= currentGradeNum;
+        const terms = is3Term 
+            ? [sub.q1, sub.q2, sub.q3].map(Number).filter(v => v > 0)
+            : [sub.q1, sub.q2, sub.q3, sub.q4].map(Number).filter(v => v > 0);
+        
+        const isComplete = is3Term ? terms.length === 3 : terms.length === 4;
 
         if (isComplete) {
           const avg = Math.round(terms.reduce((a: number, b: number) => a + b, 0) / terms.length);
@@ -376,6 +408,7 @@ export function mapStudentToSpecData({
       adviserTeacher: isCurrentGrade ? adviserName : '',
       signature: '',
       subjects: subjectsData,
+      is3Term: gradeLevel >= currentGradeNum,
       remedial: {
         fromDate: '',
         toDate: '',
@@ -405,6 +438,8 @@ export function mapStudentToSpecData({
       adviserTeacher: '',
       signature: '',
       subjects: blankSubjects(11, effectiveCurriculum), // Just an empty one
+      is3Term: true,
+      gradeLevelNum: 11,
       remedial: {
         fromDate: '',
         toDate: '',

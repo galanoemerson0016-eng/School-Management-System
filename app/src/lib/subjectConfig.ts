@@ -70,27 +70,33 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
   
   // Check custom curriculum first
   if (customCurriculum) {
-    if (grade.includes('7') && customCurriculum.grade_7_subjects?.length) {
+    if (grade.includes('7') && customCurriculum.grade_7_subjects !== undefined) {
       return customCurriculum.grade_7_subjects;
     }
-    if (grade.includes('8') && customCurriculum.grade_8_subjects?.length) {
+    if (grade.includes('8') && customCurriculum.grade_8_subjects !== undefined) {
       return customCurriculum.grade_8_subjects;
     }
-    if (grade.includes('9') && customCurriculum.grade_9_subjects?.length) {
+    if (grade.includes('9') && customCurriculum.grade_9_subjects !== undefined) {
       return customCurriculum.grade_9_subjects;
     }
-    if (grade.includes('10') && customCurriculum.grade_10_subjects?.length) {
+    if (grade.includes('10') && customCurriculum.grade_10_subjects !== undefined) {
       return customCurriculum.grade_10_subjects;
     }
   }
 
-  // Fall back to standard subjects
-  if (grade.includes('7')) return STANDARD_SUBJECTS.Grade7;
-  if (grade.includes('8')) return STANDARD_SUBJECTS.Grade8;
-  if (grade.includes('9')) return STANDARD_SUBJECTS.Grade9;
-  if (grade.includes('10')) return STANDARD_SUBJECTS.Grade10;
+  let result: CurriculumSubject[] = [];
 
-  return STANDARD_SUBJECTS.Grade7; // Default fallback
+  // Fall back to standard subjects
+  if (grade.includes('7')) result = [...STANDARD_SUBJECTS.Grade7];
+  else if (grade.includes('8')) result = [...STANDARD_SUBJECTS.Grade8];
+  else if (grade.includes('9')) result = [...STANDARD_SUBJECTS.Grade9];
+  else if (grade.includes('10')) result = [...STANDARD_SUBJECTS.Grade10];
+  else {
+    // Return empty rows for overflow/extra blocks
+    return Array(11).fill(null).map(() => ({ name: ' ', code: '' }));
+  }
+
+  return sortSubjects(result, (s) => s.name);
 }
 
 /**
@@ -191,15 +197,58 @@ export function getSF9SubjectsForGrade(gradeLevel: string | number, customCurric
   return rows;
 }
 
-/**
- * Normalize subject name for matching/comparison
- */
 export function normalizeSubjectName(name: string): string {
+  if (!name) return '';
   return name
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Global sorting priority for DepEd JHS Curriculum
+ * Returns a numerical rank to ensure subjects appear in the correct official order
+ */
+export function getStandardSubjectPriority(name: string): number {
+    const normalized = normalizeSubjectName(name);
+    
+    // 1. Core Academic Subjects
+    if (normalized.includes('filipino')) return 10;
+    if (normalized.includes('english')) return 20;
+    if (normalized.includes('mathematics') || normalized.includes('math')) return 30;
+    if (normalized.includes('science')) return 40;
+    if (normalized === 'aralingpanlipunan' || normalized === 'ap' || normalized.includes('aralingpanlipunan')) return 50;
+    if (normalized.includes('valueseducation') || normalized.includes('values') || normalized.includes('esp') || normalized.includes('edukasyonsapagpapakatao')) return 60;
+    if (normalized.includes('technologyandlivelihood') || normalized.includes('tle')) return 70;
+    
+    // 2. MAPEH Header
+    if (normalized === 'mapeh') return 80;
+    
+    // 3. MAPEH Components (Should be adjacent to header)
+    if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 81;
+    if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 82;
+    
+    // 4. Specialization (Always Last)
+    if (normalized.includes('specialization')) return 1000;
+
+    // Others (General electives, etc.)
+    return 500;
+}
+
+/**
+ * Sorts an array of subjects based on official priority
+ */
+export function sortSubjects<T>(items: T[], getName: (item: T) => string): T[] {
+    return [...items].sort((a, b) => {
+        const priorityA = getStandardSubjectPriority(getName(a));
+        const priorityB = getStandardSubjectPriority(getName(b));
+        
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+        return getName(a).localeCompare(getName(b));
+    });
 }
 
 /**

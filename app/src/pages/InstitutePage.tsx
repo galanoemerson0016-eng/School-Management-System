@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef } from 'react';
-import { Trash2, ImagePlus, CheckCircle2, Loader2, Lock, X, ShieldCheck } from 'lucide-react';
+import { Trash2, ImagePlus, CheckCircle2, Loader2, Lock, X, ShieldCheck, Shield } from 'lucide-react';
 import { useAppStore, useAuthStore } from '../stores';
 import type { SchoolProfile } from '../types';
 import { canManageSchoolProfile } from '../lib/rbac';
 
 export function InstitutePage() {
-    const { schoolProfile, updateSchoolProfile } = useAppStore();
+    const { schoolProfile, updateSchoolProfile, sections } = useAppStore();
     const { user } = useAuthStore();
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -360,13 +360,16 @@ export function InstitutePage() {
                             />
                         </div>
                         <div className="relative">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2 flex justify-between items-center">
                                 Grade Level
+                                <span className="text-[9px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-widest">
+                                    <Shield className="w-2.5 h-2.5" /> Synced
+                                </span>
                             </label>
                             <select
-                                className="form-input"
+                                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed font-bold"
                                 value={formData.grade_level}
-                                onChange={e => setFormData({ ...formData, grade_level: e.target.value })}
+                                disabled={true}
                             >
                                 <option value="">Select Grade Level</option>
                                 <option value="Grade 7">Grade 7</option>
@@ -376,14 +379,41 @@ export function InstitutePage() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Section</label>
-                            <input
-                                type="text"
-                                className="form-input"
+                            <label className="block text-sm font-bold text-gray-700 mb-2 flex justify-between items-center">
+                                Section
+                                <span className="text-[9px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full flex items-center gap-1 uppercase tracking-widest">
+                                    <Shield className="w-2.5 h-2.5" /> Synced
+                                </span>
+                            </label>
+                            <select
+                                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed font-bold"
                                 value={formData.section}
-                                onChange={e => setFormData({ ...formData, section: e.target.value })}
-                                placeholder="e.g. Diamond"
-                            />
+                                disabled={true}
+                            >
+                                <option value="">Select Section</option>
+                                {sections
+                                    .filter(s => {
+                                        const secGrade = (s.section_grade_level || '').toString().toLowerCase();
+                                        const targetGrade = (formData.grade_level || '').toString().toLowerCase();
+                                        return secGrade === targetGrade || (targetGrade && secGrade.includes(targetGrade.replace(/\D/g, '')));
+                                    })
+                                    .map(s => (
+                                        <option key={s.id} value={s.section_name}>
+                                            {s.section_name}
+                                        </option>
+                                    ))
+                                }
+                                {sections.filter(s => {
+                                    const secGrade = (s.section_grade_level || '').toString().toLowerCase();
+                                    const targetGrade = (formData.grade_level || '').toString().toLowerCase();
+                                    return secGrade === targetGrade || (targetGrade && secGrade.includes(targetGrade.replace(/\D/g, '')));
+                                }).length === 0 && formData.grade_level && (
+                                    <option disabled>No sections created for this grade</option>
+                                )}
+                            </select>
+                            <p className="text-[10px] text-blue-400 mt-2 font-bold uppercase italic">
+                                Auto-synced with Advisory Class in Classes & Sections.
+                            </p>
                         </div>
                     </div>
 

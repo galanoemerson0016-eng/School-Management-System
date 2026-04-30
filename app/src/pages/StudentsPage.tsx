@@ -88,7 +88,7 @@ export function StudentsPage() {
     const resolveSectionGradeDisplay = (section?: Section | null) => {
         const fromSection = (section?.section_grade_level || '').trim();
         const fromProfile = (schoolProfile?.grade_level || '').trim();
-        return fromProfile || fromSection || 'Grade';
+        return fromSection || fromProfile || 'Grade';
     };
 
 

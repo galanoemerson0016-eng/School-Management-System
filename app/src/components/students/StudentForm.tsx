@@ -113,6 +113,16 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         }
     }, [student, initialData]);
 
+    // Ensure Grade Level stays in sync with Section's grade level
+    useEffect(() => {
+        if (formData.student_section) {
+            const sectionObj = sections.find(s => s.section_name === formData.student_section || s.id === formData.student_section);
+            if (sectionObj && sectionObj.section_grade_level !== formData.grade_level) {
+                setFormData(prev => ({ ...prev, grade_level: sectionObj.section_grade_level }));
+            }
+        }
+    }, [formData.student_section, sections, formData.grade_level]);
+
     useEffect(() => {
         if (saveStatus !== 'saved') return;
 
@@ -130,6 +140,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         if (saveStatus !== 'idle') {
             setSaveStatus('idle');
         }
+        // If Grade Level changes, clear section to avoid mismatch and allow new selection
+        if (name === 'grade_level') {
+            setFormData(prev => ({ ...prev, grade_level: value, student_section: '' }));
+            return;
+        }
+
+        // Auto-sync Grade Level when Section changes
+        if (name === 'student_section' && value) {
+            const sectionObj = sections.find(s => s.section_name === value || s.id === value);
+            if (sectionObj) {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    student_section: value, 
+                    grade_level: sectionObj.section_grade_level 
+                }));
+                return;
+            }
+        }
+
         setFormData((prev) => ({ ...prev, [name]: value }));
 
         // Auto-calculate age from birthday
@@ -421,15 +450,24 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             value={formData.grade_level} 
                                             onChange={handleChange} 
                                             required 
-                                            className="form-input bg-gray-100 cursor-not-allowed"
-                                            disabled
+                                            disabled={!!student || !!initialData?.student_section}
+                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                                         >
                                             <option value="Grade 7">Grade 7</option>
+                                            <option value="Grade 8">Grade 8</option>
+                                            <option value="Grade 9">Grade 9</option>
+                                            <option value="Grade 10">Grade 10</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold mb-2 text-deped-blue">Section</label>
-                                        <select name="student_section" value={formData.student_section || ''} onChange={handleChange} className="form-input">
+                                        <select 
+                                            name="student_section" 
+                                            value={formData.student_section || ''} 
+                                            onChange={handleChange} 
+                                            disabled={!!student || !!initialData?.student_section}
+                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                        >
                                             <option value="">Select Section</option>
                                             {sections
                                                 .filter(s => {

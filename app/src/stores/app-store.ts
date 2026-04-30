@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, Enrollment, SchoolYear, ObservedValues, HPSRecord, SF2Sheet, User, AttendanceRecord } from '../types';
 import { db } from '../services/database';
 import { backup } from '../services/backup';
+import { normalizeSubjectName } from '../lib/subjectConfig';
 
 interface AppState {
   // School profile
@@ -387,28 +388,152 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   updateSubject: async (subject) => {
+    const previousSubjects = get().subjects;
+    const previousSections = get().sections;
+    const oldSubject = previousSubjects.find(s => s.id === subject.id);
+    
+    if (!oldSubject) return;
+
+    const oldName = oldSubject.subject_name;
+    const newName = subject.subject_name;
+    const nameChanged = normalizeSubjectName(oldName) !== normalizeSubjectName(newName);
+
     try {
-      set((state) => ({
-        subjects: state.subjects.map((s) => (s.id === subject.id ? subject : s)),
-      }));
+      // 1. Update subjects
+      // If the name changed, we also rename any OTHER subjects in the same grade 
+      // that have the same old name (to clean up duplicates)
+      const newSubjects = get().subjects.map((s) => {
+        if (s.id === subject.id) return subject;
+        if (nameChanged && s.grade_level === subject.grade_level && normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName)) {
+          return { ...s, subject_name: newName };
+        }
+        return s;
+      });
+      
+      // 2. Propagate name change to sections if necessary
+      let newSections = previousSections;
+      if (nameChanged) {
+        newSections = previousSections.map(sec => ({
+          ...sec,
+          taught_subjects: sec.taught_subjects?.map(name => 
+            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
+          ) || []
+        }));
+      }
+
+      set({ subjects: newSubjects, sections: newSections });
+      
+      // 3. Persist subject changes
       await db.putRecord('subjects', subject);
-      get().showNotification('Subject updated', 'success');
+      if (nameChanged) {
+          // Persist other renamed subjects
+          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && s.subject_name === newName && normalizeSubjectName(previousSubjects.find(ps => ps.id === s.id)?.subject_name || '') === normalizeSubjectName(oldName));
+          for (const s of renamedOthers) {
+              await db.putRecord('subjects', s);
+          }
+      }
+      
+      // 4. Persist section changes
+      if (nameChanged) {
+        for (const sec of newSections) {
+          const prevSec = previousSections.find(ps => ps.id === sec.id);
+          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+            await db.putRecord('sections', sec);
+          }
+        }
+      }
+
+      get().showNotification('Subject updated and teaching loads synchronized', 'success');
     } catch (error) {
       console.error('Error updating subject:', error);
+      set({ subjects: previousSubjects, sections: previousSections });
       get().showNotification('Failed to update subject', 'error');
       throw error;
     }
   },
   deleteSubject: async (id) => {
     const previousSubjects = get().subjects;
+    const previousSections = get().sections;
+    const subjectToDelete = previousSubjects.find(s => s.id === id);
+    
     try {
-      set((state) => ({ subjects: state.subjects.filter((s) => s.id !== id) }));
+      // 1. Remove the subject itself
+      const newSubjects = get().subjects.filter((s) => s.id !== id);
+      
+      // 2. Clean up sections that were teaching this subject by name
+      // This prevents "ghost" checkboxes in the Section Edit modal
+      const newSections = get().sections.map(sec => {
+        if (!subjectToDelete) return sec;
+        return {
+          ...sec,
+          taught_subjects: sec.taught_subjects?.filter(name => 
+            normalizeSubjectName(name) !== normalizeSubjectName(subjectToDelete.subject_name)
+          ) || []
+        };
+      });
+
+      set({ subjects: newSubjects, sections: newSections });
+      
       await db.deleteRecord('subjects', id);
-      get().showNotification('Subject deleted', 'success');
+      
+      // Persist section changes to database
+      if (subjectToDelete) {
+        for (const sec of newSections) {
+          const prevSec = previousSections.find(ps => ps.id === sec.id);
+          if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+            await db.putRecord('sections', sec);
+          }
+        }
+      }
+
+      get().showNotification('Subject deleted and teaching loads updated', 'success');
     } catch (error) {
       console.error('Error deleting subject:', error);
-      set({ subjects: previousSubjects });
+      set({ subjects: previousSubjects, sections: previousSections });
       get().showNotification('Failed to delete subject', 'error');
+      throw error;
+    }
+  },
+  deleteSubjectsBulk: async (ids) => {
+    const previousSubjects = get().subjects;
+    const previousSections = get().sections;
+    const subjectsToDelete = previousSubjects.filter(s => ids.includes(s.id));
+    const deletedNames = new Set(subjectsToDelete.map(s => normalizeSubjectName(s.subject_name)));
+    
+    try {
+      // 1. Remove the subjects
+      const newSubjects = get().subjects.filter((s) => !ids.includes(s.id));
+      
+      // 2. Clean up sections
+      const newSections = get().sections.map(sec => {
+        if (deletedNames.size === 0) return sec;
+        return {
+          ...sec,
+          taught_subjects: sec.taught_subjects?.filter(name => 
+            !deletedNames.has(normalizeSubjectName(name))
+          ) || []
+        };
+      });
+
+      set({ subjects: newSubjects, sections: newSections });
+      
+      // Persist to DB
+      for (const id of ids) {
+        await db.deleteRecord('subjects', id);
+      }
+      
+      for (const sec of newSections) {
+        const prevSec = previousSections.find(ps => ps.id === sec.id);
+        if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
+          await db.putRecord('sections', sec);
+        }
+      }
+
+      get().showNotification(`${ids.length} subjects deleted`, 'success');
+    } catch (error) {
+      console.error('Error deleting subjects in bulk:', error);
+      set({ subjects: previousSubjects, sections: previousSections });
+      get().showNotification('Failed to delete subjects', 'error');
       throw error;
     }
   },
