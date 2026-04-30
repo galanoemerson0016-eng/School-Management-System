@@ -890,6 +890,10 @@ export function AttendancePage() {
                                     {(() => {
                                         const sec = sections.find(s => s.section_name === selectedSection);
                                         const fromProfile = (schoolProfile?.adviser_name || '').trim();
+                                        const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
+
+                                        // Source of Truth: If profile has a real name, use it!
+                                        if (!isGenericProfile && fromProfile) return fromProfile;
 
                                         if (!sec) return fromProfile || user?.displayName || '';
 
@@ -901,8 +905,7 @@ export function AttendancePage() {
                                         if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
                                             return fromSection;
                                         }
-                                        if (fromProfile) return fromProfile;
-                                        return user?.displayName || '';
+                                        return fromProfile || user?.displayName || '';
                                     })()}
                                 </div>
                                 <div className="text-[8px]">(Signature of Teacher over Printed Name)</div>

@@ -252,19 +252,26 @@ export function SF5Page() {
         return normalized === 'recovered adviser' || normalized === 'recovered advisor';
     };
 
-    // Resolve adviser name: first try adviser_id -> teachers lookup, then fallback to section -> Institute Profile
+    // Resolve adviser name: Priority 1: Institute Profile (Source of Truth), then section fallback
     const resolvedAdviserName = useMemo(() => {
-        if (!currentSectionInfo) return 'TEST ADVISER';
+        const fromProfile = (schoolProfile?.adviser_name || '').trim();
+        const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
+
+        // Source of Truth: If profile has a real name, use it!
+        if (!isGenericProfile && fromProfile) return fromProfile;
+
+        if (!currentSectionInfo) return fromProfile || 'TEST ADVISER';
+        
         if (currentSectionInfo.adviser_id) {
             const teacher = teachers.find(t => t.uid === currentSectionInfo.adviser_id);
             if (teacher?.displayName) return teacher.displayName;
         }
+        
         const fromSection = (currentSectionInfo.adviser_name || '').trim();
         if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
             return fromSection;
         }
 
-        const fromProfile = (schoolProfile?.adviser_name || '').trim();
         return fromProfile || 'TEST ADVISER';
     }, [currentSectionInfo, teachers, schoolProfile]);
 

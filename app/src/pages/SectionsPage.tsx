@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../stores';
 import { 
     Plus, 
@@ -19,7 +19,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Section } from '../types';
 
 export function SectionsPage() {
-    const { sections, deleteSection, teachers } = useAppStore();
+    const { sections, deleteSection, teachers, schoolProfile, updateSection } = useAppStore();
+    
+    // Auto-Sync Adviser Names from Institute Profile (Source of Truth)
+    useEffect(() => {
+        const profileName = (schoolProfile?.adviser_name || '').trim();
+        const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
+        
+        if (!isGenericProfile && profileName) {
+            sections.forEach(section => {
+                const isStale = (section.adviser_name || '').trim() !== profileName;
+                const isPlaceholder = (section.adviser_name || '').toLowerCase().includes('juan') || 
+                                    (section.adviser_name || '').toLowerCase().includes('recovered') ||
+                                    (section.adviser_name || '').toLowerCase() === 'tba';
+                
+                // If it's stale AND it's a placeholder OR it's missing an ID, sync it!
+                if (isStale && (isPlaceholder || !section.adviser_id)) {
+                    // Silent update to fix database stale names
+                    void updateSection({ ...section, adviser_name: profileName });
+                }
+            });
+        }
+    }, [schoolProfile?.adviser_name, sections.length]); // Only re-run if profile name or section count changes
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);

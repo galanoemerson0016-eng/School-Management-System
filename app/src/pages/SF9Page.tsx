@@ -927,9 +927,23 @@ export function SF9Page() {
 
     const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
     const adviserName = useMemo(() => {
-        if (schoolProfile.adviser_name) return schoolProfile.adviser_name;
+        const fromProfile = (schoolProfile?.adviser_name || '').trim();
+        const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
+
+        // Source of Truth: If profile has a real name, use it!
+        if (!isGenericProfile && fromProfile) return fromProfile;
+
         const t = teacherList.find(t => t.uid === selectedSectionObj?.adviser_id);
-        return t?.displayName || '';
+        if (t?.displayName) return t.displayName;
+
+        const fromSection = (selectedSectionObj?.adviser_name || '').trim();
+        const isPlaceholder = fromSection.toLowerCase().includes('juan') || fromSection.toLowerCase().includes('recovered');
+        
+        if (fromSection && !isPlaceholder && fromSection.toLowerCase() !== 'tba') {
+            return fromSection;
+        }
+
+        return fromProfile || '';
     }, [selectedSectionObj, teacherList, schoolProfile.adviser_name]);
 
     // Derived subject selections from section metadata

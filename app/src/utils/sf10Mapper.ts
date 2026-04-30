@@ -137,12 +137,21 @@ export function mapStudentToSpecData({
   );
   const resolvedSectionName = studentSection?.section_name || student.student_section || '';
 
-  // Resolve adviser name: first try adviser_id -> teachers lookup, then fallback to adviser_name
+  // Resolve adviser name: Priority 1: School Profile (Source of Truth), then fallback
+  const profileAdviser = (profile?.adviser_name || '').trim();
+  const isGenericProfile = profileAdviser.toLowerCase() === 'admin' || profileAdviser === '';
+  
   let adviserName = '';
-  if (studentSection?.adviser_id) {
+  
+  // If the student's section is found, use the profile name as the primary source of truth
+  // especially if the section adviser name is a placeholder
+  if (!isGenericProfile) {
+    adviserName = profileAdviser;
+  } else if (studentSection?.adviser_id) {
     const teacher = teachers.find(t => t.uid === studentSection.adviser_id);
     adviserName = teacher?.displayName || '';
   }
+  
   if (!adviserName && studentSection?.adviser_name) {
     adviserName = studentSection.adviser_name;
   }
