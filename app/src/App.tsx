@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, initializeAuthStore } from './stores';
 import { Sidebar, Header } from './components/layout';
 import {
@@ -84,6 +84,14 @@ function App() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
   const { currentView, schoolProfile } = useAppStore();
 
+  const isActivationRedirectPending = (() => {
+    try {
+      return localStorage.getItem('formease-activation-redirect-pending') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+
   useEffect(() => {
     const schoolName = schoolProfile?.name?.trim();
     document.title = schoolName && schoolName !== 'School Name' ? schoolName : 'FormEase Pro';
@@ -94,13 +102,25 @@ function App() {
     void initializeAuthStore();
     void initializeAppStore();
   }, []);
+
+  // 2. Commercial Activation & Subscription Check (1 Year Expiry)
+  const isExpired = useMemo(() => {
+    if (!schoolProfile.is_activated || !schoolProfile.activated_at) return false;
+    
+    const activationDate = new Date(schoolProfile.activated_at);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - activationDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays > 365; // Expire after 1 year
+  }, [schoolProfile.is_activated, schoolProfile.activated_at]);
+
   // 1. Show loading splash while auth state is resolving
   if (isLoading) {
     return <LoadingSplash />;
   }
 
-  // 2. Commercial Activation Check (Serial Key & Adviser Name)
-  if (!schoolProfile.is_activated) {
+  if (!schoolProfile.is_activated || isExpired || isActivationRedirectPending) {
     return <ActivationPage />;
   }
 

@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, ShieldCheck, ArrowRight, Lock, User, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
-import { useAppStore } from '../stores';
+import { useAppStore, useAuthStore } from '../stores';
 
 export function ActivationPage() {
-  const { updateSchoolProfile } = useAppStore();
+  const { updateSchoolProfile, schoolProfile, showNotification } = useAppStore();
   const [key, setKey] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [fullName, setFullName] = useState(schoolProfile.adviser_name || '');
   const [machineId, setMachineId] = useState('Detecting Hardware...');
   const [status, setStatus] = useState<'idle' | 'activating' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const redirectTimerRef = useRef<number | null>(null);
+
+  const isExpired = React.useMemo(() => {
+    if (!schoolProfile.is_activated || !schoolProfile.activated_at) return false;
+    const activationDate = new Date(schoolProfile.activated_at);
+    const now = new Date();
+    const diffDays = Math.ceil(Math.abs(now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays > 365;
+  }, [schoolProfile.is_activated, schoolProfile.activated_at]);
 
   // Fetch unique Hardware ID from Electron on mount
   React.useEffect(() => {
@@ -22,6 +31,14 @@ export function ActivationPage() {
       }
     };
     fetchId();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current !== null) {
+        window.clearTimeout(redirectTimerRef.current);
+      }
+    };
   }, []);
 
   const handleActivate = async () => {
@@ -84,15 +101,19 @@ export function ActivationPage() {
         ...useAppStore.getState().schoolProfile,
         is_activated: true,
         activation_key: serial,
+        activated_at: new Date().toISOString(),
         adviser_name: fullName.trim()
       });
+
+      localStorage.setItem('formease-activation-redirect-pending', 'true');
       
       setStatus('success');
-      
-      // 5. Success Transition
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      showNotification('Activation Successful!', 'success');
+
+      redirectTimerRef.current = window.setTimeout(async () => {
+        localStorage.removeItem('formease-activation-redirect-pending');
+        await useAuthStore.getState().logout();
+      }, 2500);
 
     } catch (error: any) {
       setStatus('error');
@@ -141,20 +162,30 @@ export function ActivationPage() {
                 </div>
                 <h2 className="text-3xl font-black text-white mb-2">Activated!</h2>
                 <p className="text-slate-400 font-medium">FormEase Pro is now unlocked.</p>
+                <div className="mt-4 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Subscription Ends</p>
+                  <p className="text-sm text-blue-400 font-bold">
+                    {new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
                 <div className="mt-8 flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-widest animate-pulse">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Preparing Dashboard...
+                  Redirecting to login...
                 </div>
               </motion.div>
             ) : (
               <motion.div key="form" exit={{ opacity: 0, scale: 0.95 }}>
                 {/* Header */}
                 <div className="flex flex-col items-center text-center mb-10">
-                  <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20 mb-6">
+                  <div className={`w-16 h-16 ${isExpired ? 'bg-red-600' : 'bg-blue-600'} rounded-2xl flex items-center justify-center shadow-lg ${isExpired ? 'shadow-red-600/20' : 'shadow-blue-600/20'} mb-6`}>
                     <ShieldCheck className="w-8 h-8 text-white" />
                   </div>
-                  <h1 className="text-3xl font-black text-white tracking-tight mb-2">Product Activation</h1>
-                  <p className="text-slate-400 text-sm font-medium tracking-wide">Enter your credentials to unlock FormEase</p>
+                  <h1 className="text-3xl font-black text-white tracking-tight mb-2">
+                    {isExpired ? 'Subscription Expired' : 'Product Activation'}
+                  </h1>
+                  <p className="text-slate-400 text-sm font-medium tracking-wide">
+                    {isExpired ? 'Your 1-year license has ended. Please enter a new key.' : 'Enter your credentials to unlock FormEase'}
+                  </p>
                 </div>
 
                 <div className="space-y-6">
@@ -238,7 +269,7 @@ export function ActivationPage() {
                       </>
                     ) : (
                       <>
-                        <span>Activate License</span>
+                        <span>{isExpired ? 'Renew Subscription' : 'Activate License'}</span>
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </>
                     )}

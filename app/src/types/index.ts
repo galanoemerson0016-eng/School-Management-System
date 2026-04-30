@@ -32,6 +32,7 @@ export interface SchoolProfile {
     curriculum?: SchoolCurriculum; // Custom curriculum config
     is_activated?: boolean;
     activation_key?: string;
+    activated_at?: string;
 }
 
 export interface SchoolYear {
