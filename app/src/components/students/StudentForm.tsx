@@ -80,6 +80,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         als_rating: '',
         testing_center: '',
         other_credentials: '',
+        eligibility_type: 'Elementary',
+        is_elem_completer: true,
+        is_pept_passer: false,
+        is_als_passer: false,
+        is_other_eligibility: false,
         ...initialData
     });
 
@@ -93,7 +98,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
     useEffect(() => {
         if (student) {
-            setFormData(student);
+            setFormData({
+                ...student,
+                is_elem_completer: student.is_elem_completer ?? !!(student.elementary_school || '').trim(),
+                is_pept_passer: student.is_pept_passer ?? false,
+                is_als_passer: student.is_als_passer ?? false,
+                is_other_eligibility: student.is_other_eligibility ?? false,
+            });
         } else if (initialData) {
             setFormData(prev => ({
                 ...prev,
@@ -210,7 +221,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             als_rating: formData.als_rating || '',
             testing_center: formData.testing_center || '',
             other_credentials: formData.other_credentials || '',
-
+            eligibility_type: formData.eligibility_type || 'Elementary',
+            is_elem_completer: formData.is_elem_completer ?? false,
+            is_pept_passer: formData.is_pept_passer ?? false,
+            is_als_passer: formData.is_als_passer ?? false,
+            is_other_eligibility: formData.is_other_eligibility ?? false,
         };
 
         // Remove artificial delay
@@ -497,6 +512,32 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     <span className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
                                     Eligibility for JHS Enrolment
                                 </h4>
+                                
+                                <div className="mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-blue-800 mb-4">Basis of SF10 Eligibility (Check to appear on SF10)</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {[
+                                            { id: 'is_elem_completer', label: 'Elem. Completer' },
+                                            { id: 'is_pept_passer', label: 'PEPT Passer' },
+                                            { id: 'is_als_passer', label: 'ALS A&E Passer' },
+                                            { id: 'is_other_eligibility', label: 'Others' }
+                                        ].map((item) => (
+                                            <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors group">
+                                                <div className="relative flex items-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        name={item.id}
+                                                        checked={!!(formData as any)[item.id]}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                    />
+                                                </div>
+                                                <span className="text-sm font-bold text-gray-700 group-hover:text-blue-700">{item.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="md:col-span-1">
                                         <label className="block text-sm font-semibold mb-2 text-deped-blue">Name of Elementary School</label>

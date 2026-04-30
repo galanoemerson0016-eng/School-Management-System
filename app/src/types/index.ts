@@ -82,6 +82,11 @@ export interface Student {
     als_rating?: string;
     testing_center?: string; // Name and Address of Testing Center
     other_credentials?: string; // Others (Pls. Specify)
+    eligibility_type?: 'Elementary' | 'PEPT' | 'ALS' | 'Other';
+    is_elem_completer?: boolean;
+    is_pept_passer?: boolean;
+    is_als_passer?: boolean;
+    is_other_eligibility?: boolean;
     // High School completer info (SF10 Page 2 Certification)
     // Parent info
     parent_name?: string;

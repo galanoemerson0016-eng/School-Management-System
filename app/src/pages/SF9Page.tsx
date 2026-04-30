@@ -4,7 +4,7 @@ Font.registerHyphenationCallback(word => [word]);
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSF9SubjectsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
 
@@ -1201,6 +1201,77 @@ export function SF9Page() {
         setIsValuesModalOpen(false);
     };
 
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [speechRate, setSpeechRate] = useState(0.85);
+    const handleSpeak = () => {
+        if (isSpeaking) {
+            window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+            return;
+        }
+
+        if (!selectedStudent || !studentGrades.subjects) return;
+
+        const utterance = new SpeechSynthesisUtterance();
+        
+        // 1. Name: LAST NAME, FIRST NAME MIDDLE NAME
+        const fullName = `${selectedStudent.last_name.toUpperCase()}, ${selectedStudent.first_name.toUpperCase()} ${selectedStudent.middle_name?.toUpperCase() || ''}`.trim();
+        
+        // 2. LRN: Dashed format for digit-by-digit reading
+        const dashedLRN = selectedStudent.lrn.split('').join('-');
+        
+        let textToSpeak = `${fullName}. `;
+        textToSpeak += `LRN: ${dashedLRN}. `;
+
+        // 3. Subjects & Grades: Subject Name 1st, 2nd, 3rd, Final
+        studentGrades.subjects.forEach((subj: any) => {
+            if (subj.isReserved) return;
+            
+            const gradeRow = studentGrades.grades[subj.name] || [0, 0, 0];
+            const finalGrade = calculateFinalGrade(gradeRow);
+            
+            // Custom Pronunciation for Subjects
+            let displayName = subj.name;
+            const normName = normalizeSubjectName(subj.name);
+            
+            if (normName.includes('aralingpanlipunan') || normName === 'ap') {
+                displayName = "A.P.";
+            } else if (normName.includes('technologyandlivelihood') || normName === 'tle') {
+                displayName = "T L E";
+            } else if (normName === 'mapeh') {
+                displayName = "MAH-peh";
+            } else if (normName === 'edukasyonsapagpapakatao' || normName === 'esp') {
+                displayName = "E S P";
+            }
+            
+            // Only read if there is at least one grade
+            if (gradeRow.some(g => g > 0) || finalGrade > 0) {
+                textToSpeak += `${displayName}: ${gradeRow[0] || 0}, ${gradeRow[1] || 0}, ${gradeRow[2] || 0}, ${finalGrade || 0}. `;
+            }
+        });
+
+        // 4. General Average
+        const genAvg = calculateGeneralAverage(studentGrades.grades);
+        if (genAvg > 0) {
+            textToSpeak += `General Average: ${genAvg}.`;
+        }
+
+        utterance.text = textToSpeak;
+        utterance.rate = speechRate; // Dynamic rate
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+
+        window.speechSynthesis.speak(utterance);
+    };
+
+    // Cleanup speech on unmount
+    useEffect(() => {
+      return () => {
+        window.speechSynthesis.cancel();
+      };
+    }, []);
+
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
@@ -1343,6 +1414,39 @@ export function SF9Page() {
                     </div>
 
                     <div className="h-10 w-px bg-slate-200" />
+
+                    {selectedStudent && (
+                        <div className="flex items-center gap-1.5">
+                            <div className="flex items-center bg-white border border-slate-200 p-0.5 rounded-xl shadow-sm">
+                                <button 
+                                    onClick={() => setSpeechRate(prev => Math.max(0.5, prev - 0.1))}
+                                    className="w-6 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                    title="Slower"
+                                >
+                                    <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="text-[9px] font-black text-slate-600 w-10 text-center tabular-nums uppercase">
+                                    {speechRate.toFixed(1)}x
+                                </span>
+                                <button 
+                                    onClick={() => setSpeechRate(prev => Math.min(3.0, prev + 0.1))}
+                                    className="w-6 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                    title="Faster"
+                                >
+                                    <Plus className="w-3 h-3" />
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={handleSpeak}
+                                className={`h-9 px-3 rounded-xl border transition-all flex items-center gap-2 shadow-sm ${isSpeaking ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600'}`}
+                                title={isSpeaking ? "Stop Reading" : "Read Grades Aloud"}
+                            >
+                                {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                                <span className="text-[9px] font-black uppercase tracking-widest">{isSpeaking ? 'Stop' : 'Read'}</span>
+                            </button>
+                        </div>
+                    )}
 
                     {!isBatchReady && singleDocument && (
                         <div className="flex items-center gap-2">

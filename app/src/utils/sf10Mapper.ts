@@ -416,7 +416,14 @@ export function mapStudentToSpecData({
     },
   ];
 
-  return {
+    // Source of Truth: ONLY check the boxes if the explicit flags are TRUE.
+    // For legacy records where flags are undefined, we only default 'Elementary' to true if it has a school name.
+    const hasElem = student.is_elem_completer === true || (student.is_elem_completer === undefined && !!(student.elementary_school || '').trim());
+    const hasPept = student.is_pept_passer === true;
+    const hasAls = student.is_als_passer === true;
+    const hasOther = student.is_other_eligibility === true;
+
+    return {
     curriculum: effectiveCurriculum,
     learner: {
       lastName: student.last_name?.toUpperCase() || '',
@@ -429,7 +436,7 @@ export function mapStudentToSpecData({
     },
     eligibility: {
       elementaryCompleter: {
-        checked: !!student.elementary_school,
+        checked: hasElem,
         generalAverage: student.average_grade || '',
         citation: student.citation || '',
       },
@@ -437,15 +444,15 @@ export function mapStudentToSpecData({
       schoolId: student.elementary_school_id || '',
       addressOfSchool: student.elementary_school_address || '',
       peptPasser: {
-        checked: !!student.pept_rating,
+        checked: hasPept,
         rating: student.pept_rating || '',
       },
       alsPasser: {
-        checked: !!student.als_rating,
+        checked: hasAls,
         rating: student.als_rating || '',
       },
       other: {
-        checked: !!student.other_credentials,
+        checked: hasOther,
         specify: student.other_credentials || '',
       },
       // Keep these for direct lookup if needed

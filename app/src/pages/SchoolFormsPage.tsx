@@ -17,6 +17,7 @@ import {
     Lightbulb,
     TrendingUp,
     Users,
+    Tag,
     X
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -368,6 +369,7 @@ export function SchoolFormsPage() {
             sf6: { type: 'sf6', action: 'Opened SF6 Summarized Report', detail: `S.Y. ${activeSchoolYear}` },
             sf5: { type: 'sf5', action: 'Opened SF5 Report on Promotion', detail: `S.Y. ${activeSchoolYear}` },
             attendance: { type: 'attendance', action: 'Opened SF2 Attendance', detail: `Month: ${new Date().toLocaleString('en-US', { month: 'long' })}` },
+            'name-tags': { type: 'sf10', action: 'Opened Name Tag Generator', detail: `Preparing batch tags for sections` },
         };
         const entry = actionMap[formId];
         if (entry && user) {
@@ -466,6 +468,18 @@ export function SchoolFormsPage() {
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
+            ],
+        },
+        {
+            id: 'name-tags',
+            title: 'Name Tag Generator',
+            description: 'Generate batch-printable name tags for students with multiple premium templates.',
+            icon: Tag,
+            color: 'emerald',
+            badge: 'Tool',
+            stats: [
+                { label: 'Templates', value: 3 },
+                { label: 'Layout', value: '2x4 Grid' },
             ],
         },
     ];

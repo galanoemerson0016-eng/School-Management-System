@@ -18,6 +18,7 @@ export type AppView =
     | 'calendar'
     | 'announcements'
     | 'reports'
+    | 'name-tags'
     | 'consolidated-grades'
     | 'users'
     | 'settings'

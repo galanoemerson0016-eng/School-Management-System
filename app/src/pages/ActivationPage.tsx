@@ -100,6 +100,19 @@ export function ActivationPage() {
     }
   };
 
+  const [showSupport, setShowSupport] = useState(false);
+  const handleReset = async () => {
+    if (window.confirm('WARNING: This will PERMANENTLY delete all school data, students, and grades. This cannot be undone. Are you sure you want to reset the system?')) {
+      try {
+        const { db } = await import('../services/database');
+        await db.nukeDatabase();
+        window.location.reload();
+      } catch (e) {
+        alert('Failed to reset system. Please try manually deleting the app data folder.');
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#0A192F] relative overflow-hidden font-sans">
       {/* Background elements */}
@@ -127,7 +140,7 @@ export function ActivationPage() {
                   <CheckCircle2 className="w-12 h-12 text-white" />
                 </div>
                 <h2 className="text-3xl font-black text-white mb-2">Activated!</h2>
-                <p className="text-slate-400 font-medium">FormEase G7 Special is now unlocked.</p>
+                <p className="text-slate-400 font-medium">FormEase Pro is now unlocked.</p>
                 <div className="mt-8 flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-widest animate-pulse">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Preparing Dashboard...
@@ -236,9 +249,39 @@ export function ActivationPage() {
           </AnimatePresence>
         </div>
         
-        <p className="text-center mt-8 text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">
-          Powered by FormEase Pro
-        </p>
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">
+            Powered by FormEase Pro
+          </p>
+          
+          <button 
+            onClick={() => setShowSupport(!showSupport)}
+            className="text-[9px] text-slate-600 hover:text-blue-500 font-black uppercase tracking-widest transition-colors"
+          >
+            {showSupport ? 'Hide Support' : 'Trouble Activating?'}
+          </button>
+
+          <AnimatePresence>
+            {showSupport && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="flex flex-col items-center gap-3 p-4 bg-red-500/5 rounded-2xl border border-red-500/10"
+              >
+                <p className="text-[9px] text-red-400 font-medium text-center max-w-[200px]">
+                  If you are seeing a blank screen or errors after updating, you may need a clean start.
+                </p>
+                <button 
+                  onClick={handleReset}
+                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all"
+                >
+                  Force System Reset
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </motion.div>
     </div>
   );

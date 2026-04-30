@@ -23,6 +23,7 @@ import {
   CalendarPage,
   CertificateGeneratorPage,
   SchoolFormsPage,
+  NameTagPage,
   AboutPage,
   ActivationPage,
 } from './pages';
@@ -150,6 +151,8 @@ function App() {
         return <SettingsPage />;
       case 'certificates':
         return <CertificateGeneratorPage />;
+      case 'name-tags':
+        return <NameTagPage />;
       case 'sections':
         return <SectionsPage />;
       case 'about':

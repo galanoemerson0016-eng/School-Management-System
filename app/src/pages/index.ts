@@ -21,3 +21,4 @@ export { SchoolFormsPage } from './SchoolFormsPage';
 export { SectionsPage } from './SectionsPage';
 export { AboutPage } from './AboutPage';
 export { ActivationPage } from './ActivationPage';
+export { NameTagPage } from './NameTagPage';

@@ -491,7 +491,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                         <div className="p-1 px-2 text-[10pt]">
                             <div className="flex items-end mb-1 flex-nowrap shrink-0">
                                 <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                    {getVal('eligibility.elementaryCompleter.checked') ? '✓' : ''}
+                                    {getRaw('eligibility.elementaryCompleter.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">Elementary School Completer</span>
                                 <span className="mx-1 whitespace-nowrap">General Average:</span>
@@ -519,7 +519,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                             </div>
                             <div className="flex items-end mb-0 flex-nowrap shrink-0">
                                 <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                    {getVal('eligibility.peptPasser.checked') ? '✓' : ''}
+                                    {getRaw('eligibility.peptPasser.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">PEPT Passer</span>
                                 <span className="mx-2 whitespace-nowrap">Rating:</span>
@@ -527,7 +527,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     <AutoShrinkText text={getVal('eligibility.peptPasser.rating')} />
                                 </span>
                                 <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                    {getVal('eligibility.alsPasser.checked') ? '✓' : ''}
+                                    {getRaw('eligibility.alsPasser.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">ALS A&E Passer</span>
                                 <span className="mx-2 whitespace-nowrap">Rating:</span>
@@ -535,7 +535,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                                     <AutoShrinkText text={getVal('eligibility.alsPasser.rating')} />
                                 </span>
                                 <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                    {getVal('eligibility.other.checked') ? '✓' : ''}
+                                    {getRaw('eligibility.other.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">Others (Specify):</span>
                                 <span className="fill-blank min-w-[80px] flex-grow px-1 uppercase text-[9pt]">

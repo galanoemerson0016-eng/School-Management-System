@@ -19,10 +19,14 @@ export function SF10Page() {
     const [zoom, setZoom] = useState(1);
 
     const handlePrintSF10 = () => {
+        if (!selectedStudent) return;
         const originalTitle = document.title;
-        document.title = `SF10_${schoolProfile.name || 'School'}_${selectedStudent?.last_name || 'Record'}_${activeSchoolYear}`;
+        const safeName = `${selectedStudent.last_name}_${selectedStudent.first_name}`.replace(/[^a-z0-9]/gi, '_');
+        document.title = `SF10_${safeName}_${activeSchoolYear}`;
         window.print();
-        document.title = originalTitle;
+        setTimeout(() => {
+            document.title = originalTitle;
+        }, 1000);
     };
 
     const sortedSections = useMemo(() => {
@@ -214,15 +218,16 @@ export function SF10Page() {
 
                     <div className="h-10 w-px bg-slate-200" />
 
-                    {/* Print Primary Button */}
-                    <button
-                        onClick={handlePrintSF10}
-                        disabled={!selectedStudent || !canEditCurrentSection}
-                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
-                    >
-                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                        Print Official SF10
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handlePrintSF10}
+                            disabled={!selectedStudent}
+                            className="h-14 px-8 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
+                        >
+                            <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+                            Print / PDF
+                        </button>
+                    </div>
                 </div>
              </div>
 
