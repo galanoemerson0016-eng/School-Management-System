@@ -1,4 +1,4 @@
-$version = "1.0.30"
+$version = "1.0.31"
 $base = "https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v$version"
 $path = "update-server\updates\latest.yml"
 

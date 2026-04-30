@@ -1,8 +1,8 @@
-﻿version: 1.0.29
+﻿version: 1.0.30
 files:
-  - url: FormEase Pro Setup 1.0.29.exe
-    sha512: rYcwIII3gvU6QpBqEdn6d9MwkjH97orF3epHu+4BkWqaVbvzDKHLN3mLvyBSJB5iGgoDTudfCXwPW7rj28II8g==
-    size: 143590852
-path: FormEase.Pro.Setup.1.0.29.exe
-sha512: rYcwIII3gvU6QpBqEdn6d9MwkjH97orF3epHu+4BkWqaVbvzDKHLN3mLvyBSJB5iGgoDTudfCXwPW7rj28II8g==
-releaseDate: '2026-04-30T00:39:34.064Z'
+  - url: FormEase Pro Setup 1.0.30.exe
+    sha512: p6/Y+PG7K5yS2bWUpLfSmoQvnXlM+ZYWjpm/x7SfHwJJvTpdfTSu0mtAnlFHqqX7LyIICXWTO+rTcKIRFQHHpA==
+    size: 143591118
+path: FormEase.Pro.Setup.1.0.30.exe
+sha512: p6/Y+PG7K5yS2bWUpLfSmoQvnXlM+ZYWjpm/x7SfHwJJvTpdfTSu0mtAnlFHqqX7LyIICXWTO+rTcKIRFQHHpA==
+releaseDate: '2026-04-30T01:21:44.443Z'

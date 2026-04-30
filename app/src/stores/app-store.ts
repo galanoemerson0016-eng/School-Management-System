@@ -149,18 +149,18 @@ interface AppState {
 }
 
 const defaultSchoolProfile: SchoolProfile = {
-  school_id: '307014',
-  name: 'CALIBUNGAN HIGH SCHOOL',
-  region: 'REGION III',
-  division: 'TARLAC',
-  district: 'Victoria',
-  head_name: 'JUAN A. DELA CRUZ',
+  school_id: '',
+  name: 'School Name',
+  region: '',
+  division: '',
+  district: '',
+  head_name: '',
   head_position: 'Principal I',
   grade_levels_offered: 'Grade 7 - 12',
-  adviser_name: 'JUAN A. MATATAG',
+  adviser_name: '',
   grade_level: 'Grade 7',
   section: 'Einstein',
-  is_activated: true,
+  is_activated: false,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
