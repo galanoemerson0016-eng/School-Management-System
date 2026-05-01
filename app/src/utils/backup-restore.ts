@@ -28,6 +28,7 @@ export interface BackupSummary {
     sections: number;
     subjects: number;
     grades: number;
+    gradingSheetRecords: number;
     observedValues: number;
     hpsRecords: number;
     sf2Sheets: number;
@@ -53,6 +54,7 @@ export interface ComprehensiveBackup {
         sections: Section[];
         subjects: Subject[];
         classRecords: ClassRecord[];
+        gradingSheetRecords: ClassRecord[];
         observedValues: ObservedValues[];
         hpsRecords: HPSRecord[];
         sf2Sheets: SF2Sheet[];
@@ -91,6 +93,7 @@ export async function createComprehensiveBackup(
     sections: Section[],
     subjects: Subject[],
     classRecords: ClassRecord[],
+    gradingSheetRecords: ClassRecord[],
     observedValues: ObservedValues[],
     hpsRecords: HPSRecord[],
     sf2Sheets: SF2Sheet[],
@@ -114,6 +117,7 @@ export async function createComprehensiveBackup(
             sections: sections.length,
             subjects: subjects.length,
             grades: classRecords.length,
+            gradingSheetRecords: gradingSheetRecords.length,
             observedValues: observedValues.length,
             hpsRecords: hpsRecords.length,
             sf2Sheets: sf2Sheets.length,
@@ -135,6 +139,7 @@ export async function createComprehensiveBackup(
             sections,
             subjects,
             classRecords,
+            gradingSheetRecords,
             observedValues,
             hpsRecords,
             sf2Sheets,
@@ -160,7 +165,9 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
         `Students: ${backup.summary.students}`,
         `Sections: ${backup.summary.sections}`,
         `Subjects: ${backup.summary.subjects}`,
-        `Grades: ${backup.summary.grades}`,
+        `Subject Grades: ${backup.summary.grades}`,
+        `Consolidated Grades: ${backup.summary.gradingSheetRecords}`,
+        `Core Values: ${backup.summary.observedValues}`,
         `Announcements: ${backup.summary.announcements}`,
     ].join('\n');
 }

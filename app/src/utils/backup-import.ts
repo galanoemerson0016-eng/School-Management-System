@@ -1,7 +1,7 @@
 import { db } from '../services/database';
 import type { ComprehensiveBackup } from './backup-restore';
 import type { RestoreStrategy } from './restore-options';
-import type { Student, Section, Subject, Enrollment, ClassRecord } from '../types';
+import type { Student, Section, Subject, Enrollment, ClassRecord, ObservedValues } from '../types';
 
 export interface RestoreValidation {
     isValid: boolean;
@@ -99,6 +99,8 @@ export function prepareDataForRestore(backup: ComprehensiveBackup): {
     subjects: Subject[];
     enrollments: Enrollment[];
     classRecords: ClassRecord[];
+    gradingSheetRecords: ClassRecord[];
+    observedValues: ObservedValues[];
 } {
     return {
         students: backup.payload.students.map((s) => stripUndefinedValues(s)),
@@ -106,6 +108,8 @@ export function prepareDataForRestore(backup: ComprehensiveBackup): {
         subjects: backup.payload.subjects.map((s) => stripUndefinedValues(s)),
         enrollments: backup.payload.enrollments.map((e) => stripUndefinedValues(e)),
         classRecords: backup.payload.classRecords.map((r) => stripUndefinedValues(r)),
+        gradingSheetRecords: (backup.payload.gradingSheetRecords || []).map((r) => stripUndefinedValues(r)),
+        observedValues: (backup.payload.observedValues || []).map((v) => stripUndefinedValues(v)),
     };
 }
 
@@ -160,6 +164,20 @@ export async function restoreBackupToFirestore(
         if (selected.has('classRecords')) {
             for (const item of prepared.classRecords) {
                 await db.putRecord('classRecords', item);
+                result.updated += 1;
+            }
+        }
+
+        if (selected.has('gradingSheetRecords')) {
+            for (const item of prepared.gradingSheetRecords) {
+                await db.putRecord('gradingSheetRecords', item);
+                result.updated += 1;
+            }
+        }
+
+        if (selected.has('observedValues')) {
+            for (const item of prepared.observedValues) {
+                await db.putRecord('observedValues', item);
                 result.updated += 1;
             }
         }

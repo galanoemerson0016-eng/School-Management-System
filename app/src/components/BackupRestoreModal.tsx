@@ -34,6 +34,8 @@ interface RestoreSummary {
         subjects: number;
         enrollments: number;
         classRecords: number;
+        gradingSheetRecords: number;
+        observedValues: number;
     };
     applied: {
         created: number;
@@ -59,9 +61,11 @@ interface RestoreState {
 export function BackupRestoreModal({
     isOpen,
     onClose,
+    onRestoreComplete,
 }: {
     isOpen: boolean;
     onClose: () => void;
+    onRestoreComplete?: () => void;
 }) {
     const students = useAppStore((s) => s.students);
     const sections = useAppStore((s) => s.sections);
@@ -79,6 +83,8 @@ export function BackupRestoreModal({
             'subjects',
             'enrollments',
             'classRecords',
+            'gradingSheetRecords',
+            'observedValues',
             'announcements',
         ]),
         isProcessing: false,
@@ -101,7 +107,9 @@ export function BackupRestoreModal({
             `- Sections: ${summary.prepared.sections}`,
             `- Subjects: ${summary.prepared.subjects}`,
             `- Enrollments: ${summary.prepared.enrollments}`,
-            `- Class Records: ${summary.prepared.classRecords}`,
+            `- Subject Grades: ${summary.prepared.classRecords}`,
+            `- Consolidated Grades: ${summary.prepared.gradingSheetRecords}`,
+            `- Core Values: ${summary.prepared.observedValues}`,
             '',
             'Applied Actions',
             `- Created: ${summary.applied.created}`,
@@ -213,6 +221,8 @@ export function BackupRestoreModal({
                     subjects: prepared.subjects.length,
                     enrollments: prepared.enrollments.length,
                     classRecords: prepared.classRecords.length,
+                    gradingSheetRecords: prepared.gradingSheetRecords.length,
+                    observedValues: prepared.observedValues.length,
                 },
                 applied: {
                     created: result.created,
@@ -232,7 +242,9 @@ export function BackupRestoreModal({
                 `• Sections: ${prepared.sections.length}\n` +
                 `• Subjects: ${prepared.subjects.length}\n` +
                 `• Enrollments: ${prepared.enrollments.length}\n` +
-                `• Grades: ${prepared.classRecords.length}\n\n` +
+                `• Subject Grades: ${prepared.classRecords.length}\n` +
+                `• Consolidated Grades: ${prepared.gradingSheetRecords.length}\n` +
+                `• Core Values: ${prepared.observedValues.length}\n\n` +
                 `Database Actions:\n` +
                 `• Created: ${result.created}\n` +
                 `• Updated: ${result.updated}\n` +
@@ -251,6 +263,10 @@ export function BackupRestoreModal({
                 isProcessing: false,
                 restoreSummary: summary,
             }));
+            
+            if (onRestoreComplete) {
+                onRestoreComplete();
+            }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             setState(prev => ({
@@ -460,8 +476,18 @@ export function BackupRestoreModal({
                                         },
                                         {
                                             id: 'classRecords',
-                                            label: '📊 Grade Records',
+                                            label: '📊 Subject Grades',
                                             count: state.backup.summary.grades,
+                                        },
+                                        {
+                                            id: 'gradingSheetRecords',
+                                            label: '📈 Consolidated Grades',
+                                            count: state.backup.summary.gradingSheetRecords || 0,
+                                        },
+                                        {
+                                            id: 'observedValues',
+                                            label: '⭐ Core Values',
+                                            count: state.backup.summary.observedValues || 0,
                                         },
                                         {
                                             id: 'users',
@@ -618,7 +644,9 @@ export function BackupRestoreModal({
                                             <p>Sections: {state.restoreSummary.prepared.sections}</p>
                                             <p>Subjects: {state.restoreSummary.prepared.subjects}</p>
                                             <p>Enrollments: {state.restoreSummary.prepared.enrollments}</p>
-                                            <p>Class Records: {state.restoreSummary.prepared.classRecords}</p>
+                                            <p>Subject Grades: {state.restoreSummary.prepared.classRecords}</p>
+                                            <p>Consolidated Grades: {state.restoreSummary.prepared.gradingSheetRecords}</p>
+                                            <p>Core Values: {state.restoreSummary.prepared.observedValues}</p>
                                             <p>Strategy: {state.restoreSummary.strategy}</p>
                                         </div>
                                     </div>

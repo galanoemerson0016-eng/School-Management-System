@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuthStore, useAppStore } from '../stores';
+import { useAuthStore, useAppStore, initializeAppStore } from '../stores';
 import { db } from '../services/database';
 import { Database, Lock, User, Shield, Upload } from 'lucide-react';
 import { canPurgeMaintenance } from '../lib/rbac';
@@ -20,6 +20,7 @@ export function SettingsPage() {
         sections,
         subjects,
         classRecords,
+        gradingSheetRecords,
         observedValues,
         hpsRecords,
         sf2Sheets,
@@ -171,6 +172,7 @@ export function SettingsPage() {
                 sections,
                 subjects,
                 classRecords,
+                gradingSheetRecords,
                 observedValues,
                 hpsRecords,
                 sf2Sheets,
@@ -263,7 +265,9 @@ export function SettingsPage() {
                 `📦 Compressed: ${options.compress ? 'Yes' : 'No'}\n\n` +
                 `📊 Summary:\n` +
                 `• Students: ${currentBackup.summary.students}\n` +
-                `• Grades: ${currentBackup.summary.grades}\n` +
+                `• Subject Grades: ${currentBackup.summary.grades}\n` +
+                `• Consolidated Grades: ${currentBackup.summary.gradingSheetRecords}\n` +
+                `• Core Values: ${currentBackup.summary.observedValues}\n` +
                 `• Sections: ${currentBackup.summary.sections}\n` +
                 `• Users: ${currentBackup.summary.users}\n\n` +
                 `📏 File Sizes:\n` +
@@ -404,6 +408,8 @@ export function SettingsPage() {
         profileLrns: string[];
         enrollmentIdsToDelete: string[];
         gradeIdsToDelete: string[];
+        gradingSheetIdsToDelete: string[];
+        observedValuesIdsToDelete: string[];
     } | null>(null);
 
     const deleteByCollectionIds = async (
@@ -434,22 +440,26 @@ export function SettingsPage() {
         const subjectIds = new Set(subjects.map((s) => s.id));
         const currentStudentLrns = new Set(students.map((s) => s.lrn));
 
-        const gradeIdsToDelete = classRecords
-            .filter((record) => {
-                const isForCurrentStudent = currentStudentLrns.has(record.student_lrn);
-                const isOrphan = !studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id);
-                return isForCurrentStudent || isOrphan;
-            })
-            .map((record) => record.id);
+        const isOrphanOrCurrent = (record: any, requiresSubject: boolean) => {
+            const isForCurrentStudent = currentStudentLrns.has(record.student_lrn);
+            const isOrphan = !studentLrns.has(record.student_lrn) || (requiresSubject && !subjectIds.has(record.subject_id));
+            return isForCurrentStudent || isOrphan;
+        };
 
-        if (students.length === 0 && gradeIdsToDelete.length === 0) {
+        const gradeIdsToDelete = classRecords.filter((r) => isOrphanOrCurrent(r, true)).map((r) => r.id);
+        const gradingSheetIdsToDelete = gradingSheetRecords.filter((r) => isOrphanOrCurrent(r, true)).map((r) => r.id);
+        const observedValuesIdsToDelete = observedValues.filter((r) => isOrphanOrCurrent(r, false)).map((r) => r.id);
+
+        const totalGradeRecords = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length;
+
+        if (students.length === 0 && totalGradeRecords === 0) {
             alert('Nothing to clear. No current students or orphan/related grade records found.');
             return;
         }
 
         setPendingConfirmation({
             title: 'Clear students and orphan grades?',
-            message: `This will remove ${students.length} current student enrollment record(s) and ${gradeIdsToDelete.length} grade record(s).`,
+            message: `This will remove ${students.length} current student enrollment record(s) and ${totalGradeRecords} grade record(s).`,
             details: 'This is a destructive maintenance action.',
             confirmLabel: 'Clear Records',
             intent: 'danger',
@@ -458,7 +468,7 @@ export function SettingsPage() {
                 try {
                     const toRemove = [...students];
                     let removedStudents = 0;
-                    const totalWork = toRemove.length + gradeIdsToDelete.length;
+                    const totalWork = toRemove.length + totalGradeRecords;
                     startProgress(
                         'Fresh Start: Clear Students + Grades',
                         totalWork,
@@ -472,14 +482,21 @@ export function SettingsPage() {
                     }
 
                     setProgressStep('Removing grade records...');
-                    await deleteByCollectionIds('grades', gradeIdsToDelete, (deletedGradeCount) => {
-                        setProgressCompleted(removedStudents + deletedGradeCount);
-                    });
+                    let totalDeleted = removedStudents;
+                    const makeTracker = (base: number) => (deleted: number) => setProgressCompleted(base + deleted);
+
+                    await deleteByCollectionIds('grades', gradeIdsToDelete, makeTracker(totalDeleted));
+                    totalDeleted += gradeIdsToDelete.length;
+
+                    await deleteByCollectionIds('gradingSheetRecords', gradingSheetIdsToDelete, makeTracker(totalDeleted));
+                    totalDeleted += gradingSheetIdsToDelete.length;
+
+                    await deleteByCollectionIds('observedValues', observedValuesIdsToDelete, makeTracker(totalDeleted));
 
                     alert(
                         `Fresh start cleanup complete.\n\n` +
                         `Removed student enrollments: ${removedStudents}\n` +
-                        `Removed grade records: ${gradeIdsToDelete.length}`
+                        `Removed grade records: ${totalGradeRecords}`
                     );
                     setCleanupPreview(null);
                     finishProgress('Completed');
@@ -501,6 +518,14 @@ export function SettingsPage() {
         const gradeIdsToDelete = classRecords
             .filter((record) => profileLrns.includes(record.student_lrn))
             .map((record) => record.id);
+        const gradingSheetIdsToDelete = gradingSheetRecords
+            .filter((record) => profileLrns.includes(record.student_lrn))
+            .map((record) => record.id);
+        const observedValuesIdsToDelete = observedValues
+            .filter((record) => profileLrns.includes(record.student_lrn))
+            .map((record) => record.id);
+
+        const totalGradeRecords = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length;
 
         if (profileLrns.length === 0) {
             alert('No student profiles found to reset.');
@@ -509,48 +534,60 @@ export function SettingsPage() {
 
         setPendingConfirmation({
             title: 'Run full hard reset?',
-            message: 'This will permanently delete student profiles, enrollments, and grade records for the current backup set.',
-            details: `Student profiles: ${profileLrns.length}\nEnrollment records: ${enrollmentIdsToDelete.length}\nGrade records: ${gradeIdsToDelete.length}\n\nYou will be asked to confirm with text in the next step.`,
+            message: 'This will permanently delete student profiles, enrollments, and all grade records (E-Class, Consolidated, Core Values) for the current backup set.',
+            details: `Student profiles: ${profileLrns.length}\nEnrollment records: ${enrollmentIdsToDelete.length}\nTotal Grade records: ${totalGradeRecords}\n\nYou will be asked to confirm with text in the next step.`,
             confirmLabel: 'Continue',
             intent: 'danger',
             onConfirm: async () => {
-                setShowHardResetTextInput({ profileLrns, enrollmentIdsToDelete, gradeIdsToDelete });
+                setShowHardResetTextInput({ 
+                    profileLrns, 
+                    enrollmentIdsToDelete, 
+                    gradeIdsToDelete,
+                    gradingSheetIdsToDelete,
+                    observedValuesIdsToDelete 
+                });
             },
         });
     };
 
     const handleHardResetTextConfirm = async () => {
         if (!showHardResetTextInput) return;
-        const { profileLrns, enrollmentIdsToDelete, gradeIdsToDelete } = showHardResetTextInput;
+        const { profileLrns, enrollmentIdsToDelete, gradeIdsToDelete, gradingSheetIdsToDelete, observedValuesIdsToDelete } = showHardResetTextInput;
         setShowHardResetTextInput(null);
 
         setIsRunningHardReset(true);
         try {
-            const totalWork = gradeIdsToDelete.length + enrollmentIdsToDelete.length + profileLrns.length;
+            const totalWork = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length + enrollmentIdsToDelete.length + profileLrns.length;
             startProgress('Full Hard Reset', totalWork, 'Deleting grade records...');
 
-            await deleteByCollectionIds('grades', gradeIdsToDelete, (deletedGrades) => {
-                setProgressCompleted(deletedGrades);
-            });
+            let totalDeleted = 0;
+            const makeTracker = (base: number) => (deleted: number) => setProgressCompleted(base + deleted);
+
+            await deleteByCollectionIds('grades', gradeIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += gradeIdsToDelete.length;
+
+            await deleteByCollectionIds('gradingSheetRecords', gradingSheetIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += gradingSheetIdsToDelete.length;
+
+            await deleteByCollectionIds('observedValues', observedValuesIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += observedValuesIdsToDelete.length;
 
             setProgressStep('Deleting enrollment records...');
-            await deleteByCollectionIds('enrollments', enrollmentIdsToDelete, (deletedEnrollments) => {
-                setProgressCompleted(gradeIdsToDelete.length + deletedEnrollments);
-            });
+            await deleteByCollectionIds('enrollments', enrollmentIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += enrollmentIdsToDelete.length;
 
             setProgressStep('Deleting student profiles...');
-            await deleteByCollectionIds('students', profileLrns, (deletedProfiles) => {
-                setProgressCompleted(gradeIdsToDelete.length + enrollmentIdsToDelete.length + deletedProfiles);
-            });
+            await deleteByCollectionIds('students', profileLrns, makeTracker(totalDeleted));
 
             alert(
                 `Hard reset complete.\n\n` +
                 `Deleted student profiles: ${profileLrns.length}\n` +
                 `Deleted enrollments: ${enrollmentIdsToDelete.length}\n` +
-                `Deleted grades: ${gradeIdsToDelete.length}`
+                `Deleted all grade records: ${gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length}`
             );
             setCleanupPreview(null);
             finishProgress('Completed');
+            await initializeAppStore();
         } catch (error) {
             finishProgress('Failed');
             alert('Hard reset failed: ' + error);
@@ -767,6 +804,7 @@ export function SettingsPage() {
                     alert(`Deleted ${orphanIds.length} orphan grade record(s).`);
                     setCleanupPreview(buildCleanupPreview());
                     finishProgress('Completed');
+                    await initializeAppStore();
                 } catch (error) {
                     finishProgress('Failed');
                     alert('Failed to delete orphan grade records: ' + error);
@@ -1059,6 +1097,9 @@ export function SettingsPage() {
             <BackupRestoreModal
                 isOpen={isRestoreModalOpen}
                 onClose={() => setIsRestoreModalOpen(false)}
+                onRestoreComplete={async () => {
+                    await initializeAppStore();
+                }}
             />
 
             {/* Export Options Modal */}
