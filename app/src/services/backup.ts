@@ -13,6 +13,7 @@ import type {
   Enrollment,
   Announcement,
   AttendanceRecord,
+  ObservedValues,
 } from '../types';
 
 interface BackupFile {
@@ -30,6 +31,8 @@ interface BackupFile {
     attendanceRecords: AttendanceRecord[];
     sf2Sheets: any[];
     hpsRecords: any[];
+    gradingSheetRecords?: ClassRecord[];
+    observedValues?: ObservedValues[];
   };
 }
 
@@ -58,6 +61,8 @@ export async function createBackup(label?: string): Promise<string> {
         enrollments: data.enrollments.length,
         announcements: data.announcements.length,
         attendanceRecords: data.attendanceRecords.length,
+        gradingSheetRecords: data.gradingSheetRecords?.length || 0,
+        observedValues: data.observedValues?.length || 0,
       },
     };
 
@@ -135,6 +140,8 @@ export async function restoreFromBackupFile(file: File): Promise<string> {
             enrollments: backup.data.enrollments.length,
             announcements: backup.data.announcements.length,
             attendanceRecords: backup.data.attendanceRecords.length,
+            gradingSheetRecords: backup.data.gradingSheetRecords?.length || 0,
+            observedValues: backup.data.observedValues?.length || 0,
           },
         };
 

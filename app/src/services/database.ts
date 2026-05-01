@@ -24,11 +24,12 @@ import type {
   Enrollment,
   Announcement,
   AttendanceRecord,
+  ObservedValues,
 } from '../types';
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 interface BackupMetadata {
   id: string;
@@ -82,6 +83,7 @@ function openDatabase(): Promise<IDBDatabase> {
         ['sf2Sheets', 'id'],
         ['hpsRecords', 'id'],
         ['gradingSheetRecords', 'id'],
+        ['observedValues', 'id'],
         ['backups', 'id'],
       ];
 
@@ -202,6 +204,8 @@ async function exportAllData() {
     attendanceRecords: await getAllRecords<AttendanceRecord>('attendanceRecords'),
     sf2Sheets: await getAllRecords<any>('sf2Sheets'),
     hpsRecords: await getAllRecords<any>('hpsRecords'),
+    gradingSheetRecords: await getAllRecords<ClassRecord>('gradingSheetRecords'),
+    observedValues: await getAllRecords<ObservedValues>('observedValues'),
   };
 
   return stores;
@@ -221,6 +225,8 @@ async function importFromBackup(backupData: {
   attendanceRecords: AttendanceRecord[];
   sf2Sheets: any[];
   hpsRecords: any[];
+  gradingSheetRecords?: ClassRecord[];
+  observedValues?: ObservedValues[];
 }) {
   // Clear existing data
   const stores = [
@@ -234,6 +240,8 @@ async function importFromBackup(backupData: {
     'attendanceRecords',
     'sf2Sheets',
     'hpsRecords',
+    'gradingSheetRecords',
+    'observedValues',
   ];
 
   for (const store of stores) {
@@ -289,6 +297,16 @@ async function importFromBackup(backupData: {
   if ((backupData as any).hpsRecords) {
     for (const record of (backupData as any).hpsRecords) {
       await putRecord('hpsRecords', record);
+    }
+  }
+  if ((backupData as any).gradingSheetRecords) {
+    for (const record of (backupData as any).gradingSheetRecords) {
+      await putRecord('gradingSheetRecords', record);
+    }
+  }
+  if (backupData.observedValues) {
+    for (const record of backupData.observedValues) {
+      await putRecord('observedValues', record);
     }
   }
 }

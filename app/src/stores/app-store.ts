@@ -714,6 +714,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           observedValues: [...state.observedValues, value],
         }));
       }
+      await db.putRecord('observedValues', value);
     } catch (error) {
       console.error('Error updating observed value:', error);
       throw error;
@@ -905,6 +906,7 @@ export async function initializeAppStore() {
     const gradingSheetRecords = await loadStore<ClassRecord>('gradingSheetRecords');
     const hpsRecords = await loadStore<HPSRecord>('hpsRecords');
     const sf2Sheets = await loadStore<SF2Sheet>('sf2Sheets');
+    const observedValues = await loadStore<ObservedValues>('observedValues');
 
 
     const advisorySection = sections.find(s => s.is_advisory || (s as any).is_advisory_class);
@@ -921,6 +923,7 @@ export async function initializeAppStore() {
       announcements,
       attendanceRecords,
       sf2Sheets,
+      observedValues,
       schoolProfile: schoolProfile || defaultSchoolProfile,
       isSyncReady: true,
       selectedSection: advisorySection ? advisorySection.section_name : null
