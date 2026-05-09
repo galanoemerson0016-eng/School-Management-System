@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { X, Printer, CloudUpload } from 'lucide-react';
-import type { ClassRecord, HPSRecord, Subject } from '../types';
+import type { ClassRecord, HPSRecord, Subject, Section } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
@@ -19,6 +19,8 @@ const normalizeScores = (scores: (number | string)[] | undefined, count: number)
 };
 
 export function EClassRecord() {
+    
+
     const {
         students,
         sections,
@@ -42,7 +44,8 @@ export function EClassRecord() {
 
     const [selectedSection, setSelectedSection] = useState(globalSection || '');
     const [selectedSubject, setSelectedSubject] = useState(globalSubject || '');
-    const [quarter, setQuarter] = useState<1 | 2 | 3>(1);
+    const [selectedMapehComponentId, setSelectedMapehComponentId] = useState('');
+    const [quarter, setQuarter] = useState<1 | 2 | 3 | 'summary' | 'summary_t1' | 'summary_t2' | 'summary_t3' | 'summary_final'>(1);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
 
@@ -70,7 +73,9 @@ export function EClassRecord() {
     }, [sections, selectedSection]);
 
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
-
+    const selectedSubjectObj = useMemo(() => {
+        return subjects.find(s => s.id === selectedSubject);
+    }, [subjects, selectedSubject]);
     // Sort Sections: Grade Level (Asc) -> Name (Asc)
     // Filter: If Teacher, only show sections where they are Adviser OR have a Subject assigned
     const sortedSections = useMemo(() => {
@@ -86,6 +91,29 @@ export function EClassRecord() {
         });
     }, [sections, subjects, user]);
 
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, Section[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
+
     // Update global store when local selection changes
     const onSectionChange = (val: string) => {
         setSelectedSection(val);
@@ -99,12 +127,75 @@ export function EClassRecord() {
         setGlobalSubject(val);
     };
 
-    // Filter & Sort Subjects: Strictly by Section ID & Teacher Assignment
+    // Find MAPEH components for the current section
+    const mapehComponents = useMemo(() => {
+        if (!selectedSectionObj) return [];
+        
+        // Use the same filtering logic as the main dropdown to find components
+        // This ensures generic subjects assigned to the section are also caught
+        const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects);
+        
+        return sectionSubjects.filter(s => {
+            const n = s.subject_name.toLowerCase();
+            return (n.includes('music') && n.includes('arts')) || 
+                   ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
+        }).sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+    }, [subjects, selectedSectionObj, user]);
+
+    // Filter & Sort Subjects: Hide components, ensure MAPEH is present
     const filteredSubjects = useMemo(() => {
         if (!selectedSectionObj) return [];
 
-        return filterSubjectsForSection(user, selectedSectionObj, subjects).sort((a, b) => a.subject_name.localeCompare(b.subject_name));
-    }, [subjects, selectedSectionObj, user]);
+        let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)];
+        
+        // Remove individual components from main dropdown
+        base = base.filter(s => {
+            const n = s.subject_name.toLowerCase();
+            const isComponent = (n.includes('music') && n.includes('arts')) || 
+                                ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
+            return !isComponent;
+        });
+
+        const hasMapeh = base.some(s => s.subject_name.toUpperCase() === 'MAPEH');
+        if (!hasMapeh && mapehComponents.length > 0) {
+            base.push({
+                id: 'virtual_mapeh',
+                subject_name: 'MAPEH',
+                grade_level: selectedSectionObj.section_grade_level,
+                section_id: selectedSectionObj.id,
+                teacher_id: user?.uid
+            } as Subject);
+        }
+
+        return base.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+    }, [subjects, selectedSectionObj, user, mapehComponents]);
+
+    // Determine the actual subject ID to use for grading/fetching
+    const effectiveSubjectId = useMemo(() => {
+        const isMapeh = selectedSubject === 'virtual_mapeh' || 
+                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH';
+        
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isMapeh && !isSummaryMode) {
+            return selectedMapehComponentId || mapehComponents[0]?.id || '';
+        }
+        return selectedSubject;
+    }, [selectedSubject, selectedMapehComponentId, quarter, subjects, mapehComponents]);
+
+    const subjectName = useMemo(() => {
+        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
+    }, [subjects, effectiveSubjectId, selectedSubject]);
+
+    useEffect(() => {
+        const isMapeh = selectedSubject === 'virtual_mapeh' || 
+                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH';
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isMapeh && mapehComponents.length > 0 && !selectedMapehComponentId && !isSummaryMode) {
+            setSelectedMapehComponentId(mapehComponents[0].id);
+        } else if (!isMapeh || isSummaryMode) {
+            setSelectedMapehComponentId('');
+        }
+    }, [selectedSubject, mapehComponents, selectedMapehComponentId, subjects, quarter]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -113,12 +204,12 @@ export function EClassRecord() {
 
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
-        if (!selectedSubject) {
+        if (!effectiveSubjectId) {
             return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
         const record = hpsRecords.find(r =>
-            r.subject_id === selectedSubject &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter
         );
@@ -140,18 +231,15 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, selectedSubject, activeSchoolYear, quarter]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter]);
 
 
     // Get current subject and its weight cluster
-    const selectedSubjectObj = useMemo(() => {
-        return subjects.find(s => s.id === selectedSubject);
-    }, [subjects, selectedSubject]);
+
 
     const currentCluster = useMemo(() => {
-        if (!selectedSubjectObj) return 'languages_ap_esp';
-        return getSubjectCluster(selectedSubjectObj.subject_name);
-    }, [selectedSubjectObj]);
+        return getSubjectCluster(subjectName);
+    }, [subjectName]);
 
     const currentWeights = useMemo(() => {
         return getWeights(currentCluster);
@@ -162,32 +250,35 @@ export function EClassRecord() {
 
     useEffect(() => {
         const fetchTeacher = async () => {
-            if (!selectedSubjectObj?.teacher_id) {
-                setTeacherName('');
+            // Source of truth priority:
+            // 1. Hardcoded Emerson check (User's special request)
+            if (user?.email?.includes('galanoemerson') || user?.displayName?.toLowerCase().includes('emerson')) {
+                setTeacherName("EMERSON M. GALANO");
                 return;
             }
 
-            // Prioritize Institute Profile name for the current user
-            const profileName = schoolProfile?.adviser_name || '';
-            const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
+            // 2. Subject-assigned teacher (Check both main subject and effective component)
+            const targetSubject = subjects.find(s => s.id === effectiveSubjectId) || selectedSubjectObj;
+            if (targetSubject?.teacher_id) {
+                if (user?.uid === targetSubject.teacher_id) {
+                    setTeacherName(user.displayName?.toUpperCase() || schoolProfile?.adviser_name?.toUpperCase() || "TEACHER");
+                    return;
+                }
 
-            if (user?.uid === selectedSubjectObj.teacher_id) {
-                const displayName = !isGenericProfile ? profileName : (user.displayName || 'TEACHER');
-                setTeacherName(displayName.toUpperCase());
-                return;
+                const teacher = teachers.find((entry) => entry.uid === targetSubject.teacher_id);
+                if (teacher) {
+                    setTeacherName(teacher.displayName?.toUpperCase() || "UNKNOWN TEACHER");
+                    return;
+                }
             }
 
-            try {
-                const teacher = teachers.find((entry) => entry.uid === selectedSubjectObj.teacher_id);
-                setTeacherName(teacher?.displayName?.toUpperCase() || 'UNKNOWN TEACHER');
-            } catch (error) {
-                console.error("Error fetching teacher:", error);
-                setTeacherName('ERROR');
-            }
+            // 3. Fallback to Section Adviser or School Profile Adviser
+            const fallbackName = selectedSectionObj?.adviser_name || schoolProfile?.adviser_name || user?.displayName || "";
+            setTeacherName(fallbackName.toUpperCase());
         };
 
         fetchTeacher();
-    }, [selectedSubjectObj, user, teachers, schoolProfile]);
+    }, [selectedSubjectObj, effectiveSubjectId, selectedSectionObj, user, teachers, schoolProfile, subjects]);
 
     const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => {
         const nameA = `${a.last_name}, ${a.first_name}`.toLowerCase();
@@ -207,7 +298,7 @@ export function EClassRecord() {
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            r.subject_id === selectedSubject &&
+            r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === quarter
         );
 
@@ -272,16 +363,104 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, selectedSubject, quarter, hps, currentWeights]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights]);
+
+    const getSummaryGrades = useCallback((student: typeof students[0]) => {
+        const isMapeh = subjectName.toUpperCase() === 'MAPEH';
+        
+        if (isMapeh) {
+            // Find component subjects for this section using the already calculated mapehComponents
+            const maSubj = mapehComponents.find(s => {
+                const n = s.subject_name.toLowerCase();
+                return (n.includes('music') && n.includes('arts'));
+            });
+            const peSubj = mapehComponents.find(s => {
+                const n = s.subject_name.toLowerCase();
+                return ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
+            });
+
+            const getGrade = (subjId?: string, q: number = 1) => {
+                if (!subjId) return 0;
+                const record = classRecords.find(r => 
+                    r.student_lrn === student.lrn && 
+                    r.subject_id === subjId && 
+                    (r.quarter === q || Number(r.quarter) === q) &&
+                    r.school_year === activeSchoolYear
+                );
+                
+                // Only return if final_grade is a valid number > 0
+                if (record && record.final_grade) {
+                    const g = Number(record.final_grade);
+                    return isNaN(g) ? 0 : g;
+                }
+                return 0;
+            };
+
+            // Handling specific summary modes
+            if (quarter === 'summary_t1' || quarter === 'summary_t2' || quarter === 'summary_t3' || quarter === 'summary') {
+                const targetTerm = quarter === 'summary_t2' ? 2 : quarter === 'summary_t3' ? 3 : 1;
+                const ma = getGrade(maSubj?.id, targetTerm);
+                const pe = getGrade(peSubj?.id, targetTerm);
+                const final = (ma > 0 && pe > 0) ? Math.round((ma + pe) / 2) : (ma || pe || '');
+                const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
+                return { ma, pe, final, descriptor, isMapeh: true, mapehMode: 'component' };
+            }
+
+            if (quarter === 'summary_final') {
+                let total = 0;
+                let count = 0;
+                const termAverages = [1, 2, 3].map(q => {
+                    const ma = getGrade(maSubj?.id, q);
+                    const pe = getGrade(peSubj?.id, q);
+                    const avg = (ma > 0 && pe > 0) ? Math.round((ma + pe) / 2) : (ma || pe || 0);
+                    if (avg > 0) {
+                        total += Number(avg);
+                        count++;
+                    }
+                    return avg > 0 ? avg : '';
+                });
+                const final = count > 0 ? Math.round(total / count) : '';
+                const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
+                return { t1: termAverages[0], t2: termAverages[1], t3: termAverages[2], final, descriptor, isMapeh: true, mapehMode: 'final' };
+            }
+        }
+
+        let total = 0;
+        let count = 0;
+        const terms = [1, 2, 3].map(q => {
+            const record = classRecords.find(r =>
+                r.student_lrn === student.lrn &&
+                r.subject_id === selectedSubject &&
+                Number(r.quarter) === q
+            );
+            const grade = record?.final_grade ? Number(record.final_grade) : 0;
+            if (grade > 0) {
+                total += grade;
+                count++;
+            }
+            return grade > 0 ? grade : '';
+        });
+        
+        const final = count > 0 ? Math.round(total / count) : '';
+        const descriptor = final !== '' ? getGradeDescriptor(final, true) : '';
+        
+        return {
+            t1: terms[0],
+            t2: terms[1],
+            t3: terms[2],
+            final,
+            descriptor,
+            isMapeh: false
+        };
+    }, [classRecords, subjectName, selectedSubject, subjects, selectedSectionObj, selectedSection, activeSchoolYear, quarter]);
 
     const getGradeDescriptor = (grade: number, hasScores: boolean) => {
-        if (!hasScores) return '';
-        if (grade >= 90 && grade <= 100) return 'Advancing';
-        if (grade >= 80 && grade <= 89) return 'Benchmarking';
-        if (grade >= 75 && grade <= 79) return 'Connecting';
-        if (grade >= 65 && grade <= 74) return 'Developing';
-        if (grade >= 0 && grade <= 64) return 'Emerging';
-        return '';
+        if (!hasScores || grade <= 0) return '';
+        if (grade >= 90) return 'Advancing (Namumukod-tangi)';
+        if (grade >= 80) return 'Benchmarking (Napamamalas)';
+        if (grade >= 75) return 'Connecting (Natutungo)';
+        if (grade >= 65) return 'Developing (Napauunlad)';
+        return 'Emerging (Nasisimula)';
     };
 
     const proficiencyDataCalc = useMemo(() => {
@@ -297,11 +476,13 @@ export function EClassRecord() {
 
         levels.forEach(level => {
             const m = maleStudents.filter(s => {
-                const g = getStudentSummary(s).quarterlyGrade;
+                const summary = getStudentSummary(s);
+                const g = summary.quarterlyGrade;
                 return g > 0 && g >= level.min && g <= level.max;
             }).length;
             const f = femaleStudents.filter(s => {
-                const g = getStudentSummary(s).quarterlyGrade;
+                const summary = getStudentSummary(s);
+                const g = summary.quarterlyGrade;
                 return g > 0 && g >= level.min && g <= level.max;
             }).length;
             data[level.key] = { male: m, female: f, total: m + f };
@@ -379,23 +560,26 @@ export function EClassRecord() {
     }, [maleStudents, femaleStudents, hps.qa, getStudentSummary]);
 
     const updateHPS = (type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
-        if (!selectedSubject) return;
+        if (!effectiveSubjectId) return;
 
         const numVal: number | string = value === '' ? '' : Number(value);
         if (typeof numVal === 'number' && isNaN(numVal)) return;
 
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isSummaryMode) return;
+
         // Find existing record or create new one
         const existingRecord = hpsRecords.find(r =>
-            r.subject_id === selectedSubject &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter
+            Number(r.quarter) === (quarter as number)
         );
 
         const newRecord: HPSRecord = existingRecord ? { ...existingRecord } : {
-            id: `hps_${selectedSubject}_Q${quarter}_${activeSchoolYear}`,
-            subject_id: selectedSubject,
+            id: `hps_${effectiveSubjectId}_Q${quarter}_${activeSchoolYear}`,
+            subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
-            quarter: quarter,
+            quarter: quarter as any,
             written_works: Array(WW_COUNT).fill(''),
             performance_tasks: Array(PT_COUNT).fill(''),
             quarterly_exam: ''
@@ -422,21 +606,24 @@ export function EClassRecord() {
     };
 
     const updateGrade = (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
-        if (!selectedSection || !selectedSubject) return;
+        if (!selectedSection || !effectiveSubjectId) return;
+
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isSummaryMode) return;
 
         const existingRecord = classRecords.find(r =>
             r.student_lrn === lrn &&
-            r.subject_id === selectedSubject &&
-            Number(r.quarter) === quarter
+            r.subject_id === effectiveSubjectId &&
+            Number(r.quarter) === (quarter as number)
         );
 
         const record: ClassRecord = existingRecord ? { ...existingRecord } : {
-            id: `grade_${lrn}_${selectedSubject}_Q${quarter}`,
+            id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
             section_id: sections.find(s => s.section_name === selectedSection)?.id || '',
-            subject_id: selectedSubject,
+            subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
-            quarter: quarter,
+            quarter: quarter as any,
             written_works: Array(WW_COUNT).fill(''),
             performance_tasks: Array(PT_COUNT).fill(''),
             quarterly_exam: '',
@@ -520,7 +707,7 @@ export function EClassRecord() {
                 student_lrn: record.student_lrn,
                 subject_id: record.subject_id,
                 section_id: record.section_id,
-                quarter: record.quarter as 1|2|3|4,
+                quarter: record.quarter as 1|2|3,
                 school_year: record.school_year,
                 final_grade: record.final_grade,
                 written_works: [],
@@ -568,13 +755,15 @@ export function EClassRecord() {
             <style>{`
                 @media print {
                     @page {
-                        size: 13in 8.5in;
-                        margin: 0.12in 0.18in;
+                        size: ${quarter === 'summary' ? '8.5in 13in' : '13in 8.5in'};
+                        margin: ${quarter === 'summary' ? '0.5in 0.25in' : '0.12in 0.18in'};
                     }
                     body {
                         visibility: hidden;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
-                    #printable-class-record {
+                    #printable-class-record, #printable-summary-record {
                         visibility: visible;
                         position: absolute;
                         left: 0;
@@ -631,12 +820,46 @@ export function EClassRecord() {
                             ))}
                         </select>
                     </div>
+
+                    {/* Sub-Subject Dropdown for MAPEH components */}
+                    {(selectedSubject === 'virtual_mapeh' || subjectName.toUpperCase() === 'MAPEH') && (typeof quarter !== 'string' || !quarter.startsWith('summary')) && mapehComponents.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-semibold mb-2 text-deped-blue">MAPEH Component</label>
+                            <select
+                                value={selectedMapehComponentId}
+                                onChange={(e) => setSelectedMapehComponentId(e.target.value)}
+                                className="form-input border-amber-400 bg-amber-50"
+                            >
+                                {mapehComponents.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.subject_name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-semibold mb-2 text-deped-blue">Term</label>
-                        <select value={quarter} onChange={(e) => setQuarter(Number(e.target.value) as 1 | 2 | 3)} className="form-input">
+                        <select value={quarter} onChange={(e) => {
+                            const val = e.target.value;
+                            if (val.startsWith('summary')) {
+                                setQuarter(val as any);
+                            } else {
+                                setQuarter(Number(val) as any);
+                            }
+                        }} className="form-input">
                             <option value={1}>Term 1</option>
                             <option value={2}>Term 2</option>
                             <option value={3}>Term 3</option>
+                            {(selectedSubject === 'virtual_mapeh' || subjectName.toUpperCase() === 'MAPEH') ? (
+                                <>
+                                    <option value="summary_t1">Term 1 Summary</option>
+                                    <option value="summary_t2">Term 2 Summary</option>
+                                    <option value="summary_t3">Term 3 Summary</option>
+                                    <option value="summary_final">Final Summary</option>
+                                </>
+                            ) : (
+                                <option value="summary">Summary</option>
+                            )}
                         </select>
                     </div>
                     <div className="flex items-end gap-3">
@@ -645,7 +868,7 @@ export function EClassRecord() {
                         </button>
                         <button 
                             onClick={async () => {
-                                if (!selectedSubjectObj || !sectionStudents.length) return;
+                                if (!selectedSubjectObj || !sectionStudents.length || quarter === 'summary') return;
                                 
                                 const termName = quarter === 1 ? '1st' : quarter === 2 ? '2nd' : '3rd';
                                 const confirmMsg = `Publish ${termName} Term grades for ${selectedSubjectObj.subject_name} to the official Grade Management?\n\nThis will update the SF9/Advisory records for ${selectedSection}.`;
@@ -663,7 +886,7 @@ export function EClassRecord() {
                                                 student_lrn: student.lrn,
                                                 subject_id: selectedSubject,
                                                 section_id: selectedSectionObj?.id || '',
-                                                quarter: quarter as 1|2|3|4,
+                                                quarter: quarter as 1|2|3,
                                                 school_year: activeSchoolYear,
                                                 final_grade: summary.quarterlyGrade,
                                                 written_works: [],
@@ -678,7 +901,7 @@ export function EClassRecord() {
                                     showNotification("Failed to publish grades.", "error");
                                 }
                             }}
-                            disabled={!selectedSubject || sectionStudents.length === 0}
+                            disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
                             className="h-10 px-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-2 group disabled:opacity-30 disabled:grayscale"
                         >
                             <CloudUpload className="w-4 h-4" /> Publish
@@ -689,6 +912,203 @@ export function EClassRecord() {
 
             <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 mb-12">
                 <div className="bg-slate-50/50 p-6 md:p-8 overflow-x-auto custom-scrollbar">
+                    {typeof quarter === 'string' && quarter.startsWith('summary') ? (
+                        <div id="printable-summary-record" className="w-[816px] max-w-full bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none">
+                            {/* Header Section matching image */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="w-20 h-20">
+                                    <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
+                                </div>
+                                <div className="text-center flex-1 px-4">
+                                    <h1 className="text-2xl font-bold uppercase tracking-wide text-black">
+                                        {quarter === 'summary_final' ? 'SUMMARY OF GRADES' : 
+                                         quarter === 'summary_t1' ? 'SUMMARY OF TERM 1 GRADES' : 
+                                         quarter === 'summary_t2' ? 'SUMMARY OF TERM 2 GRADES' :
+                                         quarter === 'summary_t3' ? 'SUMMARY OF TERM 3 GRADES' :
+                                         'SUMMARY OF GRADES'}
+                                    </h1>
+                                    
+                                    <div className="mt-4 grid grid-cols-2 gap-x-4 text-[10px] text-left">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center">
+                                                <span className="w-20 font-bold uppercase">REGION</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 min-h-[20px] font-semibold text-center uppercase">{schoolProfile.region}</div>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <span className="w-20 font-bold uppercase">SCHOOL NAME</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 min-h-[20px] font-semibold text-center uppercase">{schoolProfile.name}</div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center">
+                                                <span className="w-20 font-bold uppercase">DIVISION</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 min-h-[20px] font-semibold text-center uppercase">{schoolProfile.division}</div>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <span className="w-20 font-bold uppercase">SCHOOL ID</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 min-h-[20px] font-semibold text-center uppercase">{schoolProfile.school_id}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="w-20 h-20 shrink-0">
+                                    <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
+                                </div>
+                            </div>
+
+                            <table className="w-full border-collapse border border-black text-[11px] font-sans bg-white">
+                                <thead className="print:table-header-group bg-white text-black font-bold uppercase">
+                                    <tr>
+                                        <th rowSpan={3} className="border border-black w-8"></th>
+                                        <th rowSpan={3} className="border border-black p-2 align-middle w-[250px] text-center tracking-wider">LEARNERS' NAMES</th>
+                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
+                                            <div className="flex items-center overflow-hidden h-full">
+                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">GRADE & SECTION:</span>
+                                                <span className="flex-1 text-center font-normal uppercase truncate">{sectionGradeLevel} - {selectedSection}</span>
+                                            </div>
+                                        </th>
+                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
+                                            <div className="flex items-center overflow-hidden h-full">
+                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">SCHOOL YEAR:</span>
+                                                <span className="flex-1 text-center font-normal uppercase truncate">{activeSchoolYear}</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    <tr>
+                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
+                                            <div className="flex items-center overflow-hidden h-full">
+                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">TEACHER:</span>
+                                                <span className="flex-1 text-center font-normal uppercase truncate">{teacherName}</span>
+                                            </div>
+                                        </th>
+                                        <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
+                                            <div className="flex items-center overflow-hidden h-full">
+                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">SUBJECT:</span>
+                                                <span className="flex-1 text-center font-normal uppercase truncate">{subjectName}</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    <tr className="text-center text-[10px] font-bold bg-white h-10">
+                                        {subjectName.toUpperCase() === 'MAPEH' ? (
+                                            quarter === 'summary_final' ? (
+                                                <>
+                                                    <th className="border border-black p-1 w-[100px]">TERM 1<br/>MAPEH</th>
+                                                    <th className="border border-black p-1 w-[100px]">TERM 2<br/>MAPEH</th>
+                                                    <th className="border border-black p-1 w-[100px]">TERM 3<br/>MAPEH</th>
+                                                    <th className="border border-black p-1 w-[100px]">FINAL GRADE</th>
+                                                    <th className="border border-black p-1 w-[100px]">DESCRIPTOR</th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th className="border border-black p-1 w-[120px]">MUSIC & ARTS<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
+                                                    <th className="border border-black p-1 w-[120px]">PE & HEALTH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'})</th>
+                                                    <th className="border border-black p-1 w-[120px]">MAPEH<br/>({quarter === 'summary_t2' ? 'TERM 2' : quarter === 'summary_t3' ? 'TERM 3' : 'TERM 1'} GRADE)</th>
+                                                    <th className="border border-black p-1 w-[120px]">DESCRIPTOR</th>
+                                                </>
+                                            )
+                                        ) : (
+                                            <>
+                                                <th className="border border-black p-1 w-[70px]">TERM 1</th>
+                                                <th className="border border-black p-1 w-[70px]">TERM 2</th>
+                                                <th className="border border-black p-1 w-[70px]">TERM 3</th>
+                                                <th className="border border-black p-1 w-[80px]">FINAL GRADE</th>
+                                                <th className="border border-black p-1 w-[100px]">DESCRIPTOR</th>
+                                                <th className="border border-black p-1 w-[80px]">REMARK</th>
+                                            </>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr className="bg-gray-200 font-bold">
+                                        <td colSpan={8} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">MALE</td>
+                                    </tr>
+                                    {maleStudents.map((student, i) => {
+                                        const summary = getSummaryGrades(student);
+                                        return (
+                                            <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
+                                                <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
+                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
+                                                    {formatStudentFullName(student)}
+                                                </td>
+                                                {summary.isMapeh ? (
+                                                    (summary as any).mapehMode === 'final' ? (
+                                                        <>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).ma || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).pe || ''}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        </>
+                                                    )
+                                                ) : (
+                                                    <>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                        <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
+                                                            {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                    <tr className="bg-gray-200 font-bold">
+                                        <td colSpan={8} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">FEMALE</td>
+                                    </tr>
+                                    {femaleStudents.map((student, i) => {
+                                        const summary = getSummaryGrades(student);
+                                        return (
+                                            <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
+                                                <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
+                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
+                                                    {formatStudentFullName(student)}
+                                                </td>
+                                                {summary.isMapeh ? (
+                                                    (summary as any).mapehMode === 'final' ? (
+                                                        <>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).ma || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{(summary as any).pe || ''}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        </>
+                                                    )
+                                                ) : (
+                                                    <>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                        <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
+                                                        <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
+                                                            {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
                     <div id="printable-class-record" className="min-w-[1200px] bg-white p-10 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto">
                         {[
                             { gender: 'MALE' as const, students: maleStudents },
@@ -759,7 +1179,7 @@ export function EClassRecord() {
                                 style={{ gridTemplateColumns: '250px 1fr 1fr 1fr' }}
                             >
                                 <div className="h-9 px-2 border-r border-black font-bold bg-yellow-100 flex items-center justify-center text-center">
-                                    {getTermUpperLabel(quarter)}
+                                    {(quarter as any) === 'summary' ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
                                 </div>
                                 <div className="h-9 px-2 border-r border-black flex items-center justify-center whitespace-nowrap overflow-hidden">
                                     <span className="font-bold mr-2 flex-shrink-0">GRADE & SECTION:</span>
@@ -771,7 +1191,7 @@ export function EClassRecord() {
                                 </div>
                                 <div className="h-9 px-2 flex items-center justify-center whitespace-nowrap overflow-hidden">
                                     <span className="font-bold mr-2 flex-shrink-0">SUBJECT:</span>
-                                    <span className="uppercase truncate">{subjects.find(s => s.id === selectedSubject)?.subject_name || selectedSectionObj?.subject_name || ''}</span>
+                                    <span className="uppercase truncate">{subjectName || selectedSectionObj?.subject_name || ''}</span>
                                 </div>
                             </div>
 
@@ -1302,6 +1722,7 @@ export function EClassRecord() {
                         </div>
                     ))}
                     </div>
+                    )}
                 </div>
             </div>
         </div>

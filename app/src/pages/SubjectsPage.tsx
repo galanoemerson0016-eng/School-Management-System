@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
-    Sparkles, BookText, X, Trash2
+    Sparkles, BookText, X, Trash2, ArrowRight, ChevronLeft
 } from 'lucide-react';
 import type { Subject } from '../types';
 import type { LucideIcon } from 'lucide-react';
@@ -12,63 +12,46 @@ import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
-    'Grade 7': { 
-        icon: BookOpen, 
-        color: 'from-emerald-500 to-teal-600', 
-        bg: 'bg-emerald-50',
-        description: 'Foundation Year - Core curriculum induction.' 
-    },
-    'Grade 8': { 
-        icon: Beaker, 
-        color: 'from-blue-500 to-indigo-600', 
-        bg: 'bg-blue-50',
-        description: 'Exploration Year - Scientific and creative focus.' 
-    },
-    'Grade 9': { 
-        icon: Binary, 
-        color: 'from-purple-500 to-fuchsia-600', 
-        bg: 'bg-purple-50',
-        description: 'Analytical Year - Logic and abstract reasoning.' 
-    },
-    'Grade 10': { 
-        icon: Globe, 
-        color: 'from-rose-500 to-pink-600', 
-        bg: 'bg-rose-50',
-        description: 'Global Year - Citizenship and preparation.' 
-    },
-    'Grade 11': { 
-        icon: Compass, 
-        color: 'from-amber-500 to-orange-600', 
-        bg: 'bg-amber-50',
-        description: 'Specialization Year - Specialized tracks.' 
-    },
-    'Grade 12': { 
-        icon: GraduationCap, 
-        color: 'from-slate-700 to-slate-900', 
-        bg: 'bg-slate-50',
-        description: 'Culmination Year - College and career readiness.' 
-    },
+    'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
+    'Grade 2': { icon: BookOpen, color: 'from-orange-500 to-amber-600', bg: 'bg-orange-50', description: 'Growing Learners - Developing reading and social skills.' },
+    'Grade 3': { icon: BookOpen, color: 'from-yellow-500 to-orange-600', bg: 'bg-yellow-50', description: 'Curious Learners - Introduction to formal science and research.' },
+    'Grade 4': { icon: Beaker, color: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', description: 'Exploratory Learners - Expanding horizons in AP and Science.' },
+    'Grade 5': { icon: Beaker, color: 'from-blue-500 to-cyan-600', bg: 'bg-blue-50', description: 'Analytical Learners - Critical thinking and complex problem solving.' },
+    'Grade 6': { icon: GraduationCap, color: 'from-indigo-500 to-blue-600', bg: 'bg-indigo-50', description: 'Transitioning Learners - Preparing for secondary education.' },
+    'Grade 7': { icon: BookOpen, color: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', description: 'Foundation Year - Core curriculum induction.' },
+    'Grade 8': { icon: Beaker, color: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', description: 'Exploration Year - Scientific and creative focus.' },
+    'Grade 9': { icon: Binary, color: 'from-purple-500 to-fuchsia-600', bg: 'bg-purple-50', description: 'Analytical Year - Logic and abstract reasoning.' },
+    'Grade 10': { icon: Globe, color: 'from-rose-500 to-pink-600', bg: 'bg-rose-50', description: 'Global Year - Citizenship and preparation.' },
+    'Grade 11': { icon: Compass, color: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', description: 'Specialization Year - Specialized tracks.' },
+    'Grade 12': { icon: GraduationCap, color: 'from-slate-700 to-slate-900', bg: 'bg-slate-50', description: 'Culmination Year - College and career readiness.' },
 };
 
-const GRADE_7_10_SUBJECT_ORDER = [
+const UNIVERSAL_SUBJECT_ORDER = [
+    'Language',
+    'Reading and Literacy',
     'Filipino',
     'English',
     'Mathematics',
     'Science',
     'Araling Panlipunan (AP)',
+    'GMRC (Good Manners and Right Conduct)',
     'Values Education',
+    'Makabansa',
+    'E.P.P.',
     'Technology and Livelihood Education (TLE)',
     'MAPEH',
     'Music and Arts',
     'Physical Education and Health',
     'Specialization',
+    '*Arabic Language',
+    '*Islamic Values Education',
 ];
 
 const normalizeSubjectLabel = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
 
 const getPreferredSubjectOrder = (subjectName: string) => {
     const normalized = normalizeSubjectLabel(subjectName);
-    const index = GRADE_7_10_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalized);
+    const index = UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalized);
     return index === -1 ? 999 : index;
 };
 
@@ -77,6 +60,12 @@ const getGradeNumber = (value: string | undefined | null) => {
     const numeric = text.match(/\d+/);
     if (numeric) return Number(numeric[0]);
 
+    if (/\bone\b|\bi\b/.test(text)) return 1;
+    if (/\btwo\b|\bii\b/.test(text)) return 2;
+    if (/\bthree\b|\biii\b/.test(text)) return 3;
+    if (/\bfour\b|\biv\b/.test(text)) return 4;
+    if (/\bfive\b|\bv\b/.test(text)) return 5;
+    if (/\bsix\b|\bvi\b/.test(text)) return 6;
     if (/\bseven\b|\bvii\b/.test(text)) return 7;
     if (/\beight\b|\bviii\b/.test(text)) return 8;
     if (/\bnine\b|\bix\b/.test(text)) return 9;
@@ -98,16 +87,13 @@ const sectionMatchesGrade = (section: { section_grade_level?: string; section_na
 import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS } from '../lib/curriculum';
 
 export function SubjectsPage() {
-    const { subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); // Ensure updateSubject is available
+    const { subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
-    // View State
     const [viewMode, setViewMode] = useState<'grades' | 'subjects'>('grades');
     const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-
-    // Data State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         subject_name: '',
@@ -127,9 +113,64 @@ export function SubjectsPage() {
     const [showLoadSuccessHighlight, setShowLoadSuccessHighlight] = useState(false);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const templateLoadInFlightRef = useRef(false);
+    const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
 
-    // Derived Data
-    const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+    const CATEGORIES = {
+        'Elementary': {
+            title: 'Elementary',
+            range: 'Grade 1 - 6',
+            grades: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+            icon: BookOpen,
+            color: 'from-rose-500 to-pink-600',
+            bg: 'bg-rose-50',
+            description: 'Foundational years (Matatag & Standard curricula).'
+        },
+        'JHS': {
+            title: 'Junior High School',
+            range: 'Grade 7 - 10',
+            grades: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+            icon: Binary,
+            color: 'from-emerald-500 to-teal-600',
+            bg: 'bg-emerald-50',
+            description: 'Secondary core academic and exploratory years.'
+        },
+        'SHS': {
+            title: 'Senior High School',
+            range: 'Grade 11 - 12',
+            grades: ['Grade 11', 'Grade 12'],
+            icon: GraduationCap,
+            color: 'from-amber-500 to-orange-600',
+            bg: 'bg-amber-50',
+            description: 'Specialization tracks and career preparation.'
+        }
+    };
+
+    const templateMeta = useMemo(() => {
+        if (!selectedGrade) return null;
+        
+        const standard = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS] || [];
+        const special = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS] || [];
+        
+        const getPreview = (list: any[]) => {
+            const names = list.slice(0, 3).map(s => `✓ ${s.name}`);
+            if (list.length > 3) names.push(`+ ${list.length - 3} more...`);
+            return names;
+        };
+
+        return {
+            standardCount: standard.length,
+            specialCount: special.length,
+            standardPreview: getPreview(standard),
+            specialPreview: getPreview(special),
+            isES: selectedGrade.match(/Grade [1-6]/),
+            isSHS: selectedGrade.match(/Grade 1[1-2]/)
+        };
+    }, [selectedGrade]);
+
+    const grades = [
+        'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+        'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+    ];
 
     const selectedSection = useMemo(() => {
         return sections.find(s => s.id === selectedSectionId);
@@ -138,10 +179,9 @@ export function SubjectsPage() {
     const filteredSubjects = useMemo(() => {
         if (!selectedGrade) return [];
         return subjects
-            .filter(s => !s.is_teaching_load) // Filter out teaching loads
+            .filter(s => !s.is_teaching_load) 
             .filter((s) => {
                 if (selectedSectionId) return s.section_id === selectedSectionId;
-                // Grade-template mode (no section available for selected grade)
                 return s.grade_level === selectedGrade && !s.section_id;
             })
             .sort((a, b) => {
@@ -152,7 +192,6 @@ export function SubjectsPage() {
             });
     }, [subjects, selectedSectionId, selectedGrade]);
 
-    // Handlers
     const handleGradeClick = (grade: string) => {
         setSelectedGrade(grade);
         const firstSection = sections
@@ -163,6 +202,12 @@ export function SubjectsPage() {
     };
 
     const handleBackToGrades = () => {
+        setSelectedGrade(null);
+        setViewMode('grades');
+    };
+
+    const handleBackToCategories = () => {
+        setSelectedCategory(null);
         setSelectedGrade(null);
         setViewMode('grades');
     };
@@ -200,7 +245,6 @@ export function SubjectsPage() {
         const subject = deleteTarget;
         setDeleteTarget(null);
 
-        // Instant notification - don't wait for Firestore
         showNotification(`${subject.subject_name} deleted successfully.`, 'success');
 
         try {
@@ -208,7 +252,6 @@ export function SubjectsPage() {
         } catch (error) {
             console.error('Failed to delete subject:', error);
             showNotification(error instanceof Error ? error.message : 'Failed to delete subject.', 'error');
-            // Store already handles revert on error
         }
     };
 
@@ -250,7 +293,6 @@ export function SubjectsPage() {
 
     const handleLoadStandardSubjects = async () => {
         if (!selectedGrade) return;
-        // Show choice dialog
         setShowCurriculumChoice(true);
     };
 
@@ -291,7 +333,6 @@ export function SubjectsPage() {
 
         const targetSection = selectedSection || null;
 
-        // Capture values before any state changes
         const sectionId = targetSection?.id;
         const gradeLevel = selectedGrade;
 
@@ -339,8 +380,6 @@ export function SubjectsPage() {
                 return;
             }
 
-            console.log(`[SUBJECTS] Applying ${curriculumChoice} template for ${sectionId ? `section ${sectionId}` : `grade ${gradeLevel}`}. Adding ${templatesToCreate.length}, removing duplicates ${duplicateIdsToDelete.length}.`);
-
             for (const duplicateId of duplicateIdsToDelete) {
                 await deleteSubject(duplicateId);
             }
@@ -355,27 +394,19 @@ export function SubjectsPage() {
                     subject_code: template.code,
                     grade_level: gradeLevel,
                     section_id: sectionId,
-                    order: GRADE_7_10_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name))
+                    order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name))
                 };
                 
                 await addSubject(newSubject);
-                console.log(`[SUBJECTS] Queued subject ${i + 1}/${templatesToCreate.length}: ${template.name}`);
             }
-
-            console.log('[SUBJECTS] ✓ Template applied successfully.');
-
-            // REMOVED manual setState update. 
-            // The onSnapshot listener in useStoreSync handles this automatically and avoids duplication drift.
 
             if (templatesToCreate.length > 0 && duplicateIdsToDelete.length > 0) {
                 showNotification(`Added ${templatesToCreate.length} subjects and removed ${duplicateIdsToDelete.length} duplicate copies.`, 'success');
             } else if (templatesToCreate.length > 0) {
                 const typeLabel = curriculumChoice === 'standard' ? 'standard' : 'special (with Specialization)';
                 showNotification(`All ${templatesToCreate.length} ${typeLabel} subjects added successfully!`, 'success');
-                // Track the loaded curriculum type
                 setLastLoadedCurriculumType(curriculumChoice);
                 setShowLoadSuccessHighlight(true);
-                // Remove highlight after 5 seconds
                 setTimeout(() => setShowLoadSuccessHighlight(false), 5000);
             } else {
                 showNotification(`Removed ${duplicateIdsToDelete.length} duplicate subject copies.`, 'success');
@@ -391,7 +422,6 @@ export function SubjectsPage() {
         }
     };
 
-    // Drag & Drop Reorder Handlers
     const handleDragStart = (subjectId: string) => {
         setDraggedSubjectId(subjectId);
     };
@@ -415,7 +445,6 @@ export function SubjectsPage() {
         const [moved] = items.splice(dragIdx, 1);
         items.splice(dropIdx, 0, moved);
 
-        // Save new order to each subject
         for (let i = 0; i < items.length; i++) {
             await updateSubject({ ...items[i], order: i });
         }
@@ -438,11 +467,10 @@ export function SubjectsPage() {
 
     return (
         <div className="space-y-8 pb-12">
-            {/* Breadcrumbs / Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <div className="flex items-center gap-2 text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">
-                        <span className="hover:text-indigo-600 cursor-pointer transition-colors" onClick={() => setViewMode('grades')}>Grades</span>
+                        <span className="hover:text-indigo-600 cursor-pointer transition-colors" onClick={() => { setViewMode('grades'); setSelectedCategory(null); }}>Grades</span>
                         {viewMode !== 'grades' && (
                             <>
                                 <ChevronRight className="w-3 h-3" />
@@ -464,7 +492,7 @@ export function SubjectsPage() {
                                         : 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300'
                                 } ${showLoadSuccessHighlight ? 'ring-4' : ''}`}
                             >
-                                {lastLoadedCurriculumType === 'special' ? '⭐ 11 Special' : '📚 10 Standard'}
+                                {lastLoadedCurriculumType === 'special' ? '⭐ Special' : '📚 Standard'}
                             </motion.div>
                         )}
                     </h2>
@@ -509,56 +537,109 @@ export function SubjectsPage() {
             </div>
 
             <AnimatePresence mode="wait">
-                {/* View: Grades */}
                 {viewMode === 'grades' && (
                     <motion.div 
-                        key="grades"
+                        key="grades-categories"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6"
+                        className="space-y-8"
                     >
-                        {grades.map((grade) => {
-                            const meta = GRADE_METADATA[grade] || GRADE_METADATA['Grade 7'];
-                            const Icon = meta.icon;
-
-                            return (
-                                <motion.div
-                                    key={grade}
-                                    whileHover={{ y: -8, scale: 1.02 }}
-                                    onClick={() => handleGradeClick(grade)}
-                                    className={`relative group cursor-pointer overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-7 shadow-sm hover:shadow-2xl hover:shadow-indigo-100 transition-all min-h-[240px] flex flex-col justify-between`}
-                                >
-                                    {/* Background Decorative Icon */}
-                                    <div className="absolute -right-8 -bottom-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity duration-500 group-hover:rotate-12 transform">
-                                        <Icon size={240} strokeWidth={1} />
-                                    </div>
-
-                                    <div className="relative z-10 flex justify-between items-start">
-                                        <div className={`w-16 h-16 rounded-3xl bg-gradient-to-br ${meta.color} flex items-center justify-center shadow-lg transform group-hover:rotate-6 transition-transform duration-500`}>
-                                            <Icon className="w-8 h-8 text-white" />
+                        {!selectedCategory ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, any][]).map(([key, category]) => (
+                                    <motion.button
+                                        key={key}
+                                        whileHover={{ scale: 1.02, y: -5 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => setSelectedCategory(key)}
+                                        className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-left overflow-hidden h-full flex flex-col"
+                                    >
+                                        <div className={`absolute top-0 right-0 w-32 h-32 ${category.bg} rounded-bl-[5rem] -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
+                                        
+                                        <div className={`w-16 h-16 rounded-3xl bg-gradient-to-br ${category.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
+                                            <category.icon className="w-8 h-8" />
                                         </div>
-                                        <span className="px-3 py-1 rounded-full bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100">
-                                            Matatag
-                                        </span>
-                                    </div>
 
-                                    <div className="relative z-10">
-                                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">{grade}</h3>
-                                        <p className="text-slate-400 text-xs font-bold leading-relaxed mt-3 max-w-[220px]">
-                                            {meta.description}
-                                        </p>
-                                    </div>
+                                        <div className="flex-1">
+                                            <h3 className="text-2xl font-black text-slate-900 mb-1">{category.title}</h3>
+                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{category.range}</p>
+                                            <p className="text-slate-500 text-sm leading-relaxed mb-6">{category.description}</p>
+                                        </div>
 
-                                    <div className="relative z-10 mt-4 flex items-center justify-between pt-3 border-t border-slate-100">
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Open Subjects</span>
-                                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-all">
-                                            <ChevronRight className="w-4 h-4 text-indigo-600" />
+                                        <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Open Category</span>
+                                            <div className={`w-10 h-10 rounded-full bg-slate-50 group-hover:bg-gradient-to-br ${category.color} flex items-center justify-center text-slate-400 group-hover:text-white transition-all`}>
+                                                <ArrowRight className="w-5 h-5" />
+                                            </div>
+                                        </div>
+                                    </motion.button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <button 
+                                            onClick={handleBackToCategories}
+                                            className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-deped-blue hover:border-deped-blue transition-all shadow-sm"
+                                        >
+                                            <ChevronLeft className="w-6 h-6" />
+                                        </button>
+                                        <div>
+                                            <h2 className="text-2xl font-black text-slate-900 leading-tight">{CATEGORIES[selectedCategory].title}</h2>
+                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
                                         </div>
                                     </div>
-                                </motion.div>
-                            );
-                        })}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {CATEGORIES[selectedCategory].grades.map((grade) => {
+                                        const meta = GRADE_METADATA[grade];
+                                        const Icon = meta.icon;
+                                        const count = new Set(subjects.filter(s => s.grade_level === grade && !s.is_teaching_load).map(s => s.subject_name)).size;
+                                        const sectionCount = sections.filter(s => sectionMatchesGrade(s, grade)).length;
+
+                                        return (
+                                            <motion.div
+                                                key={grade}
+                                                whileHover={{ scale: 1.03, y: -5 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => handleGradeClick(grade)}
+                                                className="group bg-white rounded-[2rem] p-6 border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-2xl transition-all cursor-pointer overflow-hidden relative"
+                                            >
+                                                <div className={`absolute top-0 right-0 w-24 h-24 ${meta.bg} rounded-bl-full -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform`} />
+                                                
+                                                <div className="relative z-10">
+                                                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${meta.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
+                                                        <Icon className="w-6 h-6" />
+                                                    </div>
+
+                                                    <h3 className="text-xl font-black text-slate-900 mb-2">{grade}</h3>
+                                                    <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6 line-clamp-2">
+                                                        {meta.description}
+                                                    </p>
+
+                                                    <div className="flex items-center gap-6 pt-6 border-t border-slate-50">
+                                                        <div className="flex flex-col">
+                                                            <div className="text-xl font-black text-slate-900 leading-none mb-1">{count}</div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subjects</div>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <div className="text-xl font-black text-slate-900 leading-none mb-1">{sectionCount}</div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sections</div>
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-auto group-hover:text-deped-blue transition-colors">
+                                                            Open Subjects
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </motion.div>
                 )}
 
@@ -723,17 +804,22 @@ export function SubjectsPage() {
                                 className="p-6 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left"
                             >
                                 <div className="text-3xl mb-3">📚</div>
-                                <h3 className="text-lg font-black text-slate-900 mb-2">Standard</h3>
-                                <p className="text-sm text-slate-600 mb-4">DepEd standard curriculum</p>
+                                <h3 className="text-lg font-black text-slate-900 mb-2">
+                                    {templateMeta?.isES ? 'Matatag / Standard' : 'Standard'}
+                                </h3>
+                                <p className="text-sm text-slate-600 mb-4">
+                                    {templateMeta?.isES ? 'Official DepEd Primary curriculum' : 'DepEd standard curriculum'}
+                                </p>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">10 Subjects</span>
+                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
+                                        {templateMeta?.standardCount} Subjects
+                                    </span>
                                     <span className="text-emerald-600 font-bold">→</span>
                                 </div>
                                 <div className="mt-3 text-xs text-slate-500 space-y-1">
-                                    <div>✓ Filipino</div>
-                                    <div>✓ English</div>
-                                    <div>✓ Mathematics</div>
-                                    <div>+ 7 more...</div>
+                                    {templateMeta?.standardPreview.map((line, i) => (
+                                        <div key={i}>{line}</div>
+                                    ))}
                                 </div>
                             </motion.button>
 
@@ -748,17 +834,22 @@ export function SubjectsPage() {
                                 className="p-6 rounded-2xl border-2 border-blue-300 bg-blue-50 hover:border-blue-500 hover:bg-blue-100 transition-all text-left ring-2 ring-blue-200"
                             >
                                 <div className="text-3xl mb-3">⭐</div>
-                                <h3 className="text-lg font-black text-blue-900 mb-2">Special</h3>
-                                <p className="text-sm text-blue-700 mb-4">Extra subject included</p>
+                                <h3 className="text-lg font-black text-blue-900 mb-2">
+                                    {templateMeta?.isES ? 'Enhanced / Special' : 'Special'}
+                                </h3>
+                                <p className="text-sm text-blue-700 mb-4">
+                                    {templateMeta?.isES ? 'Curriculum with extra electives' : 'Extra subject included'}
+                                </p>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-blue-600 bg-blue-200 px-3 py-1 rounded-full">11 Subjects</span>
+                                    <span className="text-xs font-bold text-blue-600 bg-blue-200 px-3 py-1 rounded-full">
+                                        {templateMeta?.specialCount} Subjects
+                                    </span>
                                     <span className="text-blue-600 font-bold">→</span>
                                 </div>
                                 <div className="mt-3 text-xs text-blue-700 space-y-1">
-                                    <div>✓ Filipino</div>
-                                    <div>✓ English</div>
-                                    <div>✓ Specialization ✨</div>
-                                    <div>+ 8 more...</div>
+                                    {templateMeta?.specialPreview.map((line, i) => (
+                                        <div key={i}>{line}</div>
+                                    ))}
                                 </div>
                             </motion.button>
                         </div>

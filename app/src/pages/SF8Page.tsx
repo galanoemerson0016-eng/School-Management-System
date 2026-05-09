@@ -149,6 +149,29 @@ export function SF8Page() {
         });
     }, [sections]);
 
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
+
     const singleAvailableSection = sortedSections.length === 1 ? sortedSections[0] : null;
     const effectiveSelectedSection = selectedSection || (singleAvailableSection ? (singleAvailableSection.id || singleAvailableSection.section_name) : '');
 

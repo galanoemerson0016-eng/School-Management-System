@@ -26,6 +26,7 @@ import {
   NameTagPage,
   AboutPage,
   ActivationPage,
+  LIRPage,
 } from './pages';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
@@ -177,6 +178,8 @@ function App() {
         return <SectionsPage />;
       case 'about':
         return <AboutPage />;
+      case 'lir':
+        return <LIRPage />;
       default:
         return <Dashboard />;
     }

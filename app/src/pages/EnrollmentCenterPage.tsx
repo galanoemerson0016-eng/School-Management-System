@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../stores';
 
-const SOURCE_GRADES = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11'];
+const SOURCE_GRADES = [
+    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+    'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+];
 
 const getStartYear = (sy: string) => {
     const match = sy.match(/^(\d{4})-(\d{4})$/);
@@ -117,6 +120,29 @@ export function EnrollmentCenterPage() {
             return a.section_name.localeCompare(b.section_name);
         });
     }, [sections]);
+
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
 
     return (
         <div className="space-y-6">
@@ -248,9 +274,9 @@ export function EnrollmentCenterPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                <h3 className="text-lg font-black text-slate-800">Grade 7 New Entrants</h3>
+                <h3 className="text-lg font-black text-slate-800">Grade 1 New Entrants</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                    For new Grade 7 learners: use manual add or SF1 import in the Students page.
+                    For new Grade 1 learners: use manual add or SF1 import in the Students page.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                     <button

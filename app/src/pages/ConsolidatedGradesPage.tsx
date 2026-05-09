@@ -15,6 +15,59 @@ type QuarterGrades = {
     final?: number;
 };
 
+const isKeyStage1 = (gradeLevel: string) => {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('grade')) {
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        return num >= 1 && num <= 3;
+    }
+    return false;
+};
+
+const isKeyStage2To4 = (gradeLevel: string) => {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('grade')) {
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        return num >= 4 && num <= 12;
+    }
+    return false;
+};
+
+const getDescriptor = (grade: number, gradeLevel: string) => {
+    if (!grade || grade <= 0) return '';
+    
+    // Key Stage 1 (Grades 1-3)
+    if (isKeyStage1(gradeLevel)) {
+        if (grade >= 90) return 'Consistent (Palagiang Naipapakita)';
+        if (grade >= 80) return 'Developing (Umuusbong)';
+        return 'Beginning (Nagsisimula)';
+    }
+
+    // Key Stage 2 to 4 (Grades 4-12)
+    if (grade >= 90) return 'Advancing (Namumukod-tangi)';
+    if (grade >= 80) return 'Benchmarking (Napamamalas)';
+    if (grade >= 75) return 'Connecting (Natutungo)';
+    if (grade >= 65) return 'Developing (Napauunlad)';
+    return 'Emerging (Nasisimula)';
+};
+
+const isElementaryLevel = (gradeLevel: string) => {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('grade')) {
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        return num >= 1 && num <= 6;
+    }
+    return false;
+};
+
+
+
+
+
+
+
+    
+
 type QuarterKey = 'q1' | 'q2' | 'q3' | 'q4';
 
 type QuarterGradeDetail = {
@@ -58,6 +111,15 @@ const GENERAL_AVERAGE_COLUMN_WIDTH = 66;
 const AVERAGE_COLUMN_WIDTH = GENERAL_AVERAGE_COLUMN_WIDTH;
 const showLegacyQuarter4 = false;
 
+
+
+
+
+
+
+
+
+
 const GradeInput = ({ 
     studentLrn, subjectId, quarter, value, className, activeSchoolYear, 
     subjects, sectionObj, updateGradingSheetRecord, row, col
@@ -88,7 +150,7 @@ const GradeInput = ({
                 student_lrn: studentLrn,
                 subject_id: subjectId,
                 section_id: section.id,
-                quarter: quarter as 1 | 2 | 3 | 4,
+                quarter: quarter as 1 | 2 | 3,
                 school_year: activeSchoolYear,
                 final_grade: localValue || 0,
                 written_works: [],
@@ -167,6 +229,8 @@ const normalizeScores = (scores: (number | string)[] | undefined, count: number)
 };
 
 export function ConsolidatedGradesPage() {
+    
+
     const {
         sections, subjects, students, gradingSheetRecords, updateGradingSheetRecord,
         activeSchoolYear, schoolProfile, setCurrentView,
@@ -270,7 +334,7 @@ export function ConsolidatedGradesPage() {
                             student_lrn: student.lrn,
                             subject_id: subject.id,
                             section_id: sectionObj.id,
-                            quarter: quarter as 1 | 2 | 3 | 4,
+                            quarter: quarter as 1 | 2 | 3,
                             school_year: activeSchoolYear,
                             final_grade: finalGrade,
                             written_works: [],
@@ -412,13 +476,21 @@ export function ConsolidatedGradesPage() {
             } catch (error) {
                 console.error('Import error:', error);
                 showNotification('Failed to import Excel file. Please use the official template.', 'error');
+
+
+
+
+
+
+
+
+
             }
         };
 
         reader.readAsArrayBuffer(file);
     };
 
-    // Filter Sections for Select & Sort by Grade Level -> Name
     const availableSections = useMemo(() => {
         const filtered = filterSF9Sections(user, sections);
         return filtered.sort((a, b) => {
@@ -433,6 +505,29 @@ export function ConsolidatedGradesPage() {
             return a.section_name.localeCompare(b.section_name);
         });
     }, [sections, user]);
+
+const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        availableSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [availableSections]);
 
     const TERM_LABELS = {
         q1: 'First Term',
@@ -599,6 +694,12 @@ export function ConsolidatedGradesPage() {
         return students.filter(s => s.student_section === selectedSection || (sectionObj?.id && s.student_section === sectionObj.id));
     }, [students, selectedSection, sectionObj?.id]);
 
+    const isElementary = useMemo(() => {
+        if (!sectionObj) return false;
+        return isElementaryLevel(sectionObj.section_grade_level);
+    }, [sectionObj]);
+
+    
     const formatLearnerName = (student: (typeof students)[number]) => {
         const middleInitial = student.middle_name ? `${student.middle_name.charAt(0)}.` : '';
         return `${student.last_name}, ${student.first_name} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -609,17 +710,15 @@ export function ConsolidatedGradesPage() {
             const currentName = formatLearnerName(student);
             return currentName.length > longest.length ? currentName : longest;
         }, '');
-
-        // Since font size was reduced to 7px, we use a smaller multiplier (approx 5px per char)
-        const estimatedWidth = longestName.length > 0
-            ? Math.ceil(longestName.length * 5.2 + 28)
-            : 160;
-
-        // Min 150px, Max 280px to save space for subjects
+        const estimatedWidth = longestName.length > 0 ? Math.ceil(longestName.length * 5.2 + 28) : 160;
         return Math.max(150, Math.min(estimatedWidth, 280));
     }, [sectionStudents]);
 
-    // Dynamic Column Adjustment - Proportionally reduce width to fit the page
+    const showDescriptor = useMemo(() => {
+        if (!sectionObj) return false;
+        return isKeyStage1(sectionObj.section_grade_level) || isKeyStage2To4(sectionObj.section_grade_level);
+    }, [sectionObj]);
+
     const subjectColumnWidth = useMemo(() => {
         if (selectedTerm === 'all') return 30;
 
@@ -710,8 +809,15 @@ export function ConsolidatedGradesPage() {
                         const finalRating = Math.round(virtualFinalTotal / virtualQCount);
                         subjectGrades.final = finalRating;
                         studentData[subject.id] = subjectGrades;
-                        totalFinal += finalRating;
-                        subjectCount++;
+                        
+                        const isExcluded = subject.subject_name.startsWith('*') || 
+                                          subject.subject_name.toLowerCase().includes('arabic language') || 
+                                          subject.subject_name.toLowerCase().includes('islamic values');
+
+                        if (!isExcluded) {
+                            totalFinal += finalRating;
+                            subjectCount++;
+                        }
                     } else {
                         studentData[subject.id] = {};
                     }
@@ -742,8 +848,14 @@ export function ConsolidatedGradesPage() {
                         subjectGrades.final = finalRating;
                         studentData[subject.id] = subjectGrades;
 
-                        totalFinal += finalRating;
-                        subjectCount++;
+                        const isExcluded = subject.subject_name.startsWith('*') || 
+                                          subject.subject_name.toLowerCase().includes('arabic language') || 
+                                          subject.subject_name.toLowerCase().includes('islamic values');
+
+                        if (!isExcluded) {
+                            totalFinal += finalRating;
+                            subjectCount++;
+                        }
                     } else {
                         studentData[subject.id] = {};
                     }
@@ -757,8 +869,9 @@ export function ConsolidatedGradesPage() {
                 return null;
             };
 
+            let genAvg = 0;
             if (subjectCount > 0) {
-                const genAvg = totalFinal / subjectCount;
+                genAvg = totalFinal / subjectCount;
                 studentData.generalAverage = String(Math.round(genAvg));
             } else {
                 studentData.generalAverage = '';
@@ -778,7 +891,11 @@ export function ConsolidatedGradesPage() {
                     const sData = studentData[subject.id];
                     if (sData) {
                         const val = getQuarterGradeValue(sData[activeTerm as QuarterKey]);
-                        if (val !== null && val > 0) {
+                        const isExcluded = subject.subject_name.startsWith('*') || 
+                                          subject.subject_name.toLowerCase().includes('arabic language') || 
+                                          subject.subject_name.toLowerCase().includes('islamic values');
+
+                        if (val !== null && val > 0 && !isExcluded) {
                             termTotal += val;
                             termSubjectCount++;
                         }
@@ -787,11 +904,11 @@ export function ConsolidatedGradesPage() {
 
                 if (termSubjectCount > 0) {
                     const avg = termTotal / termSubjectCount;
-                    // For DepEd, usually round to the nearest whole number for the report card/master sheet
-                    const computedTermAverage = String(Math.round(avg));
+                    // Term Average uses 2 decimal places for precision
+                    const computedTermAverage = avg.toFixed(2);
                     studentData.termAverage = computedTermAverage;
-                    // In term-specific reports, General Average should reflect the same selected-term basis.
-                    studentData.generalAverage = computedTermAverage;
+                    // General Average is rounded to the nearest whole number
+                    studentData.generalAverage = String(Math.round(genAvg));
                 } else {
                     studentData.termAverage = '';
                     studentData.generalAverage = '';
@@ -822,7 +939,7 @@ export function ConsolidatedGradesPage() {
         return 1;
     };
 
-    const totalColumns = 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? 2 : 0);
+    const totalColumns = 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
     
     const tableMinWidth = useMemo(() => {
         const nameColWidth = learnerNameColumnWidth;
@@ -862,10 +979,11 @@ export function ConsolidatedGradesPage() {
                 }
             `}</style>
             <div className="flex flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 no-print overflow-x-auto">
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-3 shrink-0">
                     <button onClick={() => setCurrentView('reports')} className="p-2 hover:bg-gray-100 rounded-full transition-colors group" title="Back to Reports">
                         <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-deped-blue" />
                     </button>
+                    <h1 className="text-lg font-bold text-gray-800 hidden md:block">Grade Management</h1>
                 </div>
 
                 <div className="flex items-center gap-3 flex-1 justify-center min-w-0">
@@ -876,11 +994,19 @@ export function ConsolidatedGradesPage() {
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
                             <option value="" disabled>Select Section</option>
-                            {availableSections.map(s => (
-                                <option key={s.id} value={s.section_name}>
-                                    {s.section_grade_level} - {s.section_name}
-                                </option>
-                            ))}
+                            
+                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                            groupSections.length > 0 && (
+                                                <optgroup key={group} label={group}>
+                                                    {groupSections.map(s => (
+                                                        <option key={s.id} value={s.section_name}>
+                                                            {s.section_grade_level} - {s.section_name}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )
+                                        ))}
+
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                             <ChevronDown className="w-4 h-4" />
@@ -949,14 +1075,15 @@ export function ConsolidatedGradesPage() {
                         <>
                             <button
                                 onClick={async () => {
-                                    if (confirm('Are you sure you want to delete ALL grades?')) {
+                                    if (confirm('Are you sure you want to delete ALL grades in this Grade Management sheet? This cannot be undone.')) {
                                         await useAppStore.getState().clearGradingSheet();
                                     }
                                 }}
-                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                className="bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold mr-2 text-xs"
                                 title="Clear All Grades"
                             >
-                                <Trash2 className="w-5 h-5" />
+                                <Trash2 className="w-4 h-4" />
+                                <span className="hidden sm:inline">Clear All</span>
                             </button>
 
                             <button
@@ -983,13 +1110,13 @@ export function ConsolidatedGradesPage() {
                         {/* Header Section */}
                         <div className="consolidated-header mb-4">
                             <div className="flex justify-between items-center mb-6 px-2">
-                                <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Left" className="consolidated-logo-left w-20 h-20 object-contain" />
+                                <img src="/deped_logo_left.png" alt="DepEd Left" className="consolidated-logo-left w-20 h-20 object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_left.png` }} />
                                 <div className="text-center">
-                                    <h1 className="consolidated-title text-2xl font-bold uppercase text-black">
+                                    <h1 className={`consolidated-title ${isElementary ? 'text-xl' : 'text-2xl'} font-bold uppercase text-black`}>
                                         Summary of Grades for {selectedTerm === 'all' ? 'Final & General Average' : (TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'Master Sheet')}
                                     </h1>
                                 </div>
-                                <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Right" className="consolidated-logo-right w-24 h-24 object-contain" />
+                                <img src="/deped_logo_right.png" alt="DepEd Right" className="consolidated-logo-right w-24 h-24 object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_right.png` }} />
                             </div>
 
                             {/* Metadata Grid - Boxed Style */}
@@ -1022,7 +1149,7 @@ export function ConsolidatedGradesPage() {
                         </div>
 
                         {/* Table Section */}
-                        <table className="consolidated-print-table consolidated-grades-table w-full border-collapse border border-black text-[8px]">
+                        <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
                             <thead>
                                 <tr className="bg-gray-50/80">
                                     <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
@@ -1098,6 +1225,9 @@ export function ConsolidatedGradesPage() {
                                         <>
                                             <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
                                             <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                            {showDescriptor && (
+                                                <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                            )}
                                         </>
                                     )}
                                 </tr>
@@ -1126,7 +1256,7 @@ export function ConsolidatedGradesPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase">MALE</td></tr>
+                                <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">MALE</td></tr>
                                 {(() => {
                                     let globalRowIndex = 0;
                                     return (
@@ -1141,8 +1271,10 @@ export function ConsolidatedGradesPage() {
                                                 
                                                 return (
                                                     <tr key={student.lrn} className="hover:bg-blue-50/20">
-                                                        <td className="consolidated-learner-name border border-black p-1 pl-2 font-medium truncate whitespace-nowrap uppercase" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
-                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px]">{studentRow + 1}</span> 
+                                                        <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
+                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px] text-center font-bold tracking-tighter">
+                                                                {studentRow + 1}
+                                                            </span> 
                                                             {formatLearnerName(student)}
                                                         </td>
                                                         {subjectColumns.map((column, index) => {
@@ -1154,7 +1286,6 @@ export function ConsolidatedGradesPage() {
                                                             } else if (selectedTerm !== 'all') {
                                                                 inputColIndex += 1;
                                                             }
-
                                                             return (
                                                                 <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
                                                                     {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
@@ -1185,7 +1316,6 @@ export function ConsolidatedGradesPage() {
                                                                                         subjects={subjects}
                                                                                         sectionObj={sectionObj}
                                                                                         updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        
                                                                                         row={studentRow} col={currentCol + 1}
                                                                                     />
                                                                                 )}
@@ -1206,7 +1336,6 @@ export function ConsolidatedGradesPage() {
                                                                                             subjects={subjects}
                                                                                             sectionObj={sectionObj}
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
                                                                                         ) : (getQuarterGradeValue(sData.q1) || '')}
@@ -1224,7 +1353,6 @@ export function ConsolidatedGradesPage() {
                                                                                             subjects={subjects}
                                                                                             sectionObj={sectionObj}
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
                                                                                         ) : (getQuarterGradeValue(sData.q2) || '')}
@@ -1242,7 +1370,6 @@ export function ConsolidatedGradesPage() {
                                                                                             subjects={subjects}
                                                                                             sectionObj={sectionObj}
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
                                                                                         ) : (getQuarterGradeValue(sData.q3) || '')}
@@ -1256,15 +1383,20 @@ export function ConsolidatedGradesPage() {
                                                         })}
                                                         {showGenAvg && (
                                                             <>
-                                                                <td className="consolidated-average-col border border-black p-1 text-center font-bold bg-gray-50/50 tabular-nums" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
-                                                                <td className="consolidated-general-average-col border border-black p-1 text-center font-bold bg-gray-100/50 tabular-nums" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
+                                                                <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
+                                                                <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
+                                                                {showDescriptor && (
+                                                                    <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
+                                                                        {data.generalAverage ? getDescriptor(Number(data.generalAverage), sectionObj?.section_grade_level || "") : ''}
+                                                                    </td>
+                                                                )}
                                                             </>
                                                         )}
                                                     </tr>
                                                 );
                                             })}
 
-                                            <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase">FEMALE</td></tr>
+                                            <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">FEMALE</td></tr>
                                             {femaleStudents.map((student) => {
                                                 const data = gradesData[student.lrn] || {};
                                                 const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
@@ -1272,7 +1404,6 @@ export function ConsolidatedGradesPage() {
                                                     : null;
                                                 const studentRow = globalRowIndex++;
                                                 let inputColIndex = 0;
-
                                                 return (
                                                     <tr key={student.lrn} className="hover:bg-blue-50/20">
                                                         <td className="consolidated-learner-name border border-black p-1 pl-2 font-medium truncate whitespace-nowrap uppercase" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
@@ -1392,6 +1523,11 @@ export function ConsolidatedGradesPage() {
                                                             <>
                                                                 <td className="consolidated-average-col border border-black p-1 text-center font-bold bg-gray-50/50 tabular-nums" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
                                                                 <td className="consolidated-general-average-col border border-black p-1 text-center font-bold bg-gray-100/50 tabular-nums" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
+                                                                {showDescriptor && (
+                                                                    <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
+                                                                        {data.generalAverage ? getDescriptor(Number(data.generalAverage), sectionObj?.section_grade_level || "") : ''}
+                                                                    </td>
+                                                                )}
                                                             </>
                                                         )}
                                                     </tr>
@@ -1402,6 +1538,63 @@ export function ConsolidatedGradesPage() {
                                 })()}
                             </tbody>
                         </table>
+                        {/* Summary of Grades - Learning Progress and Achievement */}
+                        {showDescriptor && selectedTerm !== 'all' && (
+                            <div className="mt-8 mb-4 no-print" style={{ maxWidth: '600px' }}>
+                                <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm">
+                                    <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                        Learning Progress and Achievement
+                                    </div>
+                                    <table className="w-full text-center text-[10px] border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Descriptors & Grading Scale</th>
+                                                <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
+                                                <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
+                                                <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
+                                                <th className="p-2 w-16 uppercase">TOTAL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {[
+                                                { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100 },
+                                                { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89 },
+                                                { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79 },
+                                                { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74 },
+                                                { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64 }
+                                            ].map((level, idx) => {
+                                                const getCounts = (studentsList: typeof maleStudents) => {
+                                                    return studentsList.filter(s => {
+                                                        const avg = Number(gradesData[s.lrn]?.generalAverage || 0);
+                                                        return avg >= level.min && avg <= level.max;
+                                                    }).length;
+                                                };
+                                                const mCount = getCounts(maleStudents);
+                                                const fCount = getCounts(femaleStudents);
+                                                const total = mCount + fCount;
+                                                
+                                                return (
+                                                    <tr key={idx} className="border-b border-black">
+                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">{level.desc}</td>
+                                                        <td className={`p-2 border-r border-black font-bold ${level.min < 75 ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{mCount || '-'}</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{fCount || '-'}</td>
+                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{total || '-'}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            <tr className="bg-gray-200 font-bold">
+                                                <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
+                                                <td className="p-2 border-r border-black tabular-nums">{maleStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
+                                                <td className="p-2 border-r border-black tabular-nums">{femaleStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
+                                                <td className="p-2 tabular-nums">{sectionStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+    
                     </div>
                 )}
             </div>

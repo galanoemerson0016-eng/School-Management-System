@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useSF10Store } from '../stores/sf10-store';
 import type { Student } from '../types';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
+import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
 import { ArrowLeft, Printer, FileText, Plus, Minus } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
@@ -42,6 +43,29 @@ export function SF10Page() {
         });
     }, [sections, user]);
 
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
+
     // Auto-select section if only one is available
     useEffect(() => {
         if (!selectedSection && sortedSections.length === 1) {
@@ -70,7 +94,8 @@ export function SF10Page() {
     const studentKey = selectedStudent?.lrn || '';
 
     const specData = useMemo(() => {
-        const currentOverrides = overrides[studentKey]?.[`page_${currentPage}`] || {};
+        const overrideKey = `${studentKey}_page_${currentPage}`;
+        const currentOverrides = overrides[overrideKey] || {};
         if (!selectedStudent) return null;
         const baseData = mapStudentToSpecData({
             student: selectedStudent,
@@ -82,8 +107,33 @@ export function SF10Page() {
             subjects,
         });
         
+        // Helper to get a nested value from an object by dot path
+        const getNestedValue = (obj: Record<string, unknown>, path: string): unknown => {
+            const parts = path.split('.');
+            let curr: unknown = obj;
+            for (const part of parts) {
+                if (!curr || typeof curr !== 'object') return undefined;
+                const rec = curr as Record<string, unknown>;
+                if (part.includes('[')) {
+                    const [p, rest] = part.split('[');
+                    const idx = parseInt(rest.replace(']', ''));
+                    const arr = rec[p];
+                    curr = Array.isArray(arr) ? arr[idx] : undefined;
+                } else {
+                    curr = rec[part];
+                }
+            }
+            return curr;
+        };
+
         const mergedData = { ...baseData };
         Object.entries(currentOverrides).forEach(([path, value]) => {
+            // Skip empty overrides for certification fields if base data already has a value
+            if (path.startsWith('certification.') && (!value || value === '')) {
+                const baseVal = getNestedValue(baseData as Record<string, unknown>, path);
+                if (baseVal && typeof baseVal === 'string' && baseVal.trim() !== '') return;
+            }
+
             const parts = path.split('.');
             let curr: Record<string, unknown> = mergedData as Record<string, unknown>;
             for (let i = 0; i < parts.length - 1; i++) {
@@ -108,7 +158,9 @@ export function SF10Page() {
 
     const handleCellUpdate = (path: string, value: string) => {
         if (!selectedStudent) return;
-        if (!canEditCurrentSection) return;
+        // Allow certification fields to always be editable
+        const isCertPath = path.startsWith('certification.');
+        if (!isCertPath && !canEditCurrentSection) return;
         setOverride(selectedStudent.lrn, `page_${currentPage}`, path, value);
     };
 
@@ -145,7 +197,19 @@ export function SF10Page() {
                                     onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
                                 >
                                     <option value="">Choose Section</option>
-                                    {sortedSections.map(s => <option key={s.id} value={s.section_name}>{s.section_grade_level} - {s.section_name}</option>)}
+                                    
+                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                            groupSections.length > 0 && (
+                                                <optgroup key={group} label={group}>
+                                                    {groupSections.map(s => (
+                                                        <option key={s.id} value={s.section_name}>
+                                                            {s.section_grade_level} - {s.section_name}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )
+                                        ))}
+
                                 </select>
                             </div>
                         )}
@@ -242,11 +306,19 @@ export function SF10Page() {
                             <div className="relative group">
                                 <div className="absolute -inset-1 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />
                                 <div className={`sf10-print-sheet relative bg-white shadow-[0_20px_50px_rgba(0,0,0,0.08)] rounded-sm print:shadow-none overflow-hidden mb-20 last:mb-0 print:mb-0 print:rounded-none ${currentPage === 1 ? 'sf10-force-single-page' : ''}`}>
-                                    <SF10SpecRenderer 
-                                        pageNumber={currentPage} 
-                                        data={specData}
-                                        onUpdate={handleCellUpdate}
-                                    />
+                                    {specData.isES ? (
+                                        <SF10SpecRenderer 
+                                            pageNumber={currentPage} 
+                                            data={specData}
+                                            onUpdate={handleCellUpdate}
+                                        />
+                                    ) : (
+                                        <SF10JHSRenderer 
+                                            pageNumber={currentPage} 
+                                            data={specData}
+                                            onUpdate={handleCellUpdate}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </div>

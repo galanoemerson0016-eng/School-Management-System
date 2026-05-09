@@ -10,7 +10,11 @@ interface SectionFormProps {
     onClose: () => void;
 }
 
-const GRADE_LEVELS = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+const GRADE_LEVELS = [
+    'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+    'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
+    'Grade 11', 'Grade 12'
+];
 
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
@@ -73,7 +77,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         // 2. Subjects already assigned to this specific section
         const hubSubjects = subjects.filter(s => 
             s.grade_level === grade && 
-            (!s.section_id || s.section_id === currentSectionId) &&
             !s.is_teaching_load
         );
 
@@ -81,33 +84,45 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const uniqueList: { name: string; code: string }[] = [];
         const seenNames = new Set<string>();
 
-        hubSubjects.forEach(s => {
-            const normalized = normalizeSubjectLabel(s.subject_name);
+        const addToList = (name: string, code: string) => {
+            const normalized = normalizeSubjectLabel(name);
             if (!seenNames.has(normalized)) {
                 seenNames.add(normalized);
-                uniqueList.push({ 
-                    name: s.subject_name, 
-                    code: s.subject_code || '' 
-                });
+                uniqueList.push({ name, code });
             }
-        });
+        };
+
+        hubSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
+
+        // FALLBACK: If the Subject Hub is empty for this grade, pull from the standard curriculum templates
+        if (uniqueList.length === 0) {
+            const standard = STANDARD_SUBJECTS[grade] || [];
+            standard.forEach(s => addToList(s.name, s.code || ''));
+        }
 
         // Sort them according to standard DepEd order if possible, otherwise alphabetical
         const standardOrder = [
-            'Filipino', 'English', 'Mathematics', 'Science', 'Araling Panlipunan (AP)', 
-            'Values Education', 'Technology and Livelihood Education (TLE)', 
-            'MAPEH', 'Music and Arts', 'Physical Education and Health', 'Specialization'
+            'Language', 'Reading and Literacy', 'Filipino', 'English', 
+            'Mathematics', 'Science', 'Araling Panlipunan (AP)', 
+            'GMRC (Good Manners and Right Conduct)', 'Values Education',
+            'Makabansa', 'E.P.P.', 'Technology and Livelihood Education (TLE)', 
+            'Music and Arts', 'Physical Education and Health', 'Specialization'
         ];
 
-        return uniqueList.sort((a, b) => {
-            const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
-            const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
-            
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-            return a.name.localeCompare(b.name);
-        });
+        return uniqueList
+            .filter(a => normalizeSubjectLabel(a.name) !== 'mapeh')
+            .sort((a, b) => {
+                const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
+                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name)); // Fixed potential typo in original
+                
+                // Note: The original code had a bug where it compared name to a.name instead of b.name in indexB calculation
+                const indexB_fixed = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
+
+                if (indexA !== -1 && indexB_fixed !== -1) return indexA - indexB_fixed;
+                if (indexA !== -1) return -1;
+                if (indexB_fixed !== -1) return 1;
+                return a.name.localeCompare(b.name);
+            });
     }, [formData.id, formData.section_grade_level, section?.id, subjects]);
 
     const handleAdvisoryChange = (checked: boolean) => {

@@ -67,6 +67,10 @@ function blankSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum) 
     subjects[s.key] = blankSubjectGrade();
   }
   subjects.generalAverage = '';
+  subjects.generalAverageQ1 = '';
+  subjects.generalAverageQ2 = '';
+  subjects.generalAverageQ3 = '';
+  subjects.generalAverageQ4 = '';
   return subjects;
 }
 /**
@@ -82,9 +86,10 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('mathematics') || name.includes('math')) key = 'mathematics';
   else if (name.includes('science')) key = 'science';
   else if (name.includes('aralingpanlipunan') || name === 'ap') key = 'ap';
+  else if (name.includes('gmrc') || name.includes('goodmanners')) key = 'gmrc';
   else if (name.includes('valueseducation') || name.includes('values')) key = 'valuesEducation';
   else if (name.includes('edukasyon') || name === 'esp' || name.includes('pagpapakatao')) key = 'esp';
-  else if (name.includes('technologyandlivelihood') || name.includes('tle')) key = 'tle';
+  else if (name.includes('epp') || name.includes('tle') || name.includes('technologyandlivelihood')) key = 'tle';
   else if (name.includes('musicandarts') || name.includes('musicarts')) key = 'musicAndArts';
   else if (name.includes('physicaleducationandhealth') || name.includes('peandhealth') || name.includes('pehealth')) key = 'peAndHealth';
   else if (name.includes('mapeh')) key = 'mapeh';
@@ -93,12 +98,24 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('physicaleducation') || name === 'pe' || name.includes('pe.')) key = 'physicalEducation';
   else if (name.includes('health') || name.includes('kalusugan')) key = 'health';
   else if (name.includes('specialization')) key = 'specialization';
+  else if (name.includes('arabic')) key = 'arabic';
+  else if (name.includes('islamic')) key = 'islamic';
 
   if (!key) return null;
 
-  // Fallback: If key is 'valuesEducation' but doesn't exist in subjectsData, try 'esp' and vice-versa
-  if (key === 'valuesEducation' && !subjectsData[key] && subjectsData['esp']) return 'esp';
-  if (key === 'esp' && !subjectsData[key] && subjectsData['valuesEducation']) return 'valuesEducation';
+  // Fallback: If key is 'valuesEducation' but doesn't exist in subjectsData, try 'esp' or 'gmrc' and vice-versa
+  if (key === 'valuesEducation' && !subjectsData[key]) {
+      if (subjectsData['esp']) return 'esp';
+      if (subjectsData['gmrc']) return 'gmrc';
+  }
+  if (key === 'gmrc' && !subjectsData[key]) {
+      if (subjectsData['valuesEducation']) return 'valuesEducation';
+      if (subjectsData['esp']) return 'esp';
+  }
+  if (key === 'esp' && !subjectsData[key]) {
+      if (subjectsData['valuesEducation']) return 'valuesEducation';
+      if (subjectsData['gmrc']) return 'gmrc';
+  }
 
   return key;
 }
@@ -169,42 +186,67 @@ export function mapStudentToSpecData({
         return subjectGradeNum === grade;
       });
 
-      // CRITICAL FIX: Deduplicate by name to avoid repeating subjects from different sections
-      // However, if it's the current grade, we prioritize the student's current section
+      const seen = new Set<string>();
       if (grade === currentGradeNum && studentSection) {
-        dbSubjectsForGrade = dbSubjectsForGrade.filter(s => s.section_id === studentSection.id);
-      } else {
-        // For other grades, just deduplicate by normalized name
-        const seen = new Set<string>();
         dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
-          const norm = normalizeSubjectName(s.subject_name);
-          if (seen.has(norm)) return false;
-          seen.add(norm);
-          return true;
+          const isGeneric = !s.section_id;
+          const isDirect = s.section_id === studentSection.id;
+          return isGeneric || isDirect;
+        });
+
+        // Prioritize direct section subjects over generic ones
+        dbSubjectsForGrade.sort((a, b) => {
+          const aDirect = a.section_id === studentSection.id ? 1 : 0;
+          const bDirect = b.section_id === studentSection.id ? 1 : 0;
+          return bDirect - aDirect;
         });
       }
+
+      // Final deduplication by name
+      dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+        const norm = normalizeSubjectName(s.subject_name);
+        if (seen.has(norm)) return false;
+        seen.add(norm);
+        return true;
+      });
 
       // If we have manual selections for the current grade, use that order!
       if (grade === currentGradeNum && studentSection?.section_metadata?.sf9SubjectSelections) {
           const selections = studentSection.section_metadata.sf9SubjectSelections;
           const orderedList: CurriculumSubject[] = [];
           
+          const seenOrdered = new Set<string>();
           for (let i = 0; i < 13; i++) {
               const subjId = selections[i];
               if (subjId && subjId !== 'none') {
                   const subj = dbSubjects.find(s => s.id === subjId);
                   if (subj) {
+                      const norm = normalizeSubjectName(subj.subject_name);
+                      if (seenOrdered.has(norm)) continue;
+                      seenOrdered.add(norm);
+
                       orderedList.push({ name: subj.subject_name, code: subj.subject_code || '' });
                       
                       // Handle MAPEH components auto-insertion logic for SF10
-                      if (normalizeSubjectName(subj.subject_name) === 'mapeh') {
+                      if (norm === 'mapeh') {
                           const components = dbSubjects.filter(s => {
-                              if (s.section_id !== studentSection.id) return false;
+                              // Check if it's a section-specific subject OR a generic subject for this grade level
+                              const isGenericMatch = !s.section_id && (parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0') === currentGradeNum);
+                              const isDirectMatch = s.section_id === studentSection.id;
+                              if (!isGenericMatch && !isDirectMatch) return false;
+
                               const n = normalizeSubjectName(s.subject_name);
-                              return n.includes('musicandarts') || n.includes('musicarts') || 
-                                     n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                              return (n.includes('musicandarts') || n.includes('musicarts') || 
+                                     n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth')) &&
+                                     !seenOrdered.has(n);
                           });
-                          components.forEach(c => orderedList.push({ name: c.subject_name, code: c.subject_code || 'MAPEH' }));
+                          components.forEach(c => {
+                              const n = normalizeSubjectName(c.subject_name);
+                              if (!seenOrdered.has(n)) {
+                                  orderedList.push({ name: c.subject_name, code: c.subject_code || 'MAPEH' });
+                                  seenOrdered.add(n);
+                              }
+                          });
                       }
                   }
               }
@@ -381,7 +423,11 @@ export function mapStudentToSpecData({
           // GPA Calculation
           // Include main subjects and MAPEH (even if it's a header)
           const isMapeh = s.key === 'mapeh';
-          const isStandardSubject = !excludedFromGPA.includes(s.key) && (!s.isHeader || isMapeh);
+          const isExcluded = s.label?.startsWith('*') || 
+                            s.label?.toLowerCase().includes('arabic language') || 
+                            s.label?.toLowerCase().includes('islamic values');
+          
+          const isStandardSubject = !excludedFromGPA.includes(s.key) && (!s.isHeader || isMapeh) && !isExcluded;
           
           if (isStandardSubject && !s.key.startsWith('extra_reserved')) {
             totalFinal += avg;
@@ -389,6 +435,39 @@ export function mapStudentToSpecData({
           }
         }
       }
+
+      // Compute per-term General Averages
+      ['q1', 'q2', 'q3', 'q4'].forEach(qKey => {
+          const q = qKey as 'q1' | 'q2' | 'q3' | 'q4';
+          let totalTerm = 0;
+          let countTerm = 0;
+
+          for (const s of standardSubjectsForGrade) {
+              const sub = getSubjectGradeEntry(subjectsData, s.key);
+              if (!sub) continue;
+
+              const val = Number(sub[q]);
+              if (val > 0) {
+                  // GPA Filter Logic
+                  const isMapeh = s.key === 'mapeh';
+                  const isExcluded = s.label?.startsWith('*') || 
+                                    s.label?.toLowerCase().includes('arabic language') || 
+                                    s.label?.toLowerCase().includes('islamic values');
+                  
+                  const isStandardSubject = !excludedFromGPA.includes(s.key) && (!s.isHeader || isMapeh) && !isExcluded;
+                  
+                  if (isStandardSubject && !s.key.startsWith('extra_reserved')) {
+                      totalTerm += val;
+                      countTerm++;
+                  }
+              }
+          }
+
+          if (countTerm > 0) {
+              const avgKey = `generalAverage${q.toUpperCase()}` as 'generalAverageQ1' | 'generalAverageQ2' | 'generalAverageQ3' | 'generalAverageQ4';
+              subjectsData[avgKey] = String(Math.round(totalTerm / countTerm));
+          }
+      });
 
       if (countFinal > 0) {
         subjectsData.generalAverage = String(Math.round(totalFinal / countFinal));
@@ -408,7 +487,7 @@ export function mapStudentToSpecData({
       adviserTeacher: isCurrentGrade ? adviserName : '',
       signature: '',
       subjects: subjectsData,
-      is3Term: gradeLevel >= currentGradeNum,
+      is3Term: isElementary ? gradeLevel >= currentGradeNum : true,
       remedial: {
         fromDate: '',
         toDate: '',
@@ -420,45 +499,95 @@ export function mapStudentToSpecData({
     };
   }
 
-  // Build 4 blocks for Grades 7-10, plus a 5th empty overflow block
-  const scholasticRecords = [
-    buildScholasticBlock(7),
-    buildScholasticBlock(8),
-    buildScholasticBlock(9),
-    buildScholasticBlock(10),
-    {
-      schoolName: '',
-      schoolId: '',
-      district: '',
-      division: '',
-      region: '',
-      gradeLevel: '',
-      section: '',
-      schoolYear: '',
-      adviserTeacher: '',
-      signature: '',
-      subjects: blankSubjects(11, effectiveCurriculum), // Just an empty one
-      is3Term: true,
-      gradeLevelNum: 11,
-      remedial: {
-        fromDate: '',
-        toDate: '',
-        rows: [
-          { learningArea: '', finalRating: '', remedialClassMark: '', recomputedFinalGrade: '', remarks: '' },
-          { learningArea: '', finalRating: '', remedialClassMark: '', recomputedFinalGrade: '', remarks: '' },
-        ],
+  // Build blocks based on curriculum category
+  let scholasticRecords: any[] = [];
+  const isElementary = currentGradeNum >= 1 && currentGradeNum <= 6;
+
+  if (isElementary) {
+    // Build 6 blocks for Grades 1-6
+    scholasticRecords = [
+      buildScholasticBlock(1),
+      buildScholasticBlock(2),
+      buildScholasticBlock(3),
+      buildScholasticBlock(4),
+      buildScholasticBlock(5),
+      buildScholasticBlock(6),
+    ];
+  } else {
+    // Build 4 blocks for Grades 7-10, plus a 5th empty overflow block
+    scholasticRecords = [
+      buildScholasticBlock(7),
+      buildScholasticBlock(8),
+      buildScholasticBlock(9),
+      buildScholasticBlock(10),
+      {
+        schoolName: '',
+        schoolId: '',
+        district: '',
+        division: '',
+        region: '',
+        gradeLevel: '',
+        section: '',
+        schoolYear: '',
+        adviserTeacher: '',
+        signature: '',
+        subjects: blankSubjects(0, effectiveCurriculum),
+        is3Term: true,
+        gradeLevelNum: 0,
+        remedial: {
+          fromDate: '',
+          toDate: '',
+          rows: [
+            { learningArea: '', finalRating: '', remedialClassMark: '', recomputedFinalGrade: '', remarks: '' },
+            { learningArea: '', finalRating: '', remedialClassMark: '', recomputedFinalGrade: '', remarks: '' },
+          ],
+        },
       },
-    },
-  ];
+    ];
+  }
 
     // Source of Truth: ONLY check the boxes if the explicit flags are TRUE.
-    // For legacy records where flags are undefined, we only default 'Elementary' to true if it has a school name.
     const hasElem = student.is_elem_completer === true || (student.is_elem_completer === undefined && !!(student.elementary_school || '').trim());
     const hasPept = student.is_pept_passer === true;
     const hasAls = student.is_als_passer === true;
     const hasOther = student.is_other_eligibility === true;
 
+    const fullName = `${student.last_name || ''}, ${student.first_name || ''} ${student.middle_name || ''}`.trim().toUpperCase();
+    const nextGrade = String(currentGradeNum + 1);
+    const todayDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    const certBase = {
+      recordOf: fullName,
+      lrn: student.lrn || '',
+      admissionGrade: nextGrade,
+      eligibleForGrade: nextGrade,
+      schoolName: profile.name || '',
+      schoolId: profile.school_id || '',
+      division: profile.division || '',
+      lastSchoolYearAttended: schoolYear || '',
+      date: todayDate,
+      principalSignatureName: profile.head_name || '',
+      schoolSeal: '',
+    };
+
+    const certBlank = {
+      recordOf: '',
+      lrn: '',
+      admissionGrade: '',
+      eligibleForGrade: '',
+      schoolName: '',
+      schoolId: '',
+      division: '',
+      lastSchoolYearAttended: '',
+      date: '',
+      principalSignatureName: '',
+      schoolSeal: '',
+    };
+
+    // Grade 7-8: pre-fill Page 1 cert only; Grade 9-10: pre-fill Page 2 cert only
+    const isPage1Grade = currentGradeNum >= 7 && currentGradeNum <= 8;
+
     return {
+    isES: isElementary,
     curriculum: effectiveCurriculum,
     learner: {
       lastName: student.last_name?.toUpperCase() || '',
@@ -493,31 +622,17 @@ export function mapStudentToSpecData({
       // Keep these for direct lookup if needed
       dateOfExamination: student.pept_date || '',
       testingCenter: student.testing_center || '',
+      // ES Specific
+      kinderProgressReport: { checked: !!student.is_elem_completer }, // Placeholder for ES logic if needed
+      eccdChecklist: { checked: false },
+      kinderCertificate: { checked: false },
     },
     scholasticRecords,
     certification: {
-      page1: {
-        recordOf: '',
-        lrn: '',
-        admissionGrade: '',
-        schoolName: '',
-        schoolId: '',
-        lastSchoolYearAttended: '',
-        date: '',
-        principalSignatureName: '',
-        schoolSeal: '',
-      },
-      page2: {
-        recordOf: '',
-        lrn: '',
-        admissionGrade: '',
-        schoolName: '',
-        schoolId: '',
-        lastSchoolYearAttended: '',
-        date: '',
-        principalSignatureName: '',
-        schoolSeal: '',
-      },
+      page1: isPage1Grade ? { ...certBase } : { ...certBlank },
+      page2_cert1: !isPage1Grade ? { ...certBase } : { ...certBlank },
+      page2_cert2: { ...certBlank },
+      page2_cert3: { ...certBlank },
     },
   };
 }

@@ -24,7 +24,7 @@ interface SubjectDetail {
     section_id: string;
     section_name: string;
     grade: number;
-    quarter: 1 | 2 | 3 | 4;
+    quarter: 1 | 2 | 3;
 }
 
 interface GroupedStudentMetric extends Student {
@@ -202,7 +202,7 @@ export function Dashboard() {
                 section_id: section?.id || '',
                 section_name: section?.section_name || 'Unknown',
                 grade: finalGrade,
-                quarter: r.quarter as 1|2|3|4
+                quarter: r.quarter as 1|2|3
             };
 
             if (finalGrade < 75) {
@@ -316,7 +316,10 @@ export function Dashboard() {
                 .sort((a, b) => a.label.localeCompare(b.label));
         }
 
-        const fixedGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+        const fixedGrades = [
+            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+            'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+        ];
         return fixedGrades
             .map(grade => ({
                 label: grade.replace('Grade ', 'G'),
@@ -326,6 +329,33 @@ export function Dashboard() {
             }))
             .filter(item => item.total > 0);
     }, [filteredStudents, sections]);
+    const categoryEnrollmentData = useMemo(() => {
+        const categories: Record<string, number> = {
+            'ELEMENTARY': 0,
+            'JUNIOR HIGH SCHOOL': 0,
+            'SENIOR HIGH SCHOOL': 0
+        };
+        
+        filteredStudents.forEach(s => {
+            const gl = (s.grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                categories['ELEMENTARY']++;
+            } else if (num >= 7 && num <= 10) {
+                categories['JUNIOR HIGH SCHOOL']++;
+            } else if (num >= 11 && num <= 12) {
+                categories['SENIOR HIGH SCHOOL']++;
+            }
+        });
+        
+        return Object.entries(categories)
+            .filter(([_, count]) => count > 0)
+            .map(([name, value]) => ({ name, value }));
+    }, [filteredStudents]);
+
+    const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#94a3b8'];
+
 
     const totalStudents = filteredStudents.length;
     const maleCount = filteredStudents.filter(s => s.gender === 'Male').length;
@@ -563,8 +593,56 @@ export function Dashboard() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
                 >
+                    {/* Level-wise Enrollment Chart */}
+                    <motion.div
+                        variants={itemVariants}
+                        className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Level-wise Enrollment</h3>
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-full border border-blue-100">PRO ANALYTICS</span>
+                        </div>
+                        <div className="h-48 w-full flex items-center justify-center relative">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={categoryEnrollmentData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {categoryEnrollmentData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span className="text-xl font-black text-slate-800">{totalStudents}</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                            {categoryEnrollmentData.map((entry, index) => (
+                                <div key={entry.name} className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-slate-700 leading-none">{entry.name}</span>
+                                        <span className="text-[8px] font-bold text-slate-400">{entry.value} students</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+
                     {/* Attendance Trend Chart */}
                     <motion.div
                         variants={itemVariants}

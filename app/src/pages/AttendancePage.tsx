@@ -24,6 +24,7 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
 
 
 export function AttendancePage() {
+
     const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
@@ -121,6 +122,29 @@ export function AttendancePage() {
             return a.section_name.localeCompare(b.section_name);
         });
     }, [sections, user]);
+
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
 
     useEffect(() => {
         if (sortedSections.length !== 1) return;
@@ -448,9 +472,19 @@ export function AttendancePage() {
                                         className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[200px]"
                                     >
                                         <option value="">Choose Section</option>
-                                        {sortedSections.map(section => (
-                                            <option key={section.id} value={section.section_name}>{section.section_name}</option>
+                                        
+                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                            groupSections.length > 0 && (
+                                                <optgroup key={group} label={group}>
+                                                    {groupSections.map(s => (
+                                                        <option key={s.id} value={s.section_name}>
+                                                            {s.section_grade_level} - {s.section_name}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )
                                         ))}
+
                                     </select>
                                     <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                                 </div>

@@ -53,7 +53,7 @@ export function ActivationPage() {
 
     try {
       const serial = key.trim().toUpperCase();
-      const projectId = 'form-ease-app';
+      const projectId = 'formease-licensing'; // Updated from Firebase Console
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
 
       // 1. Fetch License Data via REST API
@@ -96,7 +96,10 @@ export function ActivationPage() {
         });
       }
       
-      // 4. Update Local Store
+      // 4. Set Pending Flag FIRST to prevent App.tsx from instantly unmounting this page
+      localStorage.setItem('formease-activation-redirect-pending', 'true');
+
+      // 5. Update Local Store
       await updateSchoolProfile({
         ...useAppStore.getState().schoolProfile,
         is_activated: true,
@@ -104,8 +107,6 @@ export function ActivationPage() {
         activated_at: new Date().toISOString(),
         adviser_name: fullName.trim()
       });
-
-      localStorage.setItem('formease-activation-redirect-pending', 'true');
       
       setStatus('success');
       showNotification('Activation Successful!', 'success');
@@ -114,6 +115,7 @@ export function ActivationPage() {
         localStorage.removeItem('formease-activation-redirect-pending');
         await useAuthStore.getState().logout();
       }, 2500);
+
 
     } catch (error: any) {
       setStatus('error');

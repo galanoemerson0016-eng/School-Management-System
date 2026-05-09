@@ -11,10 +11,10 @@ echo.
 echo This is the SPECIAL VARIANT for schools with custom curricula
 echo Features: Support for additional subjects beyond standard DepEd list
 echo.
-echo Server URL: http://localhost:3002
+echo Server URL: http://localhost:3003
 echo.
 
 cd /d "%~dp0app"
-npm run dev -- --port 3002
+call npm run dev -- --port 3003
 
 pause

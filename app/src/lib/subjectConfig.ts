@@ -6,7 +6,77 @@
 import type { CurriculumSubject, SchoolCurriculum } from '../types';
 
 // Standard DepEd subjects for grades 7-10
+// Standard DepEd subjects for grades 1-12
 const STANDARD_SUBJECTS = {
+  Grade1: [
+    { name: 'Language', code: '' },
+    { name: 'Reading and Literacy', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Makabansa', code: '' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
+  Grade2: [
+    { name: 'Filipino', code: '' },
+    { name: 'English', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Makabansa', code: '' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
+  Grade3: [
+    { name: 'Filipino', code: '' },
+    { name: 'English', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Makabansa', code: '' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
+  Grade4: [
+    { name: 'Filipino', code: '' },
+    { name: 'English', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'Science', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Araling Panlipunan (AP)', code: '' },
+    { name: 'EPP', code: '' },
+    { name: 'MAPEH', code: '' },
+    { name: 'Music and Arts', code: 'MAPEH' },
+    { name: 'Physical Education and Health', code: 'MAPEH' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
+  Grade5: [
+    { name: 'Filipino', code: '' },
+    { name: 'English', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'Science', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Araling Panlipunan (AP)', code: '' },
+    { name: 'EPP', code: '' },
+    { name: 'MAPEH', code: '' },
+    { name: 'Music and Arts', code: 'MAPEH' },
+    { name: 'Physical Education and Health', code: 'MAPEH' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
+  Grade6: [
+    { name: 'Filipino', code: '' },
+    { name: 'English', code: '' },
+    { name: 'Mathematics', code: '' },
+    { name: 'Science', code: '' },
+    { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
+    { name: 'Araling Panlipunan (AP)', code: '' },
+    { name: 'EPP', code: '' },
+    { name: 'MAPEH', code: '' },
+    { name: 'Music and Arts', code: 'MAPEH' },
+    { name: 'Physical Education and Health', code: 'MAPEH' },
+    { name: '*Arabic Language', code: '' },
+    { name: '*Islamic Values Education', code: '' }
+  ] as CurriculumSubject[],
   Grade7: [
     { name: 'Filipino', code: '' },
     { name: 'English', code: '' },
@@ -58,6 +128,21 @@ const STANDARD_SUBJECTS = {
     { name: 'Music and Arts', code: 'MAPEH' },
     { name: 'Physical Education and Health', code: 'MAPEH' },
     { name: 'Specialization', code: '' }
+  ] as CurriculumSubject[],
+  Grade11: [
+    { name: 'Oral Communication', code: '' },
+    { name: 'General Mathematics', code: '' },
+    { name: 'Earth and Life Science', code: '' },
+    { name: 'Personal Development', code: '' },
+    { name: 'PE and Health 1', code: '' },
+    { name: 'Specialized Subject 1', code: '' }
+  ] as CurriculumSubject[],
+  Grade12: [
+    { name: '21st Century Literature', code: '' },
+    { name: 'Contemporary Philippine Arts', code: '' },
+    { name: 'Understanding Culture, Society and Politics', code: '' },
+    { name: 'PE and Health 3', code: '' },
+    { name: 'Specialized Subject 3', code: '' }
   ] as CurriculumSubject[]
 };
 
@@ -66,37 +151,58 @@ const STANDARD_SUBJECTS = {
  * Uses custom curriculum if available, otherwise returns standard subjects
  */
 export function getSubjectsForGrade(gradeLevel: string | number, customCurriculum?: SchoolCurriculum): CurriculumSubject[] {
-  const grade = String(gradeLevel).toLowerCase();
+  let grade = String(gradeLevel).toLowerCase();
+  if (/^\d+$/.test(grade)) {
+    grade = `grade ${grade}`;
+  }
   
   // Check custom curriculum first
   if (customCurriculum) {
-    if (grade.includes('7') && customCurriculum.grade_7_subjects !== undefined) {
-      return customCurriculum.grade_7_subjects;
-    }
-    if (grade.includes('8') && customCurriculum.grade_8_subjects !== undefined) {
-      return customCurriculum.grade_8_subjects;
-    }
-    if (grade.includes('9') && customCurriculum.grade_9_subjects !== undefined) {
-      return customCurriculum.grade_9_subjects;
-    }
-    if (grade.includes('10') && customCurriculum.grade_10_subjects !== undefined) {
-      return customCurriculum.grade_10_subjects;
-    }
+    if (grade === 'grade 1' && customCurriculum.grade_1_subjects) return customCurriculum.grade_1_subjects;
+    if (grade === 'grade 2' && customCurriculum.grade_2_subjects) return customCurriculum.grade_2_subjects;
+    if (grade === 'grade 3' && customCurriculum.grade_3_subjects) return customCurriculum.grade_3_subjects;
+    if (grade === 'grade 4' && customCurriculum.grade_4_subjects) return customCurriculum.grade_4_subjects;
+    if (grade === 'grade 5' && customCurriculum.grade_5_subjects) return customCurriculum.grade_5_subjects;
+    if (grade === 'grade 6' && customCurriculum.grade_6_subjects) return customCurriculum.grade_6_subjects;
+    if (grade === 'grade 7' && customCurriculum.grade_7_subjects) return customCurriculum.grade_7_subjects;
+    if (grade === 'grade 8' && customCurriculum.grade_8_subjects) return customCurriculum.grade_8_subjects;
+    if (grade === 'grade 9' && customCurriculum.grade_9_subjects) return customCurriculum.grade_9_subjects;
+    if (grade === 'grade 10' && customCurriculum.grade_10_subjects) return customCurriculum.grade_10_subjects;
+    if (grade === 'grade 11' && customCurriculum.grade_11_subjects) return customCurriculum.grade_11_subjects;
+    if (grade === 'grade 12' && customCurriculum.grade_12_subjects) return customCurriculum.grade_12_subjects;
   }
 
   let result: CurriculumSubject[] = [];
 
   // Fall back to standard subjects
-  if (grade.includes('7')) result = [...STANDARD_SUBJECTS.Grade7];
-  else if (grade.includes('8')) result = [...STANDARD_SUBJECTS.Grade8];
-  else if (grade.includes('9')) result = [...STANDARD_SUBJECTS.Grade9];
-  else if (grade.includes('10')) result = [...STANDARD_SUBJECTS.Grade10];
+  if (grade === 'grade 1') result = [...STANDARD_SUBJECTS.Grade1];
+  else if (grade === 'grade 2') result = [...STANDARD_SUBJECTS.Grade2];
+  else if (grade === 'grade 3') result = [...STANDARD_SUBJECTS.Grade3];
+  else if (grade === 'grade 4') result = [...STANDARD_SUBJECTS.Grade4];
+  else if (grade === 'grade 5') result = [...STANDARD_SUBJECTS.Grade5];
+  else if (grade === 'grade 6') result = [...STANDARD_SUBJECTS.Grade6];
+  else if (grade === 'grade 7') result = [...STANDARD_SUBJECTS.Grade7];
+  else if (grade === 'grade 8') result = [...STANDARD_SUBJECTS.Grade8];
+  else if (grade === 'grade 9') result = [...STANDARD_SUBJECTS.Grade9];
+  else if (grade === 'grade 10') result = [...STANDARD_SUBJECTS.Grade10];
+  else if (grade === 'grade 11') result = [...STANDARD_SUBJECTS.Grade11];
+  else if (grade === 'grade 12') result = [...STANDARD_SUBJECTS.Grade12];
   else {
     // Return empty rows for overflow/extra blocks
     return Array(11).fill(null).map(() => ({ name: ' ', code: '' }));
   }
 
-  return sortSubjects(result, (s) => s.name);
+  // Final safety deduplication
+  const seen = new Set<string>();
+  const unique = result.filter(s => {
+    const norm = normalizeSubjectName(s.name);
+    if (!norm) return true; // Keep empty/placeholder rows
+    if (seen.has(norm)) return false;
+    seen.add(norm);
+    return true;
+  });
+
+  return sortSubjects(unique, (s) => s.name);
 }
 
 /**
@@ -109,18 +215,22 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
 
   const getStandardSf10Key = (subjectName: string, idx: number) => {
     const normalized = normalizeSubjectName(subjectName);
+    if (normalized.includes('language')) return 'language';
+    if (normalized.includes('readingandliteracy')) return 'readingAndLiteracy';
     if (normalized.includes('filipino')) return 'filipino';
     if (normalized.includes('english')) return 'english';
     if (normalized.includes('mathematics') || normalized.includes('math')) return 'mathematics';
     if (normalized.includes('science')) return 'science';
     if (normalized.includes('aralingpanlipunan') || normalized === 'ap') return 'ap';
+    if (normalized.includes('makabansa')) return 'makabansa';
+    if (normalized.includes('gmrc') || normalized.includes('goodmanners')) return 'gmrc';
     if (normalized.includes('valueseducation') || normalized.includes('values')) return 'valuesEducation';
-    if (normalized.includes('edukasyon') || normalized === 'esp' || normalized.includes('pagpapakatao')) return 'esp';
-    if (normalized.includes('technologyandlivelihood') || normalized.includes('tle')) return 'tle';
+    if (normalized.includes('epp') || normalized.includes('tle')) return 'tle';
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 'musicAndArts';
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 'peAndHealth';
     if (normalized.includes('mapeh')) return 'mapeh';
-    if (normalized.includes('specialization')) return 'specialization';
+    if (normalized.includes('arabic')) return 'arabic';
+    if (normalized.includes('islamic')) return 'islamic';
     return `subject_${idx}`;
   };
 
@@ -146,8 +256,19 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     });
   });
 
-  // Add 3 mandatory extra reserved rows after the last subject
-  for (let i = 1; i <= 3; i++) {
+  // Ensure correct row count: ES=15, JHS=12
+  const gradeStr = String(gradeLevel).toLowerCase();
+  const gradeNum = parseInt(gradeStr.match(/\d+/)?.[0] || gradeStr) || 0;
+  const isElementary = gradeNum > 0 && gradeNum <= 6;
+                      
+  const TARGET_ROWS = isElementary ? 15 : 12;
+  
+  if (rows.length > TARGET_ROWS) {
+    return rows.slice(0, TARGET_ROWS);
+  }
+
+  while (rows.length < TARGET_ROWS) {
+    const i = rows.length + 1;
     rows.push({
       label: ' ',
       key: `extra_reserved_${i}`
@@ -207,29 +328,40 @@ export function normalizeSubjectName(name: string): string {
 }
 
 /**
- * Global sorting priority for DepEd JHS Curriculum
+ * Global sorting priority for DepEd Curriculum (G1-12)
  * Returns a numerical rank to ensure subjects appear in the correct official order
  */
 export function getStandardSubjectPriority(name: string): number {
     const normalized = normalizeSubjectName(name);
     
-    // 1. Core Academic Subjects
+    // 1. Special Religious/Alternative Subjects (Identify these early to avoid general keyword matches)
+    if (normalized.includes('arabic')) return 90;
+    if (normalized.includes('islamic')) return 91;
+
+    // 2. Matatag G1-3 Core Priorities
+    if (normalized.includes('readingandliteracy')) return 2;
+    if (normalized.includes('language')) return 1;
+    
+    // 3. Core Academic Subjects
     if (normalized.includes('filipino')) return 10;
     if (normalized.includes('english')) return 20;
     if (normalized.includes('mathematics') || normalized.includes('math')) return 30;
     if (normalized.includes('science')) return 40;
+    if (normalized.includes('gmrc') || normalized.includes('goodmanners')) return 45;
     if (normalized === 'aralingpanlipunan' || normalized === 'ap' || normalized.includes('aralingpanlipunan')) return 50;
+    if (normalized.includes('makabansa')) return 55;
     if (normalized.includes('valueseducation') || normalized.includes('values') || normalized.includes('esp') || normalized.includes('edukasyonsapagpapakatao')) return 60;
+    if (normalized.includes('epp')) return 65;
     if (normalized.includes('technologyandlivelihood') || normalized.includes('tle')) return 70;
     
-    // 2. MAPEH Header
+    // 4. MAPEH Header
     if (normalized === 'mapeh') return 80;
     
-    // 3. MAPEH Components (Should be adjacent to header)
+    // 5. MAPEH Components
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 81;
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 82;
     
-    // 4. Specialization (Always Last)
+    // 6. Specialization (Always Last)
     if (normalized.includes('specialization')) return 1000;
 
     // Others (General electives, etc.)

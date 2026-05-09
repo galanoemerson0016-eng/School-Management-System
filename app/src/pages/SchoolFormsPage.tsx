@@ -174,6 +174,11 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
         emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/20', accent: '#10b981', gradient: 'from-emerald-500 to-teal-400' },
         blue: { bg: 'bg-blue-500/10', text: 'text-blue-600', border: 'border-blue-500/20', accent: '#3b82f6', gradient: 'from-blue-500 to-indigo-400' },
         amber: { bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-500/20', accent: '#f59e0b', gradient: 'from-amber-500 to-orange-400' },
+        rose: { bg: 'bg-rose-500/10', text: 'text-rose-600', border: 'border-rose-500/20', accent: '#f43f5e', gradient: 'from-rose-500 to-pink-400' },
+        violet: { bg: 'bg-violet-500/10', text: 'text-violet-600', border: 'border-violet-500/20', accent: '#8b5cf6', gradient: 'from-violet-500 to-purple-400' },
+        indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-600', border: 'border-indigo-500/20', accent: '#6366f1', gradient: 'from-indigo-500 to-blue-400' },
+        cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-600', border: 'border-cyan-500/20', accent: '#06b6d4', gradient: 'from-cyan-500 to-teal-400' },
+        orange: { bg: 'bg-orange-500/10', text: 'text-orange-600', border: 'border-orange-500/20', accent: '#f97316', gradient: 'from-orange-500 to-amber-400' },
     };
 
     const c = colorMap[color] || colorMap.emerald;
@@ -192,6 +197,11 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
             className={`group relative flex flex-col items-center text-center p-5 backdrop-blur-xl rounded-[22px] border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-[0_20px_60px_rgba(31,38,135,0.12)] ${
                 color === 'emerald' ? 'bg-emerald-50/80 dark:bg-emerald-500/5 hover:bg-emerald-100/80' : 
                 color === 'blue' ? 'bg-blue-50/80 dark:bg-blue-500/5 hover:bg-blue-100/80' : 
+                color === 'rose' ? 'bg-rose-50/80 dark:bg-rose-500/5 hover:bg-rose-100/80' :
+                color === 'violet' ? 'bg-violet-50/80 dark:bg-violet-500/5 hover:bg-violet-100/80' :
+                color === 'indigo' ? 'bg-indigo-50/80 dark:bg-indigo-500/5 hover:bg-indigo-100/80' :
+                color === 'cyan' ? 'bg-cyan-50/80 dark:bg-cyan-500/5 hover:bg-cyan-100/80' :
+                color === 'orange' ? 'bg-orange-50/80 dark:bg-orange-500/5 hover:bg-orange-100/80' :
                 'bg-amber-50/80 dark:bg-amber-500/5 hover:bg-amber-100/80'
             }`}
         >
@@ -370,6 +380,7 @@ export function SchoolFormsPage() {
             sf5: { type: 'sf5', action: 'Opened SF5 Report on Promotion', detail: `S.Y. ${activeSchoolYear}` },
             attendance: { type: 'attendance', action: 'Opened SF2 Attendance', detail: `Month: ${new Date().toLocaleString('en-US', { month: 'long' })}` },
             'name-tags': { type: 'sf10', action: 'Opened Name Tag Generator', detail: `Preparing batch tags for sections` },
+            lir: { type: 'sf10', action: 'Opened Learner\'s Individual Record', detail: `S.Y. ${activeSchoolYear}` },
         };
         const entry = actionMap[formId];
         if (entry && user) {
@@ -403,7 +414,7 @@ export function SchoolFormsPage() {
             title: 'SF2 Daily Attendance',
             description: 'Daily Attendance Report. Tracking presence, tardiness, and absences.',
             icon: CheckCircle2,
-            color: 'amber',
+            color: 'orange',
             badge: 'Active',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
@@ -427,7 +438,7 @@ export function SchoolFormsPage() {
             title: 'SF6 Summarized Report',
             description: 'Summarized report on promotion and learning progress & achievement per section.',
             icon: TrendingUp,
-            color: 'blue',
+            color: 'indigo',
             badge: 'Active',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
@@ -439,7 +450,7 @@ export function SchoolFormsPage() {
             title: 'SF8 Basic Health and Nutrition',
             description: 'Learner\'s Basic Health and Nutrition Report with section-based roster and summary table.',
             icon: HeartPulse,
-            color: 'amber',
+            color: 'rose',
             badge: 'New',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
@@ -463,7 +474,7 @@ export function SchoolFormsPage() {
             title: 'SF10 Permanent Record',
             description: 'Learner\'s Permanent Academic Record (Form 137). Scholastic history and certifications.',
             icon: FileText,
-            color: 'blue',
+            color: 'violet',
             badge: 'Verified',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
@@ -475,11 +486,23 @@ export function SchoolFormsPage() {
             title: 'Name Tag Generator',
             description: 'Generate batch-printable name tags for students with multiple premium templates.',
             icon: Tag,
-            color: 'emerald',
+            color: 'cyan',
             badge: 'Tool',
             stats: [
                 { label: 'Templates', value: 3 },
                 { label: 'Layout', value: '2x4 Grid' },
+            ],
+        },
+        {
+            id: 'lir',
+            title: 'Learner\'s Individual Record',
+            description: 'Comprehensive learner record featuring academic grade tracking, written works, performance tasks, and cumulative attendance monitoring.',
+            icon: FileText,
+            color: 'blue',
+            badge: 'New',
+            stats: [
+                { label: 'Learners', value: activeStudentsCount },
+                { label: 'Sections', value: activeSectionsCount },
             ],
         },
     ];

@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 	},
 	tableHeader: {
-		backgroundColor: '#cfc79b',
+		backgroundColor: '#DDD9C4',
 		fontWeight: 'bold',
 		fontSize: 8,
 		padding: 2,

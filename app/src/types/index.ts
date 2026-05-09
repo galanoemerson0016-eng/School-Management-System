@@ -8,10 +8,18 @@ export interface CurriculumSubject {
 
 export interface SchoolCurriculum {
     school_id: string;
+    grade_1_subjects?: CurriculumSubject[];
+    grade_2_subjects?: CurriculumSubject[];
+    grade_3_subjects?: CurriculumSubject[];
+    grade_4_subjects?: CurriculumSubject[];
+    grade_5_subjects?: CurriculumSubject[];
+    grade_6_subjects?: CurriculumSubject[];
     grade_7_subjects?: CurriculumSubject[];
     grade_8_subjects?: CurriculumSubject[];
     grade_9_subjects?: CurriculumSubject[];
     grade_10_subjects?: CurriculumSubject[];
+    grade_11_subjects?: CurriculumSubject[];
+    grade_12_subjects?: CurriculumSubject[];
     is_custom?: boolean; // Flag to indicate custom curriculum
 }
 
@@ -70,13 +78,22 @@ export interface Student {
     remarks?: string;
     enrollment_date?: string;
     photo_url?: string;
-    // Elementary completer info (SF10 Eligibility)
+    
+    // Elementary Enrolment Eligibility (SF10-ES)
+    kinder_progress_report?: boolean;
+    eccd_checklist?: boolean;
+    kinder_completion_cert?: boolean;
+    pept_checked?: boolean;
+    other_checked?: boolean;
+    
+    // Secondary Enrolment Eligibility (SF10-JHS/SHS)
     elementary_school?: string;
     elementary_school_id?: string;
     elementary_school_address?: string;
     sy_last_attended?: string;
     average_grade?: string;
     citation?: string;
+    
     // Other credentials (PEPT / ALS)
     pept_rating?: string;
     pept_date?: string; // Date of Examination/Assessment
@@ -88,7 +105,7 @@ export interface Student {
     is_pept_passer?: boolean;
     is_als_passer?: boolean;
     is_other_eligibility?: boolean;
-    // High School completer info (SF10 Page 2 Certification)
+    
     // Parent info
     parent_name?: string;
     parent_contact?: string;
@@ -135,7 +152,7 @@ export interface ClassRecord {
     section_id: string;
     subject_id: string;
     school_year: string;
-    quarter: 1 | 2 | 3 | 4;
+    quarter: 1 | 2 | 3; // Strictly 3-term system
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;
@@ -208,7 +225,7 @@ export interface ObservedValues {
     id: string;
     student_lrn: string;
     school_year: string; // To track year
-    quarter: 1 | 2 | 3 | 4;
+    quarter: 1 | 2 | 3; // Strictly 3-term system
     // Key: Core Value ID (e.g., 'Maka-Diyos'), Value: Rating (AO, SO, RO, NO)
     values: Record<string, string>;
 }
@@ -217,7 +234,7 @@ export interface HPSRecord {
     id: string;
     subject_id: string; // Unique per section in this system
     school_year: string;
-    quarter: 1 | 2 | 3 | 4;
+    quarter: 1 | 2 | 3; // Strictly 3-term system
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;

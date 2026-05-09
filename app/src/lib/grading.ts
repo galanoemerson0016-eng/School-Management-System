@@ -48,7 +48,8 @@ export function getSubjectCluster(subjectName: string): SubjectCluster {
         return 'science_math';
     }
 
-    // AP/English/Filipino/Values/GMRC cluster (20/50/30) - default
+    // Languages, AP, GMRC, Makabansa cluster (20/50/30) - default
+    // Includes: Language, Reading, Makabansa, GMRC, Arabic, Islamic
     return 'languages_ap_esp';
 }
 

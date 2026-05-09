@@ -7,6 +7,8 @@ type DesignTemplate = 'classic' | 'modern' | 'pro' | 'premium' | 'organic' | 'ar
 type ColorTheme = 'blue' | 'emerald' | 'purple' | 'amber' | 'rose';
 
 export function NameTagPage() {
+    
+
     const { students, sections, schoolProfile, setCurrentView } = useAppStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [template, setTemplate] = useState<DesignTemplate>('premium');
@@ -16,6 +18,29 @@ export function NameTagPage() {
     const sortedSections = useMemo(() => {
         return [...sections].sort((a, b) => a.section_grade_level.localeCompare(b.section_grade_level));
     }, [sections]);
+
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        sortedSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [sortedSections]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -115,9 +140,19 @@ export function NameTagPage() {
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
                             <option value="">Select Section</option>
-                            {sortedSections.map(s => (
-                                <option key={s.id} value={s.section_name}>{s.section_grade_level} - {s.section_name}</option>
-                            ))}
+                            
+                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                            groupSections.length > 0 && (
+                                                <optgroup key={group} label={group}>
+                                                    {groupSections.map(s => (
+                                                        <option key={s.id} value={s.section_name}>
+                                                            {s.section_grade_level} - {s.section_name}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )
+                                        ))}
+
                         </select>
 
                         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">

@@ -12,3 +12,5 @@ macOS_Installers/
 app/release/
 node_modules/
 dist/
+
+_mac_temp_repair/

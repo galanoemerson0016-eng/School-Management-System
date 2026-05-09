@@ -47,6 +47,15 @@ service cloud.firestore {
       allow write: if canManageEnrollmentData();
     }
 
+    // Commercial License Rules (G7 Special)
+    match /artifacts/g7-special/public/data/licenses/{licenseId} {
+      // Allow the desktop app to verify keys without logging in
+      allow read: if true;
+      // Allow the desktop app to bind the device ID to the key
+      allow update: if (resource.data.machine_id == "" && request.resource.data.machine_id != "") || 
+                     (request.auth != null && hasRole('admin'));
+    }
+
     match /{document=**} {
       allow read: if signedIn();
       allow write: if hasRole('admin');

@@ -6,6 +6,33 @@ import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2S
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
+const isKeyStage1 = (gradeLevel: string) => {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('grade')) {
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        return num >= 1 && num <= 3;
+    }
+    return false;
+};
+
+const getDescriptor = (grade: number, gradeLevel: string) => {
+    if (!grade || grade <= 0) return '';
+    
+    // Key Stage 1 (Grades 1-3)
+    if (isKeyStage1(gradeLevel)) {
+        if (grade >= 90) return 'Consistent';
+        if (grade >= 80) return 'Developing';
+        return 'Beginning';
+    }
+
+    // Key Stage 2 to 4 (Grades 4-12)
+    if (grade >= 90) return 'Advancing';
+    if (grade >= 80) return 'Benchmarking';
+    if (grade >= 75) return 'Connecting';
+    if (grade >= 65) return 'Developing';
+    return 'Emerging';
+};
+
 import { getSF9SubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 
 // Print mode type for term-specific printing
@@ -182,7 +209,11 @@ function computeStudentGrades(
                     // Automatically add components if it's MAPEH
                     if (normalizeSubjectName(subject.subject_name) === 'mapeh') {
                         const components = subjects.filter(s => {
-                            if (s.section_id !== sectionObj.id) return false;
+                            // Check if it's a section-specific subject OR a generic subject for this grade level
+                            const isGenericMatch = !s.section_id && (parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0') === gradeLevelNum);
+                            const isDirectMatch = s.section_id === sectionObj.id;
+                            if (!isGenericMatch && !isDirectMatch) return false;
+
                             const n = normalizeSubjectName(s.subject_name);
                             return n.includes('musicandarts') || n.includes('musicarts') || 
                                    n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
@@ -295,8 +326,12 @@ function calculateGeneralAverage(grades: Record<string, number[]>) {
         // Exclude components from the average count (they are part of MAPEH)
         const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
                            norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');
-        // Exclude reserved rows and components
-        if (!key.startsWith('reserved_extra') && !isComponent) {
+        const isExcluded = key.startsWith('*') || 
+                          key.toLowerCase().includes('arabic language') || 
+                          key.toLowerCase().includes('islamic values');
+
+        // Exclude reserved rows, components, and specific excluded subjects
+        if (!key.startsWith('reserved_extra') && !isComponent && !isExcluded) {
             const gradeRow = grades[key] || [0, 0, 0];
             const finalGrade = calculateFinalGrade(gradeRow);
             if (finalGrade > 0) {
@@ -879,6 +914,7 @@ function SF9BatchDocument({
 }
 
 export function SF9Page() {
+
     const { students, sections, schoolProfile, activeSchoolYear, gradingSheetRecords, subjects, observedValues, sf2Sheets, updateObservedValue, setCurrentView, teachers } = useAppStore();
     const { user } = useAuthStore();
 
@@ -914,6 +950,29 @@ export function SF9Page() {
             return gA !== gB ? gA - gB : a.section_name.localeCompare(b.section_name);
         });
     }, [sections, user]);
+
+    const groupedSections = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            'ELEMENTARY': [],
+            'JUNIOR HIGH SCHOOL': [],
+            'SENIOR HIGH SCHOOL': []
+        };
+        
+        filteredSections.forEach(s => {
+            const gl = (s.section_grade_level || '').toLowerCase();
+            const num = parseInt(gl.replace(/\D/g, '')) || 0;
+            
+            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
+                groups['ELEMENTARY'].push(s);
+            } else if (num >= 7 && num <= 10) {
+                groups['JUNIOR HIGH SCHOOL'].push(s);
+            } else if (num >= 11 && num <= 12) {
+                groups['SENIOR HIGH SCHOOL'].push(s);
+            }
+        });
+        
+        return groups;
+    }, [filteredSections]);
 
     // Auto-select advisory section first, then fallback to first available
     useEffect(() => {
@@ -1191,7 +1250,7 @@ export function SF9Page() {
                 id: existing?.id || `ov_${selectedStudent.lrn}_${activeSchoolYear}_${q}_${Date.now()}`,
                 student_lrn: selectedStudent.lrn,
                 school_year: activeSchoolYear,
-                quarter: q as 1 | 2 | 3 | 4,
+                quarter: q as 1 | 2 | 3,
                 values: { ...(existing?.values || {}), ...changesForQ }
             };
             
@@ -1305,7 +1364,17 @@ export function SF9Page() {
                                 onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
                             >
                                 <option value="">Section</option>
-                                {filteredSections.map(s => <option key={s.id} value={s.id}>{s.section_name}</option>)}
+                                {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                    groupSections.length > 0 && (
+                                        <optgroup key={group} label={group}>
+                                            {groupSections.map(s => (
+                                                <option key={s.id} value={s.id}>
+                                                    {s.section_grade_level} - {s.section_name}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )
+                                ))}
                             </select>
                         )}
 
