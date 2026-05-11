@@ -41,6 +41,7 @@ export interface SchoolProfile {
     is_activated?: boolean;
     activation_key?: string;
     activated_at?: string;
+    subscription_end_date?: string;
 }
 
 export interface SchoolYear {

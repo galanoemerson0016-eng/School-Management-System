@@ -192,23 +192,52 @@ async function getStoreCount(storeName: string): Promise<number> {
 /**
  * Export all data as JSON for backup
  */
+/**
+ * Export all data as JSON for backup
+ */
 async function exportAllData() {
-  const stores = {
-    schoolProfile: await getAllRecords<SchoolProfile>('schoolProfile'),
-    students: await getAllRecords<Student>('students'),
-    sections: await getAllRecords<Section>('sections'),
-    subjects: await getAllRecords<Subject>('subjects'),
-    classRecords: await getAllRecords<ClassRecord>('classRecords'),
-    enrollments: await getAllRecords<Enrollment>('enrollments'),
-    announcements: await getAllRecords<Announcement>('announcements'),
-    attendanceRecords: await getAllRecords<AttendanceRecord>('attendanceRecords'),
-    sf2Sheets: await getAllRecords<any>('sf2Sheets'),
-    hpsRecords: await getAllRecords<any>('hpsRecords'),
-    gradingSheetRecords: await getAllRecords<ClassRecord>('gradingSheetRecords'),
-    observedValues: await getAllRecords<ObservedValues>('observedValues'),
-  };
+  const [
+    schoolProfile,
+    students,
+    sections,
+    subjects,
+    classRecords,
+    enrollments,
+    announcements,
+    attendanceRecords,
+    sf2Sheets,
+    hpsRecords,
+    gradingSheetRecords,
+    observedValues
+  ] = await Promise.all([
+    getAllRecords<SchoolProfile>('schoolProfile'),
+    getAllRecords<Student>('students'),
+    getAllRecords<Section>('sections'),
+    getAllRecords<Subject>('subjects'),
+    getAllRecords<ClassRecord>('classRecords'),
+    getAllRecords<Enrollment>('enrollments'),
+    getAllRecords<Announcement>('announcements'),
+    getAllRecords<AttendanceRecord>('attendanceRecords'),
+    getAllRecords<any>('sf2Sheets'),
+    getAllRecords<any>('hpsRecords'),
+    getAllRecords<ClassRecord>('gradingSheetRecords'),
+    getAllRecords<ObservedValues>('observedValues'),
+  ]);
 
-  return stores;
+  return {
+    schoolProfile,
+    students,
+    sections,
+    subjects,
+    classRecords,
+    enrollments,
+    announcements,
+    attendanceRecords,
+    sf2Sheets,
+    hpsRecords,
+    gradingSheetRecords,
+    observedValues,
+  };
 }
 
 /**

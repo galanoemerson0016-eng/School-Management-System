@@ -1,10 +1,18 @@
 import { 
   Key, Shield, Plus, List, Trash2, Copy, Check, Search, Filter, Cpu, User, Calendar, 
-  Download, DownloadCloud, FileText, BarChart3, Activity, Clock, RotateCcw, Settings, Type
+  Download, DownloadCloud, FileText, BarChart3, Activity, Clock, RotateCcw, Settings, Type,
+  LogOut, Lock, Mail, AlertCircle
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { licenseService } from './lib/license-service';
+import { auth } from './lib/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  User as FirebaseUser 
+} from 'firebase/auth';
 
 // License Type
 interface License {
@@ -21,11 +29,80 @@ interface License {
 }
 
 export default function App() {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [licenses, setLicenses] = useState<License[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'generate' | 'manage'>('generate');
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  // Auth Logic
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = () => signOut(auth);
+  
+  // Helpers
+  const parseDate = (date: any) => {
+    if (!date) return null;
+    try {
+      if (date instanceof Date) return date;
+      if (typeof date === 'string') {
+        const d = new Date(date);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      // Handle Firestore Timestamp object { seconds, nanoseconds }
+      if (typeof date === 'object' && date.seconds) {
+        return new Date(date.seconds * 1000);
+      }
+      // Handle Firebase Timestamp class with toDate()
+      if (typeof date === 'object' && typeof date.toDate === 'function') {
+        return date.toDate();
+      }
+      const d = new Date(date);
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const formatRelative = (date: any) => {
+    const d = parseDate(date);
+    if (!d) return 'N/A';
+    
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 30) return `${days}d ago`;
+    return d.toLocaleDateString();
+  };
+
+  const getProgress = (license: License) => {
+    const start = parseDate(license.activated_at);
+    const end = parseDate(license.expires_at);
+
+    if (!start || !end || license.status !== 'activated') return 0;
+    
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+    const nowTime = new Date().getTime();
+
+    if (nowTime >= endTime) return 100;
+    if (license.duration_months === -1) return 0; // Lifetime
+    
+    const total = endTime - startTime;
+    const elapsed = nowTime - startTime;
+    return Math.min(100, Math.max(0, (elapsed / total) * 100));
+  };
   
   // New States
   const [generateCount, setGenerateCount] = useState(1);
@@ -122,7 +199,15 @@ export default function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const filteredLicenses = licenses.filter(l => {
+  const handleCopyAll = () => {
+    if (filteredLicenses.length === 0) return;
+    const serials = filteredLicenses.map((l: License) => l.serial).join('\n');
+    navigator.clipboard.writeText(serials);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
+  const filteredLicenses = licenses.filter((l: License) => {
     const matchesSearch = l.serial.includes(searchTerm) || 
       (l.registered_to?.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (l.batch_id?.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -135,9 +220,9 @@ export default function App() {
   const stats = useMemo(() => {
     return {
       total: licenses.length,
-      activated: licenses.filter(l => l.status === 'activated').length,
-      pending: licenses.filter(l => l.status === 'pending').length,
-      expired: licenses.filter(l => l.status === 'expired').length
+      activated: licenses.filter((l: License) => l.status === 'activated').length,
+      pending: licenses.filter((l: License) => l.status === 'pending').length,
+      expired: licenses.filter((l: License) => l.status === 'expired').length
     };
   }, [licenses]);
 
@@ -145,7 +230,7 @@ export default function App() {
     const headers = ['Serial', 'Status', 'Machine ID', 'Registered To', 'Expires At', 'Created At', 'Batch'];
     const csvContent = [
       headers.join(','),
-      ...filteredLicenses.map(l => [
+      ...filteredLicenses.map((l: License) => [
         l.serial,
         l.status,
         l.machine_id || '',
@@ -165,7 +250,7 @@ export default function App() {
   };
 
   const downloadAsTXT = () => {
-    const content = filteredLicenses.map(l => l.serial).join('\n');
+    const content = filteredLicenses.map((l: License) => l.serial).join('\n');
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -173,6 +258,22 @@ export default function App() {
     link.setAttribute('download', `FormEase_Keys_${new Date().toISOString().split('T')[0]}.txt`);
     link.click();
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-[#0A192F] text-slate-200">
@@ -206,6 +307,14 @@ export default function App() {
             className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'manage' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white'}`}
           >
             Manage Keys
+          </button>
+          <div className="w-px h-6 bg-white/10 mx-2" />
+          <button 
+            onClick={handleLogout}
+            className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
           </button>
         </div>
       </nav>
@@ -290,7 +399,7 @@ export default function App() {
                       min="1"
                       max="100"
                       value={generateCount}
-                      onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGenerateCount(parseInt(e.target.value) || 1)}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
                     />
                   </div>
@@ -303,7 +412,7 @@ export default function App() {
                       type="text"
                       placeholder="XXXX-XXXX-XXXX-XXXX"
                       value={manualSerial}
-                      onChange={(e) => setManualSerial(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualSerial(e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-mono font-bold placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
                     />
                   </div>
@@ -315,7 +424,7 @@ export default function App() {
                   </label>
                   <select 
                     value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value))}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDuration(parseInt(e.target.value))}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
                   >
                     <option value={1} className="bg-[#0A192F]">1 Month (Trial)</option>
@@ -333,7 +442,7 @@ export default function App() {
                     type="text"
                     placeholder="e.g. Distributor-Name-May2026"
                     value={batchName}
-                    onChange={(e) => setBatchName(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBatchName(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-bold placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
                   />
                 </div>
@@ -369,11 +478,19 @@ export default function App() {
                     type="text"
                     placeholder="Search by Serial, Name, or Batch..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
                   />
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
+                   <button 
+                    onClick={handleCopyAll}
+                    disabled={filteredLicenses.length === 0}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-slate-200 font-bold transition-all disabled:opacity-30"
+                   >
+                     {copiedAll ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                     Copy All
+                   </button>
                    <button 
                     onClick={downloadAsTXT}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-slate-200 font-bold transition-all"
@@ -392,7 +509,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredLicenses.map((license) => (
+                {filteredLicenses.map((license: License) => (
                   <motion.div 
                     layout
                     key={license.id}
@@ -428,54 +545,103 @@ export default function App() {
                     </h3>
 
                     <div className="space-y-4">
+                      {/* Machine ID */}
                       <div className="flex items-center gap-3 text-slate-400">
-                        <div className="p-2 bg-white/5 rounded-lg">
+                        <div className="p-2 bg-white/5 rounded-lg border border-white/5">
                           <Cpu className="w-4 h-4" />
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <div className="flex items-center justify-between">
                             <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Machine ID</p>
-                            {license.status === 'activated' && (
-                              <button 
-                                onClick={() => handleReset(license.serial)}
-                                className="text-[8px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest flex items-center gap-1"
-                              >
-                                <RotateCcw className="w-2 h-2" /> Reset
-                              </button>
-                            )}
+                            <div className="flex gap-2">
+                              {license.machine_id && (
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(license.machine_id);
+                                    setCopiedId(license.machine_id + '-mid');
+                                    setTimeout(() => setCopiedId(null), 1000);
+                                  }}
+                                  className="text-[8px] font-black text-slate-500 hover:text-white uppercase tracking-widest"
+                                >
+                                  {copiedId === license.machine_id + '-mid' ? 'Copied' : 'Copy'}
+                                </button>
+                              )}
+                              {license.status === 'activated' && (
+                                <button 
+                                  onClick={() => handleReset(license.serial)}
+                                  className="text-[8px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest flex items-center gap-1"
+                                >
+                                  <RotateCcw className="w-2 h-2" /> Reset
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs font-mono font-bold truncate">{license.machine_id || 'Not yet bound'}</p>
+                          <p className="text-xs font-mono font-bold truncate text-slate-300">{license.machine_id || 'Not yet bound'}</p>
                         </div>
                       </div>
 
+                      {/* Registered To */}
                       <div className="flex items-center gap-3 text-slate-400">
-                        <div className="p-2 bg-white/5 rounded-lg">
+                        <div className="p-2 bg-white/5 rounded-lg border border-white/5">
                           <User className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
                           <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Registered To</p>
-                          <p className="text-xs font-bold">{license.registered_to || 'Unregistered'}</p>
+                          <p className="text-xs font-bold text-slate-200">{license.registered_to || 'Unregistered'}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 text-slate-400">
-                        <div className="p-2 bg-white/5 rounded-lg">
-                          <Calendar className="w-4 h-4" />
+                      {/* Activation / Expiry */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center gap-3 text-slate-400">
+                          <div className="p-2 bg-white/5 rounded-lg border border-white/5">
+                            <Activity className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Activated At</p>
+                            <p className="text-xs font-bold text-slate-300">{formatRelative(license.activated_at)}</p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Expires At</p>
-                          <p className="text-xs font-bold">{new Date(license.expires_at).toLocaleDateString()}</p>
+                        <div className="flex items-center gap-3 text-slate-400">
+                          <div className="p-2 bg-white/5 rounded-lg border border-white/5">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Expires At</p>
+                            <p className="text-xs font-bold text-slate-300">{parseDate(license.expires_at)?.toLocaleDateString() || 'N/A'}</p>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Progress Bar */}
+                      {license.status === 'activated' && license.duration_months !== -1 && (
+                        <div className="space-y-1.5 pt-2">
+                          <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                            <span className="text-slate-600">Subscription Progress</span>
+                            <span className={getProgress(license) > 90 ? 'text-red-500' : 'text-blue-500'}>
+                              {Math.round(getProgress(license))}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${getProgress(license)}%` }}
+                              className={`h-full ${getProgress(license) > 90 ? 'bg-red-500' : 'bg-blue-600'}`}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-8 flex justify-between items-center border-t border-white/5 pt-4">
-                      <p className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">
-                        {license.created_at ? `Created ${new Date(license.created_at).toLocaleDateString()}` : 'Legacy Key'}
-                      </p>
+                      <div className="flex flex-col">
+                        <p className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">
+                          {license.created_at ? `Created ${new Date(license.created_at).toLocaleDateString()}` : 'Legacy Key'}
+                        </p>
+                      </div>
                       <button 
                         onClick={() => handleRevoke(license.serial)}
-                        className="text-[10px] font-black uppercase tracking-widest text-red-500/30 hover:text-red-500 transition-colors flex items-center gap-2 p-2"
+                        className="text-[10px] font-black uppercase tracking-widest text-red-500/20 hover:text-red-500 transition-colors flex items-center gap-2 p-2 hover:bg-red-500/5 rounded-lg"
                       >
                         <Trash2 className="w-3 h-3" />
                         Revoke
@@ -512,6 +678,120 @@ export default function App() {
           FormEase Secure Licensing Infrastructure &copy; 2026
         </p>
       </footer>
+    </div>
+  );
+}
+
+function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      setError(err.message || 'Failed to login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#0A192F] relative overflow-hidden font-sans p-6">
+      {/* Background Decor */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        <div className="bg-white/[0.03] backdrop-blur-3xl rounded-[3rem] border border-white/10 p-10 shadow-2xl overflow-hidden relative">
+          <div className="flex flex-col items-center text-center mb-10">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20 mb-6">
+              <Shield className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-black text-white tracking-tight mb-2">FormEase Console</h1>
+            <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Admin Authorization</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Email Address</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-4 w-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                  placeholder="admin@formease.com"
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Secure Password</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                />
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Invalid credentials
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-600/20 transition-all flex items-center justify-center gap-3"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Enter Console</span>
+                  <Activity className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+        
+        <p className="mt-8 text-center text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">
+          Protected by FormEase Secure Guard
+        </p>
+      </motion.div>
     </div>
   );
 }

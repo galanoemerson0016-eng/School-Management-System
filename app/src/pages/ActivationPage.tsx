@@ -24,8 +24,13 @@ export function ActivationPage() {
   React.useEffect(() => {
     const fetchId = async () => {
       try {
-        const id = await (window as any).electronAPI.getMachineId();
-        setMachineId(id.toUpperCase());
+        const id = await (window as any).electronAPI?.getMachineId();
+        if (id) {
+          setMachineId(id.toUpperCase());
+        } else {
+          throw new Error('Electron API not found');
+        }
+
       } catch (e) {
         setMachineId('BROWSER-' + Math.random().toString(36).substring(2, 10).toUpperCase());
       }

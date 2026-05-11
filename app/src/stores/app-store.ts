@@ -929,25 +929,26 @@ export async function initializeAppStore() {
       selectedSection: advisorySection ? advisorySection.section_name : null
     });
 
-    // Check for daily backup
-    await backup.checkAndCreateDailyBackup();
+    console.log('✅ App store data loaded from IndexedDB');
 
-    // Load last backup time
-    try {
-      const backups = await backup.listBackups();
-      if (backups.length > 0) {
-        const latest = backups.reduce((prev, curr) => 
-          (curr.timestamp > prev.timestamp) ? curr : prev
-        );
-        useAppStore.setState({ lastBackupTime: latest.timestamp });
-      }
-    } catch (e) {
-      console.warn('Could not load backups list:', e);
-    }
+    // Perform non-blocking background tasks
+    setTimeout(async () => {
+        try {
+            await backup.checkAndCreateDailyBackup();
+            const backups = await backup.listBackups();
+            if (backups.length > 0) {
+              const latest = backups.reduce((prev, curr) => 
+                (curr.timestamp > prev.timestamp) ? curr : prev
+              );
+              useAppStore.setState({ lastBackupTime: latest.timestamp });
+            }
+        } catch (e) {
+            console.warn('⚠️ Background initialization task failed:', e);
+        }
+    }, 1000);
 
-    console.log('✅ App store initialized with local data');
   } catch (error) {
-    console.error('Critical error during app initialization:', error);
+    console.error('❌ Critical error during app initialization:', error);
     useAppStore.setState({ isSyncReady: true });
   }
 }

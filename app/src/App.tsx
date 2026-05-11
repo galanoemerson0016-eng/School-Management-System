@@ -83,7 +83,11 @@ function LoadingSplash() {
 
 function App() {
   const { isAuthenticated, isLoading, user } = useAuthStore();
-  const { currentView, schoolProfile } = useAppStore();
+  const { currentView, schoolProfile, isSyncReady } = useAppStore();
+
+  const isExpired = schoolProfile?.subscription_end_date 
+    ? new Date(schoolProfile.subscription_end_date) < new Date() 
+    : false;
 
   const isActivationRedirectPending = (() => {
     try {
@@ -93,35 +97,38 @@ function App() {
     }
   })();
 
+  // Use school name for page title
   useEffect(() => {
     const schoolName = schoolProfile?.name?.trim();
     document.title = schoolName && schoolName !== 'School Name' ? schoolName : 'FormEase Pro';
-  }, [schoolProfile?.name]);
+  }, [schoolProfile]);
 
-  // Initialize auth and app data from local storage on mount
   useEffect(() => {
-    void initializeAuthStore();
-    void initializeAppStore();
+    const init = async () => {
+      try {
+        console.log('🚀 Starting application initialization...');
+        await Promise.all([
+          initializeAuthStore(),
+          initializeAppStore()
+        ]);
+        console.log('✅ Application initialization complete');
+        console.log('Current Auth State:', useAuthStore.getState());
+        console.log('Current App Store Profile:', useAppStore.getState().schoolProfile);
+
+      } catch (error) {
+        console.error('❌ Application initialization failed:', error);
+      }
+    };
+    void init();
   }, []);
 
-  // 2. Commercial Activation & Subscription Check (1 Year Expiry)
-  const isExpired = useMemo(() => {
-    if (!schoolProfile.is_activated || !schoolProfile.activated_at) return false;
-    
-    const activationDate = new Date(schoolProfile.activated_at);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - activationDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays > 365; // Expire after 1 year
-  }, [schoolProfile.is_activated, schoolProfile.activated_at]);
 
-  // 1. Show loading splash while auth state is resolving
-  if (isLoading) {
+  // Use a synchronized loading state to prevent race conditions during reload
+  if (isLoading || !isSyncReady) {
     return <LoadingSplash />;
   }
 
-  if (!schoolProfile.is_activated || isExpired || isActivationRedirectPending) {
+  if (!schoolProfile || !schoolProfile.is_activated || isExpired || isActivationRedirectPending) {
     return <ActivationPage />;
   }
 

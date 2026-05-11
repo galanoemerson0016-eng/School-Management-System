@@ -8,14 +8,13 @@ import { join } from 'path'
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'))
 
 const obfuscatorOptions: any = {
-// ... same options
   compact: true,
   controlFlowFlattening: true,
-  controlFlowFlatteningThreshold: 0.75,
+  controlFlowFlatteningThreshold: 1,
   deadCodeInjection: true,
-  deadCodeInjectionThreshold: 0.4,
+  deadCodeInjectionThreshold: 0.5,
   debugProtection: true,
-  debugProtectionInterval: 4000,
+  debugProtectionInterval: 2500,
   disableConsoleOutput: true,
   identifierNamesGenerator: 'hexadecimal',
   log: false,
@@ -24,12 +23,12 @@ const obfuscatorOptions: any = {
   selfDefending: true,
   simplify: true,
   splitStrings: true,
-  splitStringsChunkLength: 10,
+  splitStringsChunkLength: 5,
   stringArray: true,
   stringArrayCallsTransform: true,
-  stringArrayCallsTransformThreshold: 0.75,
-  stringArrayEncoding: ['base64'],
-  stringArrayThreshold: 0.75,
+  stringArrayCallsTransformThreshold: 1,
+  stringArrayEncoding: ['rc4'],
+  stringArrayThreshold: 1,
   unicodeEscapeSequence: false
 };
 

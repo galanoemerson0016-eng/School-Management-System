@@ -87,7 +87,7 @@ const sectionMatchesGrade = (section: { section_grade_level?: string; section_na
 import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS } from '../lib/curriculum';
 
 export function SubjectsPage() {
-    const { subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
+    const { schoolProfile, subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
@@ -112,6 +112,7 @@ export function SubjectsPage() {
     const [lastLoadedCurriculumType, setLastLoadedCurriculumType] = useState<'standard' | 'special' | null>(null);
     const [showLoadSuccessHighlight, setShowLoadSuccessHighlight] = useState(false);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+    const [showAutoLoadConfirm, setShowAutoLoadConfirm] = useState(false);
     const templateLoadInFlightRef = useRef(false);
     const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
 
@@ -291,6 +292,52 @@ export function SubjectsPage() {
         }
     };
 
+    const handleAutoLoadAllGrades = async () => {
+        setShowAutoLoadConfirm(false);
+        setIsLoadingTemplate(true);
+        let totalAdded = 0;
+        const timestamp = Date.now();
+        
+        try {
+            for (const grade of grades) {
+                const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
+                if (!templates) continue;
+
+                const existingGradeSubjects = subjects.filter(s => s.grade_level === grade && !s.section_id && !s.is_teaching_load);
+                const existingNames = new Set(existingGradeSubjects.map(s => normalizeSubjectLabel(s.subject_name)));
+                
+                const templatesToCreate = templates.filter(t => !existingNames.has(normalizeSubjectLabel(t.name)));
+                
+                for (let i = 0; i < templatesToCreate.length; i++) {
+                    const template = templatesToCreate[i];
+                    const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
+                    
+                    const newSubject: Subject = {
+                        id: subjectId,
+                        subject_name: template.name,
+                        subject_code: template.code,
+                        grade_level: grade,
+                        order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name))
+                    };
+                    
+                    await addSubject(newSubject);
+                    totalAdded++;
+                }
+            }
+            
+            if (totalAdded > 0) {
+                showNotification(`Successfully auto-loaded ${totalAdded} standard subjects across all grades.`, 'success');
+            } else {
+                showNotification(`All standard subjects are already loaded.`, 'info');
+            }
+        } catch (error) {
+            console.error("Failed to auto-load all subjects:", error);
+            showNotification(`Failed to auto-load subjects: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        } finally {
+            setIsLoadingTemplate(false);
+        }
+    };
+
     const handleLoadStandardSubjects = async () => {
         if (!selectedGrade) return;
         setShowCurriculumChoice(true);
@@ -466,8 +513,17 @@ export function SubjectsPage() {
     };
 
     return (
-        <div className="space-y-8 pb-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-8 pb-12 relative min-h-[80vh]">
+            {/* Global Page Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none z-0 overflow-hidden">
+                <img 
+                    src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
+                    className="w-[800px] h-[800px] object-contain grayscale scale-150 -rotate-12"
+                    alt=""
+                />
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
                 <div>
                     <div className="flex items-center gap-2 text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">
                         <span className="hover:text-indigo-600 cursor-pointer transition-colors" onClick={() => { setViewMode('grades'); setSelectedCategory(null); }}>Grades</span>
@@ -512,6 +568,16 @@ export function SubjectsPage() {
                             Back
                         </button>
                     )}
+                    {viewMode === 'grades' && canEdit && (
+                        <button 
+                            onClick={() => setShowAutoLoadConfirm(true)} 
+                            disabled={isLoadingTemplate}
+                            className="h-12 px-6 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-xl shadow-indigo-200 active:scale-95 disabled:opacity-50"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Auto-Load All Standards
+                        </button>
+                    )}
                     {viewMode === 'subjects' && canEdit && (
                         <div className="flex items-center gap-2">
                             {filteredSubjects.length > 0 && (
@@ -543,39 +609,77 @@ export function SubjectsPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="space-y-8"
+                        className="space-y-8 relative"
                     >
                         {!selectedCategory ? (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, any][]).map(([key, category]) => (
-                                    <motion.button
-                                        key={key}
-                                        whileHover={{ scale: 1.02, y: -5 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => setSelectedCategory(key)}
-                                        className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-left overflow-hidden h-full flex flex-col"
-                                    >
-                                        <div className={`absolute top-0 right-0 w-32 h-32 ${category.bg} rounded-bl-[5rem] -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
-                                        
-                                        <div className={`w-16 h-16 rounded-3xl bg-gradient-to-br ${category.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
-                                            <category.icon className="w-8 h-8" />
-                                        </div>
-
-                                        <div className="flex-1">
-                                            <h3 className="text-2xl font-black text-slate-900 mb-1">{category.title}</h3>
-                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{category.range}</p>
-                                            <p className="text-slate-500 text-sm leading-relaxed mb-6">{category.description}</p>
-                                        </div>
-
-                                        <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto">
-                                            <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Open Category</span>
-                                            <div className={`w-10 h-10 rounded-full bg-slate-50 group-hover:bg-gradient-to-br ${category.color} flex items-center justify-center text-slate-400 group-hover:text-white transition-all`}>
-                                                <ArrowRight className="w-5 h-5" />
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                                    {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, any][]).map(([key, category]) => (
+                                        <motion.button
+                                            key={key}
+                                            whileHover={{ scale: 1.02, y: -5 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => setSelectedCategory(key)}
+                                            className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-left overflow-hidden h-full flex flex-col"
+                                        >
+                                            <div className={`absolute top-0 right-0 w-32 h-32 ${category.bg} rounded-bl-[5rem] -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
+                                            
+                                            <div className={`w-16 h-16 rounded-3xl bg-gradient-to-br ${category.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
+                                                <category.icon className="w-8 h-8" />
                                             </div>
+
+                                            <div className="flex-1">
+                                                <h3 className="text-2xl font-black text-slate-900 mb-1">{category.title}</h3>
+                                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{category.range}</p>
+                                                <p className="text-slate-500 text-sm leading-relaxed mb-6">{category.description}</p>
+                                            </div>
+
+                                            <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto">
+                                                <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Open Category</span>
+                                                <div className={`w-10 h-10 rounded-full bg-slate-50 group-hover:bg-gradient-to-br ${category.color} flex items-center justify-center text-slate-400 group-hover:text-white transition-all`}>
+                                                    <ArrowRight className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                        </motion.button>
+                                    ))}
+                                </div>
+
+                                {/* Quick Guide Footer */}
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.5 }}
+                                    className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-10 pt-16 mt-16 border-t border-slate-100"
+                                >
+                                    <div className="space-y-4">
+                                        <div className="w-12 h-12 rounded-[1rem] bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm">
+                                            <BookOpen className="w-6 h-6" />
                                         </div>
-                                    </motion.button>
-                                ))}
-                            </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">1. Select Level</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Choose a department (Elementary, JHS, or SHS) to explore its specific grade levels and curriculum tracks.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="w-12 h-12 rounded-[1rem] bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
+                                            <Settings className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">2. Configure Subjects</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Inside each grade, you can add subjects manually or load standard DepEd templates to ensure academic compliance.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="w-12 h-12 rounded-[1rem] bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm">
+                                            <Sparkles className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">3. Automate Workflow</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Configured subjects are automatically synced to class records and SF9/SF10 reports for seamless grading.</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            </>
                         ) : (
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
@@ -945,6 +1049,17 @@ export function SubjectsPage() {
                 intent="danger"
                 onConfirm={confirmDeleteSubject}
                 onCancel={() => setDeleteTarget(null)}
+            />
+
+            <ConfirmationModal
+                open={showAutoLoadConfirm}
+                title="Auto-Load Standard Subjects for All Grades?"
+                message="This will automatically populate all grade levels (Grade 1 to 12) with their standard DepEd subjects."
+                details="Subjects that already exist will not be duplicated. This process may take a few seconds."
+                confirmLabel="Yes, Load All Subjects"
+                intent="warning"
+                onConfirm={handleAutoLoadAllGrades}
+                onCancel={() => setShowAutoLoadConfirm(false)}
             />
         </div>
     );

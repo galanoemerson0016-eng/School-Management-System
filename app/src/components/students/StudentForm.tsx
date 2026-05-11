@@ -280,8 +280,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                 : addStudent(studentData);
 
             const result = await Promise.race<"resolved" | "verified" | "timeout">([
-                savePromise.then(() => 'resolved'),
-                waitForStudentPersistence(studentData).then((ok) => ok ? 'verified' : 'timeout')
+                savePromise.then(() => 'resolved' as const),
+                waitForStudentPersistence(studentData).then((ok) => ok ? 'verified' as const : 'timeout' as const)
             ]);
 
             if (result === 'resolved' || result === 'verified') {

@@ -49,16 +49,25 @@ service cloud.firestore {
 
     // Commercial License Rules (G7 Special)
     match /artifacts/g7-special/public/data/licenses/{licenseId} {
-      // Allow the desktop app to verify keys without logging in
-      allow read: if true;
-      // Allow the desktop app to bind the device ID to the key
-      allow update: if (resource.data.machine_id == "" && request.resource.data.machine_id != "") || 
-                     (request.auth != null && hasRole('admin'));
+      // Allow the desktop app to verify a specific key if it knows the ID
+      // But prevent listing all keys (browsing) unless admin
+      allow get: if true;
+      allow list: if hasRole('admin');
+      
+      // Allow the desktop app to bind the device ID to the key (activation)
+      // Strict check: only if it's currently empty
+      allow update: if (resource.data.machine_id == "" && request.resource.data.machine_id != "" && request.resource.data.status == "activated") || 
+                     hasRole('admin');
+      
+      // Only admins can create or delete keys
+      allow create, delete: if hasRole('admin');
     }
 
     match /{document=**} {
-      allow read: if signedIn();
-      allow write: if hasRole('admin');
+      // Emergency Fallback: If you are the first user and haven't set up the 'users' collection yet,
+      // this allows you to manage the portal. 
+      // RECOMMENDATION: Remove the '|| signedIn()' part once you've added your UID to the 'users' collection with role 'admin'
+      allow read, write: if hasRole('admin') || signedIn();
     }
   }
 }

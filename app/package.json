@@ -13,9 +13,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3001 && cross-env NODE_ENV=development electron .\"",
-    "electron:build": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder",
-    "electron:build:mac": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder --mac",
-    "electron:build:win": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && electron-builder --win"
+    "obfuscate:electron": "node scripts/obfuscate-electron.cjs",
+    "electron:build": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder",
+    "electron:build:mac": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --mac",
+    "electron:build:win": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --win"
   },
   "build": {
     "appId": "com.formease.pro",
@@ -66,7 +67,11 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      {
+        "from": "dist-electron",
+        "to": "electron",
+        "filter": ["**/*"]
+      }
     ]
   },
   "dependencies": {
