@@ -265,31 +265,42 @@ function computeStudentGrades(
 
     const getSubjectGrades = (subjectName: string) => {
         const normalizedTarget = normalizeSubjectName(subjectName);
-        const matchingSubject = subjects.find(s => {
-            if (s.section_id !== sectionObj.id) return false;
-            const dbName = s.subject_name.toLowerCase();
-            const targetName = subjectName.toLowerCase();
-            if (dbName === targetName) return true;
+        
+        // Find ALL matching subjects and average them (to handle potential duplicates or components)
+        const matchingSubjects = sectionDbSubjects.filter(s => {
             const normalizedDb = normalizeSubjectName(s.subject_name);
             if (normalizedDb === normalizedTarget) return true;
-            if (normalizedTarget === 'araling panlipunan' && (dbName === 'ap' || dbName.includes('panlipunan'))) return true;
-            if (normalizedTarget === 'technology and livelihood education' && (dbName === 'tle' || dbName.includes('livelihood'))) return true;
-            if (normalizedTarget === 'values education' && (dbName === 'esp' || dbName.includes('pagpapakatao'))) return true;
-            if (normalizedTarget === 'edukasyon sa pagpapakatao' && (dbName === 'values' || dbName.includes('values education'))) return true;
+            
+            // Fuzzy matches (using normalized strings for comparison)
+            if (normalizedTarget.includes('aralingpanlipunan') && (normalizedDb === 'ap' || normalizedDb.includes('panlipunan'))) return true;
+            if (normalizedTarget.includes('technologyandlivelihood') && (normalizedDb === 'tle' || normalizedDb.includes('livelihood'))) return true;
+            if (normalizedTarget.includes('valueseducation') && (normalizedDb === 'esp' || normalizedDb.includes('pagpapakatao'))) return true;
+            if (normalizedTarget.includes('edukasyonsapagpapakatao') && (normalizedDb === 'values' || normalizedDb.includes('valueseducation'))) return true;
+            
+            // MAPEH Component fuzzy matches
+            if (normalizedTarget.includes('musicandarts') && (normalizedDb.includes('musicandarts') || normalizedDb.includes('musicarts'))) return true;
+            if (normalizedTarget.includes('physicaleducationandhealth') && (normalizedDb.includes('physicaleducation') || normalizedDb.includes('peandhealth') || normalizedDb.includes('pehealth'))) return true;
+            
             return false;
         });
 
-        if (matchingSubject) {
-            const getQuarterGrade = (q: 1 | 2 | 3) => {
-                const r = gradingSheetRecords.find(rec =>
-                    rec.student_lrn === student.lrn &&
-                    rec.subject_id === matchingSubject.id &&
-                    rec.school_year === schoolYear &&
-                    Number(rec.quarter) === q
-                );
-                return (r && r.final_grade && Number(r.final_grade) > 0) ? Number(r.final_grade) : 0;
+        if (matchingSubjects.length > 0) {
+            const getQuarterAverage = (q: 1 | 2 | 3) => {
+                const results: number[] = [];
+                matchingSubjects.forEach(subject => {
+                    const r = gradingSheetRecords.find(rec =>
+                        rec.student_lrn === student.lrn &&
+                        rec.subject_id === subject.id &&
+                        rec.school_year === schoolYear &&
+                        Number(rec.quarter) === q
+                    );
+                    if (r && r.final_grade && Number(r.final_grade) > 0) {
+                        results.push(Number(r.final_grade));
+                    }
+                });
+                return results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;
             };
-            return [getQuarterGrade(1), getQuarterGrade(2), getQuarterGrade(3)];
+            return [getQuarterAverage(1), getQuarterAverage(2), getQuarterAverage(3)];
         }
         return [0, 0, 0];
     };
