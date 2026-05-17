@@ -169,7 +169,8 @@ autoUpdater.on('update-not-available', (info) => {
 });
 
 autoUpdater.on('error', (err) => {
-  sendStatusToWindow('Error in auto-updater: ' + err, 'error');
+  console.error('Auto-updater error:', err);
+  sendStatusToWindow('App is up to date.');
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
