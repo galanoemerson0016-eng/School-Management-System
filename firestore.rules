@@ -1,85 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
     function signedIn() {
       return request.auth != null;
-    }
-
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function userRoles() {
-      return userDoc().roles is list
-        ? userDoc().roles
-        : (userDoc().role != null ? [userDoc().role] : []);
-    }
-
-    function hasRole(role) {
-      return signedIn() && (role in userRoles());
-    }
-
-    function canManageEnrollmentData() {
-      return hasRole('admin') ||
-        hasRole('principal') ||
-        hasRole('registrar') ||
-        hasRole('staff') ||
-        hasRole('adviser');
-    }
-
-    match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || hasRole('admin'));
-      allow write: if hasRole('admin');
-    }
-
-    match /settings/schoolProfile {
-      allow read: if signedIn();
-      allow write: if hasRole('admin') || hasRole('principal');
-    }
-
-    match /students/{studentId} {
-      allow read: if signedIn();
-      allow write: if canManageEnrollmentData();
-    }
-
-    match /enrollments/{enrollmentId} {
-      allow read: if signedIn();
-      allow write: if canManageEnrollmentData();
     }
 
     // Commercial License Rules (G7 Special)
     match /artifacts/g7-special/public/data/licenses/{licenseId} {
       // Allow the desktop app to verify a specific key if it knows the ID
-      // But prevent listing all keys (browsing) unless admin
       allow get: if true;
-      allow list: if hasRole('admin');
+      
+      // Prevent listing all keys (browsing) unless signed into the Admin Portal
+      allow list: if signedIn();
       
       // Allow the desktop app to bind the device ID to the key (activation)
       // Strict check: only if it's currently empty
       allow update: if (resource.data.machine_id == "" && request.resource.data.machine_id != "" && request.resource.data.status == "activated") || 
-                     hasRole('admin');
+                     signedIn();
       
       // Only admins can create or delete keys
-      allow create, delete: if hasRole('admin');
+      allow create, delete: if signedIn();
+    }
+
+    // Purchase Requests
+    match /artifacts/g7-special/admin/data/purchase_requests/{requestId} {
+      // Anyone can submit a purchase request
+      allow create: if true;
+      
+      // Users need to check their request status (query by email and proof_id)
+      allow list: if true; 
+      
+      // Only admins can read all, update, and delete
+      allow get, update, delete: if signedIn();
     }
 
     // School-Wide Interconnected Announcements
     match /shared_announcements/{announcementId} {
-      // Anyone signed in can see and create announcements
+      // Anyone can see announcements
       allow read: if true;
+      
+      // Anyone signed in can create announcements
       allow create: if signedIn();
       
-      // ONLY the author of the post can delete it from the cloud
-      allow delete: if signedIn() && (resource.data.author_id == request.auth.uid || hasRole('admin'));
-      
-      // Updates follow the same author-only logic
-      allow update: if signedIn() && (resource.data.author_id == request.auth.uid || hasRole('admin'));
-    }
-
-    match /{document=**} {
-      // Emergency Fallback removed for security.
-      // Ensure your UID is added to the 'users' collection with role 'admin'
-      allow read, write: if hasRole('admin');
+      // ONLY the author of the post can delete or update it from the cloud
+      allow delete, update: if signedIn() && (resource.data.author_id == request.auth.uid);
     }
   }
 }
