@@ -90,7 +90,7 @@ export const announcementSync = {
         const cloudAnnouncements = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        }));
+        })) as any[];
 
         // Sort client-side
         cloudAnnouncements.sort((a: any, b: any) => {
@@ -107,7 +107,6 @@ export const announcementSync = {
                 announcement_content: ann.announcement_content,
                 announcement_date: ann.announcement_date,
                 announcement_type: ann.announcement_type,
-                is_active: true
             };
             await localDb.putRecord('announcements', localAnn);
         }

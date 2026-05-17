@@ -139,8 +139,8 @@ function App() {
                     await state.updateSchoolProfile({
                        ...profile,
                        is_activated: false,
-                       activated_at: null,
-                       subscription_end_date: null
+                       activated_at: undefined,
+                       subscription_end_date: undefined
                     });
                  } else {
                     console.log('✅ License binding verified.');
