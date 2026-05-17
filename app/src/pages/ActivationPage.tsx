@@ -86,9 +86,38 @@ export function ActivationPage() {
     if (!window.confirm('Start your 1-hour free trial? This will unlock all features temporarily.')) return;
 
     setStatus('activating');
+    setErrorMessage('');
+
     try {
+        const projectId = 'formease-licensing';
+        const checkUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/trials/${machineId}`;
+
+        // Verify if this machine already used a trial
+        const verifyRes = await fetch(checkUrl);
+        if (verifyRes.status === 200) {
+            throw new Error('This computer has already claimed its 1-hour free trial.');
+        }
+
         const now = new Date();
         const expiry = new Date(now.getTime() + (1 * 60 * 60 * 1000)); // 1 Hour
+
+        // Register the trial in the cloud database bound to this machine ID
+        const createUrl = `${checkUrl}?updateMask.fieldPaths=machine_id&updateMask.fieldPaths=started_at&updateMask.fieldPaths=platform`;
+        const registerRes = await fetch(createUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              machine_id: { stringValue: machineId },
+              started_at: { timestampValue: now.toISOString() },
+              platform: { stringValue: currentPlatform }
+            }
+          })
+        });
+
+        if (!registerRes.ok) {
+            throw new Error('Could not establish secure cloud trial session. Please check your internet connection.');
+        }
 
         await updateSchoolProfile({
             ...schoolProfile,
@@ -109,7 +138,7 @@ export function ActivationPage() {
 
     } catch (error: any) {
         setStatus('error');
-        setErrorMessage('Failed to start trial.');
+        setErrorMessage(error.message || 'Failed to start trial.');
     }
   };
 

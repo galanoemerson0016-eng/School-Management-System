@@ -107,11 +107,8 @@ function App() {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('🚀 Starting application initialization...');
-        await Promise.all([
-          initializeAuthStore(),
-          initializeAppStore()
-        ]);
+        await initializeAppStore();
+        await initializeAuthStore();
         console.log('✅ Application initialization complete');
         
         // --- BACKGROUND LICENSE VERIFICATION ---

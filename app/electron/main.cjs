@@ -43,9 +43,6 @@ if (!gotTheLock) {
     // Hide the menu bar completely
     mainWindow.setMenuBarVisibility(false);
 
-    // Block visual zoom limits (pinch-to-zoom)
-    mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
-
     if (isDev) {
       mainWindow.loadURL('http://localhost:3001');
     } else {
@@ -54,7 +51,7 @@ if (!gotTheLock) {
       mainWindow.loadFile(indexPath);
     }
 
-    // Prevent opening DevTools and zooming via keyboard shortcuts
+    // Prevent opening DevTools via keyboard shortcuts
     mainWindow.webContents.on('before-input-event', (event, input) => {
       const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
       const key = input.key.toLowerCase();
@@ -62,8 +59,7 @@ if (!gotTheLock) {
       if ((isControlOrMeta && input.shift && key === 'i') || 
           input.key === 'F12' ||
           (isControlOrMeta && input.shift && key === 'j') ||
-          (isControlOrMeta && key === 'u') ||
-          (isControlOrMeta && (key === '=' || key === '+' || key === '-' || key === '0'))) {
+          (isControlOrMeta && key === 'u')) {
         event.preventDefault();
       }
     });

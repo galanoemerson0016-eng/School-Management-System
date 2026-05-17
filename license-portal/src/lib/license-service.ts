@@ -15,6 +15,7 @@ import {
 
 const COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
 const REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
+const TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
 
 // Robust date parser for Firestore data
 const parseFirestoreDate = (date: any) => {
@@ -242,5 +243,29 @@ export const licenseService = {
       console.error("Failed to check status:", e);
       return [];
     }
+  },
+
+  async getAllTrials() {
+    try {
+      const q = query(collection(db, TRIALS_PATH));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          machine_id: data.machine_id || doc.id,
+          started_at: data.started_at || null,
+          platform: data.platform || 'windows',
+          ...data
+        };
+      });
+    } catch (e) {
+      console.error("Failed to get trials:", e);
+      return [];
+    }
+  },
+
+  async deleteTrial(trialId: string) {
+    await deleteDoc(doc(db, TRIALS_PATH, trialId));
   }
 };

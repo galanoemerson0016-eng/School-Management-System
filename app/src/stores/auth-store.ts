@@ -194,6 +194,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
  */
 export async function initializeAuthStore() {
   try {
+    // Check if trial is active - if so, bypass login and sign in as Trial Admin
+    const { useAppStore } = await import('./app-store');
+    const profile = useAppStore.getState().schoolProfile;
+    if (profile && profile.is_activated && profile.is_trial) {
+      const user: User = {
+        uid: 'trial-user',
+        email: 'trial@school.local',
+        displayName: 'Trial User',
+        role: 'admin',
+        roles: ['admin']
+      };
+
+      try {
+        const cloudUser = await signInAnonymously(auth);
+        user.uid = cloudUser.user.uid;
+        localStorage.setItem('auth_user_uid', user.uid);
+      } catch (cloudErr) {
+        console.warn('Trial Cloud session initialization failed:', cloudErr);
+      }
+
+      useAuthStore.setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false
+      });
+      return;
+    }
+
     const sessionRaw = localStorage.getItem('formease-session');
     if (sessionRaw) {
       const session = JSON.parse(sessionRaw);

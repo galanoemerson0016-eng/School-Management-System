@@ -29,8 +29,9 @@ interface License {
 export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [licenses, setLicenses] = useState<License[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [trials, setTrials] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'system' | 'advertisement'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement'>('generate');
   const [manageSubTab, setManageSubTab] = useState<'all' | 'windows' | 'mac'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'declined' | 'all'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,13 +92,29 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
     try {
       const licenseData = await licenseService.getAllLicenses();
       const requestData = await licenseService.getAllRequests();
+      const trialData = await licenseService.getAllTrials();
       
       setLicenses(Array.isArray(licenseData) ? (licenseData as License[]) : []);
       setRequests(Array.isArray(requestData) ? requestData : []);
+      setTrials(Array.isArray(trialData) ? trialData : []);
     } catch (error) {
       console.error("Load failed:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRevokeTrial = async (trialId: string) => {
+    if (window.confirm('Are you sure you want to delete this trial record? This will allow the computer to claim a new free trial.')) {
+      setIsLoading(true);
+      try {
+        await licenseService.deleteTrial(trialId);
+        await loadData();
+      } catch (error) {
+        console.error('Revoke trial failed:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -271,6 +288,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const stats = useMemo(() => {
     const safeLicenses = Array.isArray(licenses) ? licenses : [];
     const safeRequests = Array.isArray(requests) ? requests : [];
+    const safeTrials = Array.isArray(trials) ? trials : [];
     return {
       total: safeLicenses.length,
       activated: safeLicenses.filter((l: License) => l.status === 'activated').length,
@@ -278,9 +296,10 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       windows: safeLicenses.filter((l: License) => l.platform === 'windows').length,
       mac: safeLicenses.filter((l: License) => l.platform === 'mac').length,
       requests: safeRequests.filter(r => r.status === 'pending').length,
-      all_requests: safeRequests.length
+      all_requests: safeRequests.length,
+      trials: safeTrials.length
     };
-  }, [licenses, requests]);
+  }, [licenses, requests, trials]);
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-[#0A192F] text-slate-200">
@@ -306,6 +325,9 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
             Requests {stats.requests > 0 && <span className="px-1.5 py-0.5 bg-red-500 rounded-full text-[8px]">{stats.requests}</span>}
           </button>
           <button onClick={() => setActiveTab('manage')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'manage' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>Manage</button>
+          <button onClick={() => setActiveTab('trials')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'trials' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400'}`}>
+            Trials <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded-full text-[8px] font-black">{stats.trials}</span>
+          </button>
           <button onClick={() => setActiveTab('advertisement')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'advertisement' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400'}`}>Advertisement</button>
           <button onClick={() => setActiveTab('system')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'system' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400'}`}>System</button>
           <div className="w-px h-6 bg-white/10 mx-2" />
@@ -315,7 +337,49 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
 
       <main className="relative z-10 flex-1 p-8 max-w-7xl mx-auto w-full">
         <AnimatePresence mode="wait">
-          {activeTab === 'system' ? (
+          {activeTab === 'trials' ? (
+             <motion.div key="trials" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="space-y-1">
+                    <h2 className="text-3xl font-black text-white">Trial Devices</h2>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active 1-hour trial machines calculated by unique hardware ID</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {trials.length > 0 ? (
+                      trials.map((t) => (
+                         <div key={t.id} className="bg-white/[0.03] border border-white/10 rounded-[2rem] p-6 flex flex-col justify-between space-y-6 relative overflow-hidden">
+                            <div className="flex items-start justify-between">
+                               <div className="flex items-center gap-4">
+                                  <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
+                                     {t.platform === 'mac' ? <Apple className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
+                                  </div>
+                                  <div>
+                                     <h4 className="font-black text-white text-sm truncate max-w-[150px]">{t.platform === 'mac' ? 'macOS Device' : 'Windows Device'}</h4>
+                                     <p className="text-[10px] text-slate-500 font-mono select-all uppercase tracking-wide truncate max-w-[150px]">{t.machine_id}</p>
+                                  </div>
+                                </div>
+                               <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 text-[8px] font-black uppercase tracking-widest">Active Trial</span>
+                            </div>
+                            <div className="border-t border-white/5 pt-4 space-y-2">
+                               <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                  <span>Claimed At:</span>
+                                  <span>{t.started_at ? new Date(t.started_at).toLocaleString() : 'N/A'}</span>
+                               </div>
+                            </div>
+                            <button onClick={() => handleRevokeTrial(t.id)} className="w-full py-3 bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+                               <Trash2 className="w-3.5 h-3.5" />
+                               <span>Delete Trial Record</span>
+                            </button>
+                         </div>
+                      ))
+                   ) : (
+                      <div className="col-span-full py-16 text-center text-slate-400 font-bold text-sm bg-white/[0.02] border border-white/5 border-dashed rounded-3xl">No trial devices registered.</div>
+                   )}
+                </div>
+             </motion.div>
+          ) : activeTab === 'system' ? (
              <motion.div key="system" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto py-10 space-y-10">
                 <div className="text-center">
                    <h2 className="text-3xl font-black text-white mb-2">System Maintenance</h2>

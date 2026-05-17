@@ -23,6 +23,18 @@ service cloud.firestore {
       allow create, delete: if signedIn();
     }
 
+    // Trial Devices
+    match /artifacts/g7-special/public/data/trials/{trialId} {
+      // Anyone can check if their device has a trial
+      allow get: if true;
+      
+      // Anyone can register a new trial
+      allow create: if true;
+      
+      // Only admins can list or delete trial devices
+      allow list, delete: if signedIn();
+    }
+
     // Purchase Requests
     match /artifacts/g7-special/admin/data/purchase_requests/{requestId} {
       // Anyone can submit a purchase request
