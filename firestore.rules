@@ -47,6 +47,12 @@ service cloud.firestore {
       allow get, update, delete: if signedIn();
     }
 
+    // Downloads and Installer Links
+    match /artifacts/g7-special/public/data/downloads_info/{infoId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
     // School-Wide Interconnected Announcements
     match /shared_announcements/{announcementId} {
       // Anyone can see announcements
