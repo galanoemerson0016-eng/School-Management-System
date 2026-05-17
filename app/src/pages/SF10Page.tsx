@@ -6,18 +6,20 @@ import type { Student } from '../types';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
-import { ArrowLeft, Printer, FileText, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Plus, Minus, History } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
+import { SF10HistoricalDataModal } from '../components/SF10HistoricalDataModal';
 
 export function SF10Page() {
     const { students, sections, subjects, gradingSheetRecords, teachers, schoolProfile, activeSchoolYear, setCurrentView } = useAppStore();
     const { user } = useAuthStore();
-    const { overrides, setOverride } = useSF10Store();
+    const { overrides, setOverride, clearOverrides } = useSF10Store();
     
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1);
+    const [showHistoricalModal, setShowHistoricalModal] = useState(false);
 
     const handlePrintSF10 = () => {
         if (!selectedStudent) return;
@@ -126,34 +128,36 @@ export function SF10Page() {
             return curr;
         };
 
-        const mergedData = { ...baseData };
+        const mergedData = JSON.parse(JSON.stringify(baseData)); // Deep clone
         Object.entries(currentOverrides).forEach(([path, value]) => {
-            // Skip empty overrides for certification fields if base data already has a value
-            if (path.startsWith('certification.') && (!value || value === '')) {
-                const baseVal = getNestedValue(baseData as Record<string, unknown>, path);
-                if (baseVal && typeof baseVal === 'string' && baseVal.trim() !== '') return;
-            }
+            if (!path || value === undefined) return;
 
             const parts = path.split('.');
-            let curr: Record<string, unknown> = mergedData as Record<string, unknown>;
+            let curr = mergedData as Record<string, unknown>;
+            
             for (let i = 0; i < parts.length - 1; i++) {
                 const part = parts[i];
                 if (part.includes('[')) {
                     const [p, rest] = part.split('[');
                     const idx = parseInt(rest.replace(']', ''));
-                    const arr = (curr[p] as unknown[]) || [];
+                    if (!curr[p]) curr[p] = [];
+                    const arr = curr[p] as unknown[];
                     if (!arr[idx]) arr[idx] = {};
-                    curr[p] = arr;
-                    curr = (arr[idx] as Record<string, unknown>) || {};
+                    curr = arr[idx] as Record<string, unknown>;
                 } else {
                     if (!curr[part]) curr[part] = {};
                     curr = curr[part] as Record<string, unknown>;
                 }
             }
+
             const lastPart = parts[parts.length - 1];
-            curr[lastPart] = value;
+            if (lastPart) {
+                curr[lastPart] = value;
+            }
         });
-        return mergedData;
+
+        // Combine everything: prefer nested structure but fallback to flat keys for getVal compatibility
+        return { ...mergedData, ...currentOverrides };
     }, [selectedStudent, schoolProfile, activeSchoolYear, sections, teachers, gradingSheetRecords, subjects, overrides, studentKey, currentPage]);
 
     const handleCellUpdate = (path: string, value: string) => {
@@ -164,35 +168,42 @@ export function SF10Page() {
         setOverride(selectedStudent.lrn, `page_${currentPage}`, path, value);
     };
 
+    const handleResetOverrides = () => {
+        if (!selectedStudent) return;
+        if (window.confirm('Are you sure you want to reset all manual edits for this page? This will clear any inputted data and restore the template defaults.')) {
+            clearOverrides(selectedStudent.lrn, `page_${currentPage}`);
+        }
+    };
+
     return (
         <div className="sf10-print-root flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
-                <div className="flex items-center gap-8">
+             <div className="h-20 px-4 xl:px-6 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-4 xl:gap-6 min-w-max">
                     {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-3 xl:gap-4">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            className="w-10 h-10 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                         </button>
                         <div className="flex flex-col">
                             <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF10 Record</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Permanent Record</p>
+                            <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Permanent</p>
                         </div>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
+                    <div className="h-6 w-px bg-slate-200 mx-1" />
 
                     {/* Learner & Section Selector */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                         {sortedSections.length > 1 && (
                             <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Section</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Section</span>
                                 <select 
-                                    className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-[12px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                                    className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer max-w-[140px] truncate"
                                     value={selectedSection}
                                     onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
                                 >
@@ -215,9 +226,9 @@ export function SF10Page() {
                         )}
 
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Learner Database</span>
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Learner Database</span>
                             <select 
-                                className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-[12px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[240px] disabled:opacity-30"
+                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[180px] max-w-[220px] truncate disabled:opacity-30"
                                 value={selectedStudent?.lrn || ''}
                                 onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
                                 disabled={!selectedSection}
@@ -237,18 +248,18 @@ export function SF10Page() {
                         </div>
 
                         {/* Page Toggles */}
-                        <div className="flex flex-col ml-4">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Record Page</span>
-                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Record Page</span>
+                            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                                 <button
                                     onClick={() => setCurrentPage(1)}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${currentPage === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${currentPage === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Page 1
                                 </button>
                                 <button
                                     onClick={() => setCurrentPage(2)}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${currentPage === 2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${currentPage === 2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Page 2
                                 </button>
@@ -257,39 +268,56 @@ export function SF10Page() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3 xl:gap-5 min-w-max pl-4">
                     {/* Zoom Control */}
                     <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Zoom</span>
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                             <button 
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
                             >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 w-9 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button 
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3 h-3" />
                             </button>
                         </div>
                     </div>
 
-                    <div className="h-10 w-px bg-slate-200" />
+                    <div className="h-6 w-px bg-slate-200" />
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 xl:gap-3">
+                        <button
+                            onClick={() => setShowHistoricalModal(true)}
+                            disabled={!selectedStudent}
+                            className="h-10 px-4 rounded-xl bg-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white disabled:opacity-30 transition-all flex items-center gap-2"
+                            title="Edit Previous SF10 Records (Historical Data)"
+                        >
+                            <History className="w-4 h-4" />
+                            History
+                        </button>
+                        <button
+                            onClick={handleResetOverrides}
+                            disabled={!selectedStudent}
+                            className="h-10 px-4 rounded-xl bg-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 disabled:opacity-30 transition-all flex items-center gap-2"
+                            title="Reset all manual edits for this page"
+                        >
+                            Reset
+                        </button>
                         <button
                             onClick={handlePrintSF10}
                             disabled={!selectedStudent}
-                            className="h-14 px-8 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
+                            className="h-10 px-5 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-2 group"
                         >
-                            <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                            Print / PDF
+                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                            Print
                         </button>
                     </div>
                 </div>
@@ -347,6 +375,17 @@ export function SF10Page() {
                     )}
                 </div>
              </div>
+
+             {showHistoricalModal && selectedStudent && (
+                 <SF10HistoricalDataModal
+                    student={selectedStudent}
+                    schoolProfile={schoolProfile}
+                    sections={sections}
+                    subjects={subjects}
+                    activeSchoolYear={activeSchoolYear}
+                    onClose={() => setShowHistoricalModal(false)}
+                 />
+             )}
 
              <style dangerouslySetInnerHTML={{ __html: `
                 @media print {

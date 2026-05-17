@@ -39,8 +39,10 @@ export interface SchoolProfile {
     section?: string;
     curriculum?: SchoolCurriculum; // Custom curriculum config
     is_activated?: boolean;
+    is_trial?: boolean;
     activation_key?: string;
     activated_at?: string;
+    trial_activated_at?: string;
     subscription_end_date?: string;
 }
 
@@ -179,6 +181,8 @@ export interface Announcement {
     is_pinned?: boolean;
     category?: string;
     created_by?: string;
+    author_id?: string;
+    is_cloud?: boolean;
 }
 
 export interface AttendanceRecord {

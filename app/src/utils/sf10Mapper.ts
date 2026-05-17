@@ -81,7 +81,9 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   const name = normalizeSubjectName(subjectName);
 
   let key: string | null = null;
-  if (name.includes('filipino')) key = 'filipino';
+  if (name.includes('arabic')) key = 'arabic';
+  else if (name.includes('islamic')) key = 'islamic';
+  else if (name.includes('filipino')) key = 'filipino';
   else if (name.includes('english')) key = 'english';
   else if (name.includes('mathematics') || name.includes('math')) key = 'mathematics';
   else if (name.includes('science')) key = 'science';
@@ -329,16 +331,23 @@ export function mapStudentToSpecData({
     if (gradingSheetRecords.length > 0) {
       const studentRecords = gradingSheetRecords.filter(r => {
         if (r.student_lrn !== student.lrn) return false;
+        
         const dbSubject = dbSubjects.find(s => s.id === r.subject_id);
         if (!dbSubject) return false;
-        // Ensure the subject belongs to the grade level being built for this block
+
         const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
+        if (subjectGradeNum !== gradeLevel) return false;
+
+        // School Year Logic:
+        // If this is the student's CURRENT grade level, ONLY show records for the active school year.
+        if (isCurrentGrade) {
+            return r.school_year === schoolYear;
+        }
+
+        // If this is a PREVIOUS grade level, hide records that match the current active year (test data)
+        if (r.school_year === schoolYear) return false;
         
-        // CRITICAL FIX: Only show grades for the current grade block if they match the active school year
-        // This prevents "ghost" data from previous years/tests from appearing when the user expects a blank sheet.
-        if (isCurrentGrade && r.school_year !== schoolYear) return false;
-        
-        return subjectGradeNum === gradeLevel;
+        return true;
       });
 
       // Group records by subject for each term
@@ -487,7 +496,7 @@ export function mapStudentToSpecData({
       adviserTeacher: isCurrentGrade ? adviserName : '',
       signature: '',
       subjects: subjectsData,
-      is3Term: isElementary ? gradeLevel >= currentGradeNum : true,
+      is3Term: gradeLevel >= currentGradeNum,
       remedial: {
         fromDate: '',
         toDate: '',
@@ -597,6 +606,7 @@ export function mapStudentToSpecData({
       lrn: student.lrn || '',
       birthdate: student.birthday || '',
       sex: student.gender || '',
+      gradeLevel: student.grade_level || '',
     },
     eligibility: {
       elementaryCompleter: {

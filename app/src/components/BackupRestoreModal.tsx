@@ -143,8 +143,11 @@ export function BackupRestoreModal({
 
         try {
             // Validate file
-            if (!file.name.includes('SMS_Backup_Comprehensive')) {
-                throw new Error('Invalid backup file. Must be SMS_Backup_Comprehensive_*.json');
+            const isComprehensive = file.name.includes('SMS_Backup_Comprehensive');
+            const isStandard = file.name.includes('FormEase_Backup');
+
+            if (!isComprehensive && !isStandard) {
+                throw new Error('Invalid backup file. Must be FormEase_Backup_*.json or SMS_Backup_Comprehensive_*.json');
             }
             if (file.size > 50 * 1024 * 1024) {
                 // 50MB limit
@@ -153,7 +156,49 @@ export function BackupRestoreModal({
 
             // Parse backup
             const text = await file.text();
-            const backup: ComprehensiveBackup = JSON.parse(text);
+            let rawData = JSON.parse(text);
+            let backup: ComprehensiveBackup;
+
+            // Handle Standard to Comprehensive conversion
+            if (isStandard && !rawData.payload && rawData.data) {
+                backup = {
+                    metadata: {
+                        exportDate: new Date(rawData.timestamp).toISOString(),
+                        version: '1.0.0-converted',
+                        exportedBy: 'Auto-detected',
+                        note: `Standard Backup: ${rawData.label}`,
+                        warning: 'Converted from standard backup format',
+                    },
+                    summary: {
+                        activeSchoolYear: rawData.data.activeSchoolYear || 'Unknown',
+                        students: rawData.data.students?.length || 0,
+                        studentProfiles: rawData.data.studentProfiles?.length || 0,
+                        sections: rawData.data.sections?.length || 0,
+                        subjects: rawData.data.subjects?.length || 0,
+                        grades: rawData.data.classRecords?.length || 0,
+                        gradingSheetRecords: rawData.data.gradingSheetRecords?.length || 0,
+                        observedValues: rawData.data.observedValues?.length || 0,
+                        hpsRecords: rawData.data.hpsRecords?.length || 0,
+                        sf2Sheets: rawData.data.sf2Sheets?.length || 0,
+                        announcements: rawData.data.announcements?.length || 0,
+                        schoolYears: rawData.data.schoolYears?.length || 0,
+                        enrollments: rawData.data.enrollments?.length || 0,
+                        users: rawData.data.users?.length || 0,
+                        systemSettings: 0,
+                        adviserAssignments: 0,
+                        gradingConfiguration: 0,
+                    },
+                    payload: {
+                        ...rawData.data,
+                        schoolProfile: rawData.data.schoolProfile?.[0] || rawData.data.schoolProfile,
+                        systemSettings: {},
+                        adviserAssignments: [],
+                        gradingConfiguration: {},
+                    },
+                };
+            } else {
+                backup = rawData;
+            }
 
             // Validate backup
             const validation = validateRestoreBackup(backup);
@@ -409,8 +454,11 @@ export function BackupRestoreModal({
                                     <p className="font-semibold text-gray-700">
                                         Click to select backup file
                                     </p>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        SMS_Backup_Comprehensive_*.json
+                                    <p className="text-sm text-gray-500 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
+                                        FormEase_Backup_*.json
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-2 italic">
+                                        (Also supports SMS_Backup_Comprehensive files)
                                     </p>
                                 </label>
                             </div>

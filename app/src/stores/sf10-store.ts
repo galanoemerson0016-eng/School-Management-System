@@ -17,6 +17,7 @@ interface SF10State {
   saveSnapshot: (studentLRN: string, sheetName: string, label: string) => void;
   restoreSnapshot: (studentLRN: string, sheetName: string, versionId: string) => void;
   deleteSnapshot: (studentLRN: string, sheetName: string, versionId: string) => void;
+  clearOverrides: (studentLRN: string, sheetName: string) => void;
 }
 
 export const useSF10Store = create<SF10State>()(
@@ -80,6 +81,15 @@ export const useSF10Store = create<SF10State>()(
             [key]: (state.history[key] || []).filter((v) => v.id !== versionId),
           },
         }));
+      },
+      
+      clearOverrides: (studentLRN, sheetName) => {
+        const key = `${studentLRN}_${sheetName}`;
+        set((state) => {
+          const newOverrides = { ...state.overrides };
+          delete newOverrides[key];
+          return { overrides: newOverrides };
+        });
       },
     }),
     {

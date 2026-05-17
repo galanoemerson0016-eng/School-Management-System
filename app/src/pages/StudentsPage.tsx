@@ -300,9 +300,7 @@ export function StudentsPage() {
         const query = overviewSearch.trim().toLowerCase();
         let list: typeof sections = [];
 
-        // If no category and no search, we don't show any grades below
-        if (!activeCategory && !query) return list;
-
+        // Show all sections by default, or filter if category/search is active
         officialSections.forEach(section => {
             const grade = section.section_grade_level || 'No Grade';
             let isMatch = true;
@@ -608,6 +606,18 @@ export function StudentsPage() {
                         </motion.button>
                     )}
 
+                    {viewMode === 'overview' && canAddGlobally && (
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleAdd}
+                            className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            Add Learner
+                        </motion.button>
+                    )}
+
                     {viewMode === 'section_detail' && (
                         <>
                             <motion.button
@@ -790,7 +800,7 @@ export function StudentsPage() {
                             })}
                         </div>
 
-                        {!activeCategory && !overviewSearch.trim() && (
+                        {!activeCategory && !overviewSearch.trim() && filteredSectionsList.length === 0 && (
                             <motion.div 
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}

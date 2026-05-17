@@ -102,53 +102,78 @@ export function SettingsPage() {
     };
 
 
-    // Change Password
+    // Account Settings
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
+    
+    // Get current credentials for pre-filling
+    const rawCreds = localStorage.getItem('formease-credentials');
+    const savedCreds = rawCreds ? JSON.parse(rawCreds) : { username: 'admin', email: 'admin@school.local', securityQuestion: '', securityAnswer: '' };
+
+    const [newUsername, setNewUsername] = useState(savedCreds.username || '');
+    const [newEmail, setNewEmail] = useState(savedCreds.email || '');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [newSecurityQuestion, setNewSecurityQuestion] = useState(savedCreds.securityQuestion || '');
+    const [newSecurityAnswer, setNewSecurityAnswer] = useState(savedCreds.securityAnswer || '');
     const [passwordError, setPasswordError] = useState('');
     const [passwordSuccess, setPasswordSuccess] = useState('');
     const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+    const { updateCredentials, getSecurityQuestion } = useAuthStore();
+
     const handleChangePassword = async () => {
         setPasswordError('');
         setPasswordSuccess('');
-
-        if (newPassword.length < 6) {
-            setPasswordError('Password must be at least 6 characters');
+        
+        if (!currentPassword) {
+            setPasswordError('Please enter your current password to save changes');
             return;
         }
-        if (newPassword !== confirmPassword) {
+
+        if (newPassword && newPassword.length < 6) {
+            setPasswordError('New password must be at least 6 characters');
+            return;
+        }
+        if (newPassword && newPassword !== confirmPassword) {
             setPasswordError('Passwords do not match');
             return;
         }
 
         setIsChangingPassword(true);
         try {
+            // Use a robust way to get current credentials (including defaults)
             const raw = localStorage.getItem('formease-credentials');
-            if (!raw) throw new Error('No local account found. Please log in first.');
-            const parsed = JSON.parse(raw) as { username?: string; password?: string };
-            if (!parsed.password || parsed.password !== currentPassword) {
+            const defaults = { username: 'admin', password: 'formease' };
+            const parsed = raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+            
+            if (parsed.password !== currentPassword) {
                 throw new Error('Current password is incorrect');
             }
 
-            localStorage.setItem('formease-credentials', JSON.stringify({
-                username: parsed.username || user?.displayName || 'teacher',
-                password: newPassword,
-            }));
+            updateCredentials({
+                username: newUsername || parsed.username,
+                password: newPassword || parsed.password,
+                email: newEmail || parsed.email,
+                securityQuestion: newSecurityQuestion || parsed.securityQuestion,
+                securityAnswer: newSecurityAnswer || parsed.securityAnswer
+            });
 
-            setPasswordSuccess('Password changed successfully!');
+            setPasswordSuccess('Account settings updated successfully!');
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
+            setNewUsername('');
+            setNewEmail('');
+            setNewSecurityQuestion('');
+            setNewSecurityAnswer('');
+            
             setTimeout(() => {
                 setShowPasswordModal(false);
                 setPasswordSuccess('');
             }, 2000);
-        } catch (error: unknown) {
-            const err = error as { message?: string };
-            setPasswordError(err.message || 'Failed to change password');
+        } catch (error: any) {
+            setPasswordError(error.message || 'Failed to update settings');
         } finally {
             setIsChangingPassword(false);
         }
@@ -886,8 +911,8 @@ export function SettingsPage() {
                             onClick={() => setShowPasswordModal(true)}
                             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-deped-blue px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
                         >
-                            <Lock className="h-4 w-4" />
-                            Change Password
+                            <User className="h-4 w-4" />
+                            Account Settings
                         </button>
                     </div>
 
@@ -1031,52 +1056,108 @@ export function SettingsPage() {
                 </div>
             </div>
 
-            {/* Change Password Modal */}
+            {/* Account Settings Modal */}
             {showPasswordModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPasswordModal(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowPasswordModal(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden my-auto" onClick={e => e.stopPropagation()}>
                         <div className="bg-deped-blue text-white px-6 py-4 flex justify-between items-center">
-                            <h3 className="text-lg font-bold flex items-center gap-2"><Lock className="w-5 h-5" /> Change Password</h3>
+                            <h3 className="text-lg font-bold flex items-center gap-2"><User className="w-5 h-5" /> Account Settings</h3>
                             <button onClick={() => setShowPasswordModal(false)} className="text-2xl hover:bg-white/20 rounded-lg p-1">×</button>
                         </div>
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                             {passwordError && (
                                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">{passwordError}</div>
                             )}
                             {passwordSuccess && (
                                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium">{passwordSuccess}</div>
                             )}
-                            <div>
+                            
+                            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl mb-2">
+                                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">Verification Required</p>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Current Password</label>
                                 <input
                                     type="password"
                                     value={currentPassword}
                                     onChange={(e) => setCurrentPassword(e.target.value)}
                                     className="form-input"
-                                    placeholder="Enter current password"
+                                    placeholder="Enter current password to save changes"
                                 />
                             </div>
+
+                            <hr className="border-gray-100" />
+
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">New Password</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">New Username</label>
                                 <input
-                                    type="password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    type="text"
+                                    value={newUsername}
+                                    onChange={(e) => setNewUsername(e.target.value)}
                                     className="form-input"
-                                    placeholder="Enter new password (min 6 chars)"
+                                    placeholder="Change username (optional)"
                                 />
                             </div>
+
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirm New Password</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">New Email</label>
                                 <input
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    type="email"
+                                    value={newEmail}
+                                    onChange={(e) => setNewEmail(e.target.value)}
                                     className="form-input"
-                                    placeholder="Confirm new password"
+                                    placeholder="Change email address (optional)"
                                 />
                             </div>
-                            <div className="flex justify-end gap-3 pt-2">
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">New Password</label>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="form-input"
+                                        placeholder="Min 6 chars"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirm Password</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="form-input"
+                                        placeholder="Confirm new"
+                                    />
+                                </div>
+                            </div>
+
+                            <hr className="border-gray-100" />
+
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recovery Options</p>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Security Question</label>
+                                    <input
+                                        type="text"
+                                        value={newSecurityQuestion}
+                                        onChange={(e) => setNewSecurityQuestion(e.target.value)}
+                                        className="form-input"
+                                        placeholder="e.g., What is my pet's name?"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Security Answer</label>
+                                    <input
+                                        type="text"
+                                        value={newSecurityAnswer}
+                                        onChange={(e) => setNewSecurityAnswer(e.target.value)}
+                                        className="form-input"
+                                        placeholder="The answer for recovery"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                                 <button onClick={() => setShowPasswordModal(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium hover:bg-gray-50">
                                     Cancel
                                 </button>
@@ -1085,7 +1166,7 @@ export function SettingsPage() {
                                     disabled={isChangingPassword}
                                     className="px-6 py-2 bg-deped-blue text-white rounded-lg font-bold hover:bg-blue-700 shadow-md disabled:opacity-50"
                                 >
-                                    {isChangingPassword ? 'Changing...' : 'Change Password'}
+                                    {isChangingPassword ? 'Saving...' : 'Update Settings'}
                                 </button>
                             </div>
                         </div>

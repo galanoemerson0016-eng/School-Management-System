@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Clock, RefreshCcw, Database } from 'lucide-react';
+import { useEffect } from 'react';
 import { canEditClassesAndSubjects } from '../../lib/rbac';
 import { UpdateStatus } from '../ui/UpdateStatus';
 
@@ -36,6 +37,39 @@ const parseSchoolYearStart = (label: string) => {
     return start;
 };
 
+function TrialTimer({ trialStart }: { trialStart: string }) {
+    const [timeLeft, setTimeLeft] = useState('');
+
+    useEffect(() => {
+        const calculate = () => {
+            const start = new Date(trialStart);
+            const expiry = new Date(start.getTime() + (1 * 60 * 60 * 1000));
+            const now = new Date();
+            const diff = expiry.getTime() - now.getTime();
+
+            if (diff <= 0) {
+                setTimeLeft('EXPIRED');
+                window.location.reload();
+                return;
+            }
+
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            setTimeLeft(`${mins}m ${secs}s`);
+        };
+
+        const timer = setInterval(calculate, 1000);
+        calculate();
+        return () => clearInterval(timer);
+    }, [trialStart]);
+
+    return (
+        <span className="text-xs font-black text-amber-500 font-mono">
+            {timeLeft}
+        </span>
+    );
+}
+
 export function Header() {
     const {
         currentView,
@@ -45,6 +79,8 @@ export function Header() {
         schoolYears,
         setActiveSchoolYear,
         createSchoolYear,
+        createBackup,
+        lastBackupTime,
     } = useAppStore();
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
@@ -126,6 +162,27 @@ export function Header() {
                         )}
                     </div>
 
+                    {/* Full Backup Button */}
+                    <button
+                        onClick={() => void createBackup()}
+                        className="hidden lg:flex items-center gap-2.5 h-9 px-4 rounded-xl bg-slate-900 dark:bg-white/10 text-white dark:text-slate-200 text-[10px] font-black uppercase tracking-[0.15em] hover:bg-slate-800 dark:hover:bg-white/20 transition-all shadow-sm group active:scale-[0.97]"
+                        title={lastBackupTime ? `Last backup: ${new Date(lastBackupTime).toLocaleString()}` : 'No backups recorded'}
+                    >
+                        <Database className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                        <span>Full Backup</span>
+                    </button>
+
+                    {/* Trial Countdown */}
+                    {schoolProfile.is_trial && (
+                        <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                           <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
+                           <div>
+                              <p className="text-[9px] font-black text-amber-500/50 uppercase tracking-widest leading-none mb-0.5">Trial Ending In</p>
+                              <TrialTimer trialStart={schoolProfile.trial_activated_at || ''} />
+                           </div>
+                        </div>
+                    )}
+
                     {/* Update Status Checker */}
                     <UpdateStatus />
 
@@ -141,6 +198,15 @@ export function Header() {
                                     {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             )}
+                        </button>
+
+                        {/* Mobile Backup Button */}
+                        <button
+                            onClick={() => void createBackup()}
+                            className="lg:hidden p-2 rounded-2xl bg-white/50 dark:bg-black/40 border border-white/60 dark:border-white/10 hover:bg-white transition-all shadow-sm"
+                            title="Full Backup"
+                        >
+                            <Database className="w-5 h-5 text-emerald-500" />
                         </button>
 
                         {/* Notification Dropdown */}

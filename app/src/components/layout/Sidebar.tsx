@@ -139,26 +139,6 @@ export function Sidebar() {
                     );
                 })}
 
-                {/* Admin Only Items */}
-                {hasRole(user, 'admin') && (
-                    <>
-                        <div className={`my-4 border-t border-slate-200 dark:border-white/10 ${isCollapsed ? 'mx-2' : 'mx-4'}`} />
-                        <button
-                            onClick={() => handleNavClick('users')}
-                            title={isCollapsed ? 'User Management' : undefined}
-                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'users'
-                                ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
-                                : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
-                                }`}
-                        >
-                            {currentView === 'users' && (
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
-                            )}
-                            <UserCog className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'users' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                            {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'users' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>User Management</span>}
-                        </button>
-                    </>
-                )}
 
                 {/* Settings */}
                 {canAccessView(user, 'settings') && (

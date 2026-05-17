@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, Enrollment, SchoolYear, ObservedValues, HPSRecord, SF2Sheet, User, AttendanceRecord } from '../types';
 import { db } from '../services/database';
 import { backup } from '../services/backup';
+import { announcementSync } from '../services/announcement-sync';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 
 interface AppState {
@@ -79,6 +80,7 @@ interface AppState {
   setAnnouncements: (announcements: Announcement[]) => void;
   addAnnouncement: (announcement: Announcement) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
+  deleteAnnouncementFromCloud: (cloudId: string) => Promise<void>;
 
   // Observed Values
   observedValues: ObservedValues[];
@@ -142,6 +144,10 @@ interface AppState {
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
   hideNotification: () => void;
 
+  // Cloud Sync Settings
+  cloudSyncEnabled: boolean;
+  setCloudSyncEnabled: (enabled: boolean) => void;
+
   // Backup & Restore
   createBackup: (label?: string) => Promise<void>;
   restoreFromFile: (file: File) => Promise<void>;
@@ -163,6 +169,7 @@ const defaultSchoolProfile: SchoolProfile = {
   grade_level: 'Grade 7',
   section: 'Einstein',
   is_activated: false,
+  is_trial: false,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -321,12 +328,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   clearSection: async (sectionName) => {
     try {
+      const studentsInSection = get().students.filter((s) => s.student_section === sectionName);
+      
+      for (const student of studentsInSection) {
+        await db.deleteRecord('students', student.lrn);
+      }
+
       set((state) => ({
         students: state.students.filter((s) => s.student_section !== sectionName),
+        studentProfiles: state.studentProfiles.filter((s) => s.student_section !== sectionName),
       }));
-      get().showNotification('Section cleared', 'success');
+      
+      get().showNotification(`Section ${sectionName} cleared successfully`, 'success');
     } catch (error) {
       console.error('Error clearing section:', error);
+      get().showNotification('Failed to clear section', 'error');
       throw error;
     }
   },
@@ -634,6 +650,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((state) => ({ announcements: [...state.announcements, announcement] }));
       await db.putRecord('announcements', announcement);
       get().showNotification('Announcement posted', 'success');
+
+      // Auto-publish to cloud if enabled and school_id exists, and it's NOT already a cloud-sourced announcement
+      const state = get();
+      // Get author ID from local storage or session
+      const authorId = localStorage.getItem('auth_user_uid') || 'anonymous';
+      
+      if (state.cloudSyncEnabled && state.schoolProfile.school_id && !(announcement as any).is_cloud) {
+        try {
+          await announcementSync.publishToCloud(announcement, state.schoolProfile.school_id, authorId);
+        } catch (err) {
+          console.error('Failed to sync announcement to cloud:', err);
+        }
+      }
     } catch (error) {
       console.error('Error adding announcement:', error);
       get().showNotification('Failed to post announcement', 'error');
@@ -643,9 +672,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   deleteAnnouncement: async (id) => {
     const previousAnnouncements = get().announcements;
+    const target = previousAnnouncements.find(a => a.id === id);
+    
     try {
       set((state) => ({ announcements: state.announcements.filter((a) => a.id !== id) }));
       await db.deleteRecord('announcements', id);
+      
+      // If it's a cloud announcement, also delete from cloud (if sync enabled)
+      // Note: Firebase rules will verify if the user is actually the author
+      if (target && (target as any).is_cloud && get().cloudSyncEnabled) {
+          await announcementSync.deleteFromCloud(id);
+      }
+      
       get().showNotification('Announcement deleted', 'success');
     } catch (error) {
       console.error('Error deleting announcement:', error);
@@ -653,6 +691,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().showNotification('Failed to delete announcement', 'error');
       throw error;
     }
+  },
+  deleteAnnouncementFromCloud: async (cloudId) => {
+      try {
+          await announcementSync.deleteFromCloud(cloudId);
+          set((state) => ({ announcements: state.announcements.filter((a) => a.id !== cloudId) }));
+          await db.deleteRecord('announcements', cloudId);
+      } catch (err) {
+          console.error('Cloud delete failed:', err);
+          throw err;
+      }
   },
 
   // ==================== GRADING SHEET RECORDS ====================
@@ -819,6 +867,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }, 3000);
   },
   hideNotification: () => set({ notification: { message: '', type: 'info', visible: false } }),
+
+  // ==================== CLOUD SYNC ====================
+  cloudSyncEnabled: localStorage.getItem('announcement_cloud_sync') === 'true',
+  setCloudSyncEnabled: (enabled) => {
+    localStorage.setItem('announcement_cloud_sync', enabled.toString());
+    set({ cloudSyncEnabled: enabled });
+  },
 
   // ==================== BACKUP & RESTORE ====================
   lastBackupTime: null,

@@ -120,7 +120,15 @@ export const SF10JHSRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, d
             return { gradeNum: 1, isES: true, isJHS: false, isSHS: false, formType: 'SF10-ES' };
         }
         const rawGrade = getVal('learner.gradeLevel') || getVal('scholasticRecords[0].gradeLevel') || '';
-        const gradeNum = parseInt(rawGrade.replace(/\D/g, '')) || 7;
+        let gradeNum = parseInt(rawGrade.replace(/\D/g, '')) || 7;
+        
+        // If we found it from scholasticRecords[0] but it's JHS, and it's G7, 
+        // we should check if the learner.gradeLevel override exists in data[path]
+        const learnerGradeOverride = asString(data['learner.gradeLevel']);
+        if (learnerGradeOverride) {
+            gradeNum = parseInt(learnerGradeOverride.replace(/\D/g, '')) || gradeNum;
+        }
+
         return {
             gradeNum,
             isES: gradeNum >= 1 && gradeNum <= 6,
@@ -208,28 +216,18 @@ export const SF10JHSRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, d
                                         <table className="excel-table text-[13px] text-center border-none w-full">
                                             {(() => {
                                                 const isExtraBlock = isES ? (blockIdx >= 6) : (blockIdx >= 4);
-                                                const is3Term = isExtraBlock ? true : (isES ? !!getRaw(`scholasticRecords[${blockIdx}].is3Term`) : true);
                                                 const rawGrade = getVal(`scholasticRecords[${blockIdx}].gradeLevel`) || "";
                                                 const rawGradeLevelNum = Number(getRaw(`scholasticRecords[${blockIdx}].gradeLevelNum`));
                                                 const blockGradeNum = Number.isFinite(rawGradeLevelNum) && rawGradeLevelNum > 0 ? rawGradeLevelNum : parseInt(rawGrade.replace(/\D/g, "")) || 0;
+                                                
+                                                const { gradeNum: currentGradeLevel } = getGradeInfo();
+                                                const is3Term = isES 
+                                                    ? !!getRaw(`scholasticRecords[${blockIdx}].is3Term`) 
+                                                    : (isExtraBlock || blockGradeNum >= currentGradeLevel || blockGradeNum === 0);
                                                 const customCurriculum = (getRaw("curriculum") as any);
                                                 // For ES extra blocks, suppress subjects; for JHS show whatever grade is set
                                                 const rows = (isES && isExtraBlock) ? [] : getSF10RowsForGrade(blockGradeNum || (isES ? 1 : 0), customCurriculum);
-                                                
-                                                let finalRows = [...rows];
-                                                if (isES) {
-                                                    const isAL = (r: { label?: string }) => r.label && r.label.includes("*Arabic Language");
-                                                    const isIVE = (r: { label?: string }) => r.label && r.label.includes("*Islamic Values Education");
-                                                    const coreRows = rows.filter(r => !isAL(r) && !isIVE(r));
-                                                    const alRow = rows.find(isAL) || { key: "arabic", label: "*Arabic Language", type: "subject" };
-                                                    const iveRow = rows.find(isIVE) || { key: "islamic", label: "*Islamic Values Education", type: "subject" };
-                                                    finalRows = [...coreRows];
-                                                    while (finalRows.length < 13) {
-                                                        finalRows.push({ key: `extra_${finalRows.length}`, label: " ", type: "subject" });
-                                                    }
-                                                    finalRows.push(alRow);
-                                                    finalRows.push(iveRow);
-                                                }
+                                                const finalRows = rows;
 
                                                 return (
                                                     <>
@@ -252,18 +250,21 @@ export const SF10JHSRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, d
                                                         <tbody>
                                                             {finalRows.map((row, rIdx) => {
                                                                 const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
-                                                                
+                                                                const displayLabel = asString(sub.label) || row.label;
+                                                                const isExtra = row.key.startsWith('extra_reserved_');
+                                                                const shouldShowData = !isExtra || (displayLabel && displayLabel.trim() !== '');
+
                                                                 return (
                                                                     <tr key={rIdx} className="h-[16px]">
-                                                                        <td className={`text-left px-1 ${getLearningAreaIndentClass(row)} ${(row.label && (row.label.includes("Arabic") || row.label.includes("Islamic"))) ? "text-[8.3px]" : ""}`}>
-                                                                            {row.label}
+                                                                        <td className={`text-left px-1 ${getLearningAreaIndentClass(row)} ${(displayLabel && (displayLabel.includes("Arabic") || displayLabel.includes("Islamic"))) ? "text-[8.3px]" : ""}`}>
+                                                                            {displayLabel}
                                                                         </td>
-                                                                        <td>{asString(sub.q1)}</td>
-                                                                        <td>{asString(sub.q2)}</td>
-                                                                        <td>{asString(sub.q3)}</td>
-                                                                        {(!is3Term) && <td>{asString(sub.q4)}</td>}
-                                                                        <td className="font-bold">{asString(sub.finalRating)}</td>
-                                                                        <td className="uppercase text-[8.3px]">{asString(sub.remarks)}</td>
+                                                                        <td>{shouldShowData ? asString(sub.q1) : ''}</td>
+                                                                        <td>{shouldShowData ? asString(sub.q2) : ''}</td>
+                                                                        <td>{shouldShowData ? asString(sub.q3) : ''}</td>
+                                                                        {(!is3Term) && <td>{shouldShowData ? asString(sub.q4) : ''}</td>}
+                                                                        <td className="font-bold">{shouldShowData ? asString(sub.finalRating) : ''}</td>
+                                                                        <td className="uppercase text-[8.3px]">{shouldShowData ? asString(sub.remarks) : ''}</td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -665,10 +666,15 @@ export const SF10JHSRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, d
                                         </div>
                                         <table className="excel-table text-[13px] text-center border-none w-full flex-grow">
                                             {(() => {
-                                                const is3Term = isES ? !!getRaw(`scholasticRecords[${blockIdx}].is3Term`) : true;
+                                                const { gradeNum: currentGradeLevel } = getGradeInfo();
                                                 const rawGrade = getVal(`scholasticRecords[${blockIdx}].gradeLevel`) || "";
                                                 const rawGradeLevelNum = Number(getRaw(`scholasticRecords[${blockIdx}].gradeLevelNum`));
                                                 const blockGradeNum = Number.isFinite(rawGradeLevelNum) && rawGradeLevelNum > 0 ? rawGradeLevelNum : parseInt(rawGrade.replace(/\D/g, "")) || 0;
+                                                
+                                                const isExtraBlock = isES ? (blockIdx >= 6) : (blockIdx >= 4);
+                                                const is3Term = isES 
+                                                    ? !!getRaw(`scholasticRecords[${blockIdx}].is3Term`) 
+                                                    : (isExtraBlock || blockGradeNum >= currentGradeLevel || blockGradeNum === 0);
                                                 const customCurriculum = (getRaw("curriculum") as any);
                                                 const rows = getSF10RowsForGrade(blockGradeNum, customCurriculum);
                                                 

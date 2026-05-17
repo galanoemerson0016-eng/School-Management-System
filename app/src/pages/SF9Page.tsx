@@ -526,6 +526,12 @@ function SF9Pages({
     const transparentBorder = '#FFFFFF';
     const borderColor = isValuesOnly ? transparentBorder : '#000';
 
+    // Determine SF9 Label and Alignment
+    const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
+    const isES = gradeNum >= 1 && gradeNum <= 6;
+    const sf9Identifier = isES ? 'SF9-ES' : 'SF9-JHS';
+    const sf9TextAlign = isES ? 'left' : 'right';
+
     // Determine which term columns to show values for
     const showTermValue = (termIndex: number): boolean => {
         if (printMode === 'full') return true;
@@ -627,7 +633,7 @@ function SF9Pages({
                         </View>
                     </View>
                     <View style={styles.rightColumn}>
-                        <Text style={[styles.sf9Label, isValuesOnly ? { color: transparentBorder } : {}]}>SF9-JHS</Text>
+                        <Text style={[styles.sf9Label, { textAlign: sf9TextAlign }, isValuesOnly ? { color: transparentBorder } : {}]}>{sf9Identifier}</Text>
                         <View style={[styles.headerContainer, isValuesOnly ? { opacity: 0 } : {}]}>
                             <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.logo} />
                             <View style={styles.headerCenter}>
@@ -653,14 +659,14 @@ function SF9Pages({
                                 <Text style={styles.infoValueShort}>{student.gender}</Text>
                             </View>
                             <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Age:</Text>
-                                <Text style={styles.infoValue}>{student.age || ''}</Text>
+                                <Text style={styles.infoLabel}>Grade:</Text>
+                                <Text style={styles.infoValue}>{student.grade_level.replace('Grade ', '')}</Text>
                                 <Text style={styles.infoLabelRight}>Section:</Text>
                                 <Text style={styles.infoValueShort}>{section}</Text>
                             </View>
                             <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Grade:</Text>
-                                <Text style={styles.infoValue}>{student.grade_level.replace('Grade ', '')}</Text>
+                                <Text style={styles.infoLabel}>Age:</Text>
+                                <Text style={styles.infoValue}>{student.age || ''}</Text>
                                 <Text style={styles.infoLabelRight}>School Year:</Text>
                                 <Text style={styles.infoValueShort}>{schoolYear}</Text>
                             </View>

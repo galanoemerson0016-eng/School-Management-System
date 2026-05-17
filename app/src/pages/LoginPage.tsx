@@ -3,7 +3,8 @@ import { useAuthStore, useAppStore } from '../stores';
 import { useSystemStore } from '../stores/system-store';
 import {
     User, Eye, EyeOff, GraduationCap, BookOpen, ScrollText, School,
-    Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2, Fingerprint
+    Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2, Fingerprint,
+    XCircle, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -134,10 +135,16 @@ export const LoginPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isCardHovered, setIsCardHovered] = useState(false);
 
-    const { login, isLoading, error } = useAuthStore();
+    const { login, isLoading, error, getSecurityQuestion, recoverCredentials } = useAuthStore();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
     const { schoolProfile } = useAppStore();
     const [shake, setShake] = useState(false);
+
+    // Recovery Modal State
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+    const [recoveryAnswer, setRecoveryAnswer] = useState('');
+    const [recoveryResult, setRecoveryResult] = useState<{ u: string, p: string } | null>(null);
+    const [recoveryError, setRecoveryError] = useState('');
 
     const passwordStrength = getPasswordStrength(credentials.password);
 
@@ -164,10 +171,21 @@ export const LoginPage = () => {
 
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
-        alert(language === 'EN'
-            ? "Please contact your School Administrator to reset your password."
-            : "Mangyaring makipag-ugnayan sa inyong School Administrator upang i-reset ang inyong password."
-        );
+        setRecoveryAnswer('');
+        setRecoveryResult(null);
+        setRecoveryError('');
+        setShowRecoveryModal(true);
+    };
+
+    const handleRecover = () => {
+        const result = recoverCredentials(recoveryAnswer);
+        if (result) {
+            setRecoveryResult({ u: result.username, p: result.password });
+            setRecoveryError('');
+        } else {
+            setRecoveryError('Incorrect answer. Please try again.');
+            setRecoveryResult(null);
+        }
     };
 
     // Text translations
@@ -661,6 +679,100 @@ export const LoginPage = () => {
                         {t.copyright}
                     </p>
                 </motion.div>
+
+                {/* ============================================================================= */}
+                {/* RECOVERY MODAL                                                                */}
+                {/* ============================================================================= */}
+                <AnimatePresence>
+                    {showRecoveryModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setShowRecoveryModal(false)}
+                                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            />
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                className={`relative w-full max-w-md p-8 rounded-[32px] shadow-2xl border ${
+                                    darkMode ? 'bg-[#0d1225] border-white/10' : 'bg-white border-gray-200'
+                                }`}
+                            >
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>Account Recovery</h3>
+                                    <button onClick={() => setShowRecoveryModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                        <XCircle className="w-6 h-6 text-gray-500" />
+                                    </button>
+                                </div>
+
+                                {!recoveryResult ? (
+                                    <div className="space-y-6">
+                                        <div className={`p-4 rounded-2xl ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
+                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Security Question</p>
+                                            <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{getSecurityQuestion()}</p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Your Answer</label>
+                                            <input 
+                                                type="text"
+                                                value={recoveryAnswer}
+                                                onChange={(e) => setRecoveryAnswer(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleRecover()}
+                                                autoFocus
+                                                placeholder="Type your answer here..."
+                                                className={`w-full p-4 rounded-2xl outline-none border transition-all ${
+                                                    darkMode 
+                                                    ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50' 
+                                                    : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500'
+                                                }`}
+                                            />
+                                            {recoveryError && <p className="text-[10px] font-bold text-red-500 ml-1">{recoveryError}</p>}
+                                        </div>
+
+                                        <button 
+                                            onClick={handleRecover}
+                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all"
+                                        >
+                                            REVEAL CREDENTIALS
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-[24px] text-center">
+                                            <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
+                                            <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Recovery Successful</h4>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Username</p>
+                                                <p className={`text-lg font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{recoveryResult.u}</p>
+                                            </div>
+                                            <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Password</p>
+                                                <p className={`text-lg font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{recoveryResult.p}</p>
+                                            </div>
+                                        </div>
+
+                                        <button 
+                                            onClick={() => {
+                                                setCredentials({ id: recoveryResult.u, password: recoveryResult.p });
+                                                setShowRecoveryModal(false);
+                                            }}
+                                            className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
+                                        >
+                                            USE THESE CREDENTIALS
+                                        </button>
+                                    </div>
+                                )}
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
             </motion.div>
         </div>
     );

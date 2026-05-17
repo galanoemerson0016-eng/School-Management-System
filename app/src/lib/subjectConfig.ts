@@ -156,45 +156,47 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
     grade = `grade ${grade}`;
   }
   
+  let result: CurriculumSubject[] = [];
+  
   // Check custom curriculum first
   if (customCurriculum) {
-    if (grade === 'grade 1' && customCurriculum.grade_1_subjects) return customCurriculum.grade_1_subjects;
-    if (grade === 'grade 2' && customCurriculum.grade_2_subjects) return customCurriculum.grade_2_subjects;
-    if (grade === 'grade 3' && customCurriculum.grade_3_subjects) return customCurriculum.grade_3_subjects;
-    if (grade === 'grade 4' && customCurriculum.grade_4_subjects) return customCurriculum.grade_4_subjects;
-    if (grade === 'grade 5' && customCurriculum.grade_5_subjects) return customCurriculum.grade_5_subjects;
-    if (grade === 'grade 6' && customCurriculum.grade_6_subjects) return customCurriculum.grade_6_subjects;
-    if (grade === 'grade 7' && customCurriculum.grade_7_subjects) return customCurriculum.grade_7_subjects;
-    if (grade === 'grade 8' && customCurriculum.grade_8_subjects) return customCurriculum.grade_8_subjects;
-    if (grade === 'grade 9' && customCurriculum.grade_9_subjects) return customCurriculum.grade_9_subjects;
-    if (grade === 'grade 10' && customCurriculum.grade_10_subjects) return customCurriculum.grade_10_subjects;
-    if (grade === 'grade 11' && customCurriculum.grade_11_subjects) return customCurriculum.grade_11_subjects;
-    if (grade === 'grade 12' && customCurriculum.grade_12_subjects) return customCurriculum.grade_12_subjects;
+    if (grade === 'grade 1' && customCurriculum.grade_1_subjects) result = customCurriculum.grade_1_subjects;
+    else if (grade === 'grade 2' && customCurriculum.grade_2_subjects) result = customCurriculum.grade_2_subjects;
+    else if (grade === 'grade 3' && customCurriculum.grade_3_subjects) result = customCurriculum.grade_3_subjects;
+    else if (grade === 'grade 4' && customCurriculum.grade_4_subjects) result = customCurriculum.grade_4_subjects;
+    else if (grade === 'grade 5' && customCurriculum.grade_5_subjects) result = customCurriculum.grade_5_subjects;
+    else if (grade === 'grade 6' && customCurriculum.grade_6_subjects) result = customCurriculum.grade_6_subjects;
+    else if (grade === 'grade 7' && customCurriculum.grade_7_subjects) result = customCurriculum.grade_7_subjects;
+    else if (grade === 'grade 8' && customCurriculum.grade_8_subjects) result = customCurriculum.grade_8_subjects;
+    else if (grade === 'grade 9' && customCurriculum.grade_9_subjects) result = customCurriculum.grade_9_subjects;
+    else if (grade === 'grade 10' && customCurriculum.grade_10_subjects) result = customCurriculum.grade_10_subjects;
+    else if (grade === 'grade 11' && customCurriculum.grade_11_subjects) result = customCurriculum.grade_11_subjects;
+    else if (grade === 'grade 12' && customCurriculum.grade_12_subjects) result = customCurriculum.grade_12_subjects;
   }
 
-  let result: CurriculumSubject[] = [];
-
-  // Fall back to standard subjects
-  if (grade === 'grade 1') result = [...STANDARD_SUBJECTS.Grade1];
-  else if (grade === 'grade 2') result = [...STANDARD_SUBJECTS.Grade2];
-  else if (grade === 'grade 3') result = [...STANDARD_SUBJECTS.Grade3];
-  else if (grade === 'grade 4') result = [...STANDARD_SUBJECTS.Grade4];
-  else if (grade === 'grade 5') result = [...STANDARD_SUBJECTS.Grade5];
-  else if (grade === 'grade 6') result = [...STANDARD_SUBJECTS.Grade6];
-  else if (grade === 'grade 7') result = [...STANDARD_SUBJECTS.Grade7];
-  else if (grade === 'grade 8') result = [...STANDARD_SUBJECTS.Grade8];
-  else if (grade === 'grade 9') result = [...STANDARD_SUBJECTS.Grade9];
-  else if (grade === 'grade 10') result = [...STANDARD_SUBJECTS.Grade10];
-  else if (grade === 'grade 11') result = [...STANDARD_SUBJECTS.Grade11];
-  else if (grade === 'grade 12') result = [...STANDARD_SUBJECTS.Grade12];
-  else {
-    // Return empty rows for overflow/extra blocks
-    return Array(11).fill(null).map(() => ({ name: ' ', code: '' }));
+  if (result.length === 0) {
+    // Fall back to standard subjects
+    if (grade === 'grade 1') result = [...STANDARD_SUBJECTS.Grade1];
+    else if (grade === 'grade 2') result = [...STANDARD_SUBJECTS.Grade2];
+    else if (grade === 'grade 3') result = [...STANDARD_SUBJECTS.Grade3];
+    else if (grade === 'grade 4') result = [...STANDARD_SUBJECTS.Grade4];
+    else if (grade === 'grade 5') result = [...STANDARD_SUBJECTS.Grade5];
+    else if (grade === 'grade 6') result = [...STANDARD_SUBJECTS.Grade6];
+    else if (grade === 'grade 7') result = [...STANDARD_SUBJECTS.Grade7];
+    else if (grade === 'grade 8') result = [...STANDARD_SUBJECTS.Grade8];
+    else if (grade === 'grade 9') result = [...STANDARD_SUBJECTS.Grade9];
+    else if (grade === 'grade 10') result = [...STANDARD_SUBJECTS.Grade10];
+    else if (grade === 'grade 11') result = [...STANDARD_SUBJECTS.Grade11];
+    else if (grade === 'grade 12') result = [...STANDARD_SUBJECTS.Grade12];
+    else {
+      // Return empty rows for overflow/extra blocks
+      return Array(11).fill(null).map(() => ({ name: ' ', code: '' }));
+    }
   }
 
   // Final safety deduplication
   const seen = new Set<string>();
-  const unique = result.filter(s => {
+  const unique = result.filter((s: CurriculumSubject) => {
     const norm = normalizeSubjectName(s.name);
     if (!norm) return true; // Keep empty/placeholder rows
     if (seen.has(norm)) return false;
@@ -215,6 +217,8 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
 
   const getStandardSf10Key = (subjectName: string, idx: number) => {
     const normalized = normalizeSubjectName(subjectName);
+    if (normalized.includes('arabic')) return 'arabic';
+    if (normalized.includes('islamic')) return 'islamic';
     if (normalized.includes('language')) return 'language';
     if (normalized.includes('readingandliteracy')) return 'readingAndLiteracy';
     if (normalized.includes('filipino')) return 'filipino';
@@ -229,8 +233,6 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 'musicAndArts';
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 'peAndHealth';
     if (normalized.includes('mapeh')) return 'mapeh';
-    if (normalized.includes('arabic')) return 'arabic';
-    if (normalized.includes('islamic')) return 'islamic';
     return `subject_${idx}`;
   };
 
@@ -260,22 +262,43 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
   const gradeStr = String(gradeLevel).toLowerCase();
   const gradeNum = parseInt(gradeStr.match(/\d+/)?.[0] || gradeStr) || 0;
   const isElementary = gradeNum > 0 && gradeNum <= 6;
-                      
-  const TARGET_ROWS = isElementary ? 15 : 12;
   
-  if (rows.length > TARGET_ROWS) {
-    return rows.slice(0, TARGET_ROWS);
-  }
+  const TARGET_TOTAL = isElementary ? 15 : 12;
+  const PAD_LIMIT = isElementary ? 13 : 12;
 
-  while (rows.length < TARGET_ROWS) {
-    const i = rows.length + 1;
-    rows.push({
+  // For ES, we want to separate ALIVE subjects and put them at the bottom
+  const isAL = (r: { label: string; key: string }) => r.label.includes('Arabic') || r.key === 'arabic';
+  const isIVE = (r: { label: string; key: string }) => r.label.includes('Islamic') || r.key === 'islamic';
+
+  const coreRows = rows.filter(r => !isAL(r) && !isIVE(r));
+  const alRow = rows.find(isAL) || { key: "arabic", label: "*Arabic Language" };
+  const iveRow = rows.find(isIVE) || { key: "islamic", label: "*Islamic Values Education" };
+
+  let finalRows = [...coreRows];
+  
+  // Padding
+  while (finalRows.length < PAD_LIMIT) {
+    finalRows.push({
       label: ' ',
-      key: `extra_reserved_${i}`
+      key: `extra_reserved_${finalRows.length}`
     });
   }
 
-  return rows;
+  // Add ALIVE at bottom for ES
+  if (isElementary) {
+    finalRows.push(alRow);
+    finalRows.push(iveRow);
+  }
+
+  // Final trim or pad to target total
+  if (finalRows.length > TARGET_TOTAL) {
+    return finalRows.slice(0, TARGET_TOTAL);
+  }
+  while (finalRows.length < TARGET_TOTAL) {
+     finalRows.push({ label: ' ', key: `extra_reserved_${finalRows.length}` });
+  }
+
+  return finalRows;
 }
 
 /**

@@ -2,11 +2,20 @@ import { useState, type FormEvent, useEffect } from 'react';
 import { useAppStore, useSystemStore, useAuthStore } from '../stores';
 import type { Announcement } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Pin, PinOff, Trash2, Plus, Search } from 'lucide-react';
+import { Pin, PinOff, Trash2, Plus, Search, Cloud, CloudOff, RefreshCw, Globe } from 'lucide-react';
 import { canManagePublicPosts } from '../lib/rbac';
+import { announcementSync } from '../services/announcement-sync';
 
 export function AnnouncementsPage() {
-    const { announcements, addAnnouncement, deleteAnnouncement } = useAppStore();
+    const { 
+        announcements, 
+        addAnnouncement, 
+        deleteAnnouncement,
+        cloudSyncEnabled,
+        setCloudSyncEnabled,
+        schoolProfile,
+        showNotification 
+    } = useAppStore();
     const { loginAnnouncement, updateLoginAnnouncement, fetchSystemSettings } = useSystemStore();
     const { user } = useAuthStore();
     const canManageAnnouncements = canManagePublicPosts(user);
@@ -27,6 +36,71 @@ export function AnnouncementsPage() {
     useEffect(() => {
         setLoginAnnouncementText(loginAnnouncement);
     }, [loginAnnouncement]);
+
+    // Cloud Sync Logic
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    useEffect(() => {
+        if (cloudSyncEnabled && schoolProfile.school_id) {
+            const unsubscribe = announcementSync.subscribeToSchool(schoolProfile.school_id, (cloudAnns) => {
+                cloudAnns.forEach(async (ann) => {
+                    const exists = announcements.find(a => a.id === ann.id);
+                    if (!exists) {
+                        const localAnn: Announcement = {
+                            id: ann.id,
+                            announcement_title: ann.announcement_title,
+                            announcement_content: ann.announcement_content,
+                            announcement_date: ann.announcement_date,
+                            announcement_type: ann.announcement_type,
+                            is_pinned: ann.is_pinned || false,
+                            category: ann.category,
+                            author_id: ann.author_id,
+                            is_cloud: true,
+                        };
+                        await addAnnouncement(localAnn);
+                    }
+                });
+            });
+            return () => unsubscribe();
+        }
+    }, [cloudSyncEnabled, schoolProfile.school_id, announcements, addAnnouncement]);
+
+    const handleManualSync = async () => {
+        if (!schoolProfile.school_id) {
+            showNotification('Please set your School ID in Institute Profile first', 'error');
+            return;
+        }
+        setIsSyncing(true);
+        try {
+            const cloudAnns = await announcementSync.syncFromCloud(schoolProfile.school_id);
+            if (cloudAnns && cloudAnns.length > 0) {
+                // Update local store with newly synced announcements
+                cloudAnns.forEach((ann: any) => {
+                    const exists = announcements.find(a => a.id === ann.id);
+                    if (!exists) {
+                        const localAnn: Announcement = {
+                            id: ann.id,
+                            announcement_title: ann.announcement_title,
+                            announcement_content: ann.announcement_content,
+                            announcement_date: ann.announcement_date,
+                            announcement_type: ann.announcement_type,
+                            is_pinned: ann.is_pinned || false,
+                            category: ann.category,
+                            author_id: ann.author_id,
+                            is_cloud: true,
+                        };
+                        addAnnouncement(localAnn);
+                    }
+                });
+            }
+            showNotification('Cloud announcements synced', 'success');
+        } catch (err) {
+            console.error('Sync error:', err);
+            showNotification(`Sync failed: ${(err as Error).message}`, 'error');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const handleUpdateLoginAnnouncement = async () => {
         setIsSavingSystem(true);
@@ -62,6 +136,7 @@ export function AnnouncementsPage() {
             }),
             is_pinned: formData.is_pinned,
             category: formData.category || undefined,
+            author_id: user?.uid, // Track current user as author
         };
         addAnnouncement(newAnnouncement);
         setFormData({ announcement_title: '', announcement_content: '', announcement_type: 'general', category: '', is_pinned: false });
@@ -176,6 +251,49 @@ export function AnnouncementsPage() {
                 </div>
             </div>
 
+            {/* Cloud Sync Hub */}
+            <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${cloudSyncEnabled ? 'border-blue-200' : 'border-gray-100'}`}>
+                <div className={`px-6 py-3 flex justify-between items-center ${cloudSyncEnabled ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    <div className="flex items-center gap-2">
+                        {cloudSyncEnabled ? <Globe className="w-4 h-4 animate-pulse" /> : <CloudOff className="w-4 h-4" />}
+                        <h3 className="text-xs font-bold uppercase tracking-wider">
+                            School-Wide Cloud Hub
+                        </h3>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={cloudSyncEnabled}
+                            onChange={(e) => setCloudSyncEnabled(e.target.checked)}
+                            className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-white/20"></div>
+                    </label>
+                </div>
+                <div className="p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-800">
+                            {cloudSyncEnabled ? 'Interconnected Mode Active' : 'Offline Mode Only'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {cloudSyncEnabled 
+                                ? `Connected to School ID: ${schoolProfile.school_id || 'Not Set'}. Everyone in your school sees your posts.`
+                                : 'Announcements are only saved on this computer.'}
+                        </p>
+                    </div>
+                    {cloudSyncEnabled && (
+                        <button
+                            onClick={handleManualSync}
+                            disabled={isSyncing}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                            Sync Now
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {/* Search & Filters */}
             <div className="flex flex-wrap gap-3 items-center">
                 <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -209,7 +327,6 @@ export function AnnouncementsPage() {
                 <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white">
                     <h3 className="font-bold">Announcements ({filteredAnnouncements.length})</h3>
                 </div>
-
                 {filteredAnnouncements.length === 0 ? (
                     <div className="text-center py-12">
                         <div className="text-5xl mb-4">📢</div>
@@ -242,6 +359,11 @@ export function AnnouncementsPage() {
                                                 <span className={`px-2 py-0.5 ${typeBadges[announcement.announcement_type]} text-white text-[9px] rounded-full uppercase font-black`}>
                                                     {announcement.announcement_type}
                                                 </span>
+                                                {announcement.is_cloud && (
+                                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[9px] rounded-full font-black uppercase flex items-center gap-1">
+                                                        <Cloud className="w-2.5 h-2.5" /> Cloud
+                                                    </span>
+                                                )}
                                                 {announcement.category && (
                                                     <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[9px] rounded-full font-bold">
                                                         {announcement.category}
@@ -262,12 +384,15 @@ export function AnnouncementsPage() {
                                                     >
                                                         {announcement.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
                                                     </button>
-                                                    <button
-                                                        onClick={() => deleteAnnouncement(announcement.id)}
-                                                        className="p-2 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    {(!announcement.is_cloud || announcement.author_id === user?.uid) && (
+                                                        <button
+                                                            onClick={() => deleteAnnouncement(announcement.id)}
+                                                            className="p-2 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                         </div>

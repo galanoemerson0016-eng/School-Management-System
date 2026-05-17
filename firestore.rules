@@ -63,11 +63,23 @@ service cloud.firestore {
       allow create, delete: if hasRole('admin');
     }
 
+    // School-Wide Interconnected Announcements
+    match /shared_announcements/{announcementId} {
+      // Anyone signed in can see and create announcements
+      allow read: if true;
+      allow create: if signedIn();
+      
+      // ONLY the author of the post can delete it from the cloud
+      allow delete: if signedIn() && (resource.data.author_id == request.auth.uid || hasRole('admin'));
+      
+      // Updates follow the same author-only logic
+      allow update: if signedIn() && (resource.data.author_id == request.auth.uid || hasRole('admin'));
+    }
+
     match /{document=**} {
-      // Emergency Fallback: If you are the first user and haven't set up the 'users' collection yet,
-      // this allows you to manage the portal. 
-      // RECOMMENDATION: Remove the '|| signedIn()' part once you've added your UID to the 'users' collection with role 'admin'
-      allow read, write: if hasRole('admin') || signedIn();
+      // Emergency Fallback removed for security.
+      // Ensure your UID is added to the 'users' collection with role 'admin'
+      allow read, write: if hasRole('admin');
     }
   }
 }
