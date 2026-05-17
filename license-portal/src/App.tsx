@@ -8,6 +8,7 @@ import { Shield, Mail, Lock, Activity, AlertCircle } from 'lucide-react';
 // Pages
 import Storefront from './pages/Storefront';
 import AdminPortal from './pages/AdminPortal';
+import UpdatesPage from './pages/UpdatesPage';
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -39,6 +40,7 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/" element={<Storefront />} />
         <Route path="/buy" element={<Storefront />} />
+        <Route path="/updates" element={<UpdatesPage />} />
         
         {/* Admin Routes */}
         <Route 

@@ -28,7 +28,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://formease-app-a3e68.web.app/updates"
+        "url": "https://formease-licensing.web.app/updates"
       }
     ],
     "win": {
