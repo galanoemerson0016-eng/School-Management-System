@@ -2,6 +2,12 @@
 update-server/updates/*.exe
 update-server/updates/*.dmg
 update-server/updates/*.zip
+license-portal/public/updates/*.exe
+license-portal/public/updates/*.dmg
+license-portal/public/updates/*.zip
+license-portal/dist/updates/*.exe
+license-portal/dist/updates/*.dmg
+license-portal/dist/updates/*.zip
 
 # Temp and local installers
 _mac_artifacts/

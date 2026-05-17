@@ -16,6 +16,7 @@ import {
 const COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
 const REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
 const TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
+const DOWNLOADS_DOC_PATH = 'artifacts/g7-special/public/data/downloads_info';
 
 // Robust date parser for Firestore data
 const parseFirestoreDate = (date: any) => {
@@ -267,5 +268,34 @@ export const licenseService = {
 
   async deleteTrial(trialId: string) {
     await deleteDoc(doc(db, TRIALS_PATH, trialId));
+  },
+
+  async getDownloadsInfo() {
+    try {
+      const docRef = doc(db, DOWNLOADS_DOC_PATH, 'latest');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      }
+      return {
+        win_url: '',
+        mac_url: '',
+        version: '1.0.49',
+        notes: ''
+      };
+    } catch (e) {
+      console.error("Failed to get downloads info:", e);
+      return {
+        win_url: '',
+        mac_url: '',
+        version: '1.0.49',
+        notes: ''
+      };
+    }
+  },
+
+  async updateDownloadsInfo(info: { win_url: string; mac_url: string; version: string; notes: string }) {
+    const docRef = doc(db, DOWNLOADS_DOC_PATH, 'latest');
+    await setDoc(docRef, info, { merge: true });
   }
 };

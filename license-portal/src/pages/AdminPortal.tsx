@@ -83,6 +83,13 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [selectedPlatform, setSelectedPlatform] = useState<'windows' | 'mac'>('windows');
   const [statusFilter, setStatusFilter] = useState<'all' | 'activated' | 'pending' | 'expired'>('all');
 
+  // Download config states
+  const [downloadWinUrl, setDownloadWinUrl] = useState('');
+  const [downloadMacUrl, setDownloadMacUrl] = useState('');
+  const [downloadVersion, setDownloadVersion] = useState('1.0.49');
+  const [downloadNotes, setDownloadNotes] = useState('');
+  const [isUpdatingDownloads, setIsUpdatingDownloads] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -93,10 +100,18 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       const licenseData = await licenseService.getAllLicenses();
       const requestData = await licenseService.getAllRequests();
       const trialData = await licenseService.getAllTrials();
+      const downloadData = await licenseService.getDownloadsInfo();
       
       setLicenses(Array.isArray(licenseData) ? (licenseData as License[]) : []);
       setRequests(Array.isArray(requestData) ? requestData : []);
       setTrials(Array.isArray(trialData) ? trialData : []);
+
+      if (downloadData) {
+        setDownloadWinUrl(downloadData.win_url || '');
+        setDownloadMacUrl(downloadData.mac_url || '');
+        setDownloadVersion(downloadData.version || '1.0.49');
+        setDownloadNotes(downloadData.notes || '');
+      }
     } catch (error) {
       console.error("Load failed:", error);
     } finally {
@@ -115,6 +130,24 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleUpdateDownloads = async () => {
+    setIsUpdatingDownloads(true);
+    try {
+      await licenseService.updateDownloadsInfo({
+        win_url: downloadWinUrl,
+        mac_url: downloadMacUrl,
+        version: downloadVersion,
+        notes: downloadNotes
+      });
+      alert('Download URLs and version updated successfully!');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update downloads info');
+    } finally {
+      setIsUpdatingDownloads(false);
     }
   };
 
@@ -393,10 +426,74 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                    <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center text-center space-y-6">
                       <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20"><Wrench className="w-8 h-8 text-blue-500" /></div>
                       <h3 className="text-xl font-black text-white">Repair Expirations</h3>
-                      <button onClick={handleRepairExpirations} className="w-full py-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 border border-blue-600/20 rounded-2xl font-black text-xs uppercase tracking-widest">Fix Expiry Dates</button>
+                      <button onClick={handleRepairExpirations} className="w-full py-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 border border-red-600/20 rounded-2xl font-black text-xs uppercase tracking-widest">Fix Expiry Dates</button>
                    </div>
                 </div>
-             </motion.div>
+
+                <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 space-y-6">
+                    <div className="flex items-center gap-3">
+                       <div className="p-2 bg-blue-600/10 rounded-xl text-blue-500"><DownloadCloud className="w-6 h-6" /></div>
+                       <div className="text-left">
+                          <h3 className="text-xl font-black text-white">Live Updates & Installer Links</h3>
+                          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Configure links shown on the /updates downloads page</p>
+                       </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Latest App Version</label>
+                          <input 
+                             type="text" 
+                             value={downloadVersion} 
+                             onChange={(e) => setDownloadVersion(e.target.value)} 
+                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                             placeholder="e.g. 1.0.49"
+                          />
+                       </div>
+                       
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Windows Installer URL (Google Drive / Dropbox)</label>
+                          <input 
+                             type="text" 
+                             value={downloadWinUrl} 
+                             onChange={(e) => setDownloadWinUrl(e.target.value)} 
+                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                             placeholder="https://drive.google.com/..."
+                          />
+                       </div>
+                       
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">macOS DMG URL (Google Drive / Dropbox)</label>
+                          <input 
+                             type="text" 
+                             value={downloadMacUrl} 
+                             onChange={(e) => setDownloadMacUrl(e.target.value)} 
+                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all"
+                             placeholder="https://drive.google.com/..."
+                          />
+                       </div>
+
+                       <div className="space-y-2 md:col-span-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Publisher Announcement / Custom Update Notes</label>
+                          <textarea 
+                             rows={3}
+                             value={downloadNotes} 
+                             onChange={(e) => setDownloadNotes(e.target.value)} 
+                             className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all resize-none"
+                             placeholder="Optional custom announcements or release logs..."
+                          />
+                       </div>
+                    </div>
+                    
+                    <button 
+                       onClick={handleUpdateDownloads} 
+                       disabled={isUpdatingDownloads}
+                       className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                    >
+                       {isUpdatingDownloads ? 'Saving...' : 'Save Update & Installer Settings'}
+                    </button>
+                 </div>
+              </motion.div>
           ) : activeTab === 'requests' ? (
              <motion.div key="requests" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div className="flex items-center justify-between mb-8">

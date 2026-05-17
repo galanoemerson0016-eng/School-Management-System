@@ -1,13 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   DownloadCloud, Monitor, Apple, CheckCircle2, ChevronRight, ArrowLeft, 
   Cpu, Zap, Sparkles, ShieldCheck 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { licenseService } from '../lib/license-service';
 
 export default function UpdatesPage() {
-  const currentVersion = "1.0.49";
+  const [downloadInfo, setDownloadInfo] = useState({
+    win_url: 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
+    mac_url: 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
+    version: '1.0.49',
+    notes: ''
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchInfo() {
+      try {
+        const data = await licenseService.getDownloadsInfo();
+        setDownloadInfo({
+          win_url: data.win_url || 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
+          mac_url: data.mac_url || 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
+          version: data.version || '1.0.49',
+          notes: data.notes || ''
+        });
+      } catch (e) {
+        console.error("Failed to load downloads data:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchInfo();
+  }, []);
 
   const changelogs = [
     {
@@ -68,7 +94,7 @@ export default function UpdatesPage() {
             <span>Latest Stable Release</span>
           </motion.div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            FormEase Pro <span className="text-blue-500">v{currentVersion}</span>
+            FormEase Pro <span className="text-blue-500">v{downloadInfo.version}</span>
           </h1>
           <p className="text-slate-400 text-sm max-w-xl mx-auto font-medium leading-relaxed">
             Download the official high-speed installation bundles or review the latest changelog details below.
@@ -99,7 +125,9 @@ export default function UpdatesPage() {
             </div>
             
             <a 
-              href={`https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v${currentVersion}/FormEase.Pro.Setup.${currentVersion}.exe`}
+              href={downloadInfo.win_url}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/15"
             >
               <DownloadCloud className="w-4 h-4" />
@@ -128,7 +156,9 @@ export default function UpdatesPage() {
             </div>
             
             <a 
-              href={`https://github.com/galanoemerson0016-eng/School-Management-System/releases/download/v${currentVersion}/FormEase.Pro-${currentVersion}.dmg`}
+              href={downloadInfo.mac_url}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/15"
             >
               <DownloadCloud className="w-4 h-4" />
@@ -137,6 +167,21 @@ export default function UpdatesPage() {
           </motion.div>
 
         </div>
+
+        {/* Custom Admin Notes if present */}
+        {downloadInfo.notes && (
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] p-8 space-y-3"
+          >
+            <h4 className="text-sm font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              <span>Publisher Announcement</span>
+            </h4>
+            <p className="text-xs text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">{downloadInfo.notes}</p>
+          </motion.div>
+        )}
 
         {/* Release Notes */}
         <motion.div 
