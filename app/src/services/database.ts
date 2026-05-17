@@ -374,28 +374,31 @@ export const db = {
   saveBackupMetadata,
   deleteBackup,
   nukeDatabase: async (): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      // Clear localStorage first
-      localStorage.clear();
-      
-      // Delete the actual IndexedDB database
-      const request = indexedDB.deleteDatabase(DB_NAME);
-      
-      request.onerror = () => {
-        console.error('Error deleting database:', request.error);
-        reject(request.error);
-      };
-      
-      request.onsuccess = () => {
-        console.log('Database deleted successfully');
-        resolve();
-      };
-      
-      request.onblocked = () => {
-        console.warn('Database deletion blocked. Please close all tabs and try again.');
-        // Still try to resolve to allow UI to continue
-        resolve();
-      };
-    });
+    // Clear localStorage first
+    localStorage.clear();
+    
+    const stores = [
+      'schoolProfile',
+      'students',
+      'sections',
+      'subjects',
+      'classRecords',
+      'enrollments',
+      'announcements',
+      'attendanceRecords',
+      'sf2Sheets',
+      'hpsRecords',
+      'gradingSheetRecords',
+      'observedValues',
+      'backups'
+    ];
+
+    for (const store of stores) {
+      try {
+        await clearStore(store);
+      } catch (e) {
+        console.warn(`Failed to clear store ${store}:`, e);
+      }
+    }
   }
 };
