@@ -32,16 +32,6 @@ jobs:
         working-directory: app
         run: npm run electron:build:mac
 
-      - name: Upload macOS build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: formease-macos-artifacts
-          path: |
-            app/release/*.dmg
-            app/release/*.zip
-            app/release/*.blockmap
-            app/release/latest-mac.yml
-          if-no-files-found: error
 
       - name: Extract version from tag
         if: startsWith(github.ref, 'refs/tags/v')
