@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('update-message');
     ipcRenderer.on('update-message', (_event, message) => callback(message));
   },
-  saveAutoBackup: (data, filename) => ipcRenderer.invoke('save-auto-backup', { data, filename })
+  saveAutoBackup: (data, filename) => ipcRenderer.invoke('save-auto-backup', { data, filename }),
+  closeApp: () => ipcRenderer.send('close-app')
 });
 
 // Setup dynamic keyboard and mouse scroll zoom controls

@@ -11,7 +11,6 @@ import {
     Info,
     LogOut,
     BarChart3,
-    UserCog,
     Calendar,
     Menu,
     X,
@@ -19,7 +18,7 @@ import {
     ClipboardList,
     Layers
 } from 'lucide-react';
-import { canAccessView, hasRole, type AppView } from '../../lib/rbac';
+import { canAccessView, type AppView } from '../../lib/rbac';
 
 export function Sidebar() {
     const { currentView, setCurrentView, schoolProfile } = useAppStore();
@@ -31,7 +30,7 @@ export function Sidebar() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebar-width');
-        return saved ? parseInt(saved) : 288;
+        return saved ? parseInt(saved) : 224;
     });
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
@@ -59,7 +58,7 @@ export function Sidebar() {
         if (isResizing) {
             // Account for the p-3 padding on the parent container (12px)
             const newWidth = e.clientX - 12; 
-            if (newWidth >= 240 && newWidth <= 600) {
+            if (newWidth >= 200 && newWidth <= 460) {
                 setSidebarWidth(newWidth);
                 if (isCollapsed) setIsCollapsed(false);
             } else if (newWidth < 120) {
@@ -100,22 +99,25 @@ export function Sidebar() {
 
     const sidebarContent = (
         <>
-            <div className={`p-4 pb-3 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] flex-shrink-0 border border-white/20 relative overflow-hidden">
+            <div className={`p-3 pb-2 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
+                <div className="w-9 h-9 bg-linear-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] shrink-0 border border-white/20 relative overflow-hidden">
                     <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
                     <img src={`${import.meta.env.BASE_URL}app-logo.png`} alt="App Logo" className="w-6 h-6 object-contain relative z-10" />
                 </div>
                 {!isCollapsed && (
                     <div className="min-w-0">
-                        <h1 className="font-bold text-[14px] lg:text-[15px] leading-tight tracking-tight text-slate-800 dark:text-white drop-shadow-sm break-words">
+                        <h1 
+                            className="font-bold text-[11px] lg:text-[12px] leading-tight tracking-tighter text-slate-800 dark:text-white drop-shadow-sm truncate"
+                            title={schoolProfile.name}
+                        >
                             {schoolProfile.name}
                         </h1>
-                        <p className="text-[9px] uppercase font-bold tracking-[0.15em] text-emerald-600 dark:text-emerald-400 mt-1">Portal</p>
+                        <p className="text-[8px] uppercase font-bold tracking-[0.15em] text-emerald-600 dark:text-emerald-400 mt-0.5">Portal</p>
                     </div>
                 )}
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar">
+            <nav className="flex-1 overflow-hidden px-2.5 py-1.5 space-y-1">
                 {visibleMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentView === item.id;
@@ -125,7 +127,7 @@ export function Sidebar() {
                             key={item.id}
                             onClick={() => handleNavClick(item.id)}
                             title={isCollapsed ? item.label : undefined}
-                            className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
+                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
                                 ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                                 : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                                 }`}
@@ -133,8 +135,8 @@ export function Sidebar() {
                             {isActive && (
                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                             )}
-                            <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                            {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide truncate transition-colors ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>{item.label}</span>}
+                            <Icon className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                            {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide truncate transition-colors ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>{item.label}</span>}
                         </button>
                     );
                 })}
@@ -145,7 +147,7 @@ export function Sidebar() {
                     <button
                         onClick={() => handleNavClick('settings')}
                         title={isCollapsed ? 'Settings' : undefined}
-                        className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
+                        className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
                             ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                             : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                             }`}
@@ -153,15 +155,15 @@ export function Sidebar() {
                         {currentView === 'settings' && (
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                         )}
-                        <Settings className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'settings' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                        {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
+                        <Settings className={`w-4.5 h-4.5 shrink-0 transition-colors ${currentView === 'settings' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                        {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
                     </button>
                 )}
                 {/* About */}
                 <button
                     onClick={() => handleNavClick('about')}
                     title={isCollapsed ? 'About' : undefined}
-                    className={`w-full flex items-center gap-3 ${isCollapsed ? 'justify-center px-0' : 'px-3.5'} py-2.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
+                    className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
                         ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                         : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                         }`}
@@ -169,28 +171,28 @@ export function Sidebar() {
                     {currentView === 'about' && (
                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
                     )}
-                    <Info className={`w-5 h-5 flex-shrink-0 transition-colors ${currentView === 'about' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                    {!isCollapsed && <span className={`text-[13px] font-semibold tracking-wide transition-colors ${currentView === 'about' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>About & Innovator</span>}
+                    <Info className={`w-4.5 h-4.5 shrink-0 transition-colors ${currentView === 'about' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                    {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide transition-colors ${currentView === 'about' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>About & Innovator</span>}
                 </button>
             </nav>
 
-            <div className={`p-3 space-y-2`}>
+            <div className={`p-2.5 space-y-1.5`}>
                 <div className={`border-t border-slate-200 dark:border-white/10 mb-4 ${isCollapsed ? 'mx-0' : 'mx-2'}`} />
                 {/* Collapse toggle (desktop) */}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className={`hidden lg:flex w-full items-center justify-center gap-3 h-10 rounded-xl text-slate-400 hover:bg-slate-500/10 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-300 transition-all font-medium border border-transparent hover:border-slate-300/30 dark:hover:border-white/10`}
+                    className={`hidden lg:flex w-full items-center justify-center gap-2.5 h-9 rounded-xl text-slate-400 hover:bg-slate-500/10 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-300 transition-all font-medium border border-transparent hover:border-slate-300/30 dark:hover:border-white/10`}
                 >
                     <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
-                    {!isCollapsed && 'Collapse UI'}
+                    {!isCollapsed && <span className="text-[12px] font-semibold tracking-wide">Collapse UI</span>}
                 </button>
 
                 <button
                     onClick={() => logout()}
-                    className={`w-full flex items-center justify-center gap-3 h-10 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all font-medium border border-transparent hover:border-red-500/20`}
+                    className={`w-full flex items-center justify-center gap-2.5 h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all font-medium border border-transparent hover:border-red-500/20`}
                 >
-                    <LogOut className="w-4 h-4 flex-shrink-0" />
-                    {!isCollapsed && 'Sign Out'}
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    {!isCollapsed && <span className="text-[12px] font-semibold tracking-wide">Sign Out</span>}
                 </button>
 
                 <div className="pt-2 text-center">
@@ -236,7 +238,7 @@ export function Sidebar() {
             <div 
                 ref={sidebarRef}
                 style={{ width: isCollapsed ? '88px' : `${sidebarWidth}px` }}
-                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/[0.02] backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
+                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
             >
                 {sidebarContent}
                 

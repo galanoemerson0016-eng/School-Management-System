@@ -12,7 +12,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Trash2, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, X, ArrowLeft, RotateCcw, FileSpreadsheet, Layers, BookOpen, GraduationCap, School, Sparkles } from 'lucide-react';
+import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, X, RotateCcw, FileSpreadsheet, BookOpen, GraduationCap, School, Sparkles } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
@@ -44,22 +44,10 @@ export function StudentsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [formDataForModal, setFormDataForModal] = useState<Partial<Student> | undefined>(undefined);
-    const [collapsedGrades, setCollapsedGrades] = useState<Record<string, boolean>>({});
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const toggleGrade = (grade: string) => {
-        setCollapsedGrades(prev => ({ ...prev, [grade]: !prev[grade] }));
-    };
-
-    const toggleAllGrades = (collapse: boolean) => {
-        const newState: Record<string, boolean> = {};
-        Object.keys(sectionsByGrade).forEach(g => {
-            newState[g] = collapse;
-        });
-        setCollapsedGrades(newState);
-    };
 
     const [pendingAction, setPendingAction] = useState<
         | { kind: 'clear-section'; sectionName: string; count: number }
@@ -71,12 +59,12 @@ export function StudentsPage() {
     const getSelectedSectionObj = () => officialSections.find(s => s.id === selectedSectionId);
     const selectedSectionObj = getSelectedSectionObj();
 
-    const isPlaceholderSectionName = (value?: string) => {
+    const isPlaceholderSectionName = useCallback((value?: string) => {
         const text = (value || '').trim();
         return /^G\d+\s*-\s*[A-Za-z0-9]+$/i.test(text);
-    };
+    }, []);
 
-    const resolveSectionDisplayName = (section?: Section | null) => {
+    const resolveSectionDisplayName = useCallback((section?: Section | null) => {
         const fromSection = (section?.section_name || '').trim();
         if (fromSection && !isPlaceholderSectionName(fromSection)) return fromSection;
 
@@ -84,29 +72,27 @@ export function StudentsPage() {
         if (fromProfile) return fromProfile;
 
         return fromSection || 'Section';
-    };
+    }, [schoolProfile, isPlaceholderSectionName]);
 
-    const resolveSectionGradeDisplay = (section?: Section | null) => {
+    const resolveSectionGradeDisplay = useCallback((section?: Section | null) => {
         const fromSection = (section?.section_grade_level || '').trim();
         const fromProfile = (schoolProfile?.grade_level || '').trim();
         return fromSection || fromProfile || 'Grade';
-    };
+    }, [schoolProfile]);
 
 
-    const getSectionAliases = (section?: Section | null) => {
+    const getSectionAliases = useCallback((section?: Section | null) => {
         if (!section) return [] as string[];
         const aliases = [section.section_name, resolveSectionDisplayName(section), section.id]
             .map((value) => (value || '').trim())
-            .filter(Boolean);
         return Array.from(new Set(aliases));
-    };
+    }, [resolveSectionDisplayName]);
 
-    const resolveAdviserName = (section?: Section | null) => {
+    const resolveAdviserName = useCallback((section?: Section | null) => {
         if (!section) return 'TBA';
         const fromSection = section.adviser_name || teachers.find((teacher) => teacher.uid === section.adviser_id)?.displayName;
         if (fromSection && fromSection.trim() && fromSection.trim().toLowerCase() !== 'tba') return fromSection;
 
-        // Only fallback to school profile for ADVISORY sections
         const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
         if (isAdvisory) {
             const fromProfile = (schoolProfile?.adviser_name || '').trim();
@@ -114,7 +100,7 @@ export function StudentsPage() {
         }
 
         return 'TBA';
-    };
+    }, [teachers, schoolProfile]);
     const selectedSectionAdviser = resolveAdviserName(selectedSectionObj);
     const selectedSectionDisplayName = resolveSectionDisplayName(selectedSectionObj);
     const selectedSectionGradeDisplay = resolveSectionGradeDisplay(selectedSectionObj);
@@ -226,64 +212,9 @@ export function StudentsPage() {
         exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
     };
 
-    const getGradeColor = (gradeLevel: string) => {
-        const gl = (gradeLevel || '').toLowerCase();
-        const num = parseInt(gl.replace(/\D/g, '')) || 0;
-        
-        if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-            return {
-                primary: 'text-blue-800',
-                bg: 'bg-deped-blue',
-                light: 'bg-blue-100',
-                border: 'border-blue-200 group-hover:border-blue-400',
-                gradient: 'from-deped-blue via-blue-600 to-cyan-500',
-                shadow: 'shadow-blue-500/30',
-                glow: 'shadow-blue-200 group-hover:shadow-blue-500/40',
-                accent: 'blue',
-                icon: <BookOpen className="w-5 h-5" />,
-                cardBg: 'bg-gradient-to-br from-blue-100 via-indigo-50 to-blue-100',
-                blob: 'bg-cyan-300'
-            };
-        } else if (num >= 11 && num <= 12) {
-            return {
-                primary: 'text-purple-800',
-                bg: 'bg-purple-500',
-                light: 'bg-purple-100',
-                border: 'border-purple-200 group-hover:border-purple-400',
-                gradient: 'from-purple-600 via-indigo-600 to-fuchsia-500',
-                shadow: 'shadow-purple-500/30',
-                glow: 'shadow-purple-200 group-hover:shadow-purple-500/40',
-                accent: 'purple',
-                icon: <GraduationCap className="w-5 h-5" />,
-                cardBg: 'bg-gradient-to-br from-purple-100 via-indigo-50 to-purple-100',
-                blob: 'bg-fuchsia-300'
-            };
-        }
-        // Default to DepEd Blue (JHS or others)
-        return {
-            primary: 'text-blue-800',
-            bg: 'bg-deped-blue',
-            light: 'bg-blue-100',
-            border: 'border-blue-200 group-hover:border-blue-400',
-            gradient: 'from-deped-blue via-blue-600 to-cyan-500',
-            shadow: 'shadow-blue-500/30',
-            glow: 'shadow-blue-200 group-hover:shadow-blue-500/40',
-            accent: 'blue',
-            icon: <School className="w-5 h-5" />,
-            cardBg: 'bg-gradient-to-br from-blue-100 via-indigo-50 to-blue-100',
-            blob: 'bg-cyan-300'
-        };
-    };
 
-    const sectionsByGrade = useMemo(() => {
-        const grouped: Record<string, typeof sections> = {};
-        officialSections.forEach((section) => {
-            const grade = section.section_grade_level || 'No Grade';
-            if (!grouped[grade]) grouped[grade] = [];
-            grouped[grade].push(section);
-        });
-        return grouped;
-    }, [officialSections]);
+
+
 
     const sectionStudents = useMemo(() => {
         if (viewMode === 'overview') return [];
@@ -298,7 +229,7 @@ export function StudentsPage() {
 
     const filteredSectionsList = useMemo(() => {
         const query = overviewSearch.trim().toLowerCase();
-        let list: typeof sections = [];
+        const list: typeof sections = [];
 
         // Show all sections by default, or filter if category/search is active
         officialSections.forEach(section => {
@@ -346,7 +277,7 @@ export function StudentsPage() {
             
             return a.section_name.localeCompare(b.section_name);
         });
-    }, [overviewSearch, officialSections, activeCategory]);
+    }, [overviewSearch, officialSections, activeCategory, resolveAdviserName, resolveSectionDisplayName, resolveSectionGradeDisplay]);
 
     const uniqueAddresses = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -443,7 +374,7 @@ export function StudentsPage() {
                 ...(isCurrentSectionAdvisory ? [{
                     accessorKey: 'birthday',
                     header: 'Birthday',
-                    cell: (info: any) => {
+                    cell: (info: { getValue: () => unknown }) => {
                         const dateStr = info.getValue() as string;
                         if (!dateStr) return <span className="text-gray-300 italic text-xs">N/A</span>;
                         const parts = dateStr.split('-');
@@ -498,12 +429,7 @@ export function StudentsPage() {
         setEditingStudent(null);
     };
 
-    const handleClearSection = async () => {
-        if (!selectedSectionObj) return;
-        const count = sectionStudents.length;
-        if (count === 0) return;
-        setPendingAction({ kind: 'clear-section', sectionName: selectedSectionObj.section_name, count });
-    };
+
 
 
     const handleConfirmPendingAction = async () => {
@@ -688,116 +614,86 @@ export function StudentsPage() {
                         exit="exit"
                         className="space-y-8"
                     >
-                        <div className="flex flex-col gap-4">
-                            <div className="relative max-w-lg w-full">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+                            {/* Sleek Stats */}
+                            <div className="flex items-center gap-6 px-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                                        <Users className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
+                                        <p className="text-sm font-black text-slate-800 leading-none">{totalStudents}</p>
+                                    </div>
+                                </div>
+                                <div className="w-px h-8 bg-slate-100" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600">
+                                        <Users className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Male</p>
+                                        <p className="text-sm font-black text-slate-800 leading-none">{totalMale}</p>
+                                    </div>
+                                </div>
+                                <div className="w-px h-8 bg-slate-100" />
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-pink-50 flex items-center justify-center text-pink-500">
+                                        <Users className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Female</p>
+                                        <p className="text-sm font-black text-slate-800 leading-none">{totalFemale}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Search */}
+                            <div className="relative w-full md:w-72">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
                                     type="text"
                                     value={overviewSearch}
                                     onChange={(e) => setOverviewSearch(e.target.value)}
-                                    placeholder="Search section, adviser, or grade"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all shadow-sm"
+                                    placeholder="Search section, adviser..."
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-transparent rounded-xl text-sm font-medium focus:outline-none focus:bg-white focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
                                 />
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-                                {[
-                                    { label: 'Total Learners', value: totalStudents, icon: Users, color: 'blue' },
-                                    { label: 'Male', value: totalMale, icon: Users, color: 'sky' },
-                                    { label: 'Female', value: totalFemale, icon: Users, color: 'pink' },
-                                ].map((stat, idx) => (
-                                    <motion.div
-                                        key={stat.label}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.1 }}
-                                        className={`bg-white/70 backdrop-blur-md p-4 rounded-xl shadow-sm border border-white/20 flex items-center gap-3`}
-                                    >
-                                        <div className={`p-2.5 rounded-lg ${stat.color === 'blue' ? 'bg-blue-100 text-blue-600' : stat.color === 'sky' ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-500'}`}>
-                                            <stat.icon className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                            <p className="text-xl font-black text-gray-800">{stat.value}</p>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                            
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
                                 {overviewSearch.trim() && (
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mr-1">
-                                        {filteredSectionsList.length} section(s) matched
-                                    </p>
+                                    <button onClick={() => setOverviewSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 )}
-                                {overviewSearch.trim() && (
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => setOverviewSearch('')}
-                                        className="px-3 py-1.5 bg-white border border-gray-100 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-gray-50 transition-all"
-                                    >
-                                        Clear Search
-                                    </motion.button>
-                                )}
-                            </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-700">
-                            {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => {
-                                const learnersCount = groupSections.reduce((acc, section) => acc + getStudentCount(section), 0);
-                                return (
-                                <button 
-                                    key={group} 
-                                    onClick={() => {
-                                        setActiveCategory(activeCategory === group ? null : group);
-                                        if (overviewSearch) setOverviewSearch('');
-                                    }}
-                                    className={`group relative overflow-hidden bg-white rounded-2xl p-6 border transition-all duration-500 ${
+                        {/* Pill Tabs for Categories */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={() => { setActiveCategory(null); setOverviewSearch(''); }}
+                                className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                                    !activeCategory 
+                                        ? 'bg-slate-800 text-white shadow-md' 
+                                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                                }`}
+                            >
+                                All Levels
+                            </button>
+                            {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => (
+                                <button
+                                    key={group}
+                                    onClick={() => { setActiveCategory(group); setOverviewSearch(''); }}
+                                    className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
                                         activeCategory === group 
-                                            ? 'border-deped-blue ring-4 ring-blue-500/10 shadow-xl scale-[1.02]' 
-                                            : 'border-slate-200/60 shadow-sm hover:shadow-lg hover:border-slate-300'
+                                            ? 'bg-deped-blue text-white shadow-md' 
+                                            : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                                     }`}
                                 >
-                                    <div className="flex items-center justify-between relative z-10">
-                                        <div className="space-y-1 text-left">
-                                            <p className={`text-[9px] font-black uppercase tracking-[0.2em] transition-colors ${
-                                                activeCategory === group ? 'text-deped-blue' : 'text-slate-400'
-                                            }`}>{group}</p>
-                                            <div className="flex items-baseline gap-2">
-                                                <p className="text-3xl font-black text-slate-800 tracking-tight">{learnersCount}</p>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Learners</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === group ? 'bg-deped-blue animate-pulse' : 'bg-slate-300'}`} />
-                                                {groupSections.length} Sections
-                                            </div>
-                                        </div>
-                                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-lg transition-all group-hover:rotate-12 ${
-                                            activeCategory === group ? 'scale-110 rotate-6' : ''
-                                        } ${
-                                            group === 'ELEMENTARY' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-blue-200' :
-                                            group === 'JUNIOR HIGH SCHOOL' ? 'bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-indigo-200' :
-                                            group === 'SENIOR HIGH SCHOOL' ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-purple-200' :
-                                            'bg-gradient-to-br from-slate-400 to-slate-500 text-white shadow-slate-200'
-                                        }`}>
-                                            {group === 'ELEMENTARY' ? <BookOpen className="w-7 h-7" /> : 
-                                             group === 'JUNIOR HIGH SCHOOL' ? <School className="w-7 h-7" /> : 
-                                             <GraduationCap className="w-7 h-7" />}
-                                        </div>
-                                    </div>
-
-                                    {activeCategory === group && (
-                                        <motion.div 
-                                            layoutId="active-indicator"
-                                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-12 h-1 bg-deped-blue rounded-full"
-                                        />
-                                    )}
+                                    {group === 'ELEMENTARY' ? <BookOpen className="w-3 h-3" /> : 
+                                     group === 'JUNIOR HIGH SCHOOL' ? <School className="w-3 h-3" /> : 
+                                     <GraduationCap className="w-3 h-3" />}
+                                    {group.replace(' SCHOOL', '')} ({groupSections.length})
                                 </button>
-                                );
-                            })}
+                            ))}
                         </div>
 
                         {!activeCategory && !overviewSearch.trim() && filteredSectionsList.length === 0 && (
@@ -875,137 +771,103 @@ export function StudentsPage() {
                                     initial="hidden"
                                     animate="visible"
                                     exit="hidden"
-                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                                 >
                                     {filteredSectionsList.map((section) => {
                                         const count = getStudentCount(section);
                                         const maleCount = getMaleCount(section);
                                         const femaleCount = getFemaleCount(section);
-                                        const malePercent = count > 0 ? (maleCount / count) * 100 : 50;
                                         const adviserDisplayName = resolveAdviserName(section);
                                         const sectionDisplayName = resolveSectionDisplayName(section);
-                                        const colors = getGradeColor(section.section_grade_level);
+                                        const malePercent = count > 0 ? Math.round((maleCount / count) * 100) : 0;
+                                        const femalePercent = count > 0 ? 100 - malePercent : 0;
+
+                                        const isEmpty = count === 0;
 
                                         return (
                                             <motion.div
                                                 key={section.id}
                                                 variants={cardVariants}
-                                                whileHover={{ y: -15, scale: 1.03 }}
-                                                whileTap={{ scale: 0.97 }}
+                                                whileHover={!isEmpty ? { y: -4 } : {}}
+                                                whileTap={!isEmpty ? { scale: 0.98 } : {}}
                                                 onClick={() => handleSectionClick(section.id)}
-                                                className={`group relative ${colors.cardBg} rounded-[2rem] shadow-xl transition-all duration-500 overflow-hidden cursor-pointer border-2 ${colors.border} flex flex-col h-full ${colors.glow}`}
+                                                className={`group relative bg-white rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full ${
+                                                    isEmpty 
+                                                        ? 'border-2 border-dashed border-slate-200 opacity-60 hover:opacity-100 hover:border-slate-300' 
+                                                        : 'border border-slate-200 shadow-sm hover:shadow-xl hover:border-deped-blue/30'
+                                                }`}
                                             >
-                                                <div className={`absolute -top-12 -left-12 w-48 h-48 rounded-full ${colors.blob} opacity-20 blur-3xl animate-pulse`} />
-                                                <div className={`absolute top-1/2 -right-12 w-40 h-40 rounded-full ${colors.blob} opacity-15 blur-2xl`} />
-                                                <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-white/20 to-transparent pointer-events-none" />
-                                                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/5 opacity-50 pointer-events-none" />
-                                                <div className={`h-2.5 w-full bg-gradient-to-r ${colors.gradient} relative z-20 shadow-sm`} />
-                                                
-                                                <div className="p-5 flex flex-col flex-1 relative z-10">
-                                                    {/* Top Section */}
-                                                    <div className="flex justify-between items-start gap-4 mb-4">
+                                                {/* Clean Top Header */}
+                                                <div className="p-5 flex-1">
+                                                    <div className="flex justify-between items-start gap-4 mb-3">
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1.5">
-                                                                <div className={`p-1.5 rounded-lg ${colors.light} ${colors.primary} shadow-inner border border-white/40 flex-shrink-0`}>
-                                                                    {colors.icon}
-                                                                </div>
-                                                                <p className="text-xs font-black text-slate-500 uppercase tracking-widest truncate">
-                                                                    {section.section_grade_level || 'No Grade'}
-                                                                </p>
-                                                            </div>
-                                                            <h4 className="text-xl font-black text-slate-900 group-hover:text-deped-blue transition-colors tracking-tighter leading-tight break-words line-clamp-2">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">
+                                                                {section.section_grade_level || 'No Grade'}
+                                                            </p>
+                                                            <h4 className={`text-lg font-black tracking-tight leading-tight truncate ${isEmpty ? 'text-slate-500' : 'text-slate-800'}`}>
                                                                 {sectionDisplayName}
                                                             </h4>
                                                         </div>
-                                                        <div className="relative flex-shrink-0">
-                                                            <div className={`w-18 h-18 rounded-3xl flex flex-col items-center justify-center font-black transition-all duration-700 ${count > 0 ? `${colors.bg} text-white shadow-2xl ${colors.shadow} group-hover:scale-110 group-hover:-rotate-3` : 'bg-slate-200/50 text-slate-400 border border-slate-300/30'}`}>
-                                                                <span className="text-3xl">{count}</span>
-                                                                <span className="text-[9px] uppercase tracking-[0.2em] -mt-1 opacity-80">Learners</span>
-                                                            </div>
+                                                        <div className={`flex flex-col items-end shrink-0 ${isEmpty ? 'text-slate-400' : 'text-deped-blue'}`}>
+                                                            <span className="text-2xl font-black leading-none">{count}</span>
+                                                            <span className="text-[9px] uppercase tracking-widest font-bold mt-1">Learners</span>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex-1 flex flex-col justify-center mb-6">
-                                                        {count > 0 ? (
-                                                            <div className="space-y-6">
-                                                                <div className="flex justify-between items-center bg-white/40 backdrop-blur-sm p-3 rounded-2xl border border-white/60 shadow-sm">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Boys</span>
-                                                                            <span className="text-base font-black text-blue-700">{maleCount}</span>
-                                                                        </div>
-                                                                        <div className="w-px h-6 bg-slate-300/40" />
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Girls</span>
-                                                                            <span className="text-base font-black text-pink-700">{femaleCount}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className={`flex items-center gap-1 px-2 py-1 ${colors.light} rounded-lg border border-white`}>
-                                                                        <Users className={`w-3 h-3 ${colors.primary}`} />
-                                                                        <span className={`text-[9px] font-black ${colors.primary}`}>{Math.round(malePercent)}% / {Math.round(100-malePercent)}%</span>
-                                                                    </div>
-                                                                </div>
-                                                                
-                                                                <div className="h-4 bg-white/30 rounded-full overflow-hidden flex p-1 border border-white/50 shadow-inner">
-                                                                    <motion.div
-                                                                        initial={{ width: 0 }}
-                                                                        animate={{ width: `${malePercent}%` }}
-                                                                        transition={{ duration: 1.5, ease: "circOut" }}
-                                                                        className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-full h-full shadow-[0_0_15px_rgba(37,99,235,0.3)]"
-                                                                    />
-                                                                    <motion.div
-                                                                        initial={{ width: 0 }}
-                                                                        animate={{ width: `${100 - malePercent}%` }}
-                                                                        transition={{ duration: 1.5, ease: "circOut" }}
-                                                                        className="bg-gradient-to-r from-pink-500 to-pink-700 rounded-full h-full shadow-[0_0_15px_rgba(219,39,119,0.3)]"
-                                                                    />
-                                                                </div>
+                                                    {/* Inline Stats */}
+                                                    {!isEmpty ? (
+                                                        <div className="space-y-2 mt-4">
+                                                            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                                                                <span className="text-blue-600">{maleCount} M ({malePercent}%)</span>
+                                                                <span className="text-pink-600">{femaleCount} F ({femalePercent}%)</span>
                                                             </div>
-                                                        ) : (
-                                                            <div className="text-center py-10 px-6 bg-white/30 backdrop-blur-sm rounded-[2.5rem] border-2 border-dashed border-slate-300/50">
-                                                                <div className="w-12 h-12 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                                                                    <Users className="w-6 h-6 text-slate-400" />
-                                                                </div>
-                                                                <p className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Awaiting Enrollment</p>
+                                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                                <div className="h-full bg-blue-500" style={{ width: `${malePercent}%` }} />
+                                                                <div className="h-full bg-pink-500" style={{ width: `${femalePercent}%` }} />
                                                             </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mt-4 py-2 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                                <Users className="w-3 h-3" /> Awaiting Enrollment
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Footer Bar */}
+                                                <div className={`px-5 py-3 border-t ${isEmpty ? 'border-slate-100 bg-transparent' : 'border-slate-50 bg-slate-50/50'} flex items-center justify-between`}>
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isEmpty ? 'bg-slate-200 text-slate-400' : 'bg-deped-blue/10 text-deped-blue'}`}>
+                                                            {section.is_advisory ? <School className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
+                                                        </div>
+                                                        <div className="truncate">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-0.5">{section.is_advisory ? 'Adviser' : 'Teacher'}</p>
+                                                            <p className={`text-xs font-bold truncate ${isEmpty ? 'text-slate-500' : 'text-slate-700'}`}>{adviserDisplayName}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                                                        {(isAdmin || section.adviser_id === user?.uid) && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingStudent(null);
+                                                                    setFormDataForModal({ grade_level: section.section_grade_level, student_section: section.section_name });
+                                                                    setIsModalOpen(true);
+                                                                }}
+                                                                className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 hover:bg-slate-200' : 'text-slate-500 hover:text-deped-blue hover:bg-blue-50'}`}
+                                                                title="Add Learner"
+                                                            >
+                                                                <UserPlus className="w-4 h-4" />
+                                                            </button>
                                                         )}
-                                                    </div>
-
-                                                    <div className="mt-auto pt-3 border-t border-slate-300/20">
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <div className="flex flex-col min-w-0 flex-1">
-                                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                                                                    {section.is_advisory ? 'Adviser' : 'Teacher'}
-                                                                </span>
-                                                                <span className="text-xs font-black text-slate-700 truncate leading-tight">
-                                                                    {adviserDisplayName}
-                                                                </span>
-                                                            </div>
-                                                            
-                                                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                                {(isAdmin || section.adviser_id === user?.uid) && (
-                                                                    <motion.button
-                                                                        whileHover={{ scale: 1.1, rotate: 5 }}
-                                                                        whileTap={{ scale: 0.95 }}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setEditingStudent(null);
-                                                                            setFormDataForModal({
-                                                                                grade_level: section.section_grade_level,
-                                                                                student_section: section.section_name
-                                                                            });
-                                                                            setIsModalOpen(true);
-                                                                        }}
-                                                                        className="p-2.5 bg-white text-slate-700 rounded-xl hover:bg-slate-900 hover:text-white hover:shadow-xl transition-all border border-slate-200 shadow-md"
-                                                                    >
-                                                                        <UserPlus className="w-4 h-4" />
-                                                                    </motion.button>
-                                                                )}
-                                                                <div className={`flex items-center gap-1 px-3 py-2 ${colors.bg} text-white rounded-xl font-black text-[9px] uppercase tracking-[0.1em] shadow-lg ${colors.shadow} transition-all hover:scale-105 active:scale-95`}>
-                                                                    Config <ChevronRight className="w-3 h-3" />
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                        <button 
+                                                            className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 hover:bg-slate-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
+                                                            title="View Class"
+                                                        >
+                                                            <ChevronRight className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -1058,7 +920,7 @@ export function StudentsPage() {
                         exit="exit"
                         className="bg-white/70 backdrop-blur-md rounded-3xl shadow-lg border border-white/20 overflow-hidden"
                     >
-                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-gradient-to-r from-gray-50/80 to-white/80 border-b border-gray-100">
+                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-linear-to-r from-gray-50/80 to-white/80 border-b border-gray-100">
                             {[
                                 { label: 'Total', value: sectionStudents.length, icon: '👥', filter: 'All', color: 'blue' },
                                 { label: 'Male', value: sectionStudents.filter(s => s.gender === 'Male').length, icon: '♂️', filter: 'Male', color: 'sky' },
@@ -1163,7 +1025,7 @@ export function StudentsPage() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gradient-to-r from-deped-blue to-blue-600 text-white">
+                                    <thead className="bg-linear-to-r from-deped-blue to-blue-600 text-white">
                                         {table.getHeaderGroups().map((headerGroup) => (
                                             <tr key={headerGroup.id}>
                                                 {headerGroup.headers.map((header) => (
@@ -1242,7 +1104,7 @@ export function StudentsPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
+                        className="fixed inset-0 z-80 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
                         onClick={() => setDeleteTarget(null)}
                     >
                         <motion.div
@@ -1250,9 +1112,9 @@ export function StudentsPage() {
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.95, y: 16, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] border border-slate-200"
+                            className="w-full max-w-md overflow-hidden rounded-4xl bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] border border-slate-200"
                         >
-                            <div className="bg-gradient-to-r from-rose-600 to-red-600 px-6 py-5 text-white">
+                            <div className="bg-linear-to-r from-rose-600 to-red-600 px-6 py-5 text-white">
                                 <h3 className="text-2xl font-black tracking-tight">Delete {deleteTarget.last_name}, {deleteTarget.first_name}?</h3>
                             </div>
                             <div className="px-6 py-5 space-y-4">

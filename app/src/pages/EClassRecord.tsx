@@ -1,9 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { X, Printer, CloudUpload } from 'lucide-react';
-import type { ClassRecord, HPSRecord, Subject, Section } from '../types';
+import { Printer, CloudUpload, Plus, Minus } from 'lucide-react';
+import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
@@ -36,7 +36,6 @@ export function EClassRecord() {
         updateHPSRecord,
         setSelectedSection: setGlobalSection,
         setSelectedSubject: setGlobalSubject,
-        addSubject,
         showNotification,
         teachers
     } = useAppStore();
@@ -47,6 +46,7 @@ export function EClassRecord() {
     const [selectedMapehComponentId, setSelectedMapehComponentId] = useState('');
     const [quarter, setQuarter] = useState<1 | 2 | 3 | 'summary' | 'summary_t1' | 'summary_t2' | 'summary_t3' | 'summary_final'>(1);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+    const [zoom, setZoom] = useState(0.9);
 
 
     const formatStudentFullName = (student: typeof students[number]) => {
@@ -91,28 +91,7 @@ export function EClassRecord() {
         });
     }, [sections, subjects, user]);
 
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, Section[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        sortedSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [sortedSections]);
+
 
     // Update global store when local selection changes
     const onSectionChange = (val: string) => {
@@ -452,7 +431,7 @@ export function EClassRecord() {
             descriptor,
             isMapeh: false
         };
-    }, [classRecords, subjectName, selectedSubject, subjects, selectedSectionObj, selectedSection, activeSchoolYear, quarter]);
+    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents]);
 
     const getGradeDescriptor = (grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -751,7 +730,7 @@ export function EClassRecord() {
     const proficiencyData = proficiencyDataCalc;
     
     return (
-        <div className="space-y-6">
+        <div className="h-full min-h-0 flex flex-col gap-3">
             <style>{`
                 @media print {
                     @page {
@@ -778,17 +757,20 @@ export function EClassRecord() {
                     #printable-class-record * {
                         visibility: visible;
                     }
+                    .eclass-zoom-shell {
+                        transform: none !important;
+                    }
                     .no-print, header, nav, aside {
                         display: none !important;
                     }
                 }
             `}</style>
 
-            <div className="bg-white rounded-lg shadow-md p-4 no-print">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="block text-sm font-semibold text-deped-blue">Section</label>
+            <div className="bg-white rounded-lg shadow-md p-3 no-print">
+                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-3 lg:gap-2.5">
+                    <div className="w-full lg:w-[210px] shrink-0">
+                        <div className="flex justify-between items-center mb-1.5">
+                            <label className="block text-[13px] font-semibold text-deped-blue">Section</label>
                         </div>
                         <select
                             value={selectedSection}
@@ -801,9 +783,9 @@ export function EClassRecord() {
                             ))}
                         </select>
                     </div>
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="block text-sm font-semibold text-deped-blue">
+                    <div className="w-full lg:flex-1 lg:min-w-0">
+                        <div className="flex justify-between items-center mb-1.5">
+                            <label className="block text-[13px] font-semibold text-deped-blue">
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
                             </label>
 
@@ -823,8 +805,8 @@ export function EClassRecord() {
 
                     {/* Sub-Subject Dropdown for MAPEH components */}
                     {(selectedSubject === 'virtual_mapeh' || subjectName.toUpperCase() === 'MAPEH') && (typeof quarter !== 'string' || !quarter.startsWith('summary')) && mapehComponents.length > 0 && (
-                        <div>
-                            <label className="block text-sm font-semibold mb-2 text-deped-blue">MAPEH Component</label>
+                        <div className="w-full lg:w-[220px] shrink-0">
+                            <label className="block text-[13px] font-semibold mb-1.5 text-deped-blue">MAPEH Component</label>
                             <select
                                 value={selectedMapehComponentId}
                                 onChange={(e) => setSelectedMapehComponentId(e.target.value)}
@@ -837,8 +819,8 @@ export function EClassRecord() {
                         </div>
                     )}
 
-                    <div>
-                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Term</label>
+                    <div className="w-full lg:w-[150px] shrink-0">
+                        <label className="block text-[13px] font-semibold mb-1.5 text-deped-blue">Term</label>
                         <select value={quarter} onChange={(e) => {
                             const val = e.target.value;
                             if (val.startsWith('summary')) {
@@ -862,8 +844,27 @@ export function EClassRecord() {
                             )}
                         </select>
                     </div>
-                    <div className="flex items-end gap-3">
-                        <button onClick={handlePrint} className="btn-primary flex-1 flex items-center justify-center gap-2 h-10 px-4">
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        <div className="flex items-center gap-1.5 h-9 px-1 rounded-xl bg-slate-100 border border-slate-200">
+                            <button
+                                onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                title="Zoom Out"
+                            >
+                                <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="text-[10px] font-black text-slate-900 w-10 text-center tabular-nums">
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button
+                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                title="Zoom In"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-2 h-9 px-4 whitespace-nowrap">
                             <Printer className="w-4 h-4" /> Print Record
                         </button>
                         <button 
@@ -902,7 +903,7 @@ export function EClassRecord() {
                                 }
                             }}
                             disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-10 px-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-2 group disabled:opacity-30 disabled:grayscale"
+                            className="h-9 px-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-2 group disabled:opacity-30 disabled:grayscale"
                         >
                             <CloudUpload className="w-4 h-4" /> Publish
                         </button>
@@ -910,8 +911,13 @@ export function EClassRecord() {
                 </div>
             </div>
 
-            <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 mb-12">
-                <div className="bg-slate-50/50 p-6 md:p-8 overflow-x-auto custom-scrollbar">
+            <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 flex-1 min-h-0">
+                <div className="bg-slate-50/50 p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
+                    <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
+                    <div
+                        className="eclass-zoom-shell origin-top transition-all duration-300"
+                        style={{ transform: `scale(${zoom})` }}
+                    >
                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
                         <div id="printable-summary-record" className="w-[816px] max-w-full bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none">
                             {/* Header Section matching image */}
@@ -963,13 +969,13 @@ export function EClassRecord() {
                                         <th rowSpan={3} className="border border-black p-2 align-middle w-[250px] text-center tracking-wider">LEARNERS' NAMES</th>
                                         <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
                                             <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">GRADE & SECTION:</span>
+                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">GRADE & SECTION:</span>
                                                 <span className="flex-1 text-center font-normal uppercase truncate">{sectionGradeLevel} - {selectedSection}</span>
                                             </div>
                                         </th>
                                         <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
                                             <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">SCHOOL YEAR:</span>
+                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR:</span>
                                                 <span className="flex-1 text-center font-normal uppercase truncate">{activeSchoolYear}</span>
                                             </div>
                                         </th>
@@ -977,13 +983,13 @@ export function EClassRecord() {
                                     <tr>
                                         <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
                                             <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">TEACHER:</span>
+                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">TEACHER:</span>
                                                 <span className="flex-1 text-center font-normal uppercase truncate">{teacherName}</span>
                                             </div>
                                         </th>
                                         <th colSpan={3} className="border border-black text-left p-1 text-[10px]">
                                             <div className="flex items-center overflow-hidden h-full">
-                                                <span className="font-bold mr-2 whitespace-nowrap flex-shrink-0">SUBJECT:</span>
+                                                <span className="font-bold mr-2 whitespace-nowrap shrink-0">SUBJECT:</span>
                                                 <span className="flex-1 text-center font-normal uppercase truncate">{subjectName}</span>
                                             </div>
                                         </th>
@@ -1109,12 +1115,13 @@ export function EClassRecord() {
                             </table>
                         </div>
                     ) : (
-                    <div id="printable-class-record" className="min-w-[1200px] bg-white p-10 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto">
-                        {[
-                            { gender: 'MALE' as const, students: maleStudents },
-                            { gender: 'FEMALE' as const, students: femaleStudents }
-                        ].map((section, sectionIdx) => (
-                        <div key={section.gender} className={`p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
+                    <div className="bg-slate-50/50 p-3 md:p-4">
+                        <div id="printable-class-record" className="min-w-[1200px] bg-white p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto">
+                            {[
+                                { gender: 'MALE' as const, students: maleStudents },
+                                { gender: 'FEMALE' as const, students: femaleStudents }
+                            ].map((section, sectionIdx) => (
+                            <div key={section.gender} className={`p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
                             <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2 px-4 print:px-1">
                                 <div className="w-24 h-24 flex items-center justify-center">
                                     <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
@@ -1125,21 +1132,21 @@ export function EClassRecord() {
                                     <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-[10px] font-bold uppercase mb-6 justify-center w-full px-2">
                                         {/* Row 1, Col 1: Region */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">REGION</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">REGION</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[100px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
                                                 {schoolProfile.region}
                                             </div>
                                         </div>
                                         {/* Row 1, Col 2: Division */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">DIVISION</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DIVISION</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
                                                 {schoolProfile.division}
                                             </div>
                                         </div>
                                         {/* Row 1, Col 3: District */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">DISTRICT</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DISTRICT</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
                                                 {schoolProfile.district || ''}
                                             </div>
@@ -1147,21 +1154,21 @@ export function EClassRecord() {
 
                                         {/* Row 2, Col 1: School Name */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL NAME</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL NAME</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[140px] text-center bg-white whitespace-nowrap overflow-hidden text-ellipsis">
                                                 {schoolProfile.name}
                                             </div>
                                         </div>
                                         {/* Row 2, Col 2: School ID */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL ID</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL ID</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white whitespace-nowrap">
                                                 {schoolProfile.school_id}
                                             </div>
                                         </div>
                                         {/* Row 2, Col 3: School Year */}
                                         <div className="flex items-center">
-                                            <span className="text-slate-500 mr-2 shrink-0">SCHOOL YEAR</span>
+                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR</span>
                                             <div className="border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white whitespace-nowrap">
                                                 {activeSchoolYear}
                                             </div>
@@ -1182,15 +1189,15 @@ export function EClassRecord() {
                                     {(quarter as any) === 'summary' ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
                                 </div>
                                 <div className="h-9 px-2 border-r border-black flex items-center justify-center whitespace-nowrap overflow-hidden">
-                                    <span className="font-bold mr-2 flex-shrink-0">GRADE & SECTION:</span>
+                                    <span className="font-bold mr-2 whitespace-nowrap shrink-0">GRADE & SECTION:</span>
                                     <span className="uppercase truncate">{sectionGradeLevel} - {selectedSection}</span>
                                 </div>
                                 <div className="h-9 px-2 border-r border-black flex items-center justify-center whitespace-nowrap overflow-hidden">
-                                    <span className="font-bold mr-2 flex-shrink-0">TEACHER:</span>
+                                    <span className="font-bold mr-2 whitespace-nowrap shrink-0">TEACHER:</span>
                                     <span className="uppercase truncate">{teacherName || selectedSectionObj?.adviser_name || ''}</span>
                                 </div>
                                 <div className="h-9 px-2 flex items-center justify-center whitespace-nowrap overflow-hidden">
-                                    <span className="font-bold mr-2 flex-shrink-0">SUBJECT:</span>
+                                    <span className="font-bold mr-2 whitespace-nowrap shrink-0">SUBJECT:</span>
                                     <span className="uppercase truncate">{subjectName || selectedSectionObj?.subject_name || ''}</span>
                                 </div>
                             </div>
@@ -1208,9 +1215,9 @@ export function EClassRecord() {
                                             <span>SUMMATIVE TESTS AND TERM</span><br />
                                             <span>EXAMINATIONS ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
                                         </th>
-                                        <th rowSpan={3} className="border border-black w-16 min-w-[4rem] max-w-[4rem] p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]">INITIAL GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-20 min-w-[5rem] max-w-[5rem] p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal break-words">TERM GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-24 min-w-[6rem] max-w-[6rem] p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal break-words">DESCRIPTOR</th>
+                                        <th rowSpan={3} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]">INITIAL GRADE</th>
+                                        <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
+                                        <th rowSpan={3} className="border border-black w-24 min-w-24 max-w-24 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
                                     </tr>
                                     <tr className="bg-gray-100 h-8">
                                         {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 text-[9px] font-bold">{i}</th>)}
@@ -1341,10 +1348,10 @@ export function EClassRecord() {
                                                 <td className="border border-black bg-yellow-50">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
                                                 <td className="border border-black bg-yellow-100 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
                                                 <td className="border border-black bg-gray-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
-                                                <td className={`border border-black w-20 min-w-[5rem] max-w-[5rem] font-bold text-[10px] leading-tight whitespace-normal break-words ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+                                                <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
                                                     {summary.quarterlyGrade > 0 ? summary.quarterlyGrade : ''}
                                                 </td>
-                                                <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal break-words px-1">
+                                                <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1">
                                                     {descriptor}
                                                 </td>
                                             </tr>
@@ -1720,9 +1727,12 @@ export function EClassRecord() {
                                 </tbody>
                             </table>
                         </div>
-                    ))}
+                            ))}
+                        </div>
                     </div>
                     )}
+                    </div>
+                    </div>
                 </div>
             </div>
         </div>

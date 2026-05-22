@@ -273,20 +273,21 @@ export function SectionsPage() {
                                                             {section.is_teaching_load && (section.taught_subjects?.length || 0) > 0 ? (
                                                                 [...(section.taught_subjects || [])].sort((a, b) => a.localeCompare(b)).map(subj => {
                                                                     const name = subj.toLowerCase();
+                                                                    const cleanName = name.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
                                                                     let colorClass = 'bg-slate-50 text-slate-500 border-slate-200'; // Default
                                                                     
                                                                     // Enhanced Color Logic
-                                                                    if (name.includes('math') || name.includes('science')) 
+                                                                    if (name.includes('math') || cleanName.includes('math') || name.includes('science') || cleanName.includes('science')) 
                                                                         colorClass = 'bg-emerald-50 text-emerald-700 border-emerald-100';
-                                                                    else if (name.includes('english') || name.includes('filipino') || name.includes('language') || name.includes('reading') || name.includes('literacy')) 
+                                                                    else if (name.includes('english') || cleanName.includes('english') || name.includes('filipino') || cleanName.includes('filipino') || name.includes('language') || cleanName.includes('language') || name.includes('reading') || cleanName.includes('reading') || name.includes('literacy') || cleanName.includes('literacy')) 
                                                                         colorClass = 'bg-blue-50 text-blue-700 border-blue-100';
-                                                                    else if (name.includes('arabic') || name.includes('islamic') || name.includes('gmrc') || name.includes('values') || name.includes('conduct')) 
+                                                                    else if (name.includes('arabic') || cleanName.includes('arabic') || name.includes('islamic') || cleanName.includes('islamic') || name.includes('gmrc') || cleanName.includes('gmrc') || name.includes('values') || cleanName.includes('values') || name.includes('conduct') || cleanName.includes('conduct')) 
                                                                         colorClass = 'bg-amber-50 text-amber-700 border-amber-100';
-                                                                    else if (name.includes('makabansa') || name.includes('araling') || name.includes('ap')) 
+                                                                    else if (name.includes('makabansa') || cleanName.includes('makabansa') || name.includes('araling') || cleanName.includes('araling') || name.includes('ap') || cleanName === 'ap') 
                                                                         colorClass = 'bg-indigo-50 text-indigo-700 border-indigo-100';
-                                                                    else if (name.includes('mapeh') || name.includes('music') || name.includes('art') || name.includes('pe') || name.includes('health')) 
+                                                                    else if (name.includes('mapeh') || cleanName.includes('mapeh') || name.includes('music') || cleanName.includes('music') || name.includes('art') || cleanName.includes('art') || name.includes('pe') || cleanName === 'pe' || cleanName === 'pe.' || name.includes('health') || cleanName.includes('health')) 
                                                                         colorClass = 'bg-rose-50 text-rose-700 border-rose-100';
-                                                                    else if (name.includes('epp') || name.includes('tle') || name.includes('specialization')) 
+                                                                    else if (name.includes('epp') || cleanName.includes('epp') || name.includes('tle') || cleanName.includes('tle') || name.includes('specialization') || cleanName.includes('specialization')) 
                                                                         colorClass = 'bg-cyan-50 text-cyan-700 border-cyan-100';
                                                                     
                                                                     return (

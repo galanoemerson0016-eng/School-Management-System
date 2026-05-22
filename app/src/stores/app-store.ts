@@ -168,6 +168,7 @@ const defaultSchoolProfile: SchoolProfile = {
   adviser_name: '',
   grade_level: 'Grade 7',
   section: 'Einstein',
+  adviser_image_url: '',
   is_activated: false,
   is_trial: false,
 };
@@ -292,6 +293,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   importStudentsFromSF1: async (students, sectionName) => {
+    void sectionName;
     try {
       let count = 0;
       const validStudents = students.filter(s => s && s.lrn);
@@ -617,6 +619,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   promoteStudentsFromYear: async (sourceSchoolYear, sourceGradeLevel, targetSectionId) => {
+    void sourceSchoolYear;
+    void sourceGradeLevel;
+    void targetSectionId;
     try {
       // Stub: Implement promotion logic
       get().showNotification('Students promoted', 'success');
@@ -656,7 +661,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Get author ID from local storage or session
       const authorId = localStorage.getItem('auth_user_uid') || 'anonymous';
       
-      if (state.cloudSyncEnabled && state.schoolProfile.school_id && !(announcement as any).is_cloud) {
+      if (state.cloudSyncEnabled && state.schoolProfile.school_id && !announcement.is_cloud) {
         try {
           await announcementSync.publishToCloud(announcement, state.schoolProfile.school_id, authorId);
         } catch (err) {
@@ -680,7 +685,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       // If it's a cloud announcement, also delete from cloud (if sync enabled)
       // Note: Firebase rules will verify if the user is actually the author
-      if (target && (target as any).is_cloud && get().cloudSyncEnabled) {
+      if (target && target.is_cloud && get().cloudSyncEnabled) {
           await announcementSync.deleteFromCloud(id);
       }
       
@@ -964,7 +969,7 @@ export async function initializeAppStore() {
     const observedValues = await loadStore<ObservedValues>('observedValues');
 
 
-    const advisorySection = sections.find(s => s.is_advisory || (s as any).is_advisory_class);
+    const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
     
     useAppStore.setState({
       students,

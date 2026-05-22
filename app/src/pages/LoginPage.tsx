@@ -341,7 +341,7 @@ export const LoginPage = () => {
                 >
                     <div className="bg-black/30 backdrop-blur-xl rounded-[20px] py-4 px-6 md:px-8 flex flex-col items-center justify-center gap-2 border border-white/10 hover:bg-black/40 hover:border-white/20 transition-all duration-300 shadow-2xl w-fit max-w-[90%] mx-auto cursor-pointer">
                         <div className="flex items-center justify-center gap-2 w-full">
-                            <Megaphone className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+                            <Megaphone className="w-4 h-4 text-emerald-300 flex-shrink-0 w-full overflow-x-auto custom-scrollbar" />
                             <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-[0.2em]">{t.latestAnnouncement}</span>
                         </div>
                         <p className="text-white/95 font-medium text-sm leading-relaxed drop-shadow-sm text-center">
@@ -484,7 +484,7 @@ export const LoginPage = () => {
                                         : 'bg-red-50 text-red-600 p-3 border border-red-100'
                                         }`}
                                 >
-                                    <Shield className="w-4 h-4 shrink-0" />
+                                    <Shield className="w-4 h-4 shrink-0 w-full overflow-x-auto custom-scrollbar" />
                                     {error}
                                 </motion.div>
                             )}
@@ -685,7 +685,7 @@ export const LoginPage = () => {
                 {/* ============================================================================= */}
                 <AnimatePresence>
                     {showRecoveryModal && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}

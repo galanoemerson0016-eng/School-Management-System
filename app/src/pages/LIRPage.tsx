@@ -206,7 +206,7 @@ export function LIRPage() {
     return (
         <div className="lir-print-root flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
+             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
                 <div className="flex items-center gap-8">
                     <div className="flex items-center gap-5">
                         <button 
@@ -328,7 +328,7 @@ export function LIRPage() {
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Branding Colors</span>
                             <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                                 <div className="flex items-center gap-2 px-2 py-1 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                    <div className="w-3 h-3 rounded-full border border-slate-200 shadow-inner shrink-0" style={{ backgroundColor: fillColor }} />
+                                    <div className="w-3 h-3 rounded-full border border-slate-200 shadow-inner shrink-0 w-full overflow-x-auto custom-scrollbar" style={{ backgroundColor: fillColor }} />
                                     <input 
                                         type="color" 
                                         value={fillColor} 
@@ -339,7 +339,7 @@ export function LIRPage() {
                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Fill</span>
                                 </div>
                                 <div className="flex items-center gap-2 px-2 py-1 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                    <div className="w-3 h-3 rounded-full border border-slate-200 shadow-inner shrink-0" style={{ backgroundColor: outlineColor }} />
+                                    <div className="w-3 h-3 rounded-full border border-slate-200 shadow-inner shrink-0 w-full overflow-x-auto custom-scrollbar" style={{ backgroundColor: outlineColor }} />
                                     <input 
                                         type="color" 
                                         value={outlineColor} 

@@ -374,7 +374,7 @@ export function AnnouncementsPage() {
                                             <h4 className="text-base font-bold text-gray-800">{announcement.announcement_title}</h4>
                                             <p className="text-sm text-gray-600 mt-1">{announcement.announcement_content}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                        <div className="flex items-center gap-1 flex-shrink-0 w-full overflow-x-auto custom-scrollbar">
                                             {canManageAnnouncements && (
                                                 <>
                                                     <button

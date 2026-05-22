@@ -204,3 +204,7 @@ autoUpdater.on('update-downloaded', (info) => {
 ipcMain.on('check-for-updates', () => {
   autoUpdater.checkForUpdatesAndNotify();
 });
+
+ipcMain.on('close-app', () => {
+  app.quit();
+});

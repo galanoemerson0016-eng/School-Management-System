@@ -118,7 +118,7 @@ export function NameTagPage() {
                 }
             ` }} />
             {/* Header Toolbar */}
-            <div className="h-20 px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-[100] shadow-sm print:hidden">
+            <div className="h-20 px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-100 shadow-sm print:hidden">
                 <div className="flex items-center gap-6">
                     <button 
                         onClick={() => setCurrentView('school-forms')}
@@ -204,7 +204,7 @@ export function NameTagPage() {
                 {sectionStudents.length > 0 ? (
                     <div className="print:w-full flex flex-col items-center">
                         <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 text-amber-700 print:hidden max-w-2xl shadow-sm">
-                            <Sparkles className="w-5 h-5 flex-shrink-0" />
+                            <Sparkles className="w-5 h-5 flex-shrink-0 w-full overflow-x-auto custom-scrollbar" />
                             <div className="text-xs space-y-1">
                                 <p className="font-black uppercase tracking-tight">Print Setup Required</p>
                                 <p className="font-medium opacity-90">To see the colors and backgrounds, please check <span className="font-black underline italic text-amber-800">"Background graphics"</span> in the Print Preview settings.</p>
@@ -356,7 +356,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                 <div className="relative z-10 p-6 flex flex-col h-full pl-6">
                     {/* Institutional Header */}
                     <div className="flex items-start gap-4 mb-2">
-                        <div className="w-12 h-12 rounded-2xl bg-white shadow-xl shadow-black/5 border border-slate-100 flex items-center justify-center p-1.5 shrink-0">
+                        <div className="w-12 h-12 rounded-2xl bg-white shadow-xl shadow-black/5 border border-slate-100 flex items-center justify-center p-1.5 shrink-0 w-full overflow-x-auto custom-scrollbar">
                             <img src={logoUrl} className="w-full h-full object-contain" alt="School Logo" />
                         </div>
                         <div className="flex flex-col justify-center h-12">

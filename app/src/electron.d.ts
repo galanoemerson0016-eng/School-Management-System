@@ -8,7 +8,8 @@ declare global {
       getMachineId: () => Promise<string>;
       checkForUpdates: () => void;
       onUpdateMessage: (callback: (message: string) => void) => void;
-      saveAutoBackup: (data: any, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+      saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+      closeApp: () => void;
     };
   }
   const __APP_VERSION__: string;

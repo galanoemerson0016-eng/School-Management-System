@@ -1355,7 +1355,7 @@ export function SF9Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-20 px-6 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
+             <div className="h-20 px-6 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
                 <div className="flex items-center gap-5">
                     {/* Brand/Back Hook */}
                     <div className="flex items-center gap-3">
@@ -1698,7 +1698,7 @@ export function SF9Page() {
                             className="bg-white rounded-[3rem] w-full max-w-6xl h-full max-h-[92vh] overflow-hidden flex flex-col shadow-3xl border border-slate-200"
                         >
                             {/* Modal Header */}
-                            <div className="px-12 py-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div className="px-12 py-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 w-full overflow-x-auto custom-scrollbar">
                                 <div className="flex items-center gap-8">
                                     <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-xl shadow-indigo-200">
                                         <Edit3 className="w-7 h-7 text-white" />
@@ -1721,7 +1721,7 @@ export function SF9Page() {
                             </div>
 
                             {/* Quarter Selection Bar */}
-                            <div className="px-12 py-4 bg-white border-b border-slate-50 flex items-center gap-3 shrink-0 overflow-x-auto no-scrollbar">
+                            <div className="px-12 py-4 bg-white border-b border-slate-50 flex items-center gap-3 shrink-0 overflow-x-auto custom-scrollbar">
                                 {[1, 2, 3].map((q) => (
                                     <button
                                         key={q}
@@ -1753,7 +1753,7 @@ export function SF9Page() {
                                                                 <p className="text-sm font-bold text-slate-600 leading-relaxed max-w-2xl">
                                                                     {behavior}
                                                                 </p>
-                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                <div className="flex items-center gap-1.5 shrink-0 w-full overflow-x-auto custom-scrollbar">
                                                                     {[
                                                                         { val: 'AO', label: 'AO', color: 'bg-emerald-500', desc: 'Always Observed' },
                                                                         { val: 'SO', label: 'SO', color: 'bg-indigo-500', desc: 'Sometimes Observed' },
@@ -1789,7 +1789,7 @@ export function SF9Page() {
                             </div>
 
                             {/* Footer Information */}
-                             <div className="px-12 py-6 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
+                             <div className="px-12 py-6 bg-white border-t border-slate-100 flex items-center justify-between shrink-0 w-full overflow-x-auto custom-scrollbar">
                                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">
                                     {Object.keys(pendingChanges).length > 0 ? `${Object.values(pendingChanges).reduce((acc, q) => acc + Object.keys(q).length, 0)} changes pending` : 'No changes made'}
                                  </span>
@@ -1808,7 +1808,7 @@ export function SF9Page() {
             {/* Completion Modal */}
             <AnimatePresence>
                 {showCompletionModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
                         <motion.div 
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -1952,7 +1952,7 @@ function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }
                             const slotNum = idx;
                             return (
                                 <div key={slotNum} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-100 transition-all bg-slate-50/30">
-                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0 w-full overflow-x-auto custom-scrollbar">
                                         {slotNum + 1}
                                     </div>
                                     <div className="flex-1 min-w-0">

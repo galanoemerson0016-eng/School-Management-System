@@ -319,7 +319,7 @@ export function SF5Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
+             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
                 <div className="flex items-center gap-8">
                     {/* Brand/Back Hook */}
                     <div className="flex items-center gap-5">
@@ -468,7 +468,7 @@ export function SF5Page() {
                                                         <img 
                                                             src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} 
                                                             alt="DepEd Logo" 
-                                                            className="h-16 w-16 object-contain shrink-0"
+                                                            className="h-16 w-16 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar"
                                                         />
                                                         <div className="flex flex-col text-center">
                                                             <h1 className="text-3xl font-bold" style={{ color: '#000000', letterSpacing: '0px' }}>School Form 5 (SF 5) Report on Promotion & Level of Proficiency</h1>

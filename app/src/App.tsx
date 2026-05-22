@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, initializeAuthStore } from './stores';
 import { getMachineId } from './utils/machine-id';
 import { Sidebar, Header } from './components/layout';
@@ -31,24 +31,24 @@ import {
 } from './pages';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
-import { AccessDenied } from './components/auth/AccessDenied';
+
 
 // DepEd-branded loading splash while auth state resolves
 function LoadingSplash() {
   const schoolProfile = useAppStore(state => state.schoolProfile);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#0A3D91] via-[#072C6B] to-[#051d45] relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center bg-linear-to-br from-deped-blue via-deped-blue-dark to-[#051d45] relative overflow-hidden">
       {/* Animated background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-[#3A7BFF]/15 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-15%] left-[-10%] w-[50%] h-[50%] bg-[#ed1c24]/8 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-[#FFC107]/8 rounded-full blur-[80px] animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-deped-blue-light/15 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-15%] left-[-10%] w-[50%] h-[50%] bg-deped-red/8 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-deped-yellow/8 rounded-full blur-[80px] animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-7">
         {/* Logo */}
-        <div className="p-5 bg-white/[0.06] backdrop-blur-xl rounded-3xl border border-white/[0.1] shadow-2xl">
+        <div className="p-5 bg-white/6 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
           <img
             src={schoolProfile.logo_url || `${import.meta.env.BASE_URL}school-logo.png`}
             alt="School Logo"
@@ -66,16 +66,16 @@ function LoadingSplash() {
         <div className="flex items-center gap-3">
           <div className="relative w-7 h-7">
             <div className="absolute inset-0 border-[2.5px] border-white/10 rounded-full" />
-            <div className="absolute inset-0 border-[2.5px] border-transparent border-t-[#FFC107] rounded-full animate-spin" />
+            <div className="absolute inset-0 border-[2.5px] border-transparent border-t-deped-yellow rounded-full animate-spin" />
           </div>
           <span className="text-[13px] text-blue-200/50 font-medium animate-pulse">Loading...</span>
         </div>
 
         {/* DepEd tri-color accent */}
         <div className="flex gap-1 mt-1">
-          <div className="w-8 h-[2px] bg-[#3A7BFF]/60 rounded-full" />
-          <div className="w-5 h-[2px] bg-[#ed1c24]/60 rounded-full" />
-          <div className="w-8 h-[2px] bg-[#FFC107]/60 rounded-full" />
+          <div className="w-8 h-[2px] bg-deped-blue-light/60 rounded-full" />
+          <div className="w-5 h-[2px] bg-deped-red/60 rounded-full" />
+          <div className="w-8 h-[2px] bg-deped-yellow/60 rounded-full" />
         </div>
       </div>
     </div>
@@ -83,7 +83,7 @@ function LoadingSplash() {
 }
 
 function App() {
-  const { isAuthenticated, isLoading, user } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
   const { currentView, schoolProfile, isSyncReady } = useAppStore();
 
   const isExpired = schoolProfile?.subscription_end_date 
@@ -143,7 +143,7 @@ function App() {
                     console.log('✅ License binding verified.');
                  }
               }
-           } catch (verificationError) {
+           } catch {
               console.warn('📡 License verification skipped (offline or network error)');
            }
         }
@@ -226,7 +226,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#f0f4f8] dark:bg-[#080d1a] relative text-slate-800 dark:text-slate-200">
+    <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-[#080d1a] relative text-slate-800 dark:text-slate-200">
       <AutoBackupManager />
       {/* Global Animated Multi-Color Mesh Underlay */}
       <div className="absolute inset-0 z-0 opacity-60 dark:opacity-20 pointer-events-none animate-pulse print:hidden" style={{
@@ -239,15 +239,15 @@ function App() {
 
       <Toast />
 
-      <div className="relative z-10 flex w-full h-full p-2 lg:p-3 gap-2 lg:gap-3 box-border print:p-0 print:block">
+      <div className="relative z-10 flex w-full h-full p-1.5 lg:p-2 gap-1.5 lg:gap-2 box-border print:p-0 print:block">
         <div className="print:hidden h-full flex flex-col">
           <Sidebar />
         </div>
-        <main className="flex-1 flex flex-col overflow-hidden bg-white/70 dark:bg-white/[0.02] backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
+        <main className="flex-1 flex flex-col overflow-hidden bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
           </div>
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar print:p-0 print:overflow-visible">
+          <div className="flex-1 overflow-y-auto p-3 lg:p-4 custom-scrollbar print:p-0 print:overflow-visible">
             {renderContent()}
           </div>
         </main>

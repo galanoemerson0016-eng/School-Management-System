@@ -1,50 +1,18 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
-import { getSubjectsForGrade, normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
+import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
  * These are the official learning areas for Junior High School.
  */
-const STANDARD_JHS_SUBJECTS_G79 = [
-  { label: 'Filipino', key: 'filipino' },
-  { label: 'English', key: 'english' },
-  { label: 'Mathematics', key: 'mathematics' },
-  { label: 'Science', key: 'science' },
-  { label: 'Araling Panlipunan (AP)', key: 'ap' },
-  { label: 'Values Education', key: 'valuesEducation' },
-  { label: 'Technology and Livelihood Education (TLE)', key: 'tle' },
-  { label: 'MAPEH', key: 'mapeh' },
-  { label: 'Music and Arts', key: 'musicAndArts' },
-  { label: 'Physical Education and Health', key: 'peAndHealth' },
-  { label: 'Specialization', key: 'specialization' },
-  { label: ' ', key: 'extra1' },
-  { label: ' ', key: 'extra2' },
-  { label: ' ', key: 'extra3' },
-];
 
-const STANDARD_JHS_SUBJECTS_G10 = [
-  { label: 'Filipino', key: 'filipino' },
-  { label: 'English', key: 'english' },
-  { label: 'Mathematics', key: 'mathematics' },
-  { label: 'Science', key: 'science' },
-  { label: 'Araling Panlipunan (AP)', key: 'ap' },
-  { label: 'Values Education', key: 'valuesEducation' },
-  { label: 'Technology and Livelihood Education (TLE)', key: 'tle' },
-  { label: 'MAPEH', key: 'mapeh' },
-  { label: 'Music and Arts', key: 'musicAndArts' },
-  { label: 'Physical Education and Health', key: 'peAndHealth' },
-  { label: 'Specialization', key: 'specialization' },
-  { label: ' ', key: 'extra1' },
-  { label: ' ', key: 'extra2' },
-  { label: ' ', key: 'extra3' },
-];
 
 /**
  * Get JHS subjects for a given grade level
  * Uses custom curriculum if available, otherwise returns standard subjects
  */
-export function getStandardJhsSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum) {
-  return getSF10RowsForGrade(gradeLevel, customCurriculum);
+export function getStandardJhsSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum, options?: { useOldCurriculum?: boolean }) {
+  return getSF10RowsForGrade(gradeLevel, customCurriculum, options);
 }
 
 /** Creates a blank subject grade entry */
@@ -61,9 +29,9 @@ function getSubjectGradeEntry(subjectsData: SubjectsData, key: string): SubjectG
 }
 
 /** Creates the full blank subjects object for a specific curriculum */
-function blankSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum) {
+function blankSubjects(gradeLevel: number, customCurriculum?: SchoolCurriculum, options?: { useOldCurriculum?: boolean }) {
   const subjects: SubjectsData = {};
-  for (const s of getStandardJhsSubjects(gradeLevel, customCurriculum)) {
+  for (const s of getStandardJhsSubjects(gradeLevel, customCurriculum, options)) {
     subjects[s.key] = blankSubjectGrade();
   }
   subjects.generalAverage = '';
@@ -100,8 +68,7 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('physicaleducation') || name === 'pe' || name.includes('pe.')) key = 'physicalEducation';
   else if (name.includes('health') || name.includes('kalusugan')) key = 'health';
   else if (name.includes('specialization')) key = 'specialization';
-  else if (name.includes('arabic')) key = 'arabic';
-  else if (name.includes('islamic')) key = 'islamic';
+
 
   if (!key) return null;
 
@@ -264,7 +231,7 @@ export function mapStudentToSpecData({
         }));
 
         // 1. Sort the list according to global priority (Core -> MAPEH -> Specialization)
-        let sorted = sortSubjects(newList, s => s.name);
+        const sorted = sortSubjects(newList, s => s.name);
 
         // 2. Specialized MAPEH logic: Ensure components follow header
         const final: CurriculumSubject[] = [];
@@ -323,9 +290,13 @@ export function mapStudentToSpecData({
   function buildScholasticBlock(gradeLevel: number) {
     const isCurrentGrade = gradeLevel === currentGradeNum;
 
+    // Determine if this block should use old curriculum (pre-MATATAG)
+    const useOldCurriculum = currentGradeNum >= 9 && gradeLevel < currentGradeNum && gradeLevel >= 7;
+    const oldCurrOptions = { useOldCurriculum };
+
     // Start with blank subjects
-    const subjectsData = blankSubjects(gradeLevel, effectiveCurriculum);
-    const standardSubjectsForGrade = getStandardJhsSubjects(gradeLevel, effectiveCurriculum);
+    const subjectsData = blankSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
+    const standardSubjectsForGrade = getStandardJhsSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
 
     // If we have actual grading sheet records for this student, try to fill in real grades
     if (gradingSheetRecords.length > 0) {
@@ -384,15 +355,36 @@ export function mapStudentToSpecData({
       ['q1', 'q2', 'q3', 'q4'].forEach(qKey => {
         const q = qKey as 'q1' | 'q2' | 'q3' | 'q4';
 
+        const mapehRow = getSubjectGradeEntry(subjectsData, 'mapeh');
+
+        // MATATAG combined components
         const musicArts = getSubjectGradeEntry(subjectsData, 'musicAndArts');
         const peHealth = getSubjectGradeEntry(subjectsData, 'peAndHealth');
-        const mapehRow = getSubjectGradeEntry(subjectsData, 'mapeh');
         
-        let maGrade = Number(musicArts?.[q]) || 0;
-        let peGrade = Number(peHealth?.[q]) || 0;
+        // Old curriculum individual components
+        const musicEntry = getSubjectGradeEntry(subjectsData, 'music');
+        const artsEntry = getSubjectGradeEntry(subjectsData, 'arts');
+        const peEntry = getSubjectGradeEntry(subjectsData, 'physicalEducation');
+        const healthEntry = getSubjectGradeEntry(subjectsData, 'health');
+
+        const maGrade = Number(musicArts?.[q]) || 0;
+        const peGrade = Number(peHealth?.[q]) || 0;
+
+        // Check for old curriculum individual components
+        const musicGrade = Number(musicEntry?.[q]) || 0;
+        const artsGrade = Number(artsEntry?.[q]) || 0;
+        const peIndivGrade = Number(peEntry?.[q]) || 0;
+        const healthGrade = Number(healthEntry?.[q]) || 0;
+        const hasIndividual = musicGrade > 0 || artsGrade > 0 || peIndivGrade > 0 || healthGrade > 0;
 
         if (mapehRow) {
-          if (maGrade > 0 && peGrade > 0) {
+          if (hasIndividual) {
+            // Old curriculum: average of individual components
+            const components = [musicGrade, artsGrade, peIndivGrade, healthGrade].filter(v => v > 0);
+            if (components.length > 0) {
+              mapehRow[q] = String(Math.round(components.reduce((a: number, b: number) => a + b, 0) / components.length));
+            }
+          } else if (maGrade > 0 && peGrade > 0) {
             mapehRow[q] = String(Math.round((maGrade + peGrade) / 2));
           } else if (maGrade > 0) {
             mapehRow[q] = String(maGrade);
@@ -509,7 +501,7 @@ export function mapStudentToSpecData({
   }
 
   // Build blocks based on curriculum category
-  let scholasticRecords: any[] = [];
+  let scholasticRecords: ReturnType<typeof buildScholasticBlock>[] = [];
   const isElementary = currentGradeNum >= 1 && currentGradeNum <= 6;
 
   if (isElementary) {

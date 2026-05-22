@@ -69,7 +69,7 @@ export function TextInputConfirmationModal({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
+                    className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4"
                     onClick={handleCancel}
                 >
                     <motion.div

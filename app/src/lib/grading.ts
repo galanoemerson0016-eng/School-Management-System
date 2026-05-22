@@ -26,25 +26,26 @@ export type SubjectCluster = 'languages_ap_esp' | 'science_math' | 'mapeh_tle';
 // Determine subject cluster based on subject name
 export function getSubjectCluster(subjectName: string): SubjectCluster {
     const name = subjectName.toLowerCase();
+    const cleanName = name.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
 
     // MAPEH, TLE, EPP, Specialization cluster (20/60/20)
-    if (name.includes('mapeh') ||
-        name.includes('music') ||
-        name.includes('arts') ||
-        name.includes('physical education') ||
-        name.includes('health') ||
-        name.includes('specialization') ||
-        name.includes('tle') ||
-        name.includes('technology and livelihood') ||
-        name.includes('epp') ||
-        name.includes('edukasyong pantahanan')) {
+    if (name.includes('mapeh') || cleanName.includes('mapeh') ||
+        name.includes('music') || cleanName.includes('music') ||
+        name.includes('arts') || cleanName.includes('arts') ||
+        name.includes('physical education') || cleanName.includes('physicaleducation') ||
+        name.includes('health') || cleanName.includes('health') ||
+        name.includes('specialization') || cleanName.includes('specialization') ||
+        name.includes('tle') || cleanName.includes('tle') ||
+        name.includes('technology and livelihood') || cleanName.includes('technologyandlivelihood') ||
+        name.includes('epp') || cleanName.includes('epp') ||
+        name.includes('edukasyong pantahanan') || cleanName.includes('edukasyongpantahanan')) {
         return 'mapeh_tle';
     }
 
     // Science and Math cluster (20/50/30)
-    if (name.includes('science') ||
-        name.includes('mathematics') ||
-        name.includes('math')) {
+    if (name.includes('science') || cleanName.includes('science') ||
+        name.includes('mathematics') || cleanName.includes('mathematics') ||
+        name.includes('math') || cleanName.includes('math')) {
         return 'science_math';
     }
 

@@ -99,7 +99,7 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute z-[100] w-full mt-3 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.15)] rounded-3xl border border-slate-100 max-h-[400px] flex flex-col overflow-hidden backdrop-blur-xl"
+                        className="absolute z-100 w-full mt-3 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.15)] rounded-3xl border border-slate-100 max-h-[400px] flex flex-col overflow-hidden backdrop-blur-xl"
                     >
                         {/* Search Header */}
                         <div className="p-4 border-b border-slate-50 bg-slate-50/30">

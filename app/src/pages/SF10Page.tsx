@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { useSF10Store } from '../stores/sf10-store';
-import type { Student } from '../types';
+import type { Student, Section } from '../types';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
@@ -15,7 +15,7 @@ export function SF10Page() {
     const { user } = useAuthStore();
     const { overrides, setOverride, clearOverrides } = useSF10Store();
     
-    const [selectedSection, setSelectedSection] = useState('');
+    const [selectedSectionState, setSelectedSectionState] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [zoom, setZoom] = useState(1);
@@ -45,8 +45,13 @@ export function SF10Page() {
         });
     }, [sections, user]);
 
+    const selectedSection = !selectedSectionState && sortedSections?.length === 1 
+        ? sortedSections[0].section_name 
+        : selectedSectionState;
+    const setSelectedSection = setSelectedSectionState;
+
     const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
+        const groups: Record<string, Section[]> = {
             'ELEMENTARY': [],
             'JUNIOR HIGH SCHOOL': [],
             'SENIOR HIGH SCHOOL': []
@@ -68,12 +73,6 @@ export function SF10Page() {
         return groups;
     }, [sortedSections]);
 
-    // Auto-select section if only one is available
-    useEffect(() => {
-        if (!selectedSection && sortedSections.length === 1) {
-            setSelectedSection(sortedSections[0].section_name);
-        }
-    }, [sortedSections, selectedSection]);
 
     const selectedSectionObj = useMemo(() => {
         return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
@@ -109,25 +108,6 @@ export function SF10Page() {
             subjects,
         });
         
-        // Helper to get a nested value from an object by dot path
-        const getNestedValue = (obj: Record<string, unknown>, path: string): unknown => {
-            const parts = path.split('.');
-            let curr: unknown = obj;
-            for (const part of parts) {
-                if (!curr || typeof curr !== 'object') return undefined;
-                const rec = curr as Record<string, unknown>;
-                if (part.includes('[')) {
-                    const [p, rest] = part.split('[');
-                    const idx = parseInt(rest.replace(']', ''));
-                    const arr = rec[p];
-                    curr = Array.isArray(arr) ? arr[idx] : undefined;
-                } else {
-                    curr = rec[part];
-                }
-            }
-            return curr;
-        };
-
         const mergedData = JSON.parse(JSON.stringify(baseData)); // Deep clone
         Object.entries(currentOverrides).forEach(([path, value]) => {
             if (!path || value === undefined) return;
@@ -178,7 +158,7 @@ export function SF10Page() {
     return (
         <div className="sf10-print-root flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-20 px-4 xl:px-6 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto no-scrollbar">
+             <div className="h-20 px-4 xl:px-6 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
                 <div className="flex items-center gap-4 xl:gap-6 min-w-max">
                     {/* Brand/Back Hook */}
                     <div className="flex items-center gap-3 xl:gap-4">
@@ -332,7 +312,7 @@ export function SF10Page() {
                             style={{ transform: `scale(${zoom})` }}
                         >
                             <div className="relative group">
-                                <div className="absolute -inset-1 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />
+                                <div className="absolute -inset-1 bg-linear-to-br from-blue-500/5 to-indigo-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />
                                 <div className={`sf10-print-sheet relative bg-white shadow-[0_20px_50px_rgba(0,0,0,0.08)] rounded-sm print:shadow-none overflow-hidden mb-20 last:mb-0 print:mb-0 print:rounded-none ${currentPage === 1 ? 'sf10-force-single-page' : ''}`}>
                                     {specData.isES ? (
                                         <SF10SpecRenderer 
@@ -380,9 +360,6 @@ export function SF10Page() {
                  <SF10HistoricalDataModal
                     student={selectedStudent}
                     schoolProfile={schoolProfile}
-                    sections={sections}
-                    subjects={subjects}
-                    activeSchoolYear={activeSchoolYear}
                     onClose={() => setShowHistoricalModal(false)}
                  />
              )}

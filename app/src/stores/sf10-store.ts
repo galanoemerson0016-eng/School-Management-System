@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-interface SF10Version {
+export interface SF10Version {
   id: string;
   timestamp: number;
   label: string;

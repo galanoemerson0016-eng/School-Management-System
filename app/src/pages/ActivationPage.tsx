@@ -349,7 +349,7 @@ export function ActivationPage() {
                   <AnimatePresence>
                     {status === 'error' && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-xl border border-red-500/20">
-                        <AlertCircle className="w-4 h-4 shrink-0" /> {errorMessage}
+                        <AlertCircle className="w-4 h-4 shrink-0 w-full overflow-x-auto custom-scrollbar" /> {errorMessage}
                       </motion.div>
                     )}
                   </AnimatePresence>

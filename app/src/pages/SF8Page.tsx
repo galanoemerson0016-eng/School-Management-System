@@ -310,7 +310,7 @@ export function SF8Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
+             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
                 <div className="flex items-center gap-8">
                     {/* Brand/Back Hook */}
                     <div className="flex items-center gap-5">
@@ -437,13 +437,13 @@ export function SF8Page() {
                             <div className="sf8-page mx-auto w-full max-w-[1123px] bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
                     <div className="sf8-page-content p-3 sm:p-4 flex flex-col">
                         <div className="flex items-start justify-between gap-3 mb-2">
-                            <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />
+                            <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar" />
                             <div className="flex-1 text-center leading-tight px-1">
                                 <p className="text-[17px] sm:text-[20px] font-bold">Department of Education</p>
                                 <p className="text-[16px] sm:text-[18px] font-bold">School Form 8 Learner&apos;s Basic Health and Nutrition Report (SF8)</p>
                                 <p className="text-[13px] sm:text-[14px] italic">(For All Grade Levels)</p>
                             </div>
-                            <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />
+                            <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar" />
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[11px] sm:text-[12px] mb-2.5">

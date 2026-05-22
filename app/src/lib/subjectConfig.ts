@@ -146,6 +146,23 @@ const STANDARD_SUBJECTS = {
   ] as CurriculumSubject[]
 };
 
+// Old curriculum (pre-MATATAG) JHS subjects for Grade 7-9
+// MAPEH sub-components are listed separately: Music, Arts, Physical Education, Health
+const OLD_CURRICULUM_JHS_SUBJECTS = [
+  { name: 'Filipino', code: '' },
+  { name: 'English', code: '' },
+  { name: 'Mathematics', code: '' },
+  { name: 'Science', code: '' },
+  { name: 'Araling Panlipunan (AP)', code: '' },
+  { name: 'Values Education', code: '' },
+  { name: 'Technology and Livelihood Education (TLE)', code: '' },
+  { name: 'MAPEH', code: '' },
+  { name: 'Music', code: 'MAPEH' },
+  { name: 'Arts', code: 'MAPEH' },
+  { name: 'Physical Education', code: 'MAPEH' },
+  { name: 'Health', code: 'MAPEH' },
+] as CurriculumSubject[];
+
 /**
  * Get subjects for a specific grade level
  * Uses custom curriculum if available, otherwise returns standard subjects
@@ -211,8 +228,16 @@ export function getSubjectsForGrade(gradeLevel: string | number, customCurriculu
  * Get SF10 subject rows with proper formatting.
  * Implements the core principle: MAPEH header -> Components -> Final Average
  */
-export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculum?: SchoolCurriculum) {
-  const subjects = getSubjectsForGrade(gradeLevel, customCurriculum);
+export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculum?: SchoolCurriculum, options?: { useOldCurriculum?: boolean }) {
+  let subjects = getSubjectsForGrade(gradeLevel, customCurriculum);
+
+  // Override with old curriculum (pre-MATATAG) for previous JHS grade records
+  const gradeNumCheck = parseInt(String(gradeLevel).match(/\d+/)?.[0] || String(gradeLevel)) || 0;
+  if (options?.useOldCurriculum && gradeNumCheck >= 7 && gradeNumCheck <= 9) {
+    subjects = [...OLD_CURRICULUM_JHS_SUBJECTS];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
 
   const getStandardSf10Key = (subjectName: string, idx: number) => {
@@ -232,6 +257,11 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     if (normalized.includes('epp') || normalized.includes('tle')) return 'tle';
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 'musicAndArts';
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 'peAndHealth';
+    // Old curriculum individual MAPEH components
+    if (normalized === 'music') return 'music';
+    if (normalized === 'arts') return 'arts';
+    if (normalized === 'physicaleducation') return 'physicalEducation';
+    if (normalized === 'health') return 'health';
     if (normalized.includes('mapeh')) return 'mapeh';
     return `subject_${idx}`;
   };
@@ -258,13 +288,13 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     });
   });
 
-  // Ensure correct row count: ES=15, JHS=12
+  // Ensure correct row count: ES=15, JHS=14 (extra 2 rows for special programs like SSC, SPS)
   const gradeStr = String(gradeLevel).toLowerCase();
   const gradeNum = parseInt(gradeStr.match(/\d+/)?.[0] || gradeStr) || 0;
   const isElementary = gradeNum > 0 && gradeNum <= 6;
   
-  const TARGET_TOTAL = isElementary ? 15 : 12;
-  const PAD_LIMIT = isElementary ? 13 : 12;
+  const TARGET_TOTAL = isElementary ? 15 : 14;
+  const PAD_LIMIT = isElementary ? 13 : 14;
 
   // For ES, we want to separate ALIVE subjects and put them at the bottom
   const isAL = (r: { label: string; key: string }) => r.label.includes('Arabic') || r.key === 'arabic';
@@ -274,7 +304,7 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
   const alRow = rows.find(isAL) || { key: "arabic", label: "*Arabic Language" };
   const iveRow = rows.find(isIVE) || { key: "islamic", label: "*Islamic Values Education" };
 
-  let finalRows = [...coreRows];
+  const finalRows = [...coreRows];
   
   // Padding
   while (finalRows.length < PAD_LIMIT) {
@@ -383,6 +413,11 @@ export function getStandardSubjectPriority(name: string): number {
     // 5. MAPEH Components
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 81;
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 82;
+    // Old curriculum individual MAPEH components
+    if (normalized === 'music') return 81;
+    if (normalized === 'arts') return 82;
+    if (normalized === 'physicaleducation') return 83;
+    if (normalized === 'health') return 84;
     
     // 6. Specialization (Always Last)
     if (normalized.includes('specialization')) return 1000;

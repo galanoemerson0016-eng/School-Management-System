@@ -25,11 +25,15 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
 
 export function AttendancePage() {
 
+    const SF2_BASE_WIDTH = 1350;
+
     const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
-    const [zoom, setZoom] = useState(1);
+    const [zoom, setZoom] = useState(0.8);
+    const previewViewportRef = useRef<HTMLDivElement>(null);
+    const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
 
     const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
 
@@ -435,130 +439,130 @@ export function AttendancePage() {
 
     const singleSection = sortedSections.length === 1 ? sortedSections[0] : null;
 
+    useEffect(() => {
+        const updatePreviewWidth = () => {
+            setPreviewViewportWidth(previewViewportRef.current?.clientWidth || 0);
+        };
+
+        updatePreviewWidth();
+        window.addEventListener('resize', updatePreviewWidth);
+        return () => window.removeEventListener('resize', updatePreviewWidth);
+    }, []);
+
+    const fitZoom = useMemo(() => {
+        if (!previewViewportWidth) return 1;
+        const availableWidth = Math.max(previewViewportWidth - 24, 320);
+        return Math.min(1, availableWidth / SF2_BASE_WIDTH);
+    }, [previewViewportWidth, SF2_BASE_WIDTH]);
+
+    const effectiveZoom = zoom * fitZoom;
+
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-[100] bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0">
-                <div className="flex items-center gap-8">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
-                        <button 
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="h-20 px-4 lg:px-6 flex items-center gap-2 lg:gap-3">
+                    <div className="flex items-center gap-3 min-w-0 shrink-0">
+                        <button
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            className="w-10 h-10 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4.5 h-4.5 group-hover:-translate-x-1 transition-transform" />
                         </button>
-                        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                            <AppLogo className="w-6 h-6" />
+                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
+                            <AppLogo className="w-5 h-5" />
                         </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF2 Daily Attendance</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">{schoolProfile.name} • S.Y. {activeSchoolYear}</p>
-                        </div>
+                        <h2 className="text-[13px] lg:text-[15px] font-black text-slate-900 uppercase tracking-tight truncate">
+                            SF2 Daily Attendance
+                        </h2>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
+                    <div className="h-8 w-px bg-slate-200 shrink-0" />
 
-                    <div className="flex items-center gap-4">
-                        {/* Section Selector (hide when only one section exists) */}
+                    <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
                         {!singleSection && (
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Section</span>
-                                <div className="relative group">
-                                    <select
-                                        value={selectedSection}
-                                        onChange={(e) => setSelectedSection(e.target.value)}
-                                        className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[200px]"
-                                    >
-                                        <option value="">Choose Section</option>
-                                        
-                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                            groupSections.length > 0 && (
-                                                <optgroup key={group} label={group}>
-                                                    {groupSections.map(s => (
-                                                        <option key={s.id} value={s.section_name}>
-                                                            {s.section_grade_level} - {s.section_name}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            )
-                                        ))}
-
-                                    </select>
-                                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                                </div>
+                            <div className="relative group shrink-0">
+                                <select
+                                    value={selectedSection}
+                                    onChange={(e) => setSelectedSection(e.target.value)}
+                                    className="appearance-none h-10 bg-slate-100 border border-slate-200 rounded-xl px-3 pr-9 text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer w-[165px] lg:w-[190px]"
+                                >
+                                    <option value="">Section</option>
+                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                        groupSections.length > 0 && (
+                                            <optgroup key={group} label={group}>
+                                                {groupSections.map(s => (
+                                                    <option key={s.id} value={s.section_name}>
+                                                        {s.section_grade_level} - {s.section_name}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                             </div>
                         )}
-                        {/* Month Selector */}
-                        <div className="flex flex-col">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Month</span>
-                            <div className="relative group">
-                                <select 
-                                    value={selectedMonth}
-                                    onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[160px]"
-                                >
-                                    {months.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                            </div>
+
+                        <div className="relative group shrink-0">
+                            <select
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="appearance-none h-10 bg-slate-100 border border-slate-200 rounded-xl px-3 pr-9 text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer w-[138px] lg:w-[152px]"
+                            >
+                                {months.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
 
-                        {/* Reset/Sync Dates Button */}
                         {canEditCurrentSection && (
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Calendar Fix</span>
-                                <button
-                                    onClick={() => {
-                                        if (confirm("Reset current month's date headers to match official DEPED calendar?")) {
-                                            applyAutoFillDates(selectedMonth, true);
-                                        }
-                                    }}
-                                    className="h-10 px-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-2 shadow-sm"
-                                    title="Sync headers with official school calendar"
-                                >
-                                    Sync Dates
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => {
+                                    if (confirm("Reset current month's date headers to match official DEPED calendar?")) {
+                                        applyAutoFillDates(selectedMonth, true);
+                                    }
+                                }}
+                                className="h-10 px-3 lg:px-4 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0"
+                                title="Sync headers with official school calendar"
+                            >
+                                Sync Dates
+                            </button>
                         )}
                     </div>
-                </div>
 
-                <div className="flex items-center gap-6">
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            <button 
+                    <div className="h-8 w-px bg-slate-200 shrink-0" />
+
+                    <div className="flex items-center gap-2 lg:gap-3 shrink-0">
+                        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <button
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                                title="Zoom Out"
                             >
                                 <Minus className="w-4 h-4" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                            <span className="text-[11px] font-black text-slate-900 w-10 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
-                            <button 
+                            <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                                title="Zoom In"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
                         </div>
+
+                        <button
+                            onClick={handlePrint}
+                            disabled={!selectedSection}
+                            className="h-10 px-4 lg:px-5 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-[0.1em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-2 group whitespace-nowrap"
+                        >
+                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                            Print Official SF2
+                        </button>
                     </div>
-
-                    <div className="h-10 w-px bg-slate-200" />
-
-                    {/* Print Primary Button */}
-                    <button
-                        onClick={handlePrint}
-                        disabled={!selectedSection}
-                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
-                    >
-                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                        Print Official SF2
-                    </button>
                 </div>
              </div>
 
@@ -583,12 +587,12 @@ export function AttendancePage() {
                         </div>
                     </div>
                 ) : (
-                    <div className="w-full min-h-full flex justify-center py-20 px-8 print:p-0 print:block overflow-x-auto">
+                    <div ref={previewViewportRef} className="w-full min-h-full flex justify-center py-8 px-4 lg:px-6 print:p-0 print:block overflow-x-auto">
                         <div 
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
-                            style={{ transform: `scale(${zoom})` }}
+                            style={{ transform: `scale(${effectiveZoom})` }}
                         >
-                            <div className="bg-white mx-auto w-[1350px] print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-8 p-6 print:p-2 print:m-0 rounded-sm">
+                            <div className="bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 p-4 md:p-5 print:p-2 print:m-0 rounded-sm" style={{ width: `${SF2_BASE_WIDTH}px` }}>
 
                 {/* === HEADER === */}
                 <div className="flex items-center mb-1">

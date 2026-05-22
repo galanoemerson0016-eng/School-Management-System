@@ -1,24 +1,29 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { X, Save, Calculator, History, Plus, Trash2, Info } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { X, Save, History, Trash2, Info } from 'lucide-react';
 import { useSF10Store } from '../stores/sf10-store';
-import type { Student, SchoolProfile, Section, Subject, ClassRecord } from '../types';
-import { getSF10RowsForGrade, normalizeSubjectName } from '../lib/subjectConfig';
+import type { SF10Version } from '../stores/sf10-store';
+import type { Student, SchoolProfile } from '../types';
+import { getSF10RowsForGrade } from '../lib/subjectConfig';
 
 interface SF10HistoricalDataModalProps {
     student: Student;
     schoolProfile: SchoolProfile;
-    sections: Section[];
-    subjects: Subject[];
-    activeSchoolYear: string;
     onClose: () => void;
+}
+
+interface GradeVal {
+    q1?: string;
+    q2?: string;
+    q3?: string;
+    q4?: string;
+    finalRating?: string;
+    remarks?: string;
+    label?: string;
 }
 
 export function SF10HistoricalDataModal({
     student,
     schoolProfile,
-    sections,
-    subjects,
-    activeSchoolYear,
     onClose
 }: SF10HistoricalDataModalProps) {
     const { overrides, setOverride, clearOverrides, history, restoreSnapshot } = useSF10Store();
@@ -46,11 +51,11 @@ export function SF10HistoricalDataModal({
     const pageNum = curriculumType === 'ES' ? (selectedBlockGrade <= 4 ? 1 : 2) : (selectedBlockGrade <= 8 ? 1 : 2);
     
     const overrideKey = `${student.lrn}_page_${pageNum}`;
-    const currentOverrides = overrides[overrideKey] || {};
+    const currentOverrides = useMemo(() => overrides[overrideKey] || {}, [overrides, overrideKey]);
 
     const is3Term = selectedBlockGrade >= gradeNum;
 
-    const getVal = (path: string) => currentOverrides[path] || '';
+    const getVal = useCallback((path: string) => currentOverrides[path] || '', [currentOverrides]);
 
     // Form state for block metadata
     const [metadata, setMetadata] = useState({
@@ -76,21 +81,22 @@ export function SF10HistoricalDataModal({
             schoolYear: getVal(`scholasticRecords[${blockIdx}].schoolYear`),
             adviserTeacher: getVal(`scholasticRecords[${blockIdx}].adviserTeacher`),
         });
-    }, [selectedBlockGrade, overrides, blockIdx]);
+    }, [selectedBlockGrade, overrides, blockIdx, getVal]);
 
     // Subjects for the selected grade
     const rows = useMemo(() => {
-        const customCurriculum = (schoolProfile as any).curriculum;
-        const finalRows = getSF10RowsForGrade(selectedBlockGrade, customCurriculum);
+        const customCurriculum = schoolProfile.curriculum;
+        const useOldCurriculum = curriculumType === 'JHS' && gradeNum >= 9 && selectedBlockGrade > 0 && selectedBlockGrade < gradeNum;
+        const finalRows = getSF10RowsForGrade(selectedBlockGrade, customCurriculum, { useOldCurriculum });
         
         return finalRows;
-    }, [selectedBlockGrade, schoolProfile, curriculumType]);
+    }, [selectedBlockGrade, schoolProfile, curriculumType, gradeNum]);
 
-    const [grades, setGrades] = useState<Record<string, any>>({});
+    const [grades, setGrades] = useState<Record<string, GradeVal | string>>({});
 
     // Load grades from overrides
     useEffect(() => {
-        const newGrades: Record<string, any> = {};
+        const newGrades: Record<string, GradeVal | string> = {};
         rows.forEach(row => {
             const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
             newGrades[row.key] = {
@@ -107,11 +113,14 @@ export function SF10HistoricalDataModal({
         // Load custom labels for extra rows
         rows.forEach(row => {
             if (row.key.startsWith('extra_')) {
-                newGrades[row.key].label = getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}.label`);
+                const gradeVal = newGrades[row.key];
+                if (typeof gradeVal === 'object' && gradeVal !== null) {
+                    gradeVal.label = getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}.label`);
+                }
             }
         });
         setGrades(newGrades);
-    }, [selectedBlockGrade, student.lrn, blockIdx]);
+    }, [selectedBlockGrade, student.lrn, blockIdx, getVal, rows]);
 
     const handleMetadataChange = (field: string, value: string) => {
         setMetadata(prev => ({ ...prev, [field]: value }));
@@ -124,37 +133,40 @@ export function SF10HistoricalDataModal({
 
     const handleGradeChange = (subjectKey: string, quarter: string, value: string) => {
         const updatedGrades = { ...grades };
-        if (!updatedGrades[subjectKey]) updatedGrades[subjectKey] = {};
-        updatedGrades[subjectKey][quarter] = value;
+        const currentGradeVal = typeof updatedGrades[subjectKey] === 'object' 
+            ? (updatedGrades[subjectKey] as GradeVal) 
+            : {};
+        const subjectGrade: GradeVal = { ...currentGradeVal, [quarter]: value };
+        updatedGrades[subjectKey] = subjectGrade;
 
         // Auto-calculate Final Rating
-        const q1 = parseFloat(updatedGrades[subjectKey].q1) || 0;
-        const q2 = parseFloat(updatedGrades[subjectKey].q2) || 0;
-        const q3 = parseFloat(updatedGrades[subjectKey].q3) || 0;
-        const q4 = parseFloat(updatedGrades[subjectKey].q4) || 0;
+        const q1 = parseFloat(subjectGrade.q1 || '') || 0;
+        const q2 = parseFloat(subjectGrade.q2 || '') || 0;
+        const q3 = parseFloat(subjectGrade.q3 || '') || 0;
+        const q4 = parseFloat(subjectGrade.q4 || '') || 0;
 
         const filledQuarters = is3Term 
             ? [q1, q2, q3].filter(v => v > 0)
             : [q1, q2, q3, q4].filter(v => v > 0);
             
         const isExtra = subjectKey.startsWith('extra_reserved_');
-        const hasLabel = isExtra ? (updatedGrades[subjectKey]?.label?.trim() || '') !== '' : true;
+        const hasLabel = isExtra ? (subjectGrade.label?.trim() || '') !== '' : true;
 
         if (filledQuarters.length > 0 && hasLabel) {
             const avg = Math.round(filledQuarters.reduce((a, b) => a + b, 0) / filledQuarters.length);
-            updatedGrades[subjectKey].finalRating = avg.toString();
-            updatedGrades[subjectKey].remarks = avg >= 75 ? 'PASSED' : 'FAILED';
+            subjectGrade.finalRating = avg.toString();
+            subjectGrade.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
             
             // Save to overrides
             const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
             setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
             setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, avg.toString());
-            setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, updatedGrades[subjectKey].remarks);
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, subjectGrade.remarks);
         } else {
             // Clear everything if no grades are left or no label is present for extra subjects
             const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
-            updatedGrades[subjectKey].finalRating = '';
-            updatedGrades[subjectKey].remarks = '';
+            subjectGrade.finalRating = '';
+            subjectGrade.remarks = '';
             setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
             setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
             setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
@@ -168,12 +180,15 @@ export function SF10HistoricalDataModal({
             if (key === 'generalAverage') return;
             // Exclude components from GPA (standard SF10 rules)
             const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth'].includes(key);
-            const final = parseFloat(updatedGrades[key]?.finalRating) || 0;
-            const hasLabel = key.startsWith('extra_') ? (updatedGrades[key]?.label?.trim() || '') !== '' : true;
-            
-            if (final > 0 && !isComponent && hasLabel) {
-                total += final;
-                count++;
+            const gradeObj = updatedGrades[key];
+            if (typeof gradeObj === 'object' && gradeObj !== null) {
+                const final = parseFloat(gradeObj.finalRating || '') || 0;
+                const hasLabel = key.startsWith('extra_') ? (gradeObj.label?.trim() || '') !== '' : true;
+                
+                if (final > 0 && !isComponent && hasLabel) {
+                    total += final;
+                    count++;
+                }
             }
         });
 
@@ -201,7 +216,7 @@ export function SF10HistoricalDataModal({
     }, [history, student.lrn, pageNum]);
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-1000 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
@@ -250,7 +265,7 @@ export function SF10HistoricalDataModal({
                             <div className="mt-8 space-y-3">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Version History</span>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                                    {blockSnapshots.map((snap: any) => (
+                                    {blockSnapshots.map((snap: SF10Version) => (
                                         <div key={snap.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-[10px] font-bold text-slate-500">{new Date(snap.timestamp).toLocaleString()}</span>
@@ -392,7 +407,7 @@ export function SF10HistoricalDataModal({
                         </div>
 
                         {/* Grades Grid */}
-                        <div className="bg-slate-50 rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
+                        <div className="bg-slate-50 rounded-4xl border border-slate-100 overflow-hidden shadow-sm">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-slate-900 text-white">
@@ -406,80 +421,86 @@ export function SF10HistoricalDataModal({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
-                                    {rows.map((row) => (
-                                        <tr key={row.key} className="hover:bg-white transition-colors group">
-                                            <td className="px-6 py-3 font-bold text-slate-700 border-r border-slate-200">
-                                                {(row.key.startsWith('extra_') || (grades[row.key]?.label !== undefined && grades[row.key].label !== row.label)) ? (
-                                                    <input
-                                                        type="text"
-                                                        className="w-full bg-transparent border-b border-dashed border-slate-200 focus:border-blue-500 outline-none px-1 py-0.5 font-bold text-slate-700"
-                                                        value={grades[row.key]?.label !== undefined ? grades[row.key].label : row.label}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            setGrades(prev => ({
-                                                                ...prev,
-                                                                [row.key]: { ...(prev[row.key] || {}), label: val }
-                                                            }));
-                                                            setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${row.key}.label`, val);
-                                                            
-                                                            // If label is cleared, clear everything else too
-                                                            if (val.trim() === '') {
-                                                                const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
-                                                                setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
-                                                                setGrades(prev => ({
-                                                                    ...prev,
-                                                                    [row.key]: { label: '', q1: '', q2: '', q3: '', q4: '', finalRating: '', remarks: '' }
-                                                                }));
-                                                            }
-                                                        }}
-                                                        placeholder="Type subject name..."
-                                                        disabled={isLocked}
-                                                    />
-                                                ) : (
-                                                    row.label
-                                                )}
-                                            </td>
-                                            {['q1', 'q2', 'q3', ...(!is3Term ? ['q4'] : [])].map((q) => (
-                                                <td key={q} className="p-1.5 border-r border-slate-200 bg-slate-50/50 group-hover:bg-transparent transition-colors">
-                                                    <input
-                                                        type="text"
-                                                        className="w-full h-10 bg-white border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 rounded-xl text-center font-black text-slate-900 outline-none transition-all tabular-nums shadow-sm"
-                                                        value={grades[row.key]?.[q] || ''}
-                                                        onChange={(e) => handleGradeChange(row.key, q, e.target.value)}
-                                                        maxLength={3}
-                                                        placeholder="-"
-                                                        disabled={isLocked}
-                                                    />
+                                    {rows.map((row) => {
+                                        const rowGrade = grades[row.key] as GradeVal | undefined;
+                                        return (
+                                            <tr key={row.key} className="hover:bg-white transition-colors group">
+                                                <td className="px-6 py-3 font-bold text-slate-700 border-r border-slate-200">
+                                                    {(row.key.startsWith('extra_') || (rowGrade?.label !== undefined && rowGrade.label !== row.label)) ? (
+                                                        <input
+                                                            type="text"
+                                                            className="w-full bg-transparent border-b border-dashed border-slate-200 focus:border-blue-500 outline-none px-1 py-0.5 font-bold text-slate-700"
+                                                            value={rowGrade?.label !== undefined ? rowGrade.label : row.label}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setGrades(prev => {
+                                                                    const prevGrade = (prev[row.key] as GradeVal) || {};
+                                                                    return {
+                                                                        ...prev,
+                                                                        [row.key]: { ...prevGrade, label: val }
+                                                                    };
+                                                                });
+                                                                setOverride(student.lrn, `page_${pageNum}`, `scholasticRecords[${blockIdx}].subjects.${row.key}.label`, val);
+                                                                
+                                                                // If label is cleared, clear everything else too
+                                                                if (val.trim() === '') {
+                                                                    const base = `scholasticRecords[${blockIdx}].subjects.${row.key}`;
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q1`, '');
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q2`, '');
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q3`, '');
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.q4`, '');
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+                                                                    setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+                                                                    setGrades(prev => ({
+                                                                        ...prev,
+                                                                        [row.key]: { label: '', q1: '', q2: '', q3: '', q4: '', finalRating: '', remarks: '' }
+                                                                    }));
+                                                                }
+                                                            }}
+                                                            placeholder="Type subject name..."
+                                                            disabled={isLocked}
+                                                        />
+                                                    ) : (
+                                                        row.label
+                                                    )}
                                                 </td>
-                                            ))}
-                                            <td className="px-4 text-center border-r border-slate-200">
-                                                <span className={`inline-block px-3 py-1 rounded-lg font-black tabular-nums ${parseFloat(grades[row.key]?.finalRating) > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                                                    {(grades[row.key]?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (grades[row.key]?.finalRating || '--') : '--'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 text-center">
-                                                <span className={`text-[10px] font-black uppercase tracking-widest ${grades[row.key]?.remarks === 'PASSED' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {(grades[row.key]?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (grades[row.key]?.remarks || '--') : '--'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                {['q1', 'q2', 'q3', ...(!is3Term ? ['q4'] : [])].map((q) => (
+                                                    <td key={q} className="p-1.5 border-r border-slate-200 bg-slate-50/50 group-hover:bg-transparent transition-colors">
+                                                        <input
+                                                            type="text"
+                                                            className="w-full h-10 bg-white border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 rounded-xl text-center font-black text-slate-900 outline-none transition-all tabular-nums shadow-sm"
+                                                            value={rowGrade?.[q as keyof GradeVal] || ''}
+                                                            onChange={(e) => handleGradeChange(row.key, q, e.target.value)}
+                                                            maxLength={3}
+                                                            placeholder="-"
+                                                            disabled={isLocked}
+                                                        />
+                                                    </td>
+                                                ))}
+                                                <td className="px-4 text-center border-r border-slate-200">
+                                                    <span className={`inline-block px-3 py-1 rounded-lg font-black tabular-nums ${parseFloat(rowGrade?.finalRating || '') > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.finalRating || '--') : '--'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 text-center">
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${rowGrade?.remarks === 'PASSED' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.remarks || '--') : '--'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     <tr className="bg-slate-900/5 font-black">
                                         <td className="px-6 py-6 text-right uppercase tracking-widest text-xs text-slate-500 border-r border-slate-200">General Average</td>
                                         <td colSpan={is3Term ? 3 : 4} className="border-r border-slate-200"></td>
                                         <td className="px-4 text-center border-r border-slate-200">
                                             <div className="w-full h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white text-lg font-black shadow-lg">
-                                                {grades['generalAverage'] || '--'}
+                                                {(grades.generalAverage as string) || '--'}
                                             </div>
                                         </td>
                                         <td className="px-6 text-center">
-                                            <span className={`text-xs font-black uppercase tracking-widest ${parseFloat(grades['generalAverage']) >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {parseFloat(grades['generalAverage']) >= 75 ? 'PROMOTED' : ''}
+                                            <span className={`text-xs font-black uppercase tracking-widest ${parseFloat((grades.generalAverage as string) || '0') >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {parseFloat((grades.generalAverage as string) || '0') >= 75 ? 'PROMOTED' : ''}
                                             </span>
                                         </td>
                                     </tr>

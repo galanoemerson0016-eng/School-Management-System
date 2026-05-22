@@ -37,6 +37,7 @@ export interface SchoolProfile {
     adviser_name?: string;
     grade_level?: string;
     section?: string;
+    adviser_image_url?: string;
     curriculum?: SchoolCurriculum; // Custom curriculum config
     is_activated?: boolean;
     is_trial?: boolean;

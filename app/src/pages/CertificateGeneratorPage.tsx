@@ -388,7 +388,7 @@ export function CertificateGeneratorPage() {
                 <div 
                     ref={certSidebarRef}
                     style={{ width: `${certSidebarWidth}px` }}
-                    className="border-r border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] overflow-y-auto p-6 custom-scrollbar shadow-inner no-print relative group/certsidebar shrink-0"
+                    className="border-r border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] overflow-y-auto p-6 custom-scrollbar shadow-inner no-print relative group/certsidebar shrink-0 w-full overflow-x-auto custom-scrollbar"
                 >
                     <div className="space-y-8">
                         {/* Section Selector */}

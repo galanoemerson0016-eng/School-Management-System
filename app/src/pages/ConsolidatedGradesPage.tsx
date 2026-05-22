@@ -1,11 +1,12 @@
-import { useState, useMemo, Fragment, useEffect } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, Download, Lock, Unlock, RefreshCcw, Trash2, FileSpreadsheet, Upload } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
-import type { Subject, ClassRecord, HPSRecord, Student } from '../types';
+import type { Subject } from '../types';
 
 type QuarterGrades = {
     q1?: QuarterGradeCell;
@@ -228,6 +229,11 @@ const normalizeScores = (scores: (number | string)[] | undefined, count: number)
     return Array.from({ length: count }, (_, i) => src[i] ?? '');
 };
 
+const formatLearnerName = (student: any) => {
+    const middleInitial = typeof student.middle_name === 'string' && student.middle_name ? `${student.middle_name.charAt(0)}.` : '';
+    return `${student.last_name || ''}, ${student.first_name || ''} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
+};
+
 export function ConsolidatedGradesPage() {
     
 
@@ -240,6 +246,7 @@ export function ConsolidatedGradesPage() {
 
     const [selectedTerm, setSelectedTerm] = useState<'q1' | 'q2' | 'q3' | 'all'>('q1');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [zoom, setZoom] = useState(0.9);
     const showGenAvg = selectedTerm !== 'all';
 
     // Derived State
@@ -700,11 +707,6 @@ const groupedSections = useMemo(() => {
     }, [sectionObj]);
 
     
-    const formatLearnerName = (student: (typeof students)[number]) => {
-        const middleInitial = student.middle_name ? `${student.middle_name.charAt(0)}.` : '';
-        return `${student.last_name}, ${student.first_name} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
-    };
-
     const learnerNameColumnWidth = useMemo(() => {
         const longestName = sectionStudents.reduce((longest, student) => {
             const currentName = formatLearnerName(student);
@@ -933,11 +935,11 @@ const groupedSections = useMemo(() => {
         return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
     };
     
-    const termColSpan = (sub: VirtualSectionSubject) => {
+    const termColSpan = useCallback((sub: VirtualSectionSubject) => {
         if (selectedTerm === 'all') return 4;
         if (sub.subject_name.toUpperCase() === 'MAPEH') return 3;
         return 1;
-    };
+    }, [selectedTerm]);
 
     const totalColumns = 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
     
@@ -949,7 +951,7 @@ const groupedSections = useMemo(() => {
         
         const estimatedWidth = (subjectCols * subjectColWidth) + nameColWidth + avgColsWidth;
         return Math.max(selectedTerm === 'all' ? 1200 : 900, estimatedWidth);
-    }, [subjectColumns, selectedTerm, showGenAvg, learnerNameColumnWidth, subjectColumnWidth]);
+    }, [subjectColumns, selectedTerm, showGenAvg, learnerNameColumnWidth, subjectColumnWidth, termColSpan]);
 
     const handlePrintConsolidated = () => {
         const sectionName = sectionObj?.section_name || 'Record';
@@ -975,21 +977,37 @@ const groupedSections = useMemo(() => {
                 @media print {
                     @page { size: ${selectedTerm === 'all' ? 'folio landscape' : 'legal landscape'}; margin: 6mm; }
                     #printable-consolidated-grades { width: auto !important; min-width: fit-content !important; margin: 0 !important; }
+                    .consolidated-zoom-shell { transform: none !important; }
                     .no-print { display: none !important; }
                 }
             `}</style>
-            <div className="flex flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 no-print overflow-x-auto">
+            {/* TIER 2: Page Context Header */}
+            <div className="flex flex-wrap items-center justify-between gap-4 py-4 px-6 mb-6 bg-white dark:bg-[#0B1121] border-b border-[#E5E7EB] dark:border-white/10 no-print">
+                {/* Left: Breadcrumb / Back */}
                 <div className="flex items-center gap-3 shrink-0">
-                    <button onClick={() => setCurrentView('reports')} className="p-2 hover:bg-gray-100 rounded-full transition-colors group" title="Back to Reports">
-                        <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-deped-blue" />
+                    <button onClick={() => setCurrentView('reports')} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors group" title="Back to Reports">
+                        <ArrowLeft className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover:text-[#0f172a] dark:group-hover:text-white transition-colors" />
                     </button>
-                    <h1 className="text-lg font-bold text-gray-800 hidden md:block">Grade Management</h1>
+                    <div className="hidden sm:flex items-center gap-2 text-[13px]">
+                        <span className="font-medium text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => setCurrentView('dashboard')}>Dashboard</span>
+                        <span className="text-slate-300 dark:text-slate-600">/</span>
+                        <span className="font-bold text-[#0f172a] dark:text-white">Grade Management</span>
+                    </div>
+                    <div className="sm:hidden font-bold text-[#0f172a] dark:text-white text-[13px]">
+                        Grade Management
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-3 flex-1 justify-center min-w-0">
-                    <div className="relative w-48 shrink-0">
+                {/* Right: Global Actions (Removed per user request) */}
+            </div>
+
+            {/* TIER 3: Filter & Action Toolbar */}
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 bg-white dark:bg-white/5 p-2.5 lg:p-3 rounded-[16px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200/60 dark:border-white/10 no-print relative z-20 mb-6 mx-6">
+                {/* LEFT: Dropdowns */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="relative w-[180px] shrink-0">
                         <select
-                            className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-bold py-2 px-4 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 transition-all cursor-pointer shadow-sm hover:border-gray-300"
+                            className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedSection ?? ''}
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
@@ -1008,14 +1026,14 @@ const groupedSections = useMemo(() => {
                                         ))}
 
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                            <ChevronDown className="w-4 h-4" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                            <ChevronDown className="w-3.5 h-3.5" />
                         </div>
                     </div>
 
-                    <div className="relative w-44 shrink-0">
+                    <div className="relative w-[120px] shrink-0">
                         <select
-                            className="appearance-none w-full bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-2 px-4 pr-10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 transition-all cursor-pointer shadow-sm hover:border-gray-300"
+                            className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedTerm}
                             onChange={(e) => setSelectedTerm(e.target.value as typeof selectedTerm)}
                         >
@@ -1023,23 +1041,47 @@ const groupedSections = useMemo(() => {
                                 <option key={value} value={value}>{label}</option>
                             ))}
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                            <ChevronDown className="w-4 h-4" />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                            <ChevronDown className="w-3.5 h-3.5" />
                         </div>
                     </div>
+                </div>
 
+                {/* RIGHT: Actions */}
+                <div className="flex flex-nowrap items-center gap-1.5 justify-end shrink-0">
+                    {selectedSection && (
+                        <div className="flex items-center gap-1 h-8 px-1 rounded-md bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 shrink-0">
+                            <button
+                                onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded"
+                                title="Zoom Out"
+                            >
+                                <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 w-9 text-center tabular-nums">
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button
+                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 rounded"
+                                title="Zoom In"
+                            >
+                                <Plus className="w-3 h-3" />
+                            </button>
+                        </div>
+                    )}
                     {selectedSection && isAdviser && selectedTerm !== 'all' && (
-                        <div className="flex items-center gap-2 shrink-0">
+                        <>
                             <button
                                 onClick={handleExportTemplate}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all font-bold text-xs shadow-sm"
+                                className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 whitespace-nowrap shrink-0"
                                 title="Download Template"
                             >
-                                <FileSpreadsheet className="w-4 h-4" />
-                                <span className="hidden lg:inline">Template</span>
+                                <FileSpreadsheet className="w-3 h-3 text-slate-400" />
+                                <span className="hidden xl:inline">Template</span>
                             </button>
 
-                            <div className="relative group">
+                            <div className="relative group shrink-0">
                                 <input
                                     type="file"
                                     accept=".xlsx, .xls"
@@ -1047,30 +1089,28 @@ const groupedSections = useMemo(() => {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 />
                                 <button
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-deped-blue border border-blue-200 hover:bg-blue-100 transition-all font-bold text-xs shadow-sm"
+                                    className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 group-hover:bg-slate-50 whitespace-nowrap shrink-0"
                                 >
-                                    <Upload className="w-4 h-4" />
-                                    <span className="hidden lg:inline">Import</span>
+                                    <Upload className="w-3 h-3 text-slate-400" />
+                                    <span className="hidden xl:inline">Import</span>
                                 </button>
                             </div>
 
                             <button
                                 onClick={handleSyncFromEClass}
                                 disabled={isSyncing}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold text-xs shadow-sm border ${
+                                className={`flex items-center gap-1 h-8 px-2.5 rounded-md transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm border active:scale-95 whitespace-nowrap shrink-0 ${
                                     isSyncing 
-                                    ? 'bg-gray-50 text-gray-400 border-gray-200' 
-                                    : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                    ? 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10' 
+                                    : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'
                                 }`}
                             >
-                                <RefreshCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                                <span className="hidden lg:inline">Sync</span>
+                                <RefreshCcw className={`w-3 h-3 text-slate-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                                <span className="hidden xl:inline">Sync</span>
                             </button>
-                        </div>
+                        </>
                     )}
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
                     {selectedSection && (
                         <>
                             <button
@@ -1079,19 +1119,19 @@ const groupedSections = useMemo(() => {
                                         await useAppStore.getState().clearGradingSheet();
                                     }
                                 }}
-                                className="bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-bold mr-2 text-xs"
+                                className="flex items-center gap-1 h-8 px-2 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border border-transparent transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 whitespace-nowrap shrink-0"
                                 title="Clear All Grades"
                             >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="hidden sm:inline">Clear All</span>
+                                <Trash2 className="w-3 h-3" />
+                                <span className="hidden xl:inline">Clear All</span>
                             </button>
 
                             <button
                                 onClick={handlePrintConsolidated}
-                                className="bg-deped-blue text-white flex items-center gap-2 px-5 py-2 rounded-xl shadow-lg hover:shadow-blue-600 transition-all hover:-translate-y-0.5 font-bold text-sm"
+                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-[#0f172a] dark:bg-white text-white dark:text-[#0f172a] hover:bg-slate-800 dark:hover:bg-slate-200 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0"
                             >
-                                <Printer className="w-4 h-4" />
-                                <span>Print</span>
+                                <Printer className="w-3 h-3" />
+                                <span className="hidden sm:inline">Print</span>
                             </button>
                         </>
                     )}
@@ -1106,6 +1146,11 @@ const groupedSections = useMemo(() => {
                         <p className="font-medium">Please select a section to view the grade sheet.</p>
                     </div>
                 ) : (
+                    <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
+                    <div
+                        className="consolidated-zoom-shell origin-top transition-all duration-300"
+                        style={{ transform: `scale(${zoom})` }}
+                    >
                     <div className="consolidated-sheet mx-auto bg-white p-4" style={{ minWidth: `${tableMinWidth}px` }}>
                         {/* Header Section */}
                         <div className="consolidated-header mb-4">
@@ -1135,15 +1180,15 @@ const groupedSections = useMemo(() => {
                                 </div>
                                 <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
                                     <span className="font-bold whitespace-nowrap">SCHOOL NAME :</span>
-                                    <span className="uppercase text-left min-w-0 break-words">{schoolProfile.name}</span>
+                                    <span className="uppercase text-left min-w-0 wrap-break-word">{schoolProfile.name}</span>
                                 </div>
                                 <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
                                     <span className="font-bold whitespace-nowrap">GRADE & SECTION :</span>
-                                    <span className="uppercase text-left min-w-0 break-words">{sectionObj?.section_grade_level} - {selectedSection}</span>
+                                    <span className="uppercase text-left min-w-0 wrap-break-word">{sectionObj?.section_grade_level} - {selectedSection}</span>
                                 </div>
                                 <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
                                     <span className="font-bold whitespace-nowrap">SCHOOL ID :</span>
-                                    <span className="text-left min-w-0 break-words">{schoolProfile.school_id}</span>
+                                    <span className="text-left min-w-0 wrap-break-word">{schoolProfile.school_id}</span>
                                 </div>
                             </div>
                         </div>
@@ -1164,7 +1209,7 @@ const groupedSections = useMemo(() => {
                                             >
                                                 {selectedTerm === 'q1' ? (
                                                     <div className="relative w-full">
-                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
                                                             {column.subject.subject_name}
                                                         </span>
                                                         <select
@@ -1181,7 +1226,7 @@ const groupedSections = useMemo(() => {
                                                         </select>
                                                     </div>
                                                 ) : (
-                                                    <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
                                                         {column.subject.subject_name}
                                                     </span>
                                                 )}
@@ -1193,7 +1238,7 @@ const groupedSections = useMemo(() => {
                                                 ) : (
                                                     selectedTerm === 'q1' ? (
                                                         <div className="relative w-full">
-                                                            <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
                                                                 {column.subject.subject_name}
                                                             </span>
                                                             <select
@@ -1213,7 +1258,7 @@ const groupedSections = useMemo(() => {
                                                             </select>
                                                         </div>
                                                     ) : (
-                                                        <span className="block whitespace-normal break-words text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
                                                             {column.subject.subject_name}
                                                         </span>
                                                     )
@@ -1596,6 +1641,8 @@ const groupedSections = useMemo(() => {
                         )}
     
                     </div>
+                        </div>
+                        </div>
                 )}
             </div>
         </div>
