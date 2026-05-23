@@ -9,52 +9,29 @@ import { licenseService } from '../lib/license-service';
 
 export default function UpdatesPage() {
   const [downloadInfo, setDownloadInfo] = useState({
-    win_url: 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
-    mac_url: 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
-    version: '1.0.49',
+    win_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro.Setup.1.0.51.exe',
+    mac_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-mac.dmg',
+    version: '1.0.51',
     notes: ''
   });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchInfo() {
-      try {
-        const data = await licenseService.getDownloadsInfo();
-        setDownloadInfo({
-          win_url: data.win_url || 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
-          mac_url: data.mac_url || 'https://github.com/galanoemerson0016-eng/School-Management-System/releases',
-          version: data.version || '1.0.49',
-          notes: data.notes || ''
-        });
-      } catch (e) {
-        console.error("Failed to load downloads data:", e);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchInfo();
+    setIsLoading(false);
   }, []);
 
   const changelogs = [
     {
-      title: "Zoom Controls Restored",
-      desc: "Re-enabled smooth system-wide zoom controls. Users can zoom in and out using Ctrl + Mouse Scroll, pinch gestures, or keyboard shortcuts."
+      title: "User Profile Avatar Integration",
+      desc: "Replaced the generic initials text circle in the main header next to 'Emerson / admin' with the user's actual profile photo uploaded on the Institute page."
     },
     {
-      title: "Cloud-Verified Free Trial",
-      desc: "Upgraded the 1-hour free trial validation. Trial states are now securely bound to unique motherboard and CPU hardware IDs in the cloud, completely blocking bypass techniques."
+      title: "FormEase Licensing Sync",
+      desc: "Synchronized active release channels with GitHub and updated the licensing portal to support immediate downloads of the latest v1.0.51 build."
     },
     {
-      title: "One-Click Trial Login Bypass",
-      desc: "Free trial testers can now immediately access the dashboard without creating or entering any login credentials."
-    },
-    {
-      title: "System Reset Reliability",
-      desc: "Fixed the 'Reset System' database locking bug. Clearing all school and enrollment records is now instant, safe, and highly reliable."
-    },
-    {
-      title: "Automatic Fullscreen",
-      desc: "The desktop application now automatically launches in immersive fullscreen mode by default on both Windows and macOS."
+      title: "Type Safety & Build Optimizations",
+      desc: "Validated and fully compiled all TypeScript components with zero errors to guarantee robust execution."
     }
   ];
 
@@ -67,7 +44,7 @@ export default function UpdatesPage() {
       </div>
 
       {/* Header Bar */}
-      <header className="relative z-50 w-full p-6 border-b border-white/10 backdrop-blur-xl bg-white/[0.03]">
+      <header className="relative z-50 w-full p-6 border-b border-white/10 backdrop-blur-xl bg-white/3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5 text-slate-400 hover:text-white transition-colors group">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -109,7 +86,7 @@ export default function UpdatesPage() {
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between space-y-8 hover:border-blue-500/30 transition-all group"
+            className="bg-white/3 border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between space-y-8 hover:border-blue-500/30 transition-all group"
           >
             <div className="space-y-4">
               <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform">
@@ -140,7 +117,7 @@ export default function UpdatesPage() {
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between space-y-8 hover:border-indigo-500/30 transition-all group"
+            className="bg-white/3 border border-white/10 rounded-[2.5rem] p-8 flex flex-col justify-between space-y-8 hover:border-indigo-500/30 transition-all group"
           >
             <div className="space-y-4">
               <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 group-hover:scale-110 transition-transform">
@@ -188,7 +165,7 @@ export default function UpdatesPage() {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 sm:p-10 space-y-8"
+          className="bg-white/2 border border-white/5 rounded-[2.5rem] p-8 sm:p-10 space-y-8"
         >
           <div className="flex items-center gap-3 border-b border-white/5 pb-6">
             <ShieldCheck className="w-6 h-6 text-emerald-400" />

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { SVGProps } from 'react';
 import { useAppStore } from '../stores';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Calendar, Bell, Trophy, AlertTriangle, Zap, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity } from 'lucide-react';
 import type { CalendarEvent, Student } from '../types';
@@ -278,25 +278,26 @@ export function Dashboard() {
 
     // Subject performance averages
     const subjectAverages = useMemo(() => {
-        const subjectTotals: Record<string, { sum: number, count: number, name: string }> = {};
+        const subjectTotals: Record<string, { sum: number, count: number }> = {};
         
         consolidatedRecords.forEach(r => {
             const grade = Number(r.final_grade);
             if (grade > 0) {
                 const subject = subjectMap.get(r.subject_id);
                 if (subject) {
-                    if (!subjectTotals[subject.id]) {
-                        subjectTotals[subject.id] = { sum: 0, count: 0, name: subject.subject_name };
+                    const normName = subject.subject_name.trim();
+                    if (!subjectTotals[normName]) {
+                        subjectTotals[normName] = { sum: 0, count: 0 };
                     }
-                    subjectTotals[subject.id].sum += grade;
-                    subjectTotals[subject.id].count++;
+                    subjectTotals[normName].sum += grade;
+                    subjectTotals[normName].count++;
                 }
             }
         });
 
-        return Object.values(subjectTotals)
-            .map(s => ({
-                name: s.name,
+        return Object.entries(subjectTotals)
+            .map(([name, s]) => ({
+                name,
                 avg: Math.round((s.sum / s.count) * 10) / 10
             }))
             .sort((a, b) => b.avg - a.avg)
@@ -579,32 +580,32 @@ export function Dashboard() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex-1 min-h-[105px] h-[105px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={subjectAverages} layout="vertical" margin={{ left: -15, right: 10, top: 0, bottom: 0 }}>
-                                    <XAxis type="number" domain={[0, 100]} hide />
-                                    <YAxis 
-                                        dataKey="name" 
-                                        type="category" 
-                                        width={55} 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: '#64748b', fontSize: 8, fontWeight: 900 }} 
-                                    />
-                                    <Tooltip 
-                                        cursor={{ fill: '#f1f5f9', radius: 6 }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 12px 24px -4px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 900 }}
-                                    />
-                                    <Bar dataKey="avg" radius={[0, 6, 6, 0]} barSize={7}>
-                                        {subjectAverages.map((entry, index) => (
-                                            <Cell 
-                                                key={`cell-${index}`} 
-                                                fill={entry.avg >= 90 ? '#10b981' : entry.avg >= 85 ? '#3b82f6' : '#8b5cf6'} 
+                        <div className="flex-1 flex flex-col justify-between min-h-[105px] h-[105px] py-1">
+                            {subjectAverages.map((item, index) => {
+                                const score = item.avg;
+                                const colorClass = score >= 95
+                                    ? 'bg-gradient-to-r from-emerald-400 to-teal-500 shadow-emerald-500/10'
+                                    : score >= 90
+                                        ? 'bg-gradient-to-r from-blue-400 to-indigo-500 shadow-blue-500/10'
+                                        : 'bg-gradient-to-r from-violet-400 to-purple-500 shadow-violet-500/10';
+
+                                return (
+                                    <div key={index} className="flex flex-col space-y-0.5">
+                                        <div className="flex justify-between items-center text-[8.5px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                                            <span className="truncate max-w-[130px]">{item.name}</span>
+                                            <span className="tabular-nums bg-slate-100 dark:bg-white/10 px-1.5 py-0.2 rounded text-[7.5px] font-bold text-slate-700 dark:text-slate-200">{item.avg}%</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden border border-slate-100/50 dark:border-white/5 relative">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${item.avg}%` }}
+                                                transition={{ duration: 1.2, ease: "easeOut", delay: index * 0.08 }}
+                                                className={`h-full ${colorClass} rounded-full`}
                                             />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100/60 flex justify-center">
                             <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-[0.12em] italic text-center">

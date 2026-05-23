@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import { Bell, X, Database, Power } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -36,6 +37,7 @@ export function Header() {
     } = useAppStore();
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     // Use announcements as notification source
     const recentNotifications = announcements.slice(0, 5);
@@ -137,7 +139,6 @@ export function Header() {
                     {/* Divider */}
                     <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden sm:block mx-2"></div>
 
-                    {/* User Info */}
                     <div className="hidden sm:flex items-center gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
                         <div className="text-right hidden md:block">
                             <p className="text-[13px] font-bold text-[#0f172a] dark:text-white truncate leading-none mb-1">
@@ -147,16 +148,24 @@ export function Header() {
                                 {user?.role || 'Guest'}
                             </p>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-xs">
-                            {(user?.displayName || 'U')[0].toUpperCase()}
-                        </div>
+                        {schoolProfile?.adviser_image_url ? (
+                            <img 
+                                src={schoolProfile.adviser_image_url} 
+                                alt={user?.displayName || 'User'} 
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-white/10 shadow-sm"
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-xs">
+                                {(user?.displayName || 'U')[0].toUpperCase()}
+                            </div>
+                        )}
                     </div>
 
                     <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden lg:block mx-1"></div>
 
                     {/* Close App Button */}
                     <button 
-                        onClick={() => window.electronAPI?.closeApp()}
+                        onClick={() => setShowCloseConfirm(true)}
                         className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 cursor-pointer transition-colors ml-1" 
                         title="Close Application"
                     >
@@ -164,6 +173,20 @@ export function Header() {
                     </button>
                 </div>
             </div>
+
+            <ConfirmationModal
+                open={showCloseConfirm}
+                title="Close Application"
+                message="Are you sure you want to exit FormEase Pro? Make sure all your class records and advisory lists have been fully finalized."
+                intent="danger"
+                confirmLabel="Yes, Exit App"
+                cancelLabel="Cancel"
+                onConfirm={() => {
+                    setShowCloseConfirm(false);
+                    window.electronAPI?.closeApp();
+                }}
+                onCancel={() => setShowCloseConfirm(false)}
+            />
         </header>
     );
 }

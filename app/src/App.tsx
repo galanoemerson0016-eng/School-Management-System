@@ -28,6 +28,7 @@ import {
   AboutPage,
   ActivationPage,
   LIRPage,
+  TemporaryGradeSlipPage,
 } from './pages';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
@@ -220,6 +221,8 @@ function App() {
         return <AboutPage />;
       case 'lir':
         return <LIRPage />;
+      case 'tgs':
+        return <TemporaryGradeSlipPage />;
       default:
         return <Dashboard />;
     }

@@ -39,17 +39,17 @@ const getDescriptor = (grade: number, gradeLevel: string) => {
     
     // Key Stage 1 (Grades 1-3)
     if (isKeyStage1(gradeLevel)) {
-        if (grade >= 90) return 'Consistent (Palagiang Naipapakita)';
-        if (grade >= 80) return 'Developing (Umuusbong)';
-        return 'Beginning (Nagsisimula)';
+        if (grade >= 90) return 'Consistent';
+        if (grade >= 80) return 'Developing';
+        return 'Beginning';
     }
 
     // Key Stage 2 to 4 (Grades 4-12)
-    if (grade >= 90) return 'Advancing (Namumukod-tangi)';
-    if (grade >= 80) return 'Benchmarking (Napamamalas)';
-    if (grade >= 75) return 'Connecting (Natutungo)';
-    if (grade >= 65) return 'Developing (Napauunlad)';
-    return 'Emerging (Nasisimula)';
+    if (grade >= 90) return 'Advancing';
+    if (grade >= 80) return 'Benchmarking';
+    if (grade >= 75) return 'Connecting';
+    if (grade >= 65) return 'Developing';
+    return 'Emerging';
 };
 
 const isElementaryLevel = (gradeLevel: string) => {
@@ -134,6 +134,14 @@ const GradeInput = ({
 
     const handleBlur = async () => {
         if (localValue === value) return;
+
+        // Perform grade validation: should not be below 0 and should not be above 100
+        const valNum = Number(localValue);
+        if (localValue !== '' && (isNaN(valNum) || valNum < 0 || valNum > 100)) {
+            useAppStore.getState().showNotification('Grades must be between 0 and 100.', 'error');
+            setLocalValue(value || ''); // Reset input to previous value
+            return;
+        }
 
         setIsSaving(true);
         try {
@@ -436,6 +444,7 @@ export function ConsolidatedGradesPage() {
                 const data = new Uint8Array(event.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
                 let importCount = 0;
+                let skipCount = 0;
 
                 for (const sheetName of workbook.SheetNames) {
                     const ws = workbook.Sheets[sheetName];
@@ -460,7 +469,12 @@ export function ConsolidatedGradesPage() {
                         const lrn = String(row[0] || '').trim();
                         const grade = parseFloat(row[2]); // Grade is in column 3 (Index 2)
 
-                        if (lrn && !isNaN(grade) && grade > 0) {
+                        if (lrn && !isNaN(grade) && grade >= 0) {
+                            if (grade < 0 || grade > 100) {
+                                skipCount++;
+                                continue;
+                            }
+                            
                             await updateGradingSheetRecord({
                                 id: `${lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
                                 student_lrn: lrn,
@@ -478,7 +492,11 @@ export function ConsolidatedGradesPage() {
                     }
                 }
 
-                showNotification(`Successfully imported ${importCount} grades with ID matching!`, 'success');
+                if (skipCount > 0) {
+                    showNotification(`Imported ${importCount} grades. ${skipCount} grades were skipped because they were not between 0 and 100.`, 'info');
+                } else {
+                    showNotification(`Successfully imported ${importCount} grades with ID matching!`, 'success');
+                }
                 e.target.value = '';
             } catch (error) {
                 console.error('Import error:', error);
@@ -922,6 +940,217 @@ const groupedSections = useMemo(() => {
 
         return data;
     }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, selectedTerm]);
+
+    const promotionStats = useMemo(() => {
+        const stats = {
+            passed: { male: 0, female: 0 },
+            failed: { male: 0, female: 0 },
+            highest: 0,
+            lowest: 100,
+            classSum: 0,
+            classCount: 0,
+        };
+
+        let highestGrade = 0;
+        let lowestGrade = 100;
+        let sumGrade = 0;
+        let countGrade = 0;
+
+        maleStudents.forEach(student => {
+            const data = gradesData[student.lrn];
+            if (data && data.generalAverage !== '') {
+                const grade = Number(data.generalAverage);
+                if (grade >= 75) stats.passed.male++;
+                else stats.failed.male++;
+
+                if (grade > highestGrade) highestGrade = grade;
+                if (grade < lowestGrade) lowestGrade = grade;
+                sumGrade += grade;
+                countGrade++;
+            }
+        });
+
+        femaleStudents.forEach(student => {
+            const data = gradesData[student.lrn];
+            if (data && data.generalAverage !== '') {
+                const grade = Number(data.generalAverage);
+                if (grade >= 75) stats.passed.female++;
+                else stats.failed.female++;
+
+                if (grade > highestGrade) highestGrade = grade;
+                if (grade < lowestGrade) lowestGrade = grade;
+                sumGrade += grade;
+                countGrade++;
+            }
+        });
+
+        stats.highest = highestGrade;
+        stats.lowest = countGrade > 0 ? lowestGrade : 0;
+        stats.classSum = sumGrade;
+        stats.classCount = countGrade;
+
+        return stats;
+    }, [maleStudents, femaleStudents, gradesData]);
+
+    const academicExcellenceStats = useMemo(() => {
+        const stats = {
+            highest: { male: 0, female: 0, students: [] as any[] },
+            high: { male: 0, female: 0, students: [] as any[] },
+            honors: { male: 0, female: 0, students: [] as any[] },
+            total: 0
+        };
+
+        const isQuarter = selectedTerm !== 'all';
+        
+        sectionStudents.forEach(student => {
+            const sData = gradesData[student.lrn];
+            if (!sData) return;
+
+            const avgStr = isQuarter ? sData.termAverage : sData.generalAverage;
+            if (!avgStr || avgStr === '') return;
+            const avg = Number(avgStr);
+
+            if (avg >= 90) {
+                let hasFailing = false;
+                let hasGrades = false;
+                
+                subjectColumns.forEach(({ subject }) => {
+                    const subGradeObj = sData[subject.id];
+                    if (subGradeObj) {
+                        const gradeVal = getQuarterGradeValue(isQuarter ? subGradeObj[selectedTerm as QuarterKey] : subGradeObj.final);
+                        if (typeof gradeVal === 'number' && gradeVal > 0) {
+                            hasGrades = true;
+                            if (gradeVal < 75) {
+                                hasFailing = true;
+                            }
+                        }
+                    }
+                });
+
+                if (hasGrades && !hasFailing) {
+                    const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
+                    const isMale = (student.gender || '').toLowerCase() === 'male';
+                    const record = { name: studentName, average: avg.toFixed(2), lrn: student.lrn };
+
+                    if (avg >= 98.00) {
+                        if (isMale) stats.highest.male++;
+                        else stats.highest.female++;
+                        stats.highest.students.push(record);
+                    } else if (avg >= 95.00) {
+                        if (isMale) stats.high.male++;
+                        else stats.high.female++;
+                        stats.high.students.push(record);
+                    } else if (avg >= 90.00) {
+                        if (isMale) stats.honors.male++;
+                        else stats.honors.female++;
+                        stats.honors.students.push(record);
+                    }
+                }
+            }
+        });
+        
+        const sortHonors = (a: any, b: any) => {
+            const diff = Number(b.average) - Number(a.average);
+            if (diff !== 0) return diff;
+            return a.name.localeCompare(b.name);
+        };
+        stats.highest.students.sort(sortHonors);
+        stats.high.students.sort(sortHonors);
+        stats.honors.students.sort(sortHonors);
+
+        stats.total = stats.highest.male + stats.highest.female + 
+                      stats.high.male + stats.high.female + 
+                      stats.honors.male + stats.honors.female;
+
+        return stats;
+    }, [sectionStudents, gradesData, selectedTerm, subjectColumns]);
+
+    const subjectPerformanceStats = useMemo(() => {
+        const list: any[] = [];
+        const isQuarter = selectedTerm !== 'all';
+        
+        const uniqueSubjectsMap = new Map<string, typeof sectionSubjects[0]>();
+        subjectColumns.forEach(({ subject }) => {
+            if (!uniqueSubjectsMap.has(subject.id)) {
+                uniqueSubjectsMap.set(subject.id, subject);
+            }
+        });
+
+        uniqueSubjectsMap.forEach((subject) => {
+            let totalGrade = 0;
+            let gradedCount = 0;
+            let failedCount = 0;
+            
+            sectionStudents.forEach((student) => {
+                const sData = gradesData[student.lrn];
+                if (sData) {
+                    const subGradeObj = sData[subject.id];
+                    if (subGradeObj) {
+                        const gradeVal = getQuarterGradeValue(isQuarter ? subGradeObj[selectedTerm as QuarterKey] : subGradeObj.final);
+                        if (typeof gradeVal === 'number' && gradeVal > 0) {
+                            totalGrade += gradeVal;
+                            gradedCount++;
+                            if (gradeVal < 75) {
+                                failedCount++;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (gradedCount > 0) {
+                const mean = totalGrade / gradedCount;
+                const passRate = ((gradedCount - failedCount) / gradedCount) * 100;
+                list.push({
+                    id: subject.id,
+                    name: subject.subject_name,
+                    mean: mean.toFixed(2),
+                    failed: failedCount,
+                    passRate: passRate.toFixed(1),
+                    total: gradedCount
+                });
+            }
+        });
+
+        return list;
+    }, [sectionStudents, subjectColumns, gradesData, selectedTerm]);
+
+    const remediationRoster = useMemo(() => {
+        const list: any[] = [];
+        const isQuarter = selectedTerm !== 'all';
+
+        sectionStudents.forEach((student) => {
+            const sData = gradesData[student.lrn];
+            if (!sData) return;
+
+            const failedSubjectsList: { name: string; grade: number }[] = [];
+
+            subjectColumns.forEach(({ subject }) => {
+                const subGradeObj = sData[subject.id];
+                if (subGradeObj) {
+                    const gradeVal = getQuarterGradeValue(isQuarter ? subGradeObj[selectedTerm as QuarterKey] : subGradeObj.final);
+                    if (typeof gradeVal === 'number' && gradeVal > 0 && gradeVal < 75) {
+                        failedSubjectsList.push({
+                            name: subject.subject_name,
+                            grade: gradeVal
+                        });
+                    }
+                }
+            });
+
+            if (failedSubjectsList.length > 0) {
+                const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
+                list.push({
+                    lrn: student.lrn,
+                    name: studentName,
+                    gender: student.gender || 'Male',
+                    failedSubjects: failedSubjectsList
+                });
+            }
+        });
+
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+    }, [sectionStudents, subjectColumns, gradesData, selectedTerm]);
 
 
 
@@ -1583,59 +1812,302 @@ const groupedSections = useMemo(() => {
                                 })()}
                             </tbody>
                         </table>
-                        {/* Summary of Grades - Learning Progress and Achievement */}
-                        {showDescriptor && selectedTerm !== 'all' && (
-                            <div className="mt-8 mb-4 no-print" style={{ maxWidth: '600px' }}>
-                                <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm">
-                                    <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                        Learning Progress and Achievement
+                        {/* Summary of Grades - Learning Progress & DepEd Promotion Stats */}
+                        {showDescriptor && (
+                            <div className="flex flex-col gap-6 w-full no-print-break-inside">
+                                {/* First Row: Learning Progress and Summary of Promotion */}
+                                <div className="mt-8 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-10 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                    {/* Left Side: Learning Progress and Achievement */}
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                            Learning Progress and Achievement
+                                        </div>
+                                        <table className="w-full text-center text-[10px] border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Descriptors & Grading Scale</th>
+                                                    <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
+                                                    <th className="p-2 w-16 uppercase">TOTAL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[
+                                                    { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100 },
+                                                    { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89 },
+                                                    { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79 },
+                                                    { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74 },
+                                                    { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64 }
+                                                ].map((level, idx) => {
+                                                    const getCounts = (studentsList: typeof maleStudents) => {
+                                                        return studentsList.filter(s => {
+                                                            const isQuarter = selectedTerm !== 'all';
+                                                            const rawAvg = isQuarter ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                            if (!rawAvg || rawAvg === '') return false;
+                                                            const avg = Number(rawAvg);
+                                                            return avg >= level.min && avg <= level.max;
+                                                        }).length;
+                                                    };
+                                                    const mCount = getCounts(maleStudents);
+                                                    const fCount = getCounts(femaleStudents);
+                                                    const total = mCount + fCount;
+                                                    
+                                                    return (
+                                                        <tr key={idx} className="border-b border-black">
+                                                            <td className="p-2 border-r border-black text-left pl-4 font-medium">{level.desc}</td>
+                                                            <td className={`p-2 border-r border-black font-bold ${level.min < 75 ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
+                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{mCount || '-'}</td>
+                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{fCount || '-'}</td>
+                                                            <td className="p-2 bg-gray-50 tabular-nums font-bold">{total || '-'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                <tr className="bg-gray-200 font-bold border-b border-black">
+                                                    <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{maleStudents.filter(s => {
+                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                        return rawAvg !== '' && Number(rawAvg) > 0;
+                                                    }).length}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{femaleStudents.filter(s => {
+                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                        return rawAvg !== '' && Number(rawAvg) > 0;
+                                                    }).length}</td>
+                                                    <td className="p-2 tabular-nums bg-gray-300">{sectionStudents.filter(s => {
+                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                        return rawAvg !== '' && Number(rawAvg) > 0;
+                                                    }).length}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    <table className="w-full text-center text-[10px] border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Descriptors & Grading Scale</th>
-                                                <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
-                                                <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
-                                                <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
-                                                <th className="p-2 w-16 uppercase">TOTAL</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {[
-                                                { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100 },
-                                                { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89 },
-                                                { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79 },
-                                                { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74 },
-                                                { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64 }
-                                            ].map((level, idx) => {
-                                                const getCounts = (studentsList: typeof maleStudents) => {
-                                                    return studentsList.filter(s => {
-                                                        const avg = Number(gradesData[s.lrn]?.generalAverage || 0);
-                                                        return avg >= level.min && avg <= level.max;
-                                                    }).length;
-                                                };
-                                                const mCount = getCounts(maleStudents);
-                                                const fCount = getCounts(femaleStudents);
-                                                const total = mCount + fCount;
-                                                
-                                                return (
-                                                    <tr key={idx} className="border-b border-black">
-                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">{level.desc}</td>
-                                                        <td className={`p-2 border-r border-black font-bold ${level.min < 75 ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{mCount || '-'}</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{fCount || '-'}</td>
-                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{total || '-'}</td>
+
+                                    {/* Right Side: Summary of Promotion & Class Performance */}
+                                    <div className="flex flex-col gap-4 flex-1 w-full max-w-[550px]">
+                                        {/* Summary of Promotion */}
+                                        <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm">
+                                            <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                                Summary of Promotion (General Performance)
+                                            </div>
+                                            <table className="w-full text-center text-[10px] border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Promotion Status</th>
+                                                        <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
+                                                        <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
+                                                        <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
+                                                        <th className="p-2 w-16 uppercase">TOTAL</th>
                                                     </tr>
-                                                );
-                                            })}
-                                            <tr className="bg-gray-200 font-bold">
-                                                <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
-                                                <td className="p-2 border-r border-black tabular-nums">{maleStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
-                                                <td className="p-2 border-r border-black tabular-nums">{femaleStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
-                                                <td className="p-2 tabular-nums">{sectionStudents.filter(s => Number(gradesData[s.lrn]?.generalAverage || 0) > 0).length}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="border-b border-black">
+                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">Passed (Promoted)</td>
+                                                        <td className="p-2 border-r border-black font-bold text-green-700">PROMOTED</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.passed.male || '-'}</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.passed.female || '-'}</td>
+                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{promotionStats.passed.male + promotionStats.passed.female || '-'}</td>
+                                                    </tr>
+                                                    <tr className="border-b border-black">
+                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">Failed (Retained)</td>
+                                                        <td className="p-2 border-r border-black font-bold text-red-600">RETAINED</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.failed.male || '-'}</td>
+                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.failed.female || '-'}</td>
+                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{promotionStats.failed.male + promotionStats.failed.female || '-'}</td>
+                                                    </tr>
+                                                    <tr className="bg-gray-200 font-bold border-b border-black">
+                                                        <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
+                                                        <td className="p-2 border-r border-black tabular-nums">{promotionStats.passed.male + promotionStats.failed.male || '-'}</td>
+                                                        <td className="p-2 border-r border-black tabular-nums">{promotionStats.passed.female + promotionStats.failed.female || '-'}</td>
+                                                        <td className="p-2 tabular-nums bg-gray-300">{promotionStats.classCount || '-'}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Class Performance Metrics */}
+                                        <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm bg-slate-50 p-3">
+                                            <div className="font-bold text-[10px] uppercase border-b border-black pb-1 mb-2 tracking-wide text-slate-800">
+                                                Class Achievement Analytics
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]">
+                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                    <span className="text-slate-600 font-medium">Total Enrolled Learners:</span>
+                                                    <span className="font-bold text-slate-900">{sectionStudents.length}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                    <span className="text-slate-600 font-medium">Class General Average:</span>
+                                                    <span className="font-bold text-slate-900">{promotionStats.classCount > 0 ? (promotionStats.classSum / promotionStats.classCount).toFixed(2) : '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                    <span className="text-slate-600 font-medium">Highest General Average:</span>
+                                                    <span className="font-bold text-green-700">{promotionStats.classCount > 0 ? promotionStats.highest : '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                    <span className="text-slate-600 font-medium">Lowest General Average:</span>
+                                                    <span className="font-bold text-red-600">{promotionStats.classCount > 0 ? promotionStats.lowest : '-'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Second Row: Academic Excellence and Subject Performance Profile */}
+                                <div className="mt-6 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-8 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                    {/* Left Side: Academic Excellence Awards (Honor Roll) Summary */}
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                            Academic Excellence Awards (Honor Roll) Summary
+                                        </div>
+                                        <table className="w-full text-center text-[10px] border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Award Category</th>
+                                                    <th className="p-2 border-r border-black w-24 uppercase">Grading Scale</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
+                                                    <th className="p-2 w-16 uppercase">TOTAL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr className="border-b border-black">
+                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-yellow-700">🏆 With Highest Honors</td>
+                                                    <td className="p-2 border-r border-black font-medium text-slate-600">98.00 - 100.00</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.highest.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.highest.female || '-'}</td>
+                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.highest.male + academicExcellenceStats.highest.female || '-'}</td>
+                                                </tr>
+                                                <tr className="border-b border-black">
+                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-blue-700">🥈 With High Honors</td>
+                                                    <td className="p-2 border-r border-black font-medium text-slate-600">95.00 - 97.99</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.high.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.high.female || '-'}</td>
+                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.high.male + academicExcellenceStats.high.female || '-'}</td>
+                                                </tr>
+                                                <tr className="border-b border-black">
+                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-slate-700">🥉 With Honors</td>
+                                                    <td className="p-2 border-r border-black font-medium text-slate-600">90.00 - 94.99</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.honors.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.honors.female || '-'}</td>
+                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.honors.male + academicExcellenceStats.honors.female || '-'}</td>
+                                                </tr>
+                                                <tr className="bg-gray-200 font-bold border-b border-black">
+                                                    <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL EXCELLENCE AWARDEES</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.highest.male + academicExcellenceStats.high.male + academicExcellenceStats.honors.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.highest.female + academicExcellenceStats.high.female + academicExcellenceStats.honors.female || '-'}</td>
+                                                    <td className="p-2 tabular-nums bg-gray-300">{academicExcellenceStats.total || '-'}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <div className="p-3 bg-slate-50 border-t border-black text-[9px] leading-relaxed">
+                                            <div className="font-bold uppercase tracking-wider mb-2 text-slate-800 border-b border-slate-200 pb-0.5">Awardees Roster (No failing grades)</div>
+                                            {academicExcellenceStats.total === 0 ? (
+                                                <div className="italic text-slate-500 text-center py-1">No awardees for this term. (Average 90.00+ required)</div>
+                                            ) : (
+                                                <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                                    {academicExcellenceStats.highest.students.length > 0 && (
+                                                        <div>
+                                                            <span className="font-bold text-yellow-800">🏆 Highest Honors:</span>{' '}
+                                                            <span className="text-slate-700">{academicExcellenceStats.highest.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
+                                                        </div>
+                                                    )}
+                                                    {academicExcellenceStats.high.students.length > 0 && (
+                                                        <div>
+                                                            <span className="font-bold text-blue-800">🥈 High Honors:</span>{' '}
+                                                            <span className="text-slate-700">{academicExcellenceStats.high.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
+                                                        </div>
+                                                    )}
+                                                    {academicExcellenceStats.honors.students.length > 0 && (
+                                                        <div>
+                                                            <span className="font-bold text-slate-800">🥉 Honors:</span>{' '}
+                                                            <span className="text-slate-700">{academicExcellenceStats.honors.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Right Side: Learning Area (Subject) Performance Profile */}
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                            Learning Area (Subject) Performance Profile
+                                        </div>
+                                        <table className="w-full text-center text-[10px] border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Learning Area (Subject)</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">Graded</th>
+                                                    <th className="p-2 border-r border-black w-24 uppercase">Mean Grade</th>
+                                                    <th className="p-2 border-r border-black w-16 uppercase">Failed</th>
+                                                    <th className="p-2 w-24 uppercase">Passing Rate</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {subjectPerformanceStats.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-4 italic text-slate-500 text-center">No graded subject columns present.</td>
+                                                    </tr>
+                                                ) : (
+                                                    subjectPerformanceStats.map((item, idx) => {
+                                                        const rate = Number(item.passRate);
+                                                        const rateColor = rate < 75.0 ? 'text-red-600 font-bold' : rate >= 90.0 ? 'text-green-700 font-bold' : 'text-slate-800 font-medium';
+                                                        return (
+                                                            <tr key={idx} className="border-b border-black">
+                                                                <td className="p-2 border-r border-black text-left pl-4 font-semibold uppercase">{item.name}</td>
+                                                                <td className="p-2 border-r border-black tabular-nums font-medium">{item.total}</td>
+                                                                <td className="p-2 border-r border-black tabular-nums font-bold">{item.mean}</td>
+                                                                <td className={`p-2 border-r border-black tabular-nums ${item.failed > 0 ? 'text-red-600 font-bold' : 'text-slate-500 font-medium'}`}>{item.failed || '-'}</td>
+                                                                <td className={`p-2 bg-gray-50 tabular-nums ${rateColor}`}>{item.passRate}%</td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Third Row: Learner Intervention & Remediation Roster */}
+                                <div className="mt-6 mb-4 w-full print:mt-8 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
+                                            Learner Intervention & Remediation Roster
+                                        </div>
+                                        {remediationRoster.length === 0 ? (
+                                            <div className="p-6 bg-green-50 border-t border-green-200 text-center flex flex-col items-center justify-center gap-2">
+                                                <span className="text-2xl">🎉</span>
+                                                <div className="font-bold text-green-800 text-[12px] uppercase tracking-wide">Excellent Class Performance</div>
+                                                <div className="text-green-700 text-[10px] font-medium">100% of the class has met or exceeded academic expectations for this period. No learners require intervention or remediation.</div>
+                                            </div>
+                                        ) : (
+                                            <table className="w-full text-center text-[10px] border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-100 border-b-2 border-black font-bold">
+                                                        <th className="p-2 border-r border-black w-24 uppercase">LRN</th>
+                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Learner Name</th>
+                                                        <th className="p-2 border-r border-black w-16 uppercase">Gender</th>
+                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Subjects Requiring Remediation (Failing Grade)</th>
+                                                        <th className="p-2 w-32 uppercase">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {remediationRoster.map((student, idx) => (
+                                                        <tr key={idx} className="border-b border-black">
+                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{student.lrn}</td>
+                                                            <td className="p-2 border-r border-black text-left pl-4 font-bold uppercase">{student.name}</td>
+                                                            <td className="p-2 border-r border-black uppercase font-medium">{student.gender}</td>
+                                                            <td className="p-2 border-r border-black text-left pl-4 text-red-600 font-semibold leading-tight">
+                                                                {student.failedSubjects.map((sub: any) => `${sub.name} (${sub.grade})`).join(', ')}
+                                                            </td>
+                                                            <td className="p-2 bg-red-50/50 font-bold text-red-700 text-[9px] tracking-wide uppercase">
+                                                                <span className="px-2 py-0.5 border border-red-300 rounded bg-white">For Intervention</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}

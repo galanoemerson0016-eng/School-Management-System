@@ -6,6 +6,33 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/updates/FormEase.Pro.Setup.1.0.51.exe",
+        "destination": "https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro.Setup.1.0.51.exe",
+        "type": 302
+      },
+      {
+        "source": "/updates/FormEase%20Pro-1.0.51-mac.dmg",
+        "destination": "https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-mac.dmg",
+        "type": 302
+      },
+      {
+        "source": "/updates/FormEase%20Pro-1.0.51-arm64.dmg",
+        "destination": "https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-arm64.dmg",
+        "type": 302
+      },
+      {
+        "source": "/updates/FormEase%20Pro-1.0.51-mac.zip",
+        "destination": "https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-mac.zip",
+        "type": 302
+      },
+      {
+        "source": "/updates/FormEase%20Pro-1.0.51-arm64-mac.zip",
+        "destination": "https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-arm64-mac.zip",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

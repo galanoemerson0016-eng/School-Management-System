@@ -1,8 +1,17 @@
-version: 1.0.49
+version: 1.0.50
 files:
-  - url: https://tinyurl.com/FORMEASE-MAC
-    sha512: d2bf4a6bbfd14fb1e6878d655f4cd671c6cfb41d2fbbd2b5bf4cd2b5b312762a4d3395d8525b689aa23a3d5fbf1b3a167431fbf1b3a167431fbf1b3a167431fbf
-    size: 94000000
-path: FormEase Pro-1.0.49-mac.dmg
-sha512: d2bf4a6bbfd14fb1e6878d655f4cd671c6cfb41d2fbbd2b5bf4cd2b5b312762a4d3395d8525b689aa23a3d5fbf1b3a167431fbf1b3a167431fbf1b3a167431fbf
-releaseDate: 2026-05-17T06:32:00Z
+  - url: FormEase Pro-1.0.50-mac.zip
+    sha512: 7Twup4ZbZGF3VH2UiXCRe7K6usZjdn0nNWdHbqPcpswFoPaF8erlN7FBSvDX98Pl6vMAMZEPleNaC2iQIwsR1A==
+    size: 178172106
+  - url: FormEase Pro-1.0.50-arm64-mac.zip
+    sha512: J+g86nZXtgliZ7WtwDfEnS2L3WmwFcvY0soT/NndWaZwJD6675tBdEhE7iMPH4EuiVQYhDcvUt/w7gFLLupi1Q==
+    size: 172930685
+  - url: FormEase Pro-1.0.50.dmg
+    sha512: 6LfgaaJuusjjw/h3a3p9NfN5lzQH2IhHloJoesumvG5mZBk/aPylUpF7HNygWvGHo9v4QpABns0dz+Sdj3Mupg==
+    size: 184255674
+  - url: FormEase Pro-1.0.50-arm64.dmg
+    sha512: SZlcfl386XEy5M/OA10fdRN4eR+eOmGC6MbhulolbyX3L2PvVlEBYcuJ/Iy7HATWyK06SUN+azk5kg4F8FrnFw==
+    size: 178969327
+path: FormEase Pro-1.0.50-mac.zip
+sha512: 7Twup4ZbZGF3VH2UiXCRe7K6usZjdn0nNWdHbqPcpswFoPaF8erlN7FBSvDX98Pl6vMAMZEPleNaC2iQIwsR1A==
+releaseDate: '2026-05-22T17:40:20.099Z'

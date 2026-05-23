@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
+import { filterSF9Sections } from '../lib/rbac';
 import { 
     Files, 
     FileText, 
@@ -206,7 +207,7 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
             }`}
         >
             {/* Top accent gradient bar */}
-            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${c.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+            <div className={`absolute top-0 left-0 right-0 h-1 bg-linear-to-r ${c.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
 
             {/* Background Icon Watermark */}
             <div className={`absolute -right-6 -bottom-6 opacity-[0.03] dark:opacity-[0.05] group-hover:opacity-[0.08] transition-all duration-700 pointer-events-none transform -rotate-12 group-hover:rotate-0 group-hover:scale-110 ${c.text}`}>
@@ -310,7 +311,7 @@ function FullLogsModal({ logs, onClose, currentUserId }: { logs: ActivityEntry[]
                                     color === 'blue' ? 'border-blue-100 dark:border-blue-500/10' :
                                     'border-amber-100 dark:border-amber-500/10'
                                 }`}>
-                                    <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                                    <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${
                                         color === 'emerald' ? 'bg-emerald-500' :
                                         color === 'blue' ? 'bg-blue-500' :
                                         'bg-amber-500'
@@ -318,7 +319,7 @@ function FullLogsModal({ logs, onClose, currentUserId }: { logs: ActivityEntry[]
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-2">
                                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{entry.action}</p>
-                                            <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
                                                 color === 'emerald' ? 'bg-emerald-500/10 text-emerald-600' :
                                                 color === 'blue' ? 'bg-blue-500/10 text-blue-600' :
                                                 'bg-amber-500/10 text-amber-600'
@@ -381,6 +382,7 @@ export function SchoolFormsPage() {
             attendance: { type: 'attendance', action: 'Opened SF2 Attendance', detail: `Month: ${new Date().toLocaleString('en-US', { month: 'long' })}` },
             'name-tags': { type: 'sf10', action: 'Opened Name Tag Generator', detail: `Preparing batch tags for sections` },
             lir: { type: 'sf10', action: 'Opened Learner\'s Individual Record', detail: `S.Y. ${activeSchoolYear}` },
+            tgs: { type: 'sf9', action: 'Opened Temporary Grade Slip', detail: `S.Y. ${activeSchoolYear}` },
         };
         const entry = actionMap[formId];
         if (entry && user) {
@@ -390,16 +392,39 @@ export function SchoolFormsPage() {
         setCurrentView(formId);
     }, [setCurrentView, activeSchoolYear, students.length, user]);
 
-    // ── Live Statistics ──────────────────────────────────────────────
-    const activeStudentsCount = students.length;
-    const activeSectionsCount = sections.length;
+    // ── Live Statistics (Filtered by Advisory/Official Class) ─────────
+    const officialSections = useMemo(() => {
+        return filterSF9Sections(user, sections);
+    }, [user, sections]);
+
+    const officialStudents = useMemo(() => {
+        if (officialSections.length === 0) return [];
+        const validIds = new Set(officialSections.map(s => s.id));
+        const validNames = new Set(officialSections.map(s => s.section_name));
+        return students.filter(s => 
+            s.student_section && (validIds.has(s.student_section) || validNames.has(s.student_section))
+        );
+    }, [students, officialSections]);
+
+    const activeStudentsCount = officialStudents.length;
+    const activeSectionsCount = officialSections.length;
 
     const sf9Progress = useMemo(() => {
-        if (activeStudentsCount === 0 || subjects.length === 0) return 0;
-        const uniqueRecords = new Set(gradingSheetRecords.map(r => `${r.student_lrn}_${r.subject_id}_${r.quarter}`));
-        const totalPossible = activeStudentsCount * subjects.length * 4;
+        if (activeStudentsCount === 0) return 0;
+        const validSectionIds = new Set(officialSections.map(s => s.id));
+        const officialSubjects = subjects.filter(s => s.section_id && validSectionIds.has(s.section_id));
+        if (officialSubjects.length === 0) return 0;
+        const officialSubjectIds = new Set(officialSubjects.map(s => s.id));
+        const officialStudentLrns = new Set(officialStudents.map(s => s.lrn));
+
+        const uniqueRecords = new Set(
+            gradingSheetRecords
+                .filter(r => officialStudentLrns.has(r.student_lrn) && officialSubjectIds.has(r.subject_id))
+                .map(r => `${r.student_lrn}_${r.subject_id}_${r.quarter}`)
+        );
+        const totalPossible = activeStudentsCount * officialSubjects.length * 4;
         return totalPossible > 0 ? Math.min(Math.round((uniqueRecords.size / totalPossible) * 100), 100) : 0;
-    }, [gradingSheetRecords, activeStudentsCount, subjects]);
+    }, [gradingSheetRecords, activeStudentsCount, officialSections, officialStudents, subjects]);
 
     const currentMonth = useMemo(() => {
         return new Date().toLocaleString('en-US', { month: 'long' }).toUpperCase();
@@ -500,6 +525,18 @@ export function SchoolFormsPage() {
             icon: FileText,
             color: 'blue',
             badge: 'New',
+            stats: [
+                { label: 'Learners', value: activeStudentsCount },
+                { label: 'Sections', value: activeSectionsCount },
+            ],
+        },
+        {
+            id: 'tgs',
+            title: 'Temporary Grade Slip',
+            description: 'Generate compact, print-ready grade slips for students (4 per page).',
+            icon: Printer,
+            color: 'orange',
+            badge: 'Tool',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
