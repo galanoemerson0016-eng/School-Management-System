@@ -75,7 +75,7 @@ export function AnnouncementsPage() {
             const cloudAnns = await announcementSync.syncFromCloud(schoolProfile.school_id);
             if (cloudAnns && cloudAnns.length > 0) {
                 // Update local store with newly synced announcements
-                cloudAnns.forEach((ann: any) => {
+                cloudAnns.forEach((ann: Announcement) => {
                     const exists = announcements.find(a => a.id === ann.id);
                     if (!exists) {
                         const localAnn: Announcement = {
@@ -203,7 +203,7 @@ export function AnnouncementsPage() {
 
             {/* Login Page Announcement Editor */}
             <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-green-500 text-white flex justify-between items-center">
+                <div className="px-6 py-4 bg-linear-to-r from-emerald-600 to-green-500 text-white flex justify-between items-center">
                     <h3 className="text-sm font-bold flex items-center gap-2">
                         📢 Login Page Banner
                     </h3>
@@ -324,7 +324,7 @@ export function AnnouncementsPage() {
 
             {/* Announcements List */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-deped-blue to-blue-600 text-white">
+                <div className="px-6 py-4 bg-linear-to-r from-deped-blue to-blue-600 text-white">
                     <h3 className="font-bold">Announcements ({filteredAnnouncements.length})</h3>
                 </div>
                 {filteredAnnouncements.length === 0 ? (
@@ -374,7 +374,7 @@ export function AnnouncementsPage() {
                                             <h4 className="text-base font-bold text-gray-800">{announcement.announcement_title}</h4>
                                             <p className="text-sm text-gray-600 mt-1">{announcement.announcement_content}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0 w-full overflow-x-auto custom-scrollbar">
+                                        <div className="flex items-center gap-1 shrink-0">
                                             {canManageAnnouncements && (
                                                 <>
                                                     <button

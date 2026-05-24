@@ -6,7 +6,7 @@ import type { Student, Section } from '../types';
 import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
-import { ArrowLeft, Printer, FileText, Plus, Minus, History } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Plus, Minus, History, ChevronDown } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
 import { SF10HistoricalDataModal } from '../components/SF10HistoricalDataModal';
 
@@ -158,145 +158,143 @@ export function SF10Page() {
     return (
         <div className="sf10-print-root flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-20 px-4 xl:px-6 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
-                <div className="flex items-center gap-4 xl:gap-6 min-w-max">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-3 xl:gap-4">
+             {/* Sticky Premium Top Toolbar */}
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="flex items-center justify-start w-full h-16 select-none relative px-3 lg:px-4 gap-2 lg:gap-3 overflow-x-auto scrollbar-none">
+                    
+                    {/* Identity & Context Branding (Left Most Edge) */}
+                    <div className="flex items-center gap-2 lg:gap-3 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-10 h-10 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF10 Record</h2>
-                            <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Permanent</p>
+                        <div className="flex flex-col shrink-0">
+                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF10 Record</h2>
+                            <p className="text-[7.5px] font-black text-blue-600 uppercase tracking-widest leading-none">Permanent</p>
                         </div>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 mx-1" />
-
-                    {/* Learner & Section Selector */}
-                    <div className="flex items-center gap-3">
-                        {sortedSections.length > 1 && (
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Section</span>
-                                <select 
-                                    className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer max-w-[140px] truncate"
-                                    value={selectedSection}
-                                    onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
-                                >
-                                    <option value="">Choose Section</option>
-                                    
-                                        {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                            groupSections.length > 0 && (
-                                                <optgroup key={group} label={group}>
-                                                    {groupSections.map(s => (
-                                                        <option key={s.id} value={s.section_name}>
-                                                            {s.section_grade_level} - {s.section_name}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            )
-                                        ))}
-
-                                </select>
-                            </div>
-                        )}
-
-                        <div className="flex flex-col">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Learner Database</span>
+                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                        
+                    {/* Section and Student Selectors */}
+                    {sortedSections.length > 1 && (
+                        <div className="relative group shrink-0">
                             <select 
-                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[180px] max-w-[220px] truncate disabled:opacity-30"
-                                value={selectedStudent?.lrn || ''}
-                                onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                                disabled={!selectedSection}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[120px] lg:min-w-[135px] duration-200"
+                                value={selectedSection}
+                                onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); }}
                             >
-                                <option value="">Select Student</option>
-                                {males.length > 0 && (
-                                    <optgroup label="MALE">
-                                        {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                    </optgroup>
-                                )}
-                                {females.length > 0 && (
-                                    <optgroup label="FEMALE">
-                                        {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                    </optgroup>
-                                )}
+                                <option value="">Choose Section</option>
+                                {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                    groupSections.length > 0 && (
+                                        <optgroup key={group} label={group}>
+                                            {groupSections.map(s => (
+                                                <option key={s.id} value={s.section_name}>
+                                                    {s.section_grade_level} - {s.section_name}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )
+                                ))}
                             </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
+                    )}
 
-                        {/* Page Toggles */}
-                        <div className="flex flex-col ml-2">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Record Page</span>
-                            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                                <button
-                                    onClick={() => setCurrentPage(1)}
-                                    className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${currentPage === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Page 1
-                                </button>
-                                <button
-                                    onClick={() => setCurrentPage(2)}
-                                    className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${currentPage === 2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Page 2
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 xl:gap-5 min-w-max pl-4">
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Zoom</span>
-                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                            <button 
-                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
-                            >
-                                <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-[10px] font-black text-slate-900 w-9 text-center tabular-nums">
-                                {Math.round(zoom * 100)}%
-                            </span>
-                            <button 
-                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
-                            >
-                                <Plus className="w-3 h-3" />
-                            </button>
-                        </div>
+                    <div className="relative group shrink-0">
+                        <select 
+                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[140px] lg:min-w-[155px] max-w-[200px] truncate disabled:opacity-30 duration-200"
+                            value={selectedStudent?.lrn || ''}
+                            onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
+                            disabled={!selectedSection}
+                        >
+                            <option value="">Select Student</option>
+                            {males.length > 0 && (
+                                <optgroup label="MALE">
+                                    {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                </optgroup>
+                            )}
+                            {females.length > 0 && (
+                                <optgroup label="FEMALE">
+                                    {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                </optgroup>
+                            )}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200" />
+                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
 
-                    <div className="flex items-center gap-2 xl:gap-3">
+                    {/* View & Formatting Controls (Center) */}
+                    <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 h-9 shrink-0">
+                        <button
+                            onClick={() => setCurrentPage(1)}
+                            className={`px-3.5 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Page 1
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage(2)}
+                            className={`px-3.5 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${currentPage === 2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Page 2
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                        <button 
+                            onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                            title="Zoom Out"
+                        >
+                            <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-[9px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            {Math.round(zoom * 100)}%
+                        </span>
+                        <button 
+                            onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                            title="Zoom In"
+                        >
+                            <Plus className="w-3 h-3" />
+                        </button>
+                    </div>
+
+                    {/* Data and Actions (Right) */}
+                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+                        {/* Divider between Center and Right */}
+                        <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
                         <button
                             onClick={() => setShowHistoricalModal(true)}
                             disabled={!selectedStudent}
-                            className="h-10 px-4 rounded-xl bg-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 hover:text-white disabled:opacity-30 transition-all flex items-center gap-2"
+                            className="h-9 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-900 text-slate-500 hover:text-white font-black text-[8.5px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95 border border-slate-200/40"
                             title="Edit Previous SF10 Records (Historical Data)"
                         >
-                            <History className="w-4 h-4" />
+                            <History className="w-3.5 h-3.5" />
                             History
                         </button>
                         <button
                             onClick={handleResetOverrides}
                             disabled={!selectedStudent}
-                            className="h-10 px-4 rounded-xl bg-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 disabled:opacity-30 transition-all flex items-center gap-2"
+                            className="h-9 px-2.5 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 font-black text-[8.5px] uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95 border border-slate-200/40"
                             title="Reset all manual edits for this page"
                         >
                             Reset
                         </button>
+                        
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+                        
                         <button
                             onClick={handlePrintSF10}
                             disabled={!selectedStudent}
-                            className="h-10 px-5 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest shadow-md shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-2 group"
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.01] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
                         >
-                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                            <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
                             Print
                         </button>
                     </div>
@@ -309,7 +307,13 @@ export function SF10Page() {
                     {selectedStudent && specData ? (
                         <div 
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
-                            style={{ transform: `scale(${zoom})` }}
+                            style={{ 
+                                transform: `scale(${zoom}) translateZ(0)`, 
+                                transformOrigin: 'top center',
+                                willChange: 'transform',
+                                backfaceVisibility: 'hidden',
+                                WebkitBackfaceVisibility: 'hidden'
+                            }}
                         >
                             <div className="relative group">
                                 <div className="absolute -inset-1 bg-linear-to-br from-blue-500/5 to-indigo-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000" />

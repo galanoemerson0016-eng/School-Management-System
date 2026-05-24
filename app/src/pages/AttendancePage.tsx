@@ -1,8 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
+import type { Section } from '../types';
+
 
 type AttendanceDayStatus = string;
 type AttendanceMonthData = Record<string, Record<number, AttendanceDayStatus>>;
@@ -22,6 +24,8 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
     APRIL: [1, 2, 5, 6, 7, 8],
 };
 
+const TOTAL_COLUMNS = 25; // 5 weeks × 5 days (Mon-Fri)
+const DAYS = Array.from({ length: TOTAL_COLUMNS }, (_, i) => i + 1);
 
 export function AttendancePage() {
 
@@ -31,6 +35,7 @@ export function AttendancePage() {
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
+    const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
     const [zoom, setZoom] = useState(0.8);
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
@@ -40,7 +45,8 @@ export function AttendancePage() {
     const [attendanceData, setAttendanceData] = useState<Record<string, AttendanceMonthData>>({});
     const [monthDateLabels, setMonthDateLabels] = useState<Record<string, DateLabels>>({});
 
-    const totalColumns = 25; // 5 weeks × 5 days (Mon-Fri)
+    const days = DAYS;
+    const totalColumns = TOTAL_COLUMNS;
 
     // Persistence: Fetch on change
     useEffect(() => {
@@ -61,13 +67,13 @@ export function AttendancePage() {
                 [selectedMonth]: activeSF2Sheet.date_labels || {}
             }));
         }
-    }, [activeSF2Sheet, selectedMonth, selectedSection]);
+    }, [activeSF2Sheet, selectedMonth, selectedSection, activeSchoolYear]);
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingSaveRef = useRef<{ month: string; data: AttendanceMonthData; labels: DateLabels } | null>(null);
 
-    const triggerSave = (month: string, newData: AttendanceMonthData, newLabels: DateLabels, immediate = false) => {
+    const triggerSave = useCallback((month: string, newData: AttendanceMonthData, newLabels: DateLabels, immediate = false) => {
         // Track the most recent data for unmount flushing
         pendingSaveRef.current = { month, data: newData, labels: newLabels };
 
@@ -93,7 +99,7 @@ export function AttendancePage() {
         } else {
             saveTimeoutRef.current = setTimeout(doSave, 800); // Faster saving
         }
-    };
+    }, [selectedSection, activeSchoolYear, saveSF2Sheet]);
 
     // Cleanup: Flush pending save on unmount
     useEffect(() => {
@@ -114,10 +120,10 @@ export function AttendancePage() {
                 });
             }
         };
-    }, [selectedSection, saveSF2Sheet]);
+    }, [selectedSection, saveSF2Sheet, activeSchoolYear]);
 
     const sortedSections = useMemo(() => {
-        return [...filterAttendanceSections(user, sections)].sort((a, b) => {
+        return [...filterAttendanceSections(user, sections)].sort((a: Section, b: Section) => {
             // Extract numeric grade level (e.g. "Grade 7" -> 7)
             const gradeA = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
             const gradeB = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
@@ -128,7 +134,7 @@ export function AttendancePage() {
     }, [sections, user]);
 
     const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
+        const groups: Record<string, Section[]> = {
             'ELEMENTARY': [],
             'JUNIOR HIGH SCHOOL': [],
             'SENIOR HIGH SCHOOL': []
@@ -172,7 +178,7 @@ export function AttendancePage() {
         return canEditAttendanceSection(user, selectedSectionObj);
     }, [user, selectedSectionObj]);
 
-    const buildAutoFilledDateLabels = (month: string): DateLabels => {
+    const buildAutoFilledDateLabels = useCallback((month: string): DateLabels => {
         const sy = activeSchoolYear;
         const filled: Record<number, string> = {};
 
@@ -246,9 +252,9 @@ export function AttendancePage() {
         }
 
         return filled;
-    };
+    }, [activeSchoolYear, days, totalColumns]);
 
-    const applyAutoFillDates = (month: string, immediate = false) => {
+    const applyAutoFillDates = useCallback((month: string, immediate = false) => {
         const filled = buildAutoFilledDateLabels(month);
 
         setMonthDateLabels(prev => ({
@@ -260,7 +266,7 @@ export function AttendancePage() {
         if (selectedSection && canEditCurrentSection) {
             triggerSave(month, attendanceData[month] || {}, filled, immediate);
         }
-    };
+    }, [buildAutoFilledDateLabels, selectedSection, canEditCurrentSection, triggerSave, attendanceData]);
 
     // Auto-populate date labels whenever month/section changes and labels are empty.
     useEffect(() => {
@@ -272,7 +278,7 @@ export function AttendancePage() {
         if (!hasAnyLabel) {
             applyAutoFillDates(selectedMonth, true);
         }
-    }, [selectedSection, selectedMonth, monthDateLabels, canEditCurrentSection]);
+    }, [selectedSection, selectedMonth, monthDateLabels, canEditCurrentSection, applyAutoFillDates]);
 
 
 
@@ -288,7 +294,6 @@ export function AttendancePage() {
         return { males, females };
     }, [sectionStudents]);
 
-    const days = Array.from({ length: totalColumns }, (_, i) => i + 1);
     const dayLetters = ['M', 'T', 'W', 'TH', 'F'];
 
     const toggleAttendance = (studentId: string, day: number) => {
@@ -328,8 +333,8 @@ export function AttendancePage() {
 
     const getBorderClass = (i: number) => {
         let cls = '';
-        if (i % 5 === 0) cls += ' border-l-2 border-l-black';
-        if (i % 5 === 4) cls += ' border-r-2 border-r-black';
+        if (i % 5 === 0) cls += ' border-l-[3.5px] border-l-black';
+        if (i % 5 === 4) cls += ' border-r-[3.5px] border-r-black';
         return cls;
     };
 
@@ -435,7 +440,7 @@ export function AttendancePage() {
             malePerc, femalePerc, totalPerc: (maleRegistered + femaleRegistered) > 0 ? ((maleADA + femaleADA) / (maleRegistered + femaleRegistered)) * 100 : 0,
             maleConsecutive, femaleConsecutive, totalConsecutive: maleConsecutive + femaleConsecutive
         };
-    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days, activeSchoolYear]);
+    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days]);
 
     const singleSection = sortedSections.length === 1 ? sortedSections[0] : null;
 
@@ -461,32 +466,33 @@ export function AttendancePage() {
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="h-20 px-4 lg:px-6 flex items-center gap-2 lg:gap-3">
-                    <div className="flex items-center gap-3 min-w-0 shrink-0">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-10 h-10 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-4.5 h-4.5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
-                            <AppLogo className="w-5 h-5" />
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
+                            <AppLogo className="w-4 h-4" />
                         </div>
-                        <h2 className="text-[13px] lg:text-[15px] font-black text-slate-900 uppercase tracking-tight truncate">
+                        <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight truncate">
                             SF2 Daily Attendance
                         </h2>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 shrink-0" />
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
 
-                    <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         {!singleSection && (
                             <div className="relative group shrink-0">
                                 <select
                                     value={selectedSection}
                                     onChange={(e) => setSelectedSection(e.target.value)}
-                                    className="appearance-none h-10 bg-slate-100 border border-slate-200 rounded-xl px-3 pr-9 text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer w-[165px] lg:w-[190px]"
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[110px] lg:w-[130px] duration-200"
                                 >
                                     <option value="">Section</option>
                                     {Object.entries(groupedSections).map(([group, groupSections]) => (
@@ -501,7 +507,7 @@ export function AttendancePage() {
                                         )
                                     ))}
                                 </select>
-                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                             </div>
                         )}
 
@@ -509,11 +515,11 @@ export function AttendancePage() {
                             <select
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="appearance-none h-10 bg-slate-100 border border-slate-200 rounded-xl px-3 pr-9 text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer w-[138px] lg:w-[152px]"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[85px] lg:w-[100px] duration-200"
                             >
                                 {months.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
-                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
 
                         {canEditCurrentSection && (
@@ -523,7 +529,7 @@ export function AttendancePage() {
                                         applyAutoFillDates(selectedMonth, true);
                                     }
                                 }}
-                                className="h-10 px-3 lg:px-4 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap shrink-0"
+                                className="h-9 px-2.5 rounded-xl bg-white border border-blue-100 text-[9px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0 duration-200 active:scale-95"
                                 title="Sync headers with official school calendar"
                             >
                                 Sync Dates
@@ -531,35 +537,52 @@ export function AttendancePage() {
                         )}
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 shrink-0" />
+                    <div className="flex-1 min-w-[12px]" />
 
-                    <div className="flex items-center gap-2 lg:gap-3 shrink-0">
-                        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Paper Size */}
+                        <div className="relative group shrink-0">
+                            <select
+                                value={paperSize}
+                                onChange={(e) => setPaperSize(e.target.value as 'letter' | 'a4' | 'folio')}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                            >
+                                <option value="letter">Letter</option>
+                                <option value="a4">A4</option>
+                                <option value="folio">Folio</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                        {/* Zoom Control */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-10 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
-                                title="Zoom In"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
+                        {/* Print Primary Button */}
                         <button
                             onClick={handlePrint}
                             disabled={!selectedSection}
-                            className="h-10 px-4 lg:px-5 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-[0.1em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-2 group whitespace-nowrap"
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
                         >
-                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                             Print Official SF2
                         </button>
                     </div>
@@ -592,77 +615,84 @@ export function AttendancePage() {
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{ transform: `scale(${effectiveZoom})` }}
                         >
-                            <div className="bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 p-4 md:p-5 print:p-2 print:m-0 rounded-sm" style={{ width: `${SF2_BASE_WIDTH}px` }}>
+                            <div className="sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 p-4 md:p-5 print:p-2 print:m-0 rounded-sm" style={{ width: `${SF2_BASE_WIDTH}px` }}>
 
                 {/* === HEADER === */}
-                <div className="flex items-center mb-1">
-                    <div className="w-[75px] flex-shrink-0">
+                <div className="flex items-center mb-2">
+                    <div className="w-[75px] shrink-0">
                         <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-[70px] h-[70px] object-contain" />
                     </div>
                     <div className="flex-1 text-center">
-                        <p className="text-[16px] font-bold leading-tight" style={{ fontFamily: 'Arial, sans-serif' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
-                        <p className="italic text-[9px] text-gray-600">(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
+                        <p className="text-[22px] font-black leading-tight text-black" style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
+                        <p className="italic text-[12px] text-gray-800 font-semibold">(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
                     </div>
-                    <div className="w-[100px] flex-shrink-0 flex justify-end">
-                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-[55px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <div className="w-[100px] shrink-0 flex justify-end">
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-[65px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </div>
                 </div>
 
                 {/* Row 1: School ID | School Year | Report for the Month of */}
-                <div className="flex items-center mb-0.5 text-[10px]">
-                    <span className="font-bold mr-1 whitespace-nowrap">School ID</span>
-                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">{schoolProfile?.school_id}</div>
-                    <span className="font-bold ml-4 mr-1 whitespace-nowrap">School Year</span>
-                    <div className="border border-black px-2 py-0.5 w-24 text-center font-bold">{activeSchoolYear}</div>
-                    <span className="flex-1"></span>
-                    <span className="font-bold mr-1 whitespace-nowrap">Report for the Month of</span>
-                    <div className="border border-black bg-[#BDD7EE] px-2 py-0.5 w-32 text-center font-bold uppercase">{selectedMonth}</div>
+                <div className="flex items-center mb-2.5 text-[12px] font-black text-black">
+                    <div className="flex items-center gap-2">
+                        <span className="mr-1 whitespace-nowrap">School ID</span>
+                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-[150px] text-center font-black text-[15px] text-black">{schoolProfile?.school_id}</div>
+                        <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
+                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-[150px] text-center font-black text-[15px] text-black">{activeSchoolYear}</div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto mr-[60px]">
+                        <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
+                        <div className="border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center w-[220px] text-center font-black text-[15px] text-black uppercase">{selectedMonth}</div>
+                    </div>
                 </div>
 
                 {/* Row 2: Name of School | Grade Level | Section */}
-                <div className="flex items-center mb-1.5 text-[10px]">
-                    <span className="font-bold mr-1 whitespace-nowrap">Name of School</span>
-                    <div className="border border-black px-2 py-0.5 w-[340px] text-center font-bold uppercase">{schoolProfile?.name}</div>
-                    <span className="font-bold ml-4 mr-1 whitespace-nowrap">Grade Level</span>
-                    <div className="border border-black px-2 py-0.5 w-20 text-center font-bold whitespace-nowrap">
-                        {sections.find(s => s.section_name === selectedSection)?.section_grade_level || '7'}
+                <div className="flex items-center mb-3 text-[12px] font-black text-black">
+                    <div className="flex-1 flex items-center gap-2">
+                        <span className="mr-1 whitespace-nowrap">Name of School</span>
+                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-[600px] text-center font-black text-[15px] text-black uppercase">{schoolProfile?.name}</div>
                     </div>
-                    <span className="font-bold ml-4 mr-1 whitespace-nowrap">Section</span>
-                    <div className="border border-black px-2 py-0.5 w-36 text-center font-bold uppercase">{selectedSection}</div>
+                    <div className="flex items-center gap-2 ml-auto mr-[60px]">
+                        <span className="mr-1 whitespace-nowrap">Grade Level</span>
+                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-16 text-center font-black text-[15px] text-black whitespace-nowrap">
+                            {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
+                        </div>
+                        <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
+                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-[220px] text-center font-black text-[15px] text-black uppercase">{selectedSection}</div>
+                    </div>
                 </div>
 
                 {/* === MAIN TABLE === */}
-                <table className="w-full border-collapse border-2 border-black text-[9px] mb-0" style={{ tableLayout: 'fixed' }}>
+                <table className="w-full border-collapse border-[2.5px] border-black text-[11px] mb-0" style={{ tableLayout: 'fixed' }}>
                     <colgroup>
-                        <col style={{ width: '20px' }} />
-                        <col style={{ width: '200px' }} />
-                        {days.map(d => <col key={d} style={{ width: '22px' }} />)}
-                        <col style={{ width: '38px' }} />
-                        <col style={{ width: '38px' }} />
-                        <col style={{ width: '160px' }} />
+                        <col style={{ width: '22px' }} />
+                        <col style={{ width: '210px' }} />
+                        {days.map(d => <col key={d} style={{ width: '23px' }} />)}
+                        <col style={{ width: '42px' }} />
+                        <col style={{ width: '42px' }} />
+                        <col style={{ width: '170px' }} />
                     </colgroup>
                     <thead>
                         {/* Row 1: Labels */}
                         <tr>
-                            <th rowSpan={4} className="border border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
-                            <th rowSpan={4} className="border border-black bg-white p-1 text-center align-middle leading-tight">
-                                <div className="font-bold text-[10px] uppercase">Learner's Name</div>
-                                <div className="font-normal text-[8px]">(Last Name, First Name, Middle Name)</div>
+                            <th rowSpan={4} className="border-2 border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
+                            <th rowSpan={4} className="border-2 border-black bg-white p-1 text-center align-middle leading-tight">
+                                <div className="font-black text-[13px] text-black uppercase tracking-tight">Learner's Name</div>
+                                <div className="font-extrabold text-[10px] text-black">(Last Name, First Name, Middle Name)</div>
                             </th>
-                            <th colSpan={totalColumns} className="border border-black bg-white text-center text-[9px] py-0.5">
+                            <th colSpan={totalColumns} className="border-2 border-black bg-white text-center text-[11px] font-black text-black py-1">
                                 (1st row for date, 2nd row for Day: M,T,W,TH,F)
                             </th>
-                            <th colSpan={2} rowSpan={3} className="border border-black bg-white text-center text-[9px] p-1 leading-tight align-middle">
+                            <th colSpan={2} rowSpan={3} className="border-2 border-black bg-white text-center text-[11.5px] font-black text-black p-1 leading-tight align-middle">
                                 Total for the<br />Month
                             </th>
-                            <th rowSpan={4} className="border border-black bg-white p-1 text-[8px] leading-tight text-left align-top">
-                                <span className="font-bold">REMARK/S</span> (If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)
+                            <th rowSpan={4} className="border-2 border-black bg-white p-1.5 text-[10.5px] leading-tight text-left align-top font-bold text-black">
+                                <span className="font-black text-black">REMARK/S</span> (If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)
                             </th>
                         </tr>
                         {/* Row 2: Date numbers (blue background, editable) */}
                         <tr className="bg-[#BDD7EE]">
                             {days.map((d, i) => (
-                                <th key={d} className={`border border-black bg-[#BDD7EE] p-0 text-center text-[8px] font-bold h-5${getBorderClass(i)}`}>
+                                <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center text-[11.5px] font-black h-6${getBorderClass(i)}`}>
                                     <input
                                         type="text"
                                         maxLength={2}
@@ -680,7 +710,7 @@ export function AttendancePage() {
                                                 return newLabels;
                                             });
                                         }}
-                                        className="w-full h-full text-center text-[8px] font-bold bg-transparent border-none outline-none p-0"
+                                        className="w-full h-full text-center text-[11.5px] font-black text-black bg-transparent border-none outline-none p-0"
                                     />
                                 </th>
                             ))}
@@ -688,7 +718,7 @@ export function AttendancePage() {
                         {/* Row 3: Day letters M T W TH F (white background) */}
                         <tr>
                             {days.map((d, i) => (
-                                <th key={d} className={`border border-black bg-white p-0 text-center text-[8px] font-bold h-4${getBorderClass(i)}`}>
+                                <th key={d} className={`border-2 border-black bg-white p-0 text-center text-[11.5px] font-black h-5${getBorderClass(i)}`}>
                                     {dayLetters[i % 5]}
                                 </th>
                             ))}
@@ -696,107 +726,107 @@ export function AttendancePage() {
                         {/* Row 4: ABSENT / PRESENT headers */}
                         <tr>
                             {days.map((d, i) => (
-                                <th key={d} className={`border border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
+                                <th key={d} className={`border-2 border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
                             ))}
-                            <th className="border border-black bg-white text-[8px] font-bold p-0.5">ABSENT</th>
-                            <th className="border border-black bg-white text-[8px] font-bold p-0.5">PRESENT</th>
+                            <th className="border-2 border-black bg-white text-[10px] font-black text-black p-0.5">ABSENT</th>
+                            <th className="border-2 border-black bg-white text-[10px] font-black text-black p-0.5">PRESENT</th>
                         </tr>
                     </thead>
                     <tbody>
                         {/* Male students FIRST */}
                         {displayStudents.males.map((student, idx) => (
-                            <tr key={student.lrn} className="h-[18px]">
-                                <td className="border border-black text-center p-0">{idx + 1}</td>
-                                <td className="border border-black px-1 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-semibold">
+                            <tr key={student.lrn} className="h-[22px]">
+                                <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
+                                <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
                                     {student.last_name}, {student.first_name}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border border-black text-center p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                    <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
                                         onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
-                                <td className="border border-black text-center font-bold">{countStats(student.lrn, 'absent')}</td>
-                                <td className="border border-black text-center font-bold">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
-                                <td className="border border-black"></td>
+                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{countStats(student.lrn, 'absent')}</td>
+                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+                                <td className="border-2 border-black"></td>
                             </tr>
                         ))}
 
                         {/* ← MALE | TOTAL Per Day → (AFTER male students) */}
-                        <tr className="bg-white">
-                            <td className="border border-black text-center p-0">
+                        <tr className="bg-white h-[22px]">
+                            <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border border-black px-1 font-bold text-[10px] text-right">
+                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
                                 MALE | TOTAL Per Day
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border border-black text-center p-0 text-[8px]${getBorderClass(i)}`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
                                     {calculateDailyAbsent(d, 'Male') || ''}
                                 </td>
                             ))}
-                            <td className="border border-black text-center font-bold">{totalMaleAbsent}</td>
-                            <td className="border border-black text-center font-bold">{totalMalePresent}</td>
-                            <td className="border border-black">
+                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalMaleAbsent}</td>
+                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalMalePresent}</td>
+                            <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
                         </tr>
 
                         {/* Female students FIRST */}
                         {displayStudents.females.map((student, idx) => (
-                            <tr key={student.lrn} className="h-[18px]">
-                                <td className="border border-black text-center p-0">{idx + 1}</td>
-                                <td className="border border-black px-1 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-semibold">
+                            <tr key={student.lrn} className="h-[22px]">
+                                <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
+                                <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
                                     {student.last_name}, {student.first_name}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border border-black text-center p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                    <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
                                         onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
-                                <td className="border border-black text-center font-bold">{countStats(student.lrn, 'absent')}</td>
-                                <td className="border border-black text-center font-bold">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
-                                <td className="border border-black"></td>
+                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{countStats(student.lrn, 'absent')}</td>
+                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+                                <td className="border-2 border-black"></td>
                             </tr>
                         ))}
 
                         {/* ← FEMALE | TOTAL Per Day → (AFTER female students) */}
-                        <tr className="bg-white">
-                            <td className="border border-black text-center p-0">
+                        <tr className="bg-white h-[22px]">
+                            <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border border-black px-1 font-bold text-[10px] text-right">
+                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
                                 FEMALE | TOTAL Per Day
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border border-black text-center p-0 text-[8px]${getBorderClass(i)}`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
                                     {calculateDailyAbsent(d, 'Female') || ''}
                                 </td>
                             ))}
-                            <td className="border border-black text-center font-bold">{totalFemaleAbsent}</td>
-                            <td className="border border-black text-center font-bold">{totalFemalePresent}</td>
-                            <td className="border border-black">
+                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalFemaleAbsent}</td>
+                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalFemalePresent}</td>
+                            <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
                         </tr>
 
                         {/* ← Combined TOTAL PER DAY → (LAST) */}
-                        <tr className="bg-white">
-                            <td className="border border-black text-center p-0">
+                        <tr className="bg-white h-[22px]">
+                            <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border border-black px-1 font-bold text-[10px] text-right">
+                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
                                 Combined TOTAL PER DAY
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border border-black text-center p-0 text-[8px]${getBorderClass(i)}`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
                                     {calculateDailyAbsent(d, 'Total') || ''}
                                 </td>
                             ))}
-                            <td className="border border-black text-center font-bold">{totalMaleAbsent + totalFemaleAbsent}</td>
-                            <td className="border border-black text-center font-bold">{totalMalePresent + totalFemalePresent}</td>
-                            <td className="border border-black">
+                            <td className="border-2 border-black text-center font-black text-black text-[13px] bg-slate-200">{totalMaleAbsent + totalFemaleAbsent}</td>
+                            <td className="border-2 border-black text-center font-black text-black text-[13px] bg-slate-200">{totalMalePresent + totalFemalePresent}</td>
+                            <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
                         </tr>
@@ -804,59 +834,61 @@ export function AttendancePage() {
                 </table>
 
                 {/* === FOOTER === */}
-                <div className="flex border-l-2 border-r-2 border-b-2 border-black" style={{ fontSize: '9px' }}>
+                <div className="flex border-l-[2.5px] border-r-[2.5px] border-b-[2.5px] border-black" style={{ fontSize: '11px' }}>
 
                     {/* Col 1: GUIDELINES */}
-                    <div className="w-[38%] p-2 border-r border-black leading-tight">
-                        <p className="font-bold mb-1">GUIDELINES:</p>
-                        <p className="mb-0.5">1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
-                        <p className="mb-0.5">2 Dates shall be written in the preceding columns beside Learner's Name.</p>
-                        <p className="mb-0.5">3 To compute the following:</p>
-                        <div className="pl-3 mb-1">
-                            <p className="mb-1">a. Percentage of Enrolment =
-                                <span className="inline-block mx-1 text-center">
-                                    <span className="border-b border-black px-1">Registered Learner as of End of the Month</span>
-                                    <br />
-                                    <span className="text-[8px]">Enrolment as of 1st Friday of the school year</span>
+                    <div className="w-[38%] p-2.5 border-r-2 border-black leading-tight text-black">
+                        <p className="font-black text-black text-[12px] mb-1.5">GUIDELINES:</p>
+                        <p className="mb-1 font-bold text-black text-[10px]">1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
+                        <p className="mb-1 font-bold text-black text-[10px]">2 Dates shall be written in the preceding columns beside Learner's Name.</p>
+                        <p className="mb-1 font-bold text-black text-[10px]">3 To compute the following:</p>
+                        <div className="pl-3 mb-1.5">
+                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                                <span>a. Percentage of Enrolment =&nbsp;</span>
+                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
+                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Registered Learner as of End of the Month</span>
+                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Enrolment as of 1st Friday of the school year</span>
                                 </span>
-                                x 100
-                            </p>
-                            <p className="mb-1">b. Average Daily Attendance =
-                                <span className="inline-block mx-1 text-center">
-                                    <span className="border-b border-black px-1">Total Daily Attendance</span>
-                                    <br />
-                                    <span className="text-[8px]">Number of School Days in reporting month</span>
+                                <span>&nbsp;x 100</span>
+                            </div>
+                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                                <span>b. Average Daily Attendance =&nbsp;</span>
+                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
+                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Total Daily Attendance</span>
+                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Number of School Days in reporting month</span>
                                 </span>
-                            </p>
-                            <p className="mb-1">c. Percentage of Attendance for the month =
-                                <span className="inline-block mx-1 text-center">
-                                    <span className="border-b border-black px-1">Average daily attendance</span>
-                                    <br />
-                                    <span className="text-[8px]">Registered Learner as of End of the month</span>
+                            </div>
+                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                                <span>c. Percentage of Attendance for the month =&nbsp;</span>
+                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
+                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Average daily attendance</span>
+                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Registered Learner as of End of the month</span>
                                 </span>
-                                x 100
-                            </p>
+                                <span>&nbsp;x 100</span>
+                            </div>
                         </div>
-                        <p className="mb-0.5">4. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
-                        <p className="mb-0.5">5. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
-                        <p>6. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
+                        <p className="mb-1 font-bold text-black text-[10px]">4. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
+                        <p className="mb-1 font-bold text-black text-[10px]">5. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
+                        <p className="font-bold text-black text-[10px]">6. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
                     </div>
 
                     {/* Col 2: CODES */}
-                    <div className="w-[28%] border-r border-black flex flex-col">
-                        <div className="p-1.5 border-b border-black">
-                            <p className="font-bold text-[9px]">1. CODES FOR CHECKING ATTENDANCE</p>
-                            <p className="text-[8px] mt-0.5">(blank) Present; (x) Absent; Tardy (half shaded= Upper for Late Comer, Lower for Cutting Classes)</p>
+                    <div className="w-[28%] border-r-2 border-black flex flex-col text-black">
+                        <div className="p-2 border-b-2 border-black">
+                            <p className="font-black text-black text-[11px] uppercase tracking-wide">1. CODES FOR CHECKING ATTENDANCE</p>
                         </div>
-                        <div className="p-1.5 flex-1">
-                            <p className="font-bold text-[9px] mb-0.5">2. REASONS/CAUSES OF NLS</p>
-                            <div className="text-[8px] leading-[1.4]">
-                                <p className="font-bold">a. Domestic-Related Factors</p>
+                        <div className="p-2.5 flex-1 flex flex-col leading-normal text-black font-bold text-[10px]">
+                            <p className="mb-3 leading-normal">
+                                blank- Present;&nbsp;&nbsp;(x)- Absent;&nbsp;&nbsp;Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)
+                            </p>
+                            <p className="font-black text-black text-[11.5px] mb-1.5 uppercase tracking-wide">2. REASONS/CAUSES OF NLS</p>
+                            <div className="text-[10px] leading-[1.3] font-bold text-black space-y-0.5">
+                                <p className="font-black text-[10.5px]">a. Domestic-Related Factors</p>
                                 <p className="pl-2">a.1. Had to take care of siblings</p>
                                 <p className="pl-2">a.2. Early marriage/pregnancy</p>
                                 <p className="pl-2">a.3. Parents' attitude toward schooling</p>
                                 <p className="pl-2">a.4. Family problems</p>
-                                <p className="font-bold mt-0.5">b. Individual-Related Factors</p>
+                                <p className="font-black text-[10.5px] mt-1">b. Individual-Related Factors</p>
                                 <p className="pl-2">b.1. Illness</p>
                                 <p className="pl-2">b.2. Overage</p>
                                 <p className="pl-2">b.3. Death</p>
@@ -864,67 +896,101 @@ export function AttendancePage() {
                                 <p className="pl-2">b.5. Poor academic performance</p>
                                 <p className="pl-2">b.6. Lack of interest/Distractions</p>
                                 <p className="pl-2">b.7. Hunger/Malnutrition</p>
-                                <p className="font-bold mt-0.5">c. School-Related Factors</p>
+                                <p className="font-black text-[10.5px] mt-1">c. School-Related Factors</p>
                                 <p className="pl-2">c.1. Teacher Factor</p>
                                 <p className="pl-2">c.2. Physical condition of classroom</p>
                                 <p className="pl-2">c.3. Peer influence</p>
-                                <p className="font-bold mt-0.5">d. Geographic/Environmental</p>
+                                <p className="font-black text-[10.5px] mt-1">d. Geographic/Environmental</p>
                                 <p className="pl-2">d.1. Distance between home and school</p>
                                 <p className="pl-2">d.2. Armed conflict (incl. Tribal wars &amp; clanfeuds)</p>
                                 <p className="pl-2">d.3. Calamities/Disasters</p>
-                                <p className="font-bold mt-0.5">e. Financial-Related</p>
+                                <p className="font-black text-[10.5px] mt-1">e. Financial-Related</p>
                                 <p className="pl-2">e.1. Child labor, work</p>
-                                <p className="font-bold mt-0.5">f. Others</p>
+                                <p className="font-black text-[10.5px] mt-1">f. Others</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Col 3: Summary + Certification */}
-                    <div className="w-[34%] flex flex-col">
-                        {/* Summary Header */}
-                        <div className="flex border-b border-black">
-                            <div className="flex-1 p-1 border-r border-black font-bold text-center">
-                                Month:<br /><span className="uppercase text-[11px]">{selectedMonth}</span>
-                            </div>
-                            <div className="p-1 font-bold text-center leading-tight" style={{ width: '55%' }}>
-                                No. of Days of Classes:<br /><span className="text-[11px]">{filledDaysCount}</span>
-                            </div>
-                        </div>
-                        {/* Sub-header: Summary for the Month */}
-                        <div className="flex border-b border-black">
-                            <div className="flex-1 border-r border-black p-0.5 font-bold text-center">Summary for the Month</div>
-                            <div className="w-7 border-r border-black p-0.5 text-center font-bold">M</div>
-                            <div className="w-7 border-r border-black p-0.5 text-center font-bold">F</div>
-                            <div className="w-12 p-0.5 text-center font-bold">TOTAL</div>
-                        </div>
-                        {/* Summary rows */}
-                        {[
-                            { label: 'Enrolment as of (1st Friday of the school year)', m: summaryStats.maleBaseline, f: summaryStats.femaleBaseline, t: summaryStats.totalBaseline },
-                            { label: 'Late Enrollment during the month (beyond cut-off)', m: summaryStats.maleLate, f: summaryStats.femaleLate, t: summaryStats.totalLate },
-                            { label: 'Registered Learner as of end of the month', m: summaryStats.maleRegistered, f: summaryStats.femaleRegistered, t: summaryStats.totalRegistered },
-                            { label: 'Percentage of Enrolment as of end of the month', m: summaryStats.maleBaseline > 0 ? (summaryStats.maleRegistered / summaryStats.maleBaseline * 100).toFixed(0) : '0', f: summaryStats.femaleBaseline > 0 ? (summaryStats.femaleRegistered / summaryStats.femaleBaseline * 100).toFixed(0) : '0', t: summaryStats.totalBaseline > 0 ? (summaryStats.totalRegistered / summaryStats.totalBaseline * 100).toFixed(0) : '0', isPerc: true },
-                            { label: 'Average Daily Attendance', m: summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA.toFixed(2), t: summaryStats.totalADA.toFixed(2) },
-                            { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc.toFixed(0), t: summaryStats.totalPerc.toFixed(0), isPerc: true },
-                            { label: 'Number of students with 5 consecutive days of absences:', m: summaryStats.maleConsecutive, f: summaryStats.femaleConsecutive, t: summaryStats.totalConsecutive },
-                            { label: 'NLS', m: 0, f: 0, t: 0 },
-                            { label: 'Transferred out', m: 0, f: 0, t: 0 },
-                            { label: 'Transferred in', m: 0, f: 0, t: 0 }
-                        ].map((row, i) => (
-                            <div key={i} className="flex border-b border-black">
-                                <div className="flex-1 border-r border-black p-0.5 text-[8px] italic leading-tight">{row.label}</div>
-                                <div className="w-7 border-r border-black p-0.5 text-center text-[9px]">{row.m}</div>
-                                <div className="w-7 border-r border-black p-0.5 text-center text-[9px]">{row.f}</div>
-                                <div className="w-12 p-0.5 text-center text-[9px] font-bold">
-                                    {row.t}
-                                </div>
-                            </div>
-                        ))}
+                    <div className="w-[34%] flex flex-col text-black">
+                        {/* Summary Table */}
+                        <table className="w-full border-collapse border-b-2 border-black text-[11px]" style={{ tableLayout: 'fixed' }}>
+                            <colgroup>
+                                <col style={{ width: '42%' }} />
+                                <col style={{ width: '28%' }} />
+                                <col style={{ width: '8%' }} />
+                                <col style={{ width: '8%' }} />
+                                <col style={{ width: '14%' }} />
+                            </colgroup>
+                            <thead>
+                                {/* Row 1 of Header */}
+                                <tr className="h-[22px] border-b-2 border-black">
+                                    <th className="border-r-2 border-black p-1 text-center font-black text-[11px] text-black">
+                                        Month:
+                                    </th>
+                                    <th className="border-r-2 border-black p-1 text-center font-black text-[11px] text-black">
+                                        No. of Days of Classes:
+                                    </th>
+                                    <th colSpan={3} className="p-1 text-center font-black text-[11px] text-black bg-slate-50">
+                                        Summary for the Month
+                                    </th>
+                                </tr>
+                                {/* Row 2 of Header */}
+                                <tr className="h-[24px] border-b-2 border-black">
+                                    <th className="border-r-2 border-black p-1 text-center font-black text-[13px] text-black uppercase">
+                                        {selectedMonth}
+                                    </th>
+                                    <th className="border-r-2 border-black p-1 text-center font-black text-[13px] text-black">
+                                        {filledDaysCount}
+                                    </th>
+                                    <th className="border-r-2 border-black p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                        M
+                                    </th>
+                                    <th className="border-r-2 border-black p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                        F
+                                    </th>
+                                    <th className="p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                        TOTAL
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {/* Summary rows */}
+                                {[
+                                    { label: 'Enrolment as of (1st Friday of the school year)', m: summaryStats.maleBaseline, f: summaryStats.femaleBaseline, t: summaryStats.totalBaseline, italic: true },
+                                    { label: 'Late Enrollment during the month (beyond cut-off)', m: summaryStats.maleLate, f: summaryStats.femaleLate, t: summaryStats.totalLate, italic: true },
+                                    { label: 'Registered Learner as of end of the month', m: summaryStats.maleRegistered, f: summaryStats.femaleRegistered, t: summaryStats.totalRegistered },
+                                    { label: 'Percentage of Enrolment as of end of the month', m: summaryStats.maleBaseline > 0 ? (summaryStats.maleRegistered / summaryStats.maleBaseline * 100).toFixed(0) : '0', f: summaryStats.femaleBaseline > 0 ? (summaryStats.femaleRegistered / summaryStats.femaleBaseline * 100).toFixed(0) : '0', t: summaryStats.totalBaseline > 0 ? (summaryStats.totalRegistered / summaryStats.totalBaseline * 100).toFixed(0) : '0' },
+                                    { label: 'Average Daily Attendance', m: summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA.toFixed(2), t: summaryStats.totalADA.toFixed(2) },
+                                    { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc.toFixed(0), t: summaryStats.totalPerc.toFixed(0) },
+                                    { label: 'Number of students with 5 consecutive days of absences:', m: summaryStats.maleConsecutive, f: summaryStats.femaleConsecutive, t: summaryStats.totalConsecutive },
+                                    { label: 'NLS', m: 0, f: 0, t: 0 },
+                                    { label: 'Transferred out', m: 0, f: 0, t: 0 },
+                                    { label: 'Transferred in', m: 0, f: 0, t: 0 }
+                                ].map((row, i) => (
+                                    <tr key={i} className="h-[22px] border-b-2 border-black">
+                                        <td colSpan={2} className={`border-r-2 border-black p-1 text-[10px] font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''}`}>
+                                            {row.label}
+                                        </td>
+                                        <td className="border-r-2 border-black p-1 text-center text-[11px] font-extrabold text-black">
+                                            {row.m}
+                                        </td>
+                                        <td className="border-r-2 border-black p-1 text-center text-[11px] font-extrabold text-black">
+                                            {row.f}
+                                        </td>
+                                        <td className="p-1 text-center text-[11.5px] font-black text-black bg-slate-50">
+                                            {row.t}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
 
                         {/* Certification */}
-                        <div className="p-2 mt-auto">
-                            <p className="italic mb-3 text-[9px]">I certify that this is a true and correct report.</p>
+                        <div className="p-2.5 mt-auto bg-slate-50/50">
+                            <p className="font-bold text-black text-[10.5px] mb-3">I certify that this is a true and correct report.</p>
                             <div className="text-center mb-3">
-                                <div className="font-bold border-b border-black w-48 mx-auto uppercase">
+                                <div className="font-black border-b-2 border-black w-56 mx-auto uppercase text-[12.5px] text-black py-0.5 tracking-wide">
                                     {(() => {
                                         const sec = sections.find(s => s.section_name === selectedSection);
                                         const fromProfile = (schoolProfile?.adviser_name || '').trim();
@@ -946,25 +1012,57 @@ export function AttendancePage() {
                                         return fromProfile || user?.displayName || '';
                                     })()}
                                 </div>
-                                <div className="text-[8px]">(Signature of Teacher over Printed Name)</div>
+                                <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of Teacher over Printed Name)</div>
                             </div>
-                            <div className="text-[9px] mb-1">Attested by:</div>
+                            <div className="text-[10.5px] font-bold text-black mb-1">Attested by:</div>
                             <div className="text-center">
-                                <div className="font-bold border-b border-black w-48 mx-auto uppercase">
+                                <div className="font-black border-b-2 border-black w-56 mx-auto uppercase text-[12.5px] text-black py-0.5 tracking-wide">
                                     {schoolProfile?.head_name}
                                 </div>
-                                <div className="text-[8px]">(Signature of School Head over Printed Name)</div>
+                                <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of School Head over Printed Name)</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="text-center text-[8px] mt-1 text-gray-500 italic mb-20 print:mb-0">Generated thru LIS</div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <div className="text-center text-[9px] mt-1 text-gray-700 font-extrabold italic mb-20 print:mb-0">Generated thru LIS</div>
             </div>
         </div>
-    );
+    </div>
+)}
+</div>
+<style dangerouslySetInnerHTML={{ __html: `
+    .sf2-print-container, .sf2-print-container * {
+        font-family: 'Arial Narrow', Arial, sans-serif !important;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    @media print {
+        @page { 
+            size: ${paperSize === 'a4' ? '297mm 210mm' : paperSize === 'letter' ? '11in 8.5in' : '13in 8.5in'}; 
+            margin: 0.15in !important; 
+        }
+        html, body {
+            width: 100% !important;
+            height: auto !important;
+            background: #fff !important;
+            overflow: visible !important;
+        }
+        .sf2-print-container {
+            zoom: ${paperSize === 'a4' ? '0.80' : paperSize === 'letter' ? '0.74' : '0.88'} !important;
+            width: 1350px !important;
+            max-width: none !important;
+            margin: 0 auto !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+    }
+` }} />
+</div>
+);
 }

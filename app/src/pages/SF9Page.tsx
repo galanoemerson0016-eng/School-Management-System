@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useTransition, useCallback } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font, usePDF } from '@react-pdf/renderer';
 Font.registerHyphenationCallback(word => [word]);
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
@@ -15,6 +15,7 @@ const isKeyStage1 = (gradeLevel: string) => {
     return false;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getDescriptor = (grade: number, gradeLevel: string) => {
     if (!grade || grade <= 0) return '';
     
@@ -149,6 +150,14 @@ const CORE_VALUES = [
 
 
 
+interface SF9SubjectItem {
+    name: string;
+    id?: string;
+    isHeader?: boolean;
+    isComponent?: boolean;
+    isReserved?: boolean;
+}
+
 function computeStudentGrades(
     student: Student, 
     sectionObj: Section, 
@@ -195,7 +204,7 @@ function computeStudentGrades(
     }
 
     // Build the final order for SF9 display
-    let currentSubjects: any[] = [];
+    const currentSubjects: SF9SubjectItem[] = [];
     
     // If we have manual selections, use them to build the list
     if (subjectSelections && Object.keys(subjectSelections).length > 0) {
@@ -221,10 +230,10 @@ function computeStudentGrades(
                         components.forEach(c => currentSubjects.push({ name: c.subject_name, id: c.id, isComponent: true }));
                     }
                 } else {
-                    currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true } as any);
+                    currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true });
                 }
             } else {
-                currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true } as any);
+                currentSubjects.push({ name: `reserved_extra_${i}`, isReserved: true });
             }
         }
     } else {
@@ -232,7 +241,6 @@ function computeStudentGrades(
         const sortedBase = sortSubjects(baseSubjects, s => s.name);
         
         // 2. Identify and group MAPEH
-        const mapehHeader = sortedBase.find(s => normalizeSubjectName(s.name) === 'mapeh');
         const mapehComponents = sortedBase.filter(s => {
             const n = normalizeSubjectName(s.name);
             return n !== 'mapeh' && (
@@ -259,7 +267,7 @@ function computeStudentGrades(
 
         // 4. Padding for table consistency
         while (currentSubjects.length < 13) {
-            currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true } as any);
+            currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true });
         }
     }
 
@@ -430,12 +438,12 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
             // Get all days that have a valid date label (this defines a school day)
             const dayKeys = Object.keys(dateLabels);
             dayKeys.forEach(dayKey => {
-                const label = dateLabels[dayKey as any];
+                const label = (dateLabels as Record<string, string | number>)[dayKey];
                 if (label && label.toString().trim() !== '') {
                     mFilled++;
                     
                     // Check student's status for this specific school day
-                    const status = studentAttendance[dayKey as any];
+                    const status = (studentAttendance as Record<string, string | number>)[dayKey];
                     const normalizedStatus = (status || '').toString().toLowerCase().trim();
                     
                     // Standard DEPED absence markers
@@ -502,7 +510,7 @@ interface SF9ExactDocumentProps {
     principal: string;
     principalTitle: string;
     grades: Record<string, number[]>;
-    subjects: any[];
+    subjects: SF9SubjectItem[];
     observedValues: Record<string, string[]>;
     attendance: {
         months: string[];
@@ -518,7 +526,7 @@ interface SF9ExactDocumentProps {
 
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
-    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, schoolProfile, printMode = 'full'
+    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, printMode = 'full'
 }: SF9ExactDocumentProps) {
 
     // Print mode helpers
@@ -739,7 +747,7 @@ function SF9Pages({
                             {currentSubjects.map((subj, idx) => {
                                 const gradeRow = grades[subj.name] || [0, 0, 0];
                                 const finalGrade = calculateFinalGrade(gradeRow);
-                                const isReserved = (subj as any).isReserved;
+                                const isReserved = subj.isReserved;
                                 return (
                                     <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <View style={[styles.lpCell, { width: '36%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
@@ -888,7 +896,7 @@ interface SF9BatchDocumentProps {
 
 const SF9PagesMemo = React.memo(SF9Pages);
 
-function SF9BatchDocument({
+export function SF9BatchDocument({
     students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviser, pageSize, printMode = 'full', subjectSelections
 }: SF9BatchDocumentProps) {
     return (
@@ -969,7 +977,7 @@ export function SF9Page() {
     }, [sections, user]);
 
     const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
+        const groups: Record<string, Section[]> = {
             'ELEMENTARY': [],
             'JUNIOR HIGH SCHOOL': [],
             'SENIOR HIGH SCHOOL': []
@@ -1110,7 +1118,7 @@ export function SF9Page() {
         );
     }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, sf2Sheets, pageSize, sections, printMode]);
 
-    const handlePrint = async () => {
+    const handlePrint = useCallback(async () => {
         if (!selectedStudent || !singleDocument) return;
         try {
             const { pdf } = await import('@react-pdf/renderer');
@@ -1138,7 +1146,7 @@ export function SF9Page() {
         } catch (error) {
             console.error('Print failed:', error);
         }
-    };
+    }, [selectedStudent, singleDocument]);
 
     // Override Ctrl+P to use the official print engine
     useEffect(() => {
@@ -1302,7 +1310,7 @@ export function SF9Page() {
         textToSpeak += `LRN: ${dashedLRN}. `;
 
         // 3. Subjects & Grades: Subject Name 1st, 2nd, 3rd, Final
-        studentGrades.subjects.forEach((subj: any) => {
+        studentGrades.subjects.forEach((subj: SF9SubjectItem) => {
             if (subj.isReserved) return;
             
             const gradeRow = studentGrades.grades[subj.name] || [0, 0, 0];
@@ -1355,208 +1363,208 @@ export function SF9Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-20 px-6 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
-                <div className="flex items-center gap-5">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-3">
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="flex items-center justify-center w-full h-16 px-2 lg:px-4 gap-2 lg:gap-3 select-none overflow-x-auto scrollbar-none">
+                    
+                    {/* Identity & Context (Left) */}
+                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0 min-w-0">
                         <button 
                             onClick={() => setCurrentView('main')}
-                            className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all group"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
+                            title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="flex flex-col">
-                            <h2 className="text-[13px] font-black text-slate-900 uppercase tracking-tighter leading-none mb-0.5">SF9 Report</h2>
-                            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.1em]">Progress Report</p>
+                        <div className="flex flex-col mr-0.5 lg:mr-1 shrink-0">
+                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF9 Report</h2>
+                            <p className="text-[7.5px] font-black text-blue-600 uppercase tracking-widest leading-none">Progress Report</p>
                         </div>
-                    </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-1.5" />
-
-                    <div className="flex items-center gap-2">
-                        {filteredSections.length > 1 && (
-                            <select 
-                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                                value={selectedSection}
-                                onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
-                            >
-                                <option value="">Section</option>
-                                {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                    groupSections.length > 0 && (
-                                        <optgroup key={group} label={group}>
-                                            {groupSections.map(s => (
-                                                <option key={s.id} value={s.id}>
-                                                    {s.section_grade_level} - {s.section_name}
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    )
-                                ))}
-                            </select>
+                        {filteredSections.length > 0 && (
+                            <div className="relative group shrink-0">
+                                <select 
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[120px] lg:min-w-[135px] duration-200"
+                                    value={selectedSection}
+                                    onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
+                                >
+                                    <option value="">Select Section</option>
+                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                        groupSections.length > 0 && (
+                                            <optgroup key={group} label={group}>
+                                                {groupSections.map(s => (
+                                                    <option key={s.id} value={s.id}>
+                                                        {s.section_grade_level} - {s.section_name}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            </div>
                         )}
 
                         {!isBatchReady && (
-                            <select 
-                                className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer min-w-[150px] disabled:opacity-30"
-                                value={selectedStudent?.lrn || ''}
-                                onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                                disabled={!selectedSection}
+                            <div className="relative group shrink-0">
+                                <select 
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[140px] lg:min-w-[155px] disabled:opacity-30 duration-200"
+                                    value={selectedStudent?.lrn || ''}
+                                    onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
+                                    disabled={!selectedSection}
+                                >
+                                    <option value="">Select Learner</option>
+                                    {males.length > 0 && (
+                                        <optgroup label="MALE">
+                                            {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                        </optgroup>
+                                    )}
+                                    {females.length > 0 && (
+                                        <optgroup label="FEMALE">
+                                            {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
+                                        </optgroup>
+                                    )}
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* View & Formatting Controls (Center) */}
+                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+                        <div className="relative group shrink-0">
+                            <select
+                                value={printMode}
+                                onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[85px] lg:min-w-[95px] duration-200"
                             >
-                                <option value="">Select Student</option>
-                                {males.length > 0 && (
-                                    <optgroup label="MALE">
-                                        {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                    </optgroup>
-                                )}
-                                {females.length > 0 && (
-                                    <optgroup label="FEMALE">
-                                        {females.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
-                                    </optgroup>
-                                )}
+                                <option value="full">Full Report</option>
+                                <option value="term1">Term 1 Only</option>
+                                <option value="term2">Term 2 Only</option>
+                                <option value="term3">Term 3 Only</option>
                             </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        <div className="relative group shrink-0">
+                            <select
+                                value={pageSize}
+                                onChange={(e) => setPageSize(e.target.value as 'A4' | 'LETTER')}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[75px] lg:w-[80px] duration-200"
+                            >
+                                <option value="A4">A4</option>
+                                <option value="LETTER">Letter</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        <button
+                            onClick={() => setIsLayoutModalOpen(true)}
+                            className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
+                        >
+                            <Settings2 className="w-3 h-3 text-indigo-500" />
+                            Layout
+                        </button>
+
+                        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                            <button 
+                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom Out"
+                            >
+                                <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="text-[9px] font-black text-slate-900 w-8 text-center tabular-nums">
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button 
+                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom In"
+                            >
+                                <Plus className="w-3 h-3" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Data and Actions (Right) */}
+                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+                        {/* Divider between Center and Right */}
+                        <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                        {selectedStudent && !isBatchReady && (
+                            <button
+                                onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
+                                className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
+                            >
+                                <Edit3 className="w-3 h-3 text-blue-500" />
+                                Values
+                            </button>
                         )}
 
-                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                        {selectedStudent && (
+                            <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                    onClick={handleSpeak}
+                                    className={`h-9 w-9 rounded-xl border transition-all flex items-center justify-center shadow-sm shrink-0 active:scale-95 duration-200 ${isSpeaking ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600'}`}
+                                    title={isSpeaking ? "Stop Reading" : `Read Grades Aloud (${speechRate}x)`}
+                                >
+                                    {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                                </button>
+                                <div className="relative group shrink-0">
+                                    <select
+                                        value={speechRate}
+                                        onChange={(e) => setSpeechRate(Number(e.target.value))}
+                                        className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-xl px-1.5 text-[9px] font-bold text-slate-600 outline-none w-[45px] duration-200 cursor-pointer text-center"
+                                        title="Speech Rate"
+                                    >
+                                        <option value="1">1.0x</option>
+                                        <option value="1.5">1.5x</option>
+                                        <option value="2">2.0x</option>
+                                        <option value="2.5">2.5x</option>
+                                        <option value="3">3.0x</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Thin divider before toggle & print/download */}
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0 h-9">
                             <button
                                 onClick={() => setIsBatchReady(false)}
-                                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${!isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
                             >
                                 Indiv
                             </button>
                             <button
                                 onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
-                                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                                className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
                             >
                                 Batch
                             </button>
                         </div>
 
-                        <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 ml-1">
-                            <button
-                                onClick={() => setPrintMode('full')}
-                                className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${printMode === 'full' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
-                            >
-                                Full
-                            </button>
-                            {['term1', 'term2', 'term3'].map((m, i) => (
+                        {!isBatchReady && singleDocument && (
+                            <div className="flex items-center gap-1 shrink-0">
                                 <button
-                                    key={m}
-                                    onClick={() => setPrintMode(m as any)}
-                                    className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${printMode === m ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                                    onClick={handlePrint}
+                                    className="h-9 px-3 lg:px-3.5 rounded-xl bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
                                 >
-                                    T{i + 1}
+                                    <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
+                                    Print SF9
                                 </button>
-                            ))}
-                        </div>
-
-                        {selectedStudent && !isBatchReady && (
-                            <button
-                                onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
-                                className="h-8 px-2.5 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm ml-1"
-                            >
-                                <Edit3 className="w-3 h-3" />
-                                Values
-                            </button>
+                                <PDFDownloadLink
+                                    document={singleDocument}
+                                    fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
+                                    className="h-9 w-9 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60 hover:border-slate-300 transition-all flex items-center justify-center shrink-0 active:scale-95 duration-200"
+                                    title="Download PDF"
+                                >
+                                    <Download className="w-3 h-3" />
+                                </PDFDownloadLink>
+                            </div>
                         )}
                     </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                        <button
-                            onClick={() => setPageSize('A4')}
-                            className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pageSize === 'A4' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                        >
-                            A4
-                        </button>
-                        <button
-                            onClick={() => setPageSize('LETTER')}
-                            className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${pageSize === 'LETTER' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                        >
-                            LTR
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={() => setIsLayoutModalOpen(true)}
-                        className="h-8 px-2.5 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-1.5 shadow-sm"
-                    >
-                        <Settings2 className="w-3 h-3" />
-                        Layout
-                    </button>
-
-                    <div className="flex items-center gap-2 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                        <button 
-                            onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
-                        >
-                            <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="text-[10px] font-black text-slate-900 w-10 text-center tabular-nums">
-                            {Math.round(zoom * 100)}%
-                        </span>
-                        <button 
-                            onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
-                        >
-                            <Plus className="w-3 h-3" />
-                        </button>
-                    </div>
-
-                    <div className="h-10 w-px bg-slate-200" />
-
-                    {selectedStudent && (
-                        <div className="flex items-center gap-1.5">
-                            <div className="flex items-center bg-white border border-slate-200 p-0.5 rounded-xl shadow-sm">
-                                <button 
-                                    onClick={() => setSpeechRate(prev => Math.max(0.5, prev - 0.1))}
-                                    className="w-6 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                    title="Slower"
-                                >
-                                    <Minus className="w-3 h-3" />
-                                </button>
-                                <span className="text-[9px] font-black text-slate-600 w-10 text-center tabular-nums uppercase">
-                                    {speechRate.toFixed(1)}x
-                                </span>
-                                <button 
-                                    onClick={() => setSpeechRate(prev => Math.min(3.0, prev + 0.1))}
-                                    className="w-6 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                    title="Faster"
-                                >
-                                    <Plus className="w-3 h-3" />
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={handleSpeak}
-                                className={`h-9 px-3 rounded-xl border transition-all flex items-center gap-2 shadow-sm ${isSpeaking ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600'}`}
-                                title={isSpeaking ? "Stop Reading" : "Read Grades Aloud"}
-                            >
-                                {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                                <span className="text-[9px] font-black uppercase tracking-widest">{isSpeaking ? 'Stop' : 'Read'}</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {!isBatchReady && singleDocument && (
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handlePrint}
-                                className="h-9 px-4 rounded-xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
-                            >
-                                <Printer className="w-4 h-4" />
-                                Print SF9
-                            </button>
-                            <PDFDownloadLink
-                                document={singleDocument}
-                                fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
-                                className="h-9 w-9 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center"
-                                title="Download PDF"
-                            >
-                                <Download className="w-4 h-4" />
-                            </PDFDownloadLink>
-                        </div>
-                    )}
                 </div>
              </div>
 
@@ -1566,10 +1574,17 @@ export function SF9Page() {
                     {selectedStudent && singleDocument && !isBatchReady ? (
                         <div 
                             className="transition-all duration-700 ease-out origin-top flex flex-col items-center"
-                            style={{ transform: `scale(${zoom})`, height: 'calc(100vh - 200px)' }}
+                            style={{ 
+                                transform: `scale(${zoom}) translateZ(0)`, 
+                                transformOrigin: 'top center',
+                                willChange: 'transform',
+                                backfaceVisibility: 'hidden',
+                                WebkitBackfaceVisibility: 'hidden',
+                                height: 'calc(100vh - 200px)' 
+                            }}
                         >
                              <div className="w-full h-full min-w-[1122px] min-h-[793px] bg-white rounded-sm border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden relative group">
-                                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-1000" />
+                                <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-1000" />
                                 <PDFViewer width="100%" height="100%" showToolbar={false} className="border-none w-full h-full">
                                     {singleDocument!}
                                 </PDFViewer>
@@ -1578,7 +1593,7 @@ export function SF9Page() {
                     ) : (isBatchReady && selectedSectionObj) ? (
                         <div className="flex-1 w-full max-w-4xl mx-auto flex flex-col items-center justify-center space-y-8 py-6">
                             <div className="relative">
-                                <div className="w-24 h-24 rounded-[2rem] bg-blue-600 flex items-center justify-center shadow-2xl shadow-blue-500/30 mx-auto relative z-10 transform -rotate-6">
+                                <div className="w-24 h-24 rounded-4xl bg-blue-600 flex items-center justify-center shadow-2xl shadow-blue-500/30 mx-auto relative z-10 transform -rotate-6">
                                     <Printer className="w-10 h-10 text-white" />
                                 </div>
                                 <div className="absolute inset-x-0 -bottom-3 h-6 bg-blue-900/10 blur-xl rounded-full scale-110" />
@@ -1589,12 +1604,12 @@ export function SF9Page() {
                                 <p className="text-lg text-slate-500 font-medium">Preparing official SF9 records for <span className="text-blue-600 font-bold">{selectedSectionObj.section_name}</span></p>
                             </div>
 
-                            <div className="w-full max-w-xl bg-white rounded-[2rem] border border-slate-200/60 shadow-xl p-8 space-y-6">
+                            <div className="w-full max-w-xl bg-white rounded-4xl border border-slate-200/60 shadow-xl p-8 space-y-6">
                                 {batchProgress > 0 && (
                                     <div className="space-y-4">
                                         <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner p-1">
                                             <motion.div 
-                                                className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full" 
+                                                className="h-full bg-linear-to-r from-blue-600 to-indigo-600 rounded-full" 
                                                 initial={{ width: 0 }}
                                                 animate={{ width: `${batchProgress}%` }}
                                                 transition={{ duration: 0.3 }}
@@ -1664,7 +1679,7 @@ export function SF9Page() {
                                 <div className="absolute -inset-20 bg-indigo-500/5 blur-[120px] rounded-full group-hover:bg-indigo-500/10 transition-all duration-1000" />
                                 <div className="relative w-56 h-56 bg-white rounded-[4rem] border border-slate-200 flex items-center justify-center transform group-hover:rotate-6 hover:scale-105 transition-all duration-700 shadow-xl">
                                     <FileText className="w-24 h-24 text-slate-100 drop-shadow-[0_0_10px_rgba(0,0,0,0.02)]" />
-                                    <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-2xl ring-8 ring-slate-50 group-hover:translate-x-2 group-hover:-translate-y-2 transition-all duration-500">
+                                    <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-indigo-600 rounded-4xl flex items-center justify-center shadow-2xl ring-8 ring-slate-50 group-hover:translate-x-2 group-hover:-translate-y-2 transition-all duration-500">
                                         <span className="text-3xl font-black text-white italic tracking-tighter">SF9</span>
                                     </div>
                                 </div>
@@ -1687,7 +1702,7 @@ export function SF9Page() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[1000] flex items-center justify-center p-8 bg-[#0f172a]/80 backdrop-blur-md"
+                        className="fixed inset-0 z-1000 flex items-center justify-center p-8 bg-[#0f172a]/80 backdrop-blur-md"
                         onClick={handleCommitValues}
                     >
                         <motion.div 
@@ -1882,7 +1897,6 @@ export function SF9Page() {
             <AnimatePresence>
                 {isLayoutModalOpen && (
                     <SF9LayoutModal 
-                        isOpen={isLayoutModalOpen}
                         onClose={() => setIsLayoutModalOpen(false)}
                         currentSelections={currentSubjectSelections}
                         subjects={subjects.filter(s => s.section_id === selectedSectionObj?.id)}
@@ -1895,14 +1909,13 @@ export function SF9Page() {
 }
 
 interface LayoutModalProps {
-    isOpen: boolean;
     onClose: () => void;
     currentSelections: Record<number, string>;
     subjects: Subject[];
     onSave: (selections: Record<number, string>) => Promise<void>;
 }
 
-function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }: LayoutModalProps) {
+function SF9LayoutModal({ onClose, currentSelections, subjects, onSave }: LayoutModalProps) {
     const [localSelections, setLocalSelections] = useState<Record<number, string>>(currentSelections);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -1917,7 +1930,7 @@ function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1929,7 +1942,7 @@ function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }
                 initial={{ scale: 0.9, y: 20, opacity: 0 }}
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 20, opacity: 0 }}
-                className="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+                className="relative w-full max-w-2xl bg-white rounded-4xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
             >
                 <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div className="flex items-center gap-4">
@@ -1952,7 +1965,7 @@ function SF9LayoutModal({ isOpen, onClose, currentSelections, subjects, onSave }
                             const slotNum = idx;
                             return (
                                 <div key={slotNum} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-100 transition-all bg-slate-50/30">
-                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0 w-full overflow-x-auto custom-scrollbar">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0">
                                         {slotNum + 1}
                                     </div>
                                     <div className="flex-1 min-w-0">

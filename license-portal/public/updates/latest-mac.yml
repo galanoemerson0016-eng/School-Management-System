@@ -1,17 +1,17 @@
-version: 1.0.50
+﻿version: 1.0.51
 files:
-  - url: FormEase Pro-1.0.50-mac.zip
-    sha512: 7Twup4ZbZGF3VH2UiXCRe7K6usZjdn0nNWdHbqPcpswFoPaF8erlN7FBSvDX98Pl6vMAMZEPleNaC2iQIwsR1A==
-    size: 178172106
-  - url: FormEase Pro-1.0.50-arm64-mac.zip
-    sha512: J+g86nZXtgliZ7WtwDfEnS2L3WmwFcvY0soT/NndWaZwJD6675tBdEhE7iMPH4EuiVQYhDcvUt/w7gFLLupi1Q==
-    size: 172930685
-  - url: FormEase Pro-1.0.50.dmg
-    sha512: 6LfgaaJuusjjw/h3a3p9NfN5lzQH2IhHloJoesumvG5mZBk/aPylUpF7HNygWvGHo9v4QpABns0dz+Sdj3Mupg==
-    size: 184255674
-  - url: FormEase Pro-1.0.50-arm64.dmg
-    sha512: SZlcfl386XEy5M/OA10fdRN4eR+eOmGC6MbhulolbyX3L2PvVlEBYcuJ/Iy7HATWyK06SUN+azk5kg4F8FrnFw==
-    size: 178969327
-path: FormEase Pro-1.0.50-mac.zip
-sha512: 7Twup4ZbZGF3VH2UiXCRe7K6usZjdn0nNWdHbqPcpswFoPaF8erlN7FBSvDX98Pl6vMAMZEPleNaC2iQIwsR1A==
-releaseDate: '2026-05-22T17:40:20.099Z'
+  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-mac.zip
+    sha512: 756HbL0g7yytthomdd8x+44woMH8y1QcF5O30tZq/6mR+XQ11b1LTjl2uIA+PkaAwb555QvmDjvgC/X7Qw3j+A==
+    size: 178178311
+  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-arm64-mac.zip
+    sha512: GEKRtV4xC/Pq5F3wtWxoYXmCURU5LETFJEVRZlNzZ8aOTBhbBw9I7E8yeUiVec87jFuglNsEW4WAZZN0j1PWUg==
+    size: 172936888
+  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51.dmg
+    sha512: b0TVWqEMpkiOsn+y1vaCuNbDgpKDMEVB2sX9wC1OX/BDuTT8jzbEuzslmzvVYfWoeATXAsIaodgv1bE9fjtYyQ==
+    size: 184272709
+  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-arm64.dmg
+    sha512: KMYzx7xwGii7nbl0wLPIPwg7uPUgkT6uHQXoQmK5nm8bVcLLpm7xB7fHYUxpZPu05eN9CxVFIv1mj4Jdd65U3g==
+    size: 178978460
+path: FormEase.Pro-1.0.51-mac.zip
+sha512: 756HbL0g7yytthomdd8x+44woMH8y1QcF5O30tZq/6mR+XQ11b1LTjl2uIA+PkaAwb555QvmDjvgC/X7Qw3j+A==
+releaseDate: '2026-05-23T03:32:43.199Z'

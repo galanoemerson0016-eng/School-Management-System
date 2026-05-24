@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { ArrowLeft, Printer, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Award } from 'lucide-react';
 import { useAppStore } from '../stores';
 
 type PaperSize = 'a4' | 'folio';
@@ -216,86 +216,79 @@ export function SF6Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
-                <div className="flex items-center gap-8">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
+                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none">
+                            <Award className="w-4 h-4" />
+                        </div>
                         <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF6 Report</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Summarized Report on Promotion</p>
+                            <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF6 Report</h2>
+                            <p className="text-[8.5px] font-black text-blue-600 uppercase tracking-widest">Summarized Promotion</p>
                         </div>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
+                    
+                    <div className="flex-1 min-w-[12px]" />
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
                         {/* Paper Size */}
-                        <div className="flex flex-col ml-4">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Paper Size</span>
-                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                                <button
-                                    onClick={() => {
-                                        setPaperSize('a4');
-                                        setPreviewZoom(1);
-                                    }}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'a4' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    A4
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setPaperSize('folio');
-                                        setPreviewZoom(0.9);
-                                    }}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'folio' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Folio
-                                </button>
-                            </div>
+                        <div className="relative group shrink-0">
+                            <select
+                                value={paperSize}
+                                onChange={(e) => {
+                                    const size = e.target.value as PaperSize;
+                                    setPaperSize(size);
+                                    setPreviewZoom(size === 'a4' ? 1 : 0.9);
+                                }}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                            >
+                                <option value="a4">A4</option>
+                                <option value="folio">Folio</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
-                    </div>
-                </div>
 
-                <div className="flex items-center gap-6">
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                        {/* Zoom Control */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
                             <button 
                                 onClick={() => setPreviewZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom Out"
                             >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
                                 {Math.round(previewZoom * 100)}%
                             </span>
                             <button 
                                 onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
+
+                        {/* Print Primary Button */}
+                        <button
+                            onClick={handlePrintSF6}
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                        >
+                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                            Print Official SF6
+                        </button>
                     </div>
-
-                    <div className="h-10 w-px bg-slate-200" />
-
-                    {/* Print Primary Button */}
-                    <button
-                        onClick={handlePrintSF6}
-                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3 group"
-                    >
-                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                        Print Official SF6
-                    </button>
                 </div>
              </div>
 
@@ -469,10 +462,41 @@ export function SF6Page() {
                                 <p>3. The Report on Promotion per grade level is reflected in the End of School Year Report of GESP/GSSP.</p>
                                 <p>4. Protocols of validation & submission is under the discretion of the Schools Division Superintendent.</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
+                         </div>
+                     </div>
+                 </div>
+             </div>
+            <style dangerouslySetInnerHTML={{ __html: `
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                @media print {
+                    @page { 
+                        size: ${paperSize === 'a4' ? 'A4 landscape' : '13in 8.5in'}; 
+                        margin: 0.15in !important; 
+                    }
+                    html, body {
+                        width: 100% !important;
+                        height: auto !important;
+                        background: #fff !important;
+                        overflow: visible !important;
+                    }
+                    .sf6-print-page {
+                        width: 100% !important;
+                        height: auto !important;
+                        min-height: auto !important;
+                        zoom: 1 !important;
+                        max-width: none !important;
+                        margin: 0 auto !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                    }
+                }
+            ` }} />
+         </div>
+     );
+ }

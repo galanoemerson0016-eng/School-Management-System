@@ -1,0 +1,557 @@
+﻿
+> form-ease-pro@1.0.44 lint
+> eslint .
+
+node.exe : (node:37340) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of 
+file:///C:/Users/Emerson/Pictures/FormEase%20G7%20Special/app/eslint.config.js?mtime=1767185442933 is not specified 
+and it doesn't parse as CommonJS.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:37340) [M...se as CommonJS.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Emerson\Pictures\FormEase G7 Special\app\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\App.tsx
+  33:10  error  'AccessDenied' is defined but never used   @typescript-eslint/no-unused-vars
+  85:39  error  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\AutoBackupManager.tsx
+  37:33  error  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\LIRRenderer.tsx
+   7:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  35:5   error  'pageNumber' is defined but never used    @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\SF10SpecRenderer.tsx
+   38:8   warning  React Hook React.useLayoutEffect has a missing dependency: 'minScale'. Either include it or remove the dependency array. If 'setScale' needs the current value of 'minScale', you can also switch to useReducer instead of useState and read 'minScale' in the reducer  react-hooks/exhaustive-deps
+  133:19  error    'isJHS' is assigned a value but never used                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  218:99  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  683:99  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\SF10SpecRendererES.tsx
+   38:8    warning  React Hook React.useLayoutEffect has a missing dependency: 'minScale'. Either include it or remove the dependency array. If 'setScale' needs the current value of 'minScale', you can also switch to useReducer instead of useState and read 'minScale' in the reducer  react-hooks/exhaustive-deps
+   59:91   error    'onUpdate' is defined but never used                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  153:99   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  155:53   error    'finalRows' is never reassigned. Use 'const' instead                                                                                                                                                                                                                    prefer-const
+  156:163  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  157:199  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  158:210  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  272:99   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  274:53   error    'finalRows' is never reassigned. Use 'const' instead                                                                                                                                                                                                                    prefer-const
+  275:163  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  276:199  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  277:210  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\SF10SpecRendererJHS.tsx
+   23:7   error    'AutoShrinkText' is assigned a value but never used                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+   38:8   warning  React Hook React.useLayoutEffect has a missing dependency: 'minScale'. Either include it or remove the dependency array. If 'setScale' needs the current value of 'minScale', you can also switch to useReducer instead of useState and read 'minScale' in the reducer  react-hooks/exhaustive-deps
+   59:93  error    'onUpdate' is defined but never used                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   84:15  error    'label' is assigned a value but never used                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  144:99  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  256:99  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\sections\BulkStudentModal.tsx
+  4:18  error  'AnimatePresence' is defined but never used  @typescript-eslint/no-unused-vars
+  5:19  error  'FileText' is defined but never used         @typescript-eslint/no-unused-vars
+  5:29  error  'AlertCircle' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\sections\SectionForm.tsx
+    4:29  error  'SPECIAL_SUBJECTS' is defined but never used           @typescript-eslint/no-unused-vars
+   23:60  error  'addSubject' is assigned a value but never used        @typescript-eslint/no-unused-vars
+   71:15  error  'currentSectionId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  116:23  error  'indexB' is assigned a value but never used            @typescript-eslint/no-unused-vars
+  206:19  error  'sectionId' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\students\StudentForm.tsx
+  309:11  error  'isJHS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  577:81  error  Unexpected any. Specify a different type    @typescript-eslint/no-explicit-any
+  619:81  error  Unexpected any. Specify a different type    @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\ui\Toast.tsx
+  62:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\components\ui\UpdateStatus.tsx
+  10:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  10:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  11:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  11:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  34:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\electron.d.ts
+  11:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\lib\firebase.ts
+  2:31  error  'persistentLocalCache' is defined but never used          @typescript-eslint/no-unused-vars
+  2:53  error  'persistentMultipleTabManager' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\lib\rbac.ts
+   76:62  error  '_view' is defined but never used      @typescript-eslint/no-unused-vars
+  109:40  error  '_user' is defined but never used      @typescript-eslint/no-unused-vars
+  109:72  error  '_area' is defined but never used      @typescript-eslint/no-unused-vars
+  113:71  error  '_section' is defined but never used   @typescript-eslint/no-unused-vars
+  113:90  error  '_subjects' is defined but never used  @typescript-eslint/no-unused-vars
+  117:69  error  '_section' is defined but never used   @typescript-eslint/no-unused-vars
+  117:88  error  '_subject' is defined but never used   @typescript-eslint/no-unused-vars
+  130:62  error  '_report' is defined but never used    @typescript-eslint/no-unused-vars
+  134:62  error  '_report' is defined but never used    @typescript-eslint/no-unused-vars
+  138:91  error  '_subjects' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\main.tsx
+  4:13  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\AboutPage.tsx
+    9:5   error  'Bolt' is defined but never used                @typescript-eslint/no-unused-vars
+   24:5   error  'Sparkles' is defined but never used            @typescript-eslint/no-unused-vars
+   30:5   error  'Bot' is defined but never used                 @typescript-eslint/no-unused-vars
+   31:5   error  'Terminal' is defined but never used            @typescript-eslint/no-unused-vars
+   40:54  error  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   46:65  error  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  133:11  error  'platforms' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  179:64  error  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\ActivationPage.tsx
+   27:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   29:16  error  'e' is defined but never used             @typescript-eslint/no-unused-vars
+  120:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:16  error  'e' is defined but never used             @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\AttendancePage.tsx
+   60:8   warning  React Hook useEffect has a missing dependency: 'activeSchoolYear'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  113:8   warning  React Hook useEffect has a missing dependency: 'activeSchoolYear'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  127:38  error    Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  271:8   warning  React Hook useEffect has a missing dependency: 'applyAutoFillDates'. Either include it or remove the dependency array   react-hooks/exhaustive-deps
+  434:8   warning  React Hook useMemo has an unnecessary dependency: 'activeSchoolYear'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\CertificateGeneratorPage.tsx
+  116:11  error  'groupedSections' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  117:38  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-explicit-any
+  142:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\CertificateGeneratorPage.tsx:142:13
+  140 |     useEffect(() => {
+  141 |         if (sortedSections.length === 1 && selectedSectionId !== sortedSections[0].id) {
+> 142 |             setSelectedSectionId(sortedSections[0].id);
+      |             ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  143 |         }
+  144 |     }, [sortedSections, selectedSectionId]);
+  145 |                                                                    react-hooks/set-state-in-effect
+  199:17  error  'd' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefer-const
+  215:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\CertificateGeneratorPage.tsx:215:13
+  213 |     useEffect(() => {
+  214 |         if (schoolProfile) {
+> 215 |             setCertData(prev => ({
+      |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  216 |                 ...prev,
+  217 |                 signatory2Name: schoolProfile.head_name || prev.signatory2Name,
+  218 |                 signatory2TitleTagalog: schoolProfile.head_position?.toLowerCase().includes('principal')   react-hooks/set-state-in-effect
+  234:25  error  'd' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefer-const
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\ConsolidatedGradesPage.tsx
+    3:43  error    'Download' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+    3:53  error    'Lock' is defined but never used                                                                                    @typescript-eslint/no-unused-vars
+    3:59  error    'Unlock' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+    8:24  error    'ClassRecord' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+    8:37  error    'HPSRecord' is defined but never used                                                                               @typescript-eslint/no-unused-vars
+    8:48  error    'Student' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+  126:4   error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  140:47  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  302:49  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  310:46  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  436:32  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  510:38  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  715:8   warning  React Hook useMemo has a missing dependency: 'formatLearnerName'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  761:42  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  866:54  error    Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  952:8   warning  React Hook useMemo has a missing dependency: 'termColSpan'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\Dashboard.tsx
+    3:10  error  'BarChart' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+    3:20  error  'Bar' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+    3:32  error  'YAxis' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+    6:17  error  'Layers' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+    6:53  error  'Info' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+    6:82  error  'FileSpreadsheet' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+    8:33  error  'exportGradesToExcel' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+   47:11  error  'createBackup' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   49:11  error  'classRecords' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   54:12  error  'failingViewMode' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   54:29  error  'setFailingViewMode' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   83:11  error  'handleBulkExport' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  230:11  error  'groupedFailingStudents' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  277:11  error  'setupIncomplete' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  282:11  error  'enrollmentData' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  353:23  error  '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  370:11  error  'academicHealthScore' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  411:11  error  'containerVariants' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  567:52  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\Dashboard.tsx:567:52
+  565 |                             </div>
+  566 |                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+> 567 |                                 lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+      |                                                    ^^^^^^^^^^ Cannot call impure function
+  568 |                                     ? 'bg-green-100'
+  569 |                                     : 'bg-amber-100'
+  570 |                             }`}>                                  react-hooks/purity
+  572:56  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\Dashboard.tsx:572:56
+  570 |                             }`}>
+  571 |                                 <ShieldCheck className={`w-6 h-6 ${
+> 572 |                                     lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+      |                                                        ^^^^^^^^^^ Cannot call impure function
+  573 |                                         ? 'text-green-600'
+  574 |                                         : 'text-amber-600'
+  575 |                                 }`} />                                            react-hooks/purity
+  581:56  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\Dashboard.tsx:581:56
+  579 |                             <div className="flex items-center gap-2">
+  580 |                                 <div className={`w-2 h-2 rounded-full ${
+> 581 |                                     lastBackupTime && (Date.now() - lastBackupTime < 86400000)
+      |                                                        ^^^^^^^^^^ Cannot call impure function
+  582 |                                         ? 'bg-green-500'
+  583 |                                         : 'bg-amber-500'
+  584 |                                 }`}></div>  react-hooks/purity
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\EClassRecord.tsx
+     2:10   error    'motion' is defined but never used                                                                                    @typescript-eslint/no-unused-vars
+     2:18   error    'AnimatePresence' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+     5:10   error    'X' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+    39:9    error    'addSubject' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
+    94:11   error    'groupedSections' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+   455:8    warning  React Hook useCallback has a missing dependency: 'mapehComponents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   582:33   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+   626:33   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+   845:51   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+   847:59   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1034:65   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1036:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1037:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1038:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1044:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1045:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1052:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1053:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1054:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1077:65   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1079:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1080:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1081:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1087:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1088:136  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1095:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1096:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1097:132  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1182:50   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  1182:122  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\EnrollmentCenterPage.tsx
+  124:11  error  'groupedSections' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  125:38  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\InstitutePage.tsx
+  25:12  error  'isAdvancedUnlocked' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\LIRPage.tsx
+    6:10  error    'filterSF9Sections' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   47:50  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+   75:8   warning  React Hook useMemo has an unnecessary dependency: 'user'. Either exclude it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/exhaustive-deps
+  102:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\LIRPage.tsx:102:13
+  100 |     useEffect(() => {
+  101 |         if (!selectedSection && sortedSections.length === 1) {
+> 102 |             setSelectedSection(sortedSections[0].section_name);
+      |             ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  103 |         }
+  104 |     }, [sortedSections, selectedSection]);
+  105 |  react-hooks/set-state-in-effect
+  107:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\LIRPage.tsx:107:9
+  105 |
+  106 |     useEffect(() => {
+> 107 |         setSelectedSubject('');
+      |         ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  108 |         setSelectedStudent(null);
+  109 |     }, [selectedSection]);
+  110 |                                                                                              react-hooks/set-state-in-effect
+  153:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  181:52  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  182:49  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  185:33  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  204:8   warning  React Hook useMemo has a missing dependency: 'selectedSubjectObj?.id'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\NameTagPage.tsx
+    3:48   error  'User' is defined but never used              @typescript-eslint/no-unused-vars
+    3:69   error  'School' is defined but never used            @typescript-eslint/no-unused-vars
+    4:10   error  'motion' is defined but never used            @typescript-eslint/no-unused-vars
+   16:12   error  'zoom' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   16:18   error  'setZoom' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   23:38   error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  265:92   error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  265:112  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  265:126  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\ReportsPage.tsx
+     5:59   error    'FileSpreadsheet' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+    51:36   error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `officialSections`, but the source dependencies were [sections]. Inferred different dependency than source.
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\ReportsPage.tsx:51:36
+  49 |     }, [officialSections, selectedSectionFilter]);
+  50 |
+> 51 |     const sortedSections = useMemo(() => {
+     |                                    ^^^^^^^
+> 52 |         return [...officialSections].sort((a, b) => {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 53 |             const getGradeNum = (val: string) => {
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 61 |         });
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |     }, [sections]);
+     | ^^^^^^ Could not preserve existing manual memoization
+  63 |
+  64 |     const groupedSections = useMemo(() => {
+  65 |         const groups: Record<string, any[]> = {  react-hooks/preserve-manual-memoization
+    62:8    warning  React Hook useMemo has a missing dependency: 'officialSections'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+    64:11   error    'groupedSections' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+    65:38   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+    90:13   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\ReportsPage.tsx:90:13
+  88 |     useEffect(() => {
+  89 |         if (sortedSections.length === 1 && selectedSectionFilter === 'all') {
+> 90 |             setSelectedSectionFilter(sortedSections[0].id);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  91 |         }
+  92 |     }, [sortedSections, selectedSectionFilter]);
+  93 |                                                                                                                           react-hooks/set-state-in-effect
+   409:33   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+   409:41   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+   985:47   error    'passChange' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  1030:79   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+  1031:79   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+  1038:147  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF10Page.tsx
+   48:38  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-explicit-any
+   73:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF10Page.tsx:73:13
+  71 |     useEffect(() => {
+  72 |         if (!selectedSection && sortedSections.length === 1) {
+> 73 |             setSelectedSection(sortedSections[0].section_name);
+     |             ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |         }
+  75 |     }, [sortedSections, selectedSection]);
+  76 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/set-state-in-effect
+  103:30  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `isES`, but the source dependencies were [selectedStudent, schoolProfile, activeSchoolYear, sections, teachers, gradingSheetRecords, subjects, overrides, studentKey, currentPage]. Inferred different dependency than source.
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF10Page.tsx:103:30
+  101 |     }, [selectedStudent]);
+  102 |
+> 103 |     const specData = useMemo(() => {
+      |                              ^^^^^^^
+> 104 |         const currentOverrides = overrides[studentKey]?.[`page_${currentPage}`] || {};
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 105 |         if (!selectedStudent) return null;
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 145 |         return mergedData;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 146 |     }, [selectedStudent, schoolProfile, activeSchoolYear, sections, teachers, gradingSheetRecords, subjects, overrides, studentKey, currentPage]);
+      | ^^^^^^ Could not preserve existing manual memoization
+  147 |
+  148 |     const handleCellUpdate = (path: string, value: string) => {
+  149 |         if (!selectedStudent) return;  react-hooks/preserve-manual-memoization
+  146:8   warning  React Hook useMemo has a missing dependency: 'isES'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/exhaustive-deps
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF5Page.tsx
+  35:11  error  'groupedSections' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  36:38  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF8Page.tsx
+  152:11  error  'groupedSections' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  153:38  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-explicit-any
+  180:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF8Page.tsx:180:13
+  178 |     useEffect(() => {
+  179 |         if (!selectedSection && singleAvailableSection) {
+> 180 |             setSelectedSection(singleAvailableSection.id || singleAvailableSection.section_name);
+      |             ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  181 |         }
+  182 |     }, [selectedSection, singleAvailableSection]);
+  183 |  react-hooks/set-state-in-effect
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SF9Page.tsx
+    18:7    error    'getDescriptor' is assigned a value but never used                                                                                                                                          @typescript-eslint/no-unused-vars
+   198:9    error    'currentSubjects' is never reassigned. Use 'const' instead                                                                                                                                  prefer-const
+   198:26   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   224:95   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   227:91   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   235:15   error    'mapehHeader' is assigned a value but never used                                                                                                                                            @typescript-eslint/no-unused-vars
+   262:108  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   422:52   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   427:64   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   494:15   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   510:123  error    'schoolProfile' is defined but never used                                                                                                                                                   @typescript-eslint/no-unused-vars
+   725:61   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   874:10   error    'SF9BatchDocument' is defined but never used                                                                                                                                                @typescript-eslint/no-unused-vars
+   955:38   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  1096:11   warning  The 'handlePrint' function makes the dependencies of useEffect Hook (at line 1136) change on every render. To fix this, wrap the definition of 'handlePrint' in its own useCallback() Hook  react-hooks/exhaustive-deps
+  1288:47   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  1427:70   error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  1888:27   error    'isOpen' is defined but never used                                                                                                                                                          @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SectionsPage.tsx
+   9:5   error  'Users' is defined but never used                @typescript-eslint/no-unused-vars
+  23:23  error  'subjects' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  23:48  error  'teachers' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  30:13  error  'hasChanges' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SettingsPage.tsx
+    1:20  error  'useEffect' is defined but never used     @typescript-eslint/no-unused-vars
+  443:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\StudentsPage.tsx
+   15:89  error    'X' is defined but never used                                                                                                                                                         @typescript-eslint/no-unused-vars
+  127:11  error    'canAddGlobally' is assigned a value but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  274:8   warning  React Hook useMemo has missing dependencies: 'resolveAdviserName', 'resolveSectionDisplayName', and 'resolveSectionGradeDisplay'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  371:34  error    Unexpected any. Specify a different type                                                                                                                                              @typescript-eslint/no-explicit-any
+  402:9   warning  React Hook useMemo has a missing dependency: 'isCurrentSectionAdvisory'. Either include it or remove the dependency array                                                             react-hooks/exhaustive-deps
+  416:11  error    'handleAdd' is assigned a value but never used                                                                                                                                        @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\pages\SubjectsPage.tsx
+  154:35  error  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  170:11  error  'grades' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  550:91  error  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\services\backup.ts
+   32:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   33:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  148:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\services\database.ts
+  140:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  205:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  206:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  226:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  227:15  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  292:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  293:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  297:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  298:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  302:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  303:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\services\excel-export.ts
+  133:3  error  'enrollments' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\services\excel-import.ts
+   14:12  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   41:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  116:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  175:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  217:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\stores\app-store.ts
+  287:43  error  'sectionName' is defined but never used       @typescript-eslint/no-unused-vars
+  603:35  error  'sourceSchoolYear' is defined but never used  @typescript-eslint/no-unused-vars
+  603:53  error  'sourceGradeLevel' is defined but never used  @typescript-eslint/no-unused-vars
+  603:71  error  'targetSectionId' is defined but never used   @typescript-eslint/no-unused-vars
+  912:71  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\utils\backup-restore.ts
+  103:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\utils\sf10Mapper.ts
+    2:10  error  'getSubjectsForGrade' is defined but never used                 @typescript-eslint/no-unused-vars
+    8:7   error  'STANDARD_JHS_SUBJECTS_G79' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   25:7   error  'STANDARD_JHS_SUBJECTS_G10' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  265:13  error  'sorted' is never reassigned. Use 'const' instead               prefer-const
+  382:13  error  'maGrade' is never reassigned. Use 'const' instead              prefer-const
+  383:13  error  'peGrade' is never reassigned. Use 'const' instead              prefer-const
+  503:26  error  Unexpected any. Specify a different type                        @typescript-eslint/no-explicit-any
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\utils\sf10MapperES.ts
+  197:13  error  'sorted' is never reassigned. Use 'const' instead   prefer-const
+  282:13  error  'maGrade' is never reassigned. Use 'const' instead  prefer-const
+  283:13  error  'peGrade' is never reassigned. Use 'const' instead  prefer-const
+  302:15  error  'is3Term' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  383:9   error  'hasElem' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\src\utils\sf10MapperJHS.ts
+  180:13  error  'sorted' is never reassigned. Use 'const' instead   prefer-const
+  263:13  error  'maGrade' is never reassigned. Use 'const' instead  prefer-const
+  264:13  error  'peGrade' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\Emerson\Pictures\FormEase G7 Special\app\vite.config.ts
+  10:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Γ£û 269 problems (252 errors, 17 warnings)
+  14 errors and 0 warnings potentially fixable with the `--fix` option.
+

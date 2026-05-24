@@ -32,29 +32,6 @@ export function SF5Page() {
         });
     }, [sections, user]);
 
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        sortedSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [sortedSections]);
-
     // Auto-select section if only one is available
     useEffect(() => {
         if (!selectedSection && sortedSections.length === 1) {
@@ -298,15 +275,37 @@ export function SF5Page() {
         return fromProfile || 'TEST ADVISER';
     }, [currentSectionInfo, teachers, schoolProfile]);
 
-    const tableRows = [
+    const tableRows = useMemo(() => [
         ...males.map(s => ({ type: 'student' as const, data: s })),
         { type: 'total' as const, label: 'TOTAL MALE' },
         ...females.map(s => ({ type: 'student' as const, data: s })),
         { type: 'total' as const, label: 'TOTAL FEMALE' },
         { type: 'total' as const, label: 'COMBINED TOTAL' },
-    ];
+    ], [males, females]);
 
-    const totalPages = Math.ceil(tableRows.length / 28) || 1;
+    const pages = useMemo(() => {
+        const result: typeof tableRows[] = [];
+        let currentPage: typeof tableRows = [];
+        
+        tableRows.forEach((row) => {
+            const pageIdx = result.length;
+            const limit = pageIdx === 0 ? 28 : 38; // 28 rows on Page 1, 38 rows on Page 2+
+            
+            currentPage.push(row);
+            if (currentPage.length === limit) {
+                result.push(currentPage);
+                currentPage = [];
+            }
+        });
+        
+        if (currentPage.length > 0) {
+            result.push(currentPage);
+        }
+        
+        return result.length > 0 ? result : [[]];
+    }, [tableRows]);
+
+    const totalPages = pages.length;
 
     const handlePrintSF5 = () => {
         const sectionName = sortedSections.find(s => s.section_name === selectedSection)?.section_name || 'Record';
@@ -436,9 +435,8 @@ export function SF5Page() {
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{ transform: `scale(${zoom})` }}
                         >
-                                {Array.from({ length: totalPages }).map((_, pageIdx) => {
-                                    const isLastPage = pageIdx === totalPages - 1;
-                                    const pageRows = tableRows.slice(pageIdx * 28, (pageIdx + 1) * 28);
+                                {pages.map((pageRows, pageIdx) => {
+                                    const isLastPage = pageIdx === pages.length - 1;
                                     
                                     return (
                                         <div 
@@ -468,7 +466,7 @@ export function SF5Page() {
                                                         <img 
                                                             src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} 
                                                             alt="DepEd Logo" 
-                                                            className="h-16 w-16 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar"
+                                                            className="h-16 w-16 object-contain shrink-0"
                                                         />
                                                         <div className="flex flex-col text-center">
                                                             <h1 className="text-3xl font-bold" style={{ color: '#000000', letterSpacing: '0px' }}>School Form 5 (SF 5) Report on Promotion & Level of Proficiency</h1>
@@ -515,7 +513,7 @@ export function SF5Page() {
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">Grade Level</span>
-                                                                <div className="border border-black px-2 w-[4.5rem] flex-none h-[22px] flex items-center justify-center font-bold tracking-wide">
+                                                                <div className="border border-black px-2 w-18 flex-none h-[22px] flex items-center justify-center font-bold tracking-wide">
                                                                     {currentSectionInfo?.section_grade_level?.replace('Grade ', '') || 'Grade 1'}
                                                                 </div>
                                                                 <span className="ml-[2px] shrink-0 text-[12px] whitespace-nowrap">Section</span>
@@ -581,7 +579,7 @@ export function SF5Page() {
                                                                         <td className="border border-black py-[0.5px] px-1 font-sans text-[12px] font-bold leading-tight">{student.genAve > 0 ? student.genAve : ''}</td>
                                                                         <td className="border border-black py-[0.5px] px-1 font-sans text-[12px] leading-tight">{student.actionTaken}</td>
                                                                         <td className="border border-black py-[0.5px] px-1 text-[12px] leading-tight"></td>
-                                                                        <td className="border border-black py-[0.5px] px-1 text-[8.5px] break-words whitespace-normal align-top leading-[1.1] italic text-left">{student.failedSubjects}</td>
+                                                                        <td className="border border-black py-[0.5px] px-1 text-[8.5px] wrap-break-word whitespace-normal align-top leading-[1.1] italic text-left">{student.failedSubjects}</td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -761,6 +759,12 @@ export function SF5Page() {
                     </div>
                 )}
             </div>
+            <style>{`
+                @media print {
+                    @page { size: ${paperSize === 'folio' ? '330mm 216mm' : '297mm 210mm'}; margin: 0; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            `}</style>
         </div>
     );
 }

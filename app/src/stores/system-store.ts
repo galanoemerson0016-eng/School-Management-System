@@ -10,7 +10,7 @@ interface SystemState {
 }
 
 export const useSystemStore = create<SystemState>((set) => ({
-    loginAnnouncement: "Welcome to FormEase Pro. Please login with your credentials to continue.", // Default fallback
+    loginAnnouncement: 'Welcome to FormEase Pro. Please login with your credentials to continue', // Default fallback
     isLoading: false,
 
     fetchSystemSettings: async () => {

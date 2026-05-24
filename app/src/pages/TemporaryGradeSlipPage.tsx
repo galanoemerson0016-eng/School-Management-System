@@ -14,7 +14,11 @@ export function TemporaryGradeSlipPage() {
 
     const sortedSections = useMemo(() => {
         const advisory = sections.filter(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
-        return [...advisory].sort((a, b) => a.section_grade_level.localeCompare(b.section_grade_level));
+        return [...advisory].sort((a, b) => {
+            const glCompare = (a.section_grade_level || '').localeCompare(b.section_grade_level || '', undefined, { numeric: true });
+            if (glCompare !== 0) return glCompare;
+            return (a.section_name || '').localeCompare(b.section_name || '');
+        });
     }, [sections]);
 
     // Auto-select the first available advisory section

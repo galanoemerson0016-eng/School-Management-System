@@ -3,7 +3,7 @@ import { useAuthStore, useAppStore } from '../stores';
 import { useSystemStore } from '../stores/system-store';
 import {
     User, Eye, EyeOff, GraduationCap, BookOpen, ScrollText, School,
-    Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2, Fingerprint,
+    Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2,
     XCircle, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -148,6 +148,24 @@ export const LoginPage = () => {
 
     const passwordStrength = getPasswordStrength(credentials.password);
 
+    const getLoginErrorMessage = (message: string | null) => {
+        if (!message) return '';
+        if (/invalid username or password/i.test(message)) {
+            return 'Invalid username or password. Please check your credentials and try again.';
+        }
+        if (/invalid username/i.test(message)) {
+            return 'The username you entered was not found. Please try again.';
+        }
+        if (/invalid password/i.test(message)) {
+            return 'The password you entered is incorrect. Please try again.';
+        }
+        if (/username and password required/i.test(message)) {
+            return 'Please enter both your username and password.';
+        }
+
+        return message;
+    };
+
     // Clock ticker
     useEffect(() => {
         fetchSystemSettings();
@@ -207,7 +225,6 @@ export const LoginPage = () => {
         forgotPassword: 'Forgot Password?',
         signIn: 'Sign In',
         signingIn: 'Signing In...',
-        systemStatus: 'All Systems Operational',
         copyright: 'Copyright © 2026 Department of Education. All rights reserved.',
     } : {
         republic: 'REPUBLIKA NG PILIPINAS',
@@ -227,12 +244,11 @@ export const LoginPage = () => {
         forgotPassword: 'Nakalimutan ang Password?',
         signIn: 'Mag-sign In',
         signingIn: 'Nagsa-sign In...',
-        systemStatus: 'Lahat ng Sistema ay Gumagana',
         copyright: 'Karapatang-ari © 2026 Kagawaran ng Edukasyon. Lahat ng karapatan ay nakalaan.',
     };
 
     return (
-        <div className={`min-h-screen w-full flex overflow-hidden selection:bg-blue-200 selection:text-deped-blue ${darkMode ? 'bg-[#0a0e1a]' : 'bg-login-bg'}`}>
+        <div className={`fixed inset-0 h-screen max-h-screen w-full flex overflow-hidden selection:bg-blue-200 selection:text-deped-blue ${darkMode ? 'bg-[#0a0e1a]' : 'bg-login-bg'}`}>
 
             {/* ============================== */}
             {/* LEFT PANEL — Hero Section       */}
@@ -241,7 +257,7 @@ export const LoginPage = () => {
                 initial={{ x: -80, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="hidden lg:flex lg:w-[58%] relative text-white flex-col justify-between p-12 overflow-hidden"
+                className="hidden lg:flex lg:w-[58%] h-full relative text-white flex-col justify-between p-8 xl:p-12 overflow-hidden"
             >
                 {/* Background Image with Parallax drift */}
                 <div
@@ -341,7 +357,7 @@ export const LoginPage = () => {
                 >
                     <div className="bg-black/30 backdrop-blur-xl rounded-[20px] py-4 px-6 md:px-8 flex flex-col items-center justify-center gap-2 border border-white/10 hover:bg-black/40 hover:border-white/20 transition-all duration-300 shadow-2xl w-fit max-w-[90%] mx-auto cursor-pointer">
                         <div className="flex items-center justify-center gap-2 w-full">
-                            <Megaphone className="w-4 h-4 text-emerald-300 flex-shrink-0 w-full overflow-x-auto custom-scrollbar" />
+                            <Megaphone className="w-4 h-4 shrink-0 text-emerald-300" />
                             <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-[0.2em]">{t.latestAnnouncement}</span>
                         </div>
                         <p className="text-white/95 font-medium text-sm leading-relaxed drop-shadow-sm text-center">
@@ -358,7 +374,7 @@ export const LoginPage = () => {
                 initial={{ x: 60, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className={`w-full lg:w-[42%] flex flex-col justify-center items-center p-6 md:p-10 relative overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-[#F5F7FA]'
+                className={`w-full lg:w-[42%] h-full flex flex-col justify-center items-center p-6 md:p-8 relative overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-[#F5F7FA]'
                     }`}
             >
                 {/* Background Orbs */}
@@ -479,13 +495,22 @@ export const LoginPage = () => {
                                     initial={{ height: 0, opacity: 0, marginBottom: 0 }}
                                     animate={{ height: 'auto', opacity: 1, marginBottom: 8 }}
                                     exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-                                    className={`rounded-xl text-sm font-medium flex items-center gap-2 overflow-hidden ${darkMode
-                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20 p-3'
-                                        : 'bg-red-50 text-red-600 p-3 border border-red-100'
+                                    className={`rounded-xl border p-3 text-sm ${darkMode
+                                        ? 'bg-red-500/10 text-red-200 border-red-500/20'
+                                        : 'bg-red-50 text-red-700 border-red-100'
                                         }`}
                                 >
-                                    <Shield className="w-4 h-4 shrink-0 w-full overflow-x-auto custom-scrollbar" />
-                                    {error}
+                                    <div className="flex items-start gap-3">
+                                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${darkMode ? 'bg-red-500/15' : 'bg-red-100'}`}>
+                                            <XCircle className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold">Sign in failed</p>
+                                            <p className="mt-0.5 leading-relaxed">
+                                                {getLoginErrorMessage(error)}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -633,52 +658,21 @@ export const LoginPage = () => {
                             ) : t.signIn}
                         </motion.button>
 
-                        {/* Biometric Login Hint */}
-                        <div className="flex justify-center pt-2">
-                            <button
-                                type="button"
-                                className={`flex items-center gap-2 text-[11px] font-medium px-4 py-2 rounded-full transition-all duration-200 ${darkMode
-                                    ? 'text-gray-600 hover:text-gray-400 hover:bg-white/[0.04]'
-                                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                                    }`}
-                            >
-                                <Fingerprint className="w-3.5 h-3.5" />
-                                Biometric Login
-                            </button>
-                        </div>
                     </motion.form>
                 </motion.div>
 
-                {/* ---- System Status Pill ---- */}
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 1.2 }}
-                    className="absolute bottom-14 left-0 right-0 flex justify-center pointer-events-none z-20"
-                >
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold ${darkMode
-                        ? 'bg-white/[0.04] text-gray-500 border border-white/[0.06]'
-                        : 'bg-white/80 backdrop-blur-sm text-gray-500 border border-gray-200/40 shadow-sm'
-                        }`}>
-                        <div className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500 animate-glow-pulse" />
-                        </div>
-                        {t.systemStatus}
-                    </div>
-                </motion.div>
-
-                {/* ---- Copyright ---- */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1.4 }}
-                    className="absolute bottom-5 left-0 right-0 text-center pointer-events-none z-20"
-                >
-                    <p className={`text-[10px] font-medium tracking-wide ${darkMode ? 'text-gray-700' : 'text-gray-400'}`}>
-                        {t.copyright}
-                    </p>
-                </motion.div>
+                <div className="mt-2 flex flex-col items-center gap-3 px-4 text-center pointer-events-none z-20">
+                    {/* ---- Copyright ---- */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1.4 }}
+                    >
+                        <p className={`text-[10px] font-medium tracking-wide ${darkMode ? 'text-gray-700' : 'text-gray-400'}`}>
+                            {t.copyright}
+                        </p>
+                    </motion.div>
+                </div>
 
                 {/* ============================================================================= */}
                 {/* RECOVERY MODAL                                                                */}

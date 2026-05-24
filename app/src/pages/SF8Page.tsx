@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, Printer, ChevronDown, Plus, Minus, HeartPulse } from 'lucide-react';
 import { useAppStore } from '../stores';
 import type { Student } from '../types';
@@ -149,37 +149,8 @@ export function SF8Page() {
         });
     }, [sections]);
 
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        sortedSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [sortedSections]);
-
     const singleAvailableSection = sortedSections.length === 1 ? sortedSections[0] : null;
     const effectiveSelectedSection = selectedSection || (singleAvailableSection ? (singleAvailableSection.id || singleAvailableSection.section_name) : '');
-
-    useEffect(() => {
-        if (!selectedSection && singleAvailableSection) {
-            setSelectedSection(singleAvailableSection.id || singleAvailableSection.section_name);
-        }
-    }, [selectedSection, singleAvailableSection]);
 
     const selectedSectionObj = useMemo(() => {
         return sections.find(section => section.section_name === effectiveSelectedSection || section.id === effectiveSelectedSection) || null;
@@ -263,15 +234,15 @@ export function SF8Page() {
             const student = items[index] as HealthStudent | undefined;
             const healthFields = calculateHealthFields(student);
             return (
-                <tr key={student?.lrn || `blank-${index}`} className="border-b border-black/20 hover:bg-slate-50/50 transition-colors">
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[4%] font-bold">{index + 1}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[8%] tracking-tighter">{student?.lrn || ''}</td>
-                    <td className="border-r border-black/20 text-[10px] py-1.5 w-[28%] leading-none px-2 whitespace-nowrap overflow-hidden font-black">
+                <tr key={student?.lrn || `blank-${index}`} className="border-b border-black hover:bg-slate-50/50 transition-colors">
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{index + 1}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] tracking-tighter">{student?.lrn || ''}</td>
+                    <td className="border-r border-black text-[10px] py-1.5 w-[28%] leading-none px-2 whitespace-nowrap overflow-hidden font-black">
                         {student ? `${student.last_name}, ${student.first_name} ${student.middle_name || ''} ${student.name_extension || ''}`.trim().toUpperCase() : ''}
                     </td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[9%]">{student?.birthday || ''}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[4%] font-bold">{student ? getAge(student.birthday) : ''}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[5%]">
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%]">{student?.birthday || ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{student ? getAge(student.birthday) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
                         {student ? (
                             <input
                                 type="number"
@@ -284,7 +255,7 @@ export function SF8Page() {
                         ) : ''}
                         <span className="hidden print:inline">{healthFields.weight !== '' ? formatNumber(Number(healthFields.weight), 1) : ''}</span>
                     </td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[5%]">
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
                         {student ? (
                             <input
                                 type="number"
@@ -297,10 +268,10 @@ export function SF8Page() {
                         ) : ''}
                         <span className="hidden print:inline">{healthFields.height !== '' ? formatNumber(Number(healthFields.height), 2) : ''}</span>
                     </td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[5%]">{healthFields.heightSquared !== '' ? formatNumber(Number(healthFields.heightSquared), 2) : ''}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[5%] font-bold">{healthFields.bmi !== '' ? formatNumber(Number(healthFields.bmi), 1) : ''}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[8%] font-black text-blue-600 uppercase tracking-tighter">{healthFields.bmi_category}</td>
-                    <td className="border-r border-black/20 text-center text-[10px] py-1.5 w-[9%] font-black text-amber-600 uppercase tracking-tighter">{healthFields.hfa}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">{healthFields.heightSquared !== '' ? formatNumber(Number(healthFields.heightSquared), 2) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%] font-bold">{healthFields.bmi !== '' ? formatNumber(Number(healthFields.bmi), 1) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] font-black text-blue-600 uppercase tracking-tighter">{healthFields.bmi_category}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%] font-black text-amber-600 uppercase tracking-tighter">{healthFields.hfa}</td>
                     <td className="text-center text-[10px] py-1.5 w-[10%] font-bold italic opacity-70">{healthFields.remarks}</td>
                 </tr>
             );
@@ -310,101 +281,96 @@ export function SF8Page() {
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
-                <div className="flex items-center gap-8">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
+                        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 shrink-0 select-none animate-pulse">
+                            <HeartPulse className="w-4 h-4" />
+                        </div>
                         <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF8 Health</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Nutrition Report</p>
+                            <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF8 Health</h2>
+                            <p className="text-[8.5px] font-black text-blue-600 uppercase tracking-widest">Nutrition Report</p>
                         </div>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
 
                     {/* Section Selector */}
                     {!singleAvailableSection && (
-                        <div className="flex flex-col">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Section</span>
-                            <div className="relative group">
-                                <select 
-                                    value={selectedSection}
-                                    onChange={(e) => setSelectedSection(e.target.value)}
-                                    className="appearance-none bg-slate-100 border border-slate-200 rounded-2xl px-5 py-2.5 pr-10 text-[12px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer min-w-[220px]"
-                                >
-                                    <option value="">Select Section</option>
-                                    {sortedSections.map(section => (
-                                        <option key={section.id || section.section_name} value={section.id || section.section_name}>
-                                            {section.section_grade_level} - {section.section_name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                            </div>
+                        <div className="relative group shrink-0">
+                            <select 
+                                value={selectedSection}
+                                onChange={(e) => setSelectedSection(e.target.value)}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[130px] lg:min-w-[150px] duration-200"
+                            >
+                                <option value="">Select Section</option>
+                                {sortedSections.map(section => (
+                                    <option key={section.id || section.section_name} value={section.id || section.section_name}>
+                                        {section.section_grade_level} - {section.section_name}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
                     )}
 
-                    {/* Paper Size */}
-                    <div className="flex flex-col ml-4">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Paper Size</span>
-                        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            <button
-                                onClick={() => setPaperSize('a4')}
-                                className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'a4' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                A4
-                            </button>
-                            <button
-                                onClick={() => setPaperSize('folio')}
-                                className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'folio' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Folio
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                    <div className="flex-1 min-w-[12px]" />
 
-                <div className="flex items-center gap-6">
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Paper Size Selector */}
+                        <div className="relative group shrink-0">
+                            <select
+                                value={paperSize}
+                                onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                            >
+                                <option value="a4">A4</option>
+                                <option value="folio">Folio</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                        {/* Zoom Control */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
                             <button 
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom Out"
                             >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button 
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom In"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
+
+                        {/* Print Primary Button */}
+                        <button
+                            onClick={handlePrint}
+                            disabled={!effectiveSelectedSection}
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                        >
+                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                            Print Official SF8
+                        </button>
                     </div>
-
-                    <div className="h-10 w-px bg-slate-200" />
-
-                    {/* Print Primary Button */}
-                    <button
-                        onClick={handlePrint}
-                        disabled={!effectiveSelectedSection}
-                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
-                    >
-                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                        Print Official SF8
-                    </button>
                 </div>
              </div>
 
@@ -437,13 +403,13 @@ export function SF8Page() {
                             <div className="sf8-page mx-auto w-full max-w-[1123px] bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
                     <div className="sf8-page-content p-3 sm:p-4 flex flex-col">
                         <div className="flex items-start justify-between gap-3 mb-2">
-                            <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar" />
+                            <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />
                             <div className="flex-1 text-center leading-tight px-1">
                                 <p className="text-[17px] sm:text-[20px] font-bold">Department of Education</p>
                                 <p className="text-[16px] sm:text-[18px] font-bold">School Form 8 Learner&apos;s Basic Health and Nutrition Report (SF8)</p>
                                 <p className="text-[13px] sm:text-[14px] italic">(For All Grade Levels)</p>
                             </div>
-                            <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 w-full overflow-x-auto custom-scrollbar" />
+                            <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[11px] sm:text-[12px] mb-2.5">
@@ -460,28 +426,28 @@ export function SF8Page() {
                         <div className="border border-black print:break-inside-auto">
                             <table className="w-full table-fixed border-collapse text-[11px] sm:text-[12px]">
                                 <thead>
-                                    <tr className="bg-slate-100">
-                                        <th className="border-r border-black/30 py-1 w-[4%]">No.</th>
-                                        <th className="border-r border-black/30 py-1 w-[8%]">LRN</th>
-                                        <th className="border-r border-black/30 py-1 w-[30%]">Learner&apos;s Name</th>
-                                        <th className="border-r border-black/30 py-1 w-[9%]">Birthdate</th>
-                                        <th className="border-r border-black/30 py-1 w-[4%]">Age</th>
-                                        <th className="border-r border-black/30 py-1 w-[5%]">Weight (kg)</th>
-                                        <th className="border-r border-black/30 py-1 w-[5%]">Height (m)</th>
-                                        <th className="border-r border-black/30 py-1 w-[5%]">Height² (m²)</th>
-                                        <th className="border-r border-black/30 py-1 w-[5%]">BMI</th>
-                                        <th className="border-r border-black/30 py-1 w-[8%]">BMI Category</th>
-                                        <th className="border-r border-black/30 py-1 w-[9%]">Height for Age (HFA)</th>
+                                    <tr className="bg-slate-100 border-b border-black">
+                                        <th className="border-r border-black py-1 w-[4%]">No.</th>
+                                        <th className="border-r border-black py-1 w-[8%]">LRN</th>
+                                        <th className="border-r border-black py-1 w-[30%]">Learner&apos;s Name</th>
+                                        <th className="border-r border-black py-1 w-[9%]">Birthdate</th>
+                                        <th className="border-r border-black py-1 w-[4%]">Age</th>
+                                        <th className="border-r border-black py-1 w-[5%]">Weight (kg)</th>
+                                        <th className="border-r border-black py-1 w-[5%]">Height (m)</th>
+                                        <th className="border-r border-black py-1 w-[5%]">Height² (m²)</th>
+                                        <th className="border-r border-black py-1 w-[5%]">BMI</th>
+                                        <th className="border-r border-black py-1 w-[8%]">BMI Category</th>
+                                        <th className="border-r border-black py-1 w-[9%]">Height for Age (HFA)</th>
                                         <th className="py-1 w-[8%]">Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colSpan={12} className="border-y border-black/30 bg-slate-200 font-bold text-left px-2 py-1 uppercase">Male</td>
+                                        <td colSpan={12} className="border-y border-black bg-slate-200 font-bold text-left px-2 py-1 uppercase">Male</td>
                                     </tr>
                                     {renderStudentRows(maleStudents)}
                                     <tr>
-                                        <td colSpan={12} className="border-y border-black/30 bg-slate-200 font-bold text-left px-2 py-1 uppercase">Female</td>
+                                        <td colSpan={12} className="border-y border-black bg-slate-200 font-bold text-left px-2 py-1 uppercase">Female</td>
                                     </tr>
                                     {renderStudentRows(femaleStudents)}
                                 </tbody>

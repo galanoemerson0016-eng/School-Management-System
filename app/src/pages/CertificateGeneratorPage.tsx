@@ -113,33 +113,13 @@ export function CertificateGeneratorPage() {
             });
     }, [sections, user]);
 
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        sortedSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [sortedSections]);
-
     // Auto-select single section if it's the only one
     useEffect(() => {
         if (sortedSections.length === 1 && selectedSectionId !== sortedSections[0].id) {
-            setSelectedSectionId(sortedSections[0].id);
+            const timer = setTimeout(() => {
+                setSelectedSectionId(sortedSections[0].id);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [sortedSections, selectedSectionId]);
 
@@ -196,7 +176,7 @@ export function CertificateGeneratorPage() {
             .replace(/City/i, 'Lungsod'),
         headerDivisionEnglish: schoolProfile?.division || 'SCHOOLS DIVISION OF TARLAC PROVINCE',
         headerDistrictTagalog: (() => {
-            let d = schoolProfile?.district || 'Victoria East District';
+            const d = schoolProfile?.district || 'Victoria East District';
             const base = d.replace(/District/i, '').trim();
             let translated = base.replace(/East/i, 'Silangang').replace(/West/i, 'Kanlurang').replace(/North/i, 'Hilagang').replace(/South/i, 'Timog');
             if (translated.endsWith('Silangang')) translated = 'Silangang ' + translated.replace('Silangang', '').trim();
@@ -212,35 +192,38 @@ export function CertificateGeneratorPage() {
     // Sync with school profile updates
     useEffect(() => {
         if (schoolProfile) {
-            setCertData(prev => ({
-                ...prev,
-                signatory2Name: schoolProfile.head_name || prev.signatory2Name,
-                signatory2TitleTagalog: schoolProfile.head_position?.toLowerCase().includes('principal') 
-                    ? schoolProfile.head_position.replace(/Principal/i, 'Punong-Guro') 
-                    : 'Punong-Guro',
-                signatory2TitleEnglish: schoolProfile.head_position || prev.signatory2TitleEnglish,
-                signatory1Name: prev.signatory1Name || schoolProfile.adviser_name || '',
-                givenInTagalog: prev.givenInTagalog === 'Lalawigan ng Matatag' || prev.givenInTagalog === '' 
-                    ? (schoolProfile.division?.toLowerCase().includes('city') ? 'Lungsod ng ' : 'Lalawigan ng ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
-                    : prev.givenInTagalog,
-                givenInEnglish: prev.givenInEnglish === 'Province of Matatag' || prev.givenInEnglish === ''
-                    ? (schoolProfile.division?.toLowerCase().includes('city') ? 'City of ' : 'Province of ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
-                    : prev.givenInEnglish,
-                headerRegionTagalog: prev.headerRegionTagalog === 'Rehiyon III' || prev.headerRegionTagalog === '' ? schoolProfile.region?.replace(/Region/i, 'Rehiyon') : prev.headerRegionTagalog,
-                headerRegionEnglish: prev.headerRegionEnglish === 'REGION III' || prev.headerRegionEnglish === '' ? schoolProfile.region : prev.headerRegionEnglish,
-                headerDivisionTagalog: prev.headerDivisionTagalog === 'Sangay ng Lalawigan ng Tarlac' || prev.headerDivisionTagalog === '' ? schoolProfile.division?.replace(/Schools Division of/i, 'Sangay ng').replace(/Province/i, 'Lalawigan').replace(/City/i, 'Lungsod') : prev.headerDivisionTagalog,
-                headerDivisionEnglish: prev.headerDivisionEnglish === 'SCHOOLS DIVISION OF TARLAC PROVINCE' || prev.headerDivisionEnglish === '' ? schoolProfile.division : prev.headerDivisionEnglish,
-                headerDistrictTagalog: prev.headerDistrictTagalog === 'Distrito ng Silangang Victoria' || prev.headerDistrictTagalog === '' ? (() => {
-                    let d = schoolProfile.district;
-                    const base = d.replace(/District/i, '').trim();
-                    let translated = base.replace(/East/i, 'Silangang').replace(/West/i, 'Kanlurang').replace(/North/i, 'Hilagang').replace(/South/i, 'Timog');
-                    if (translated.endsWith('Silangang')) translated = 'Silangang ' + translated.replace('Silangang', '').trim();
-                    else if (translated.endsWith('Kanlurang')) translated = 'Kanlurang ' + translated.replace('Kanlurang', '').trim();
-                    return d.toLowerCase().includes('district') ? `Distrito ng ${translated}` : d;
-                })() : prev.headerDistrictTagalog,
-                headerDistrictEnglish: prev.headerDistrictEnglish === 'VICTORIA EAST DISTRICT' || prev.headerDistrictEnglish === '' ? schoolProfile.district : prev.headerDistrictEnglish,
-                headerSchoolName: prev.headerSchoolName === 'School Name' || prev.headerSchoolName === '' ? schoolProfile.name : prev.headerSchoolName
-            }));
+            const timer = setTimeout(() => {
+                setCertData(prev => ({
+                    ...prev,
+                    signatory2Name: schoolProfile.head_name || prev.signatory2Name,
+                    signatory2TitleTagalog: schoolProfile.head_position?.toLowerCase().includes('principal') 
+                        ? schoolProfile.head_position.replace(/Principal/i, 'Punong-Guro') 
+                        : 'Punong-Guro',
+                    signatory2TitleEnglish: schoolProfile.head_position || prev.signatory2TitleEnglish,
+                    signatory1Name: prev.signatory1Name || schoolProfile.adviser_name || '',
+                    givenInTagalog: prev.givenInTagalog === 'Lalawigan ng Matatag' || prev.givenInTagalog === '' 
+                        ? (schoolProfile.division?.toLowerCase().includes('city') ? 'Lungsod ng ' : 'Lalawigan ng ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
+                        : prev.givenInTagalog,
+                    givenInEnglish: prev.givenInEnglish === 'Province of Matatag' || prev.givenInEnglish === ''
+                        ? (schoolProfile.division?.toLowerCase().includes('city') ? 'City of ' : 'Province of ') + (schoolProfile.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag')
+                        : prev.givenInEnglish,
+                    headerRegionTagalog: prev.headerRegionTagalog === 'Rehiyon III' || prev.headerRegionTagalog === '' ? schoolProfile.region?.replace(/Region/i, 'Rehiyon') : prev.headerRegionTagalog,
+                    headerRegionEnglish: prev.headerRegionEnglish === 'REGION III' || prev.headerRegionEnglish === '' ? schoolProfile.region : prev.headerRegionEnglish,
+                    headerDivisionTagalog: prev.headerDivisionTagalog === 'Sangay ng Lalawigan ng Tarlac' || prev.headerDivisionTagalog === '' ? schoolProfile.division?.replace(/Schools Division of/i, 'Sangay ng').replace(/Province/i, 'Lalawigan').replace(/City/i, 'Lungsod') : prev.headerDivisionTagalog,
+                    headerDivisionEnglish: prev.headerDivisionEnglish === 'SCHOOLS DIVISION OF TARLAC PROVINCE' || prev.headerDivisionEnglish === '' ? schoolProfile.division : prev.headerDivisionEnglish,
+                    headerDistrictTagalog: prev.headerDistrictTagalog === 'Distrito ng Silangang Victoria' || prev.headerDistrictTagalog === '' ? (() => {
+                        const d = schoolProfile.district;
+                        const base = d.replace(/District/i, '').trim();
+                        let translated = base.replace(/East/i, 'Silangang').replace(/West/i, 'Kanlurang').replace(/North/i, 'Hilagang').replace(/South/i, 'Timog');
+                        if (translated.endsWith('Silangang')) translated = 'Silangang ' + translated.replace('Silangang', '').trim();
+                        else if (translated.endsWith('Kanlurang')) translated = 'Kanlurang ' + translated.replace('Kanlurang', '').trim();
+                        return d.toLowerCase().includes('district') ? `Distrito ng ${translated}` : d;
+                    })() : prev.headerDistrictTagalog,
+                    headerDistrictEnglish: prev.headerDistrictEnglish === 'VICTORIA EAST DISTRICT' || prev.headerDistrictEnglish === '' ? schoolProfile.district : prev.headerDistrictEnglish,
+                    headerSchoolName: prev.headerSchoolName === 'School Name' || prev.headerSchoolName === '' ? schoolProfile.name : prev.headerSchoolName
+                }));
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [schoolProfile]);
 
@@ -357,7 +340,7 @@ export function CertificateGeneratorPage() {
     return (
         <div className="flex flex-col h-full bg-gray-50 dark:bg-[#080d1a] overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 bg-white dark:bg-white/[0.03] border-b border-gray-200 dark:border-white/5 shadow-sm no-print">
+            <div className="flex items-center justify-between p-4 bg-white dark:bg-white/3 border-b border-gray-200 dark:border-white/5 shadow-sm no-print">
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={() => setCurrentView('reports')}
@@ -388,7 +371,7 @@ export function CertificateGeneratorPage() {
                 <div 
                     ref={certSidebarRef}
                     style={{ width: `${certSidebarWidth}px` }}
-                    className="border-r border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] overflow-y-auto p-6 custom-scrollbar shadow-inner no-print relative group/certsidebar shrink-0 w-full overflow-x-auto custom-scrollbar"
+                    className="border-r border-gray-200 dark:border-white/5 bg-white dark:bg-white/2 overflow-y-auto p-6 custom-scrollbar shadow-inner no-print relative group/certsidebar shrink-0"
                 >
                     <div className="space-y-8">
                         {/* Section Selector */}
@@ -482,7 +465,7 @@ export function CertificateGeneratorPage() {
                                         placeholder="30th"
                                     />
                                 </div>
-                                <div className="flex-[2]">
+                                <div className="flex-2">
                                     <p className="text-[8px] font-bold text-gray-400 uppercase mb-1 ml-1">Month</p>
                                     <input 
                                         type="text" 
@@ -696,7 +679,7 @@ export function CertificateGeneratorPage() {
                 </div>
 
                 {/* Main Preview Area (Screen Only) */}
-                <div className="flex-1 overflow-y-auto p-12 bg-[#f8fafc] dark:bg-[#040711] custom-scrollbar no-print">
+                <div className="flex-1 overflow-y-auto p-12 bg-app-bg dark:bg-[#040711] custom-scrollbar no-print">
                     <div className="flex flex-col items-center gap-12 w-full">
                         {(batchStudents.filter(s => s.selected).length + subjectAwards.filter(s => s.selected).length) === 0 ? (
                             <div className="flex flex-col items-center justify-center p-24 text-gray-400 bg-white/5 rounded-3xl border border-dashed border-white/10 w-full max-w-4xl">

@@ -1,16 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../stores';
+import type { Section } from '../types';
 
 const SOURCE_GRADES = [
     'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
     'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
 ];
-
-const getStartYear = (sy: string) => {
-    const match = sy.match(/^(\d{4})-(\d{4})$/);
-    if (!match) return -1;
-    return Number(match[1]);
-};
 
 export function EnrollmentCenterPage() {
     const {
@@ -114,15 +109,14 @@ export function EnrollmentCenterPage() {
 
     const sortedSections = useMemo(() => {
         return [...sections].sort((a, b) => {
-            const yearA = getStartYear(a.section_grade_level.replace('Grade ', '20'));
-            const yearB = getStartYear(b.section_grade_level.replace('Grade ', '20'));
-            if (yearA !== yearB) return yearA - yearB;
-            return a.section_name.localeCompare(b.section_name);
+            const glCompare = (a.section_grade_level || '').localeCompare(b.section_grade_level || '', undefined, { numeric: true });
+            if (glCompare !== 0) return glCompare;
+            return (a.section_name || '').localeCompare(b.section_name || '');
         });
     }, [sections]);
 
     const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
+        const groups: Record<string, Section[]> = {
             'ELEMENTARY': [],
             'JUNIOR HIGH SCHOOL': [],
             'SENIOR HIGH SCHOOL': []
@@ -252,10 +246,16 @@ export function EnrollmentCenterPage() {
                                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
                             >
                                 <option value="">Select section</option>
-                                {sortedSections.map((section) => (
-                                    <option key={section.id} value={section.id}>
-                                        {section.section_grade_level} - {section.section_name}
-                                    </option>
+                                {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                    groupSections.length > 0 && (
+                                        <optgroup key={group} label={group}>
+                                            {groupSections.map((section) => (
+                                                <option key={section.id} value={section.id}>
+                                                    {section.section_grade_level} - {section.section_name}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )
                                 ))}
                             </select>
                         </div>

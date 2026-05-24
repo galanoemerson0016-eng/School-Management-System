@@ -34,7 +34,13 @@
     "win": {
       "icon": "public/app-logo.png",
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ]
     },
     "mac": {
