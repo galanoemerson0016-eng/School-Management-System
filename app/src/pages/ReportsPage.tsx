@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, FileSpreadsheet, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees } from '../utils/grading-helpers';
 import { exportToCSV } from '../utils/csv-export';
 import { canEditReport, canViewReport, filterOfficialSectionsForUser, filterOfficialRecords, type ReportType } from '../lib/rbac';
@@ -40,7 +40,7 @@ export function ReportsPage() {
     const safeActiveReport = reportTypeForActive && canViewReport(user, reportTypeForActive) ? activeReport : null;
 
     const officialSections = useMemo(() => filterOfficialSectionsForUser(user, sections), [user, sections]);
-    const officialSubjects = useMemo(() => filterOfficialRecords(subjects), [subjects]);
+    const officialSubjects = useMemo(() => filterOfficialRecords(subjects).filter(s => s.term !== 'none'), [subjects]);
 
     const activeSectionName = useMemo(() => {
         if (selectedSectionFilter === 'all') return 'All Sections';
@@ -59,35 +59,15 @@ export function ReportsPage() {
             if (gradeA !== gradeB) return gradeA - gradeB;
             return a.section_name.localeCompare(b.section_name);
         });
-    }, [sections]);
-
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, any[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        sortedSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [sortedSections]);
+    }, [officialSections]);
 
     // Auto-select single section if it's the only one
     useEffect(() => {
         if (sortedSections.length === 1 && selectedSectionFilter === 'all') {
-            setSelectedSectionFilter(sortedSections[0].id);
+            const timer = setTimeout(() => {
+                setSelectedSectionFilter(sortedSections[0].id);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [sortedSections, selectedSectionFilter]);
 
@@ -386,7 +366,7 @@ export function ReportsPage() {
 
         // Calculate subject progress without nested useMemo
         const terms: (1 | 2 | 3)[] = [1, 2, 3];
-        const subjectMap = new Map();
+        const subjectMap = new Map<string, Array<{ term: number; average: number; count: number }>>();
 
         terms.forEach(q => {
             const qRecords = filteredRecords.filter(r => Number(r.quarter) === q && (Number(r.final_grade) || 0) > 0);
@@ -400,13 +380,13 @@ export function ReportsPage() {
             Object.entries(subjectGroups).forEach(([subj, grades]) => {
                 const avg = grades.length > 0 ? Math.round((grades.reduce((a, b) => a + b, 0) / grades.length) * 100) / 100 : 0;
                 if (!subjectMap.has(subj)) subjectMap.set(subj, []);
-                subjectMap.get(subj).push({ term: q, average: avg, count: grades.length });
+                subjectMap.get(subj)!.push({ term: q, average: avg, count: grades.length });
             });
         });
 
         const subjectProgress = Array.from(subjectMap.entries()).map(([subject, data]) => ({
             subject,
-            data: data.sort((a: any, b: any) => a.term - b.term)
+            data: data.sort((a, b) => a.term - b.term)
         }));
 
         return {
@@ -936,7 +916,7 @@ export function ReportsPage() {
                         >
                             {/* Progress Summary */}
                             {progressInsights && (
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100">
+                                <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-blue-100 rounded-xl">
                                             <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -982,7 +962,6 @@ export function ReportsPage() {
                                     {progressData.map((p, idx) => {
                                         const prev = idx > 0 ? progressData[idx - 1] : null;
                                         const gradeChange = prev ? p.average - prev.average : 0;
-                                        const passChange = prev ? p.passRate - prev.passRate : 0;
 
                                         return (
                                             <div key={p.quarter} className={`p-4 rounded-xl border-2 transition-all ${p.quarter === `T${selectedQuarter}` ? 'border-deped-blue bg-blue-50' : 'border-gray-100'}`}>
@@ -1027,15 +1006,15 @@ export function ReportsPage() {
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {progressInsights.subjectProgress.map((subj) => {
-                                                const t1 = subj.data.find((d: any) => d.term === 1)?.average || 0;
-                                                const t3 = subj.data.find((d: any) => d.term === 3)?.average || 0;
+                                                const t1 = subj.data.find((d) => d.term === 1)?.average || 0;
+                                                const t3 = subj.data.find((d) => d.term === 3)?.average || 0;
                                                 const improvement = t3 - t1;
 
                                                 return (
                                                     <tr key={subj.subject} className="hover:bg-gray-50">
                                                         <td className="px-4 py-3 font-bold text-sm text-gray-800">{subj.subject}</td>
                                                         <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t1 || '—'}</td>
-                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{subj.data.find((d: any) => d.term === 2)?.average || '—'}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{subj.data.find((d) => d.term === 2)?.average || '—'}</td>
                                                         <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t3 || '—'}</td>
                                                         <td className="px-4 py-3 text-center">
                                                             {improvement !== 0 ? (
@@ -1115,7 +1094,7 @@ export function ReportsPage() {
                                 {atRiskViewMode === 'grouped' ? (
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="bg-gradient-to-r from-red-600 to-rose-500 text-white">
+                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 text-white">
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
@@ -1176,7 +1155,7 @@ export function ReportsPage() {
                                 ) : (
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="bg-gradient-to-r from-red-600 to-rose-500 text-white">
+                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 text-white">
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
                                                 <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
@@ -1246,7 +1225,7 @@ export function ReportsPage() {
                                 ].map((type) => {
                                     const count = type.label === 'Total Awardees' ? honorRoll.length : honorRoll.filter(h => h.honorType === type.label).length;
                                     return (
-                                        <div key={type.label} className={`relative overflow-hidden group p-6 rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1 ${type.label === 'Total Awardees' ? 'bg-gradient-to-br ' + type.color : 'bg-white'}`}>
+                                        <div key={type.label} className={`relative overflow-hidden group p-6 rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1 ${type.label === 'Total Awardees' ? 'bg-linear-to-br ' + type.color : 'bg-white'}`}>
                                             <div className="relative z-10">
                                                 <div className={`p-2 rounded-xl w-fit mb-3 ${type.label === 'Total Awardees' ? 'bg-white/20' : type.bg}`}>
                                                     <type.icon className={`w-5 h-5 ${type.label === 'Total Awardees' ? 'text-white' : 'text-' + type.color.split('-')[1] + '-600'}`} />
@@ -1276,7 +1255,7 @@ export function ReportsPage() {
                                     return (
                                         <div key={group.groupName} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
                                             {/* Modern Glass Header */}
-                                            <div className="bg-gradient-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
+                                            <div className="bg-linear-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
                                                 <div className="absolute inset-0 bg-white/5 opacity-10"></div>
                                                 <div className="relative z-10">
                                                     <div className="flex items-center gap-3">
@@ -1386,7 +1365,7 @@ export function ReportsPage() {
                                                             >
                                                                 <div className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                                     {group.awards.map((award, idx) => (
-                                                                        <div key={`${award.subjectName}-${idx}`} className="bg-white p-5 rounded-[1.5rem] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+                                                                        <div key={`${award.subjectName}-${idx}`} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
                                                                             <div className="absolute top-0 right-0 p-4">
                                                                                 <Medal className="w-10 h-10 text-green-500/10" />
                                                                             </div>
@@ -1463,7 +1442,7 @@ export function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Certificate Generator Card */}
                 {canViewReport(user, 'certificate-generator') && (
-                <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-xl shadow-lg border border-indigo-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
+                <div className="bg-linear-to-br from-indigo-50 to-white p-6 rounded-xl shadow-lg border border-indigo-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-indigo-100 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
                             <Award className="w-8 h-8 text-indigo-600 group-hover:text-white" />
@@ -1562,7 +1541,7 @@ export function ReportsPage() {
 
                 {/* Honor Roll */}
                 {canViewReport(user, 'honor-roll') && (
-                <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-xl shadow border border-green-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('honor-roll')}>
+                <div className="bg-linear-to-br from-green-50 to-white p-6 rounded-xl shadow border border-green-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('honor-roll')}>
                     <div className="flex items-start justify-between mb-4">
                         <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-900 transition-colors duration-300">
                             <Award className="w-8 h-8 text-green-900 group-hover:text-white" />

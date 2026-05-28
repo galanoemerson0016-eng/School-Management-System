@@ -71,15 +71,32 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                 // Convert to array of arrays (0-indexed rows and cols)
                 const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
+                // Detect if this is a Senior High School (SHS) SF1
+                const isSHS = (sheetName || '').toLowerCase().includes('shs') || 
+                              jsonData.some(row => row && row.some(cell => {
+                                  const cStr = String(cell);
+                                  return cStr.includes('Senior High School') || cStr.includes('SF1-SHS') || cStr.includes('SF 1-SHS');
+                              }));
+
+                // Dynamic Header / Start Scan Row detection
+                let headerRowIndex = -1;
+                for (let i = 0; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (row && row.some(cell => String(cell).includes('LRN') || String(cell).includes('Learner Reference Number'))) {
+                        headerRowIndex = i;
+                        break;
+                    }
+                }
+                const startRow = headerRowIndex !== -1 ? headerRowIndex + 1 : 6;
+
                 const students: Student[] = [];
                 let isScanningMales = true;
 
-                // Start scanning from Row 7 (Index 6) as per VBA
-                for (let i = 6; i < jsonData.length; i++) {
+                for (let i = startRow; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (!row) continue;
 
-                    // Column C is Index 2
+                    // Column C is Index 2 (Name column in both JHS/ES and SHS)
                     const colC = String(row[2] || '').trim();
 
                     // Check for Headers/Stop Markers
@@ -91,7 +108,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         break; // End of list
                     }
 
-                    // Extract LRN (Col A/Index 0 is primary in this version, fallback to Col B)
+                    // Extract LRN (Col A/Index 0 is primary, fallback to Col B)
                     let lrnRaw = row[0];
                     if (!lrnRaw) {
                         lrnRaw = row[1];
@@ -104,43 +121,95 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                     // Parse Name (Col C)
                     const nameParts = colC.split(',').map(s => s.trim());
                     const lastName = nameParts[0];
-                    const firstName = nameParts[1] || '';
-                    const middleName = nameParts[2] || '';
+                    let firstName = nameParts[1] || '';
+                    let middleName = nameParts[2] || '';
 
-                    // Parse Birthdate (Col H -> Index 7)
-                    let birthdate = '';
-                    const dobRaw = row[7];
-                    if (typeof dobRaw === 'number') {
-                        birthdate = excelDateToJSDate(dobRaw);
-                    } else if (typeof dobRaw === 'string') {
-                        birthdate = parseStringDate(dobRaw);
-                    } else if (dobRaw instanceof Date) {
-                        birthdate = dobRaw.toISOString().split('T')[0];
+                    // Smart name parsing fallback for FirstName MiddleName formats (when no second comma is present)
+                    if (!middleName && firstName.includes(' ')) {
+                        const firstParts = firstName.split(/\s+/);
+                        if (firstParts.length > 1) {
+                            middleName = firstParts.pop() || '';
+                            firstName = firstParts.join(' ');
+                        }
                     }
 
-                    // Parse Age (Col J -> Index 9)
-                    const age = Number(row[9]) || 0;
+                    let birthdate = '';
+                    let age = 0;
+                    let religion = '';
+                    let motherTongue = '';
+                    let isIP = false;
+                    let ethnicGroup = '';
+                    let address = '';
+                    let fatherName = '';
+                    let motherName = '';
+                    let guardianName = '';
+                    let relationship = '';
 
-                    // Mother Tongue (L=11), IP (M=12), Ethnicity (N=13), Religion (O=14)
-                    const motherTongue = String(row[11] || '').trim();
-                    const isIP = String(row[12] || '').trim().toUpperCase() === 'YES' || String(row[12] || '').trim() === '/';
-                    const ethnicGroup = String(row[13] || '').trim();
-                    const religion = String(row[14] || '').trim();
+                    if (isSHS) {
+                        // --- SHS SPECIFIC INDEXES ---
+                        // Parse Birthdate (Col L -> Index 11)
+                        const dobRaw = row[11];
+                        if (typeof dobRaw === 'number') {
+                            birthdate = excelDateToJSDate(dobRaw);
+                        } else if (typeof dobRaw === 'string') {
+                            birthdate = parseStringDate(dobRaw);
+                        } else if (dobRaw instanceof Date) {
+                            birthdate = dobRaw.toISOString().split('T')[0];
+                        }
 
-                    // Parse Address (Col R=17, S=18, T=19, U=20, V=21, W=22)
-                    const houseNo = String(row[17] || '').trim();
-                    const street = String(row[18] || '').trim();
-                    const barangay = String(row[20] || '').trim();
-                    const municipality = String(row[21] || '').trim();
-                    const province = String(row[22] || '').trim();
-                    const address = [houseNo, street, barangay, municipality, province].filter(Boolean).join(', ');
+                        // Parse Age (Col O -> Index 14)
+                        age = Number(row[14]) || 0;
 
-                    // Parents (X=23/27, Y=24/31 depends on layout)
-                    // Based on KAMAGONG analysis: Father is Index 27, Mother is Index 31
-                    const fatherName = String(row[27] || row[23] || '').trim();
-                    const motherName = String(row[31] || row[24] || '').trim();
-                    const guardianName = String(row[35] || row[25] || '').trim();
-                    const relationship = String(row[36] || row[26] || '').trim();
+                        // Religion (Col Q -> Index 16)
+                        religion = String(row[16] || '').trim();
+
+                        // Address parsing (Col U=20 Purok/Street, Z=25 Barangay, AE=30 Municipality, AG=32 Province)
+                        const street = String(row[20] || '').trim();
+                        const barangay = String(row[25] || '').trim();
+                        const municipality = String(row[30] || '').trim();
+                        const province = String(row[32] || '').trim();
+                        address = [street, barangay, municipality, province].filter(Boolean).join(', ');
+
+                        // Parent/Guardian Info (Col AK=36 Father, AP=41 Mother, AR=43 Guardian, AV=47 Relationship)
+                        fatherName = String(row[36] || '').trim();
+                        motherName = String(row[41] || '').trim();
+                        guardianName = String(row[43] || '').trim();
+                        relationship = String(row[47] || '').trim();
+                    } else {
+                        // --- STANDARD JHS/ES INDEXES ---
+                        // Parse Birthdate (Col H -> Index 7)
+                        const dobRaw = row[7];
+                        if (typeof dobRaw === 'number') {
+                            birthdate = excelDateToJSDate(dobRaw);
+                        } else if (typeof dobRaw === 'string') {
+                            birthdate = parseStringDate(dobRaw);
+                        } else if (dobRaw instanceof Date) {
+                            birthdate = dobRaw.toISOString().split('T')[0];
+                        }
+
+                        // Parse Age (Col J -> Index 9)
+                        age = Number(row[9]) || 0;
+
+                        // Mother Tongue (L=11), IP (M=12), Ethnicity (N=13), Religion (O=14)
+                        motherTongue = String(row[11] || '').trim();
+                        isIP = String(row[12] || '').trim().toUpperCase() === 'YES' || String(row[12] || '').trim() === '/';
+                        ethnicGroup = String(row[13] || '').trim();
+                        religion = String(row[14] || '').trim();
+
+                        // Parse Address (Col R=17, S=18, T=19, U=20, V=21, W=22)
+                        const houseNo = String(row[17] || '').trim();
+                        const street = String(row[18] || '').trim();
+                        const barangay = String(row[20] || '').trim();
+                        const municipality = String(row[21] || '').trim();
+                        const province = String(row[22] || '').trim();
+                        address = [houseNo, street, barangay, municipality, province].filter(Boolean).join(', ');
+
+                        // Father Index 27 or 23, Mother Index 31 or 24, Guardian Index 35 or 25, Relationship Index 36 or 26
+                        fatherName = String(row[27] || row[23] || '').trim();
+                        motherName = String(row[31] || row[24] || '').trim();
+                        guardianName = String(row[35] || row[25] || '').trim();
+                        relationship = String(row[36] || row[26] || '').trim();
+                    }
 
                     students.push({
                         lrn: String(lrnRaw).trim(),

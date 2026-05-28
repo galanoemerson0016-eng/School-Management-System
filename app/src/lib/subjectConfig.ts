@@ -130,19 +130,107 @@ const STANDARD_SUBJECTS = {
     { name: 'Specialization', code: '' }
   ] as CurriculumSubject[],
   Grade11: [
-    { name: 'Oral Communication', code: '' },
+    { name: 'Effective Communication / Mabisang Komunikasyon', code: '' },
     { name: 'General Mathematics', code: '' },
-    { name: 'Earth and Life Science', code: '' },
-    { name: 'Personal Development', code: '' },
-    { name: 'PE and Health 1', code: '' },
-    { name: 'Specialized Subject 1', code: '' }
+    { name: 'General Science', code: '' },
+    { name: 'Life and Career Skills', code: '' },
+    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' },
+    { name: 'Elective: Biology 1', code: '' },
+    { name: 'Elective: Chemistry 1', code: '' },
+    { name: 'Elective: Physics 1', code: '' },
+    { name: 'Elective: Business 1 (Basic Accounting)', code: '' },
+    { name: 'Elective: Introduction to Philosophy', code: '' },
+    { name: 'Elective: Human Movement 1 (Basic Anatomy)', code: '' },
+    { name: 'Elective: Physical Education 1 (Fitness and Recreation)', code: '' },
+    { name: 'Elective: Caregiving (Child Care)', code: '' },
+    { name: 'Elective: Food Processing', code: '' },
+    { name: 'Elective: Computer Programming (Java)', code: '' },
+    { name: 'Elective: Technical Drafting', code: '' }
   ] as CurriculumSubject[],
   Grade12: [
-    { name: '21st Century Literature', code: '' },
-    { name: 'Contemporary Philippine Arts', code: '' },
+    // Core Subjects
+    { name: '21st Century Literature from the Philippines and the World', code: '' },
+    { name: 'Contemporary Philippine Arts from the Regions', code: '' },
+    { name: 'Disaster Readiness and Risk Reduction', code: '' },
+    { name: 'Earth and Life Science', code: '' },
+    { name: 'Earth Science', code: '' },
+    { name: 'General Mathematics', code: '' },
+    { name: 'Introduction to Philosophy of the Human Person', code: '' },
+    { name: 'Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino', code: '' },
+    { name: 'Media and Information Literacy', code: '' },
+    { name: 'Oral Communication in Context', code: '' },
+    { name: 'Pagbasa at Pagsusuri ng Iba’t ibang Teksto Tungo sa Pananaliksik', code: '' },
+    { name: 'Personal Development', code: '' },
+    { name: 'Physical Education and Health 1', code: '' },
+    { name: 'Physical Education and Health 2', code: '' },
+    { name: 'Physical Education and Health 3', code: '' },
+    { name: 'Physical Education and Health 4', code: '' },
+    { name: 'Physical Science', code: '' },
+    { name: 'Reading and Writing Skills', code: '' },
+    { name: 'Statistics and Probability', code: '' },
     { name: 'Understanding Culture, Society and Politics', code: '' },
-    { name: 'PE and Health 3', code: '' },
-    { name: 'Specialized Subject 3', code: '' }
+
+    // Applied Subjects
+    { name: 'Empowerment Technologies', code: '' },
+    { name: 'English for Academic and Professional Purposes', code: '' },
+    { name: 'Entrepreneurship', code: '' },
+    { name: 'Filipino sa Piling Larang (Akademik)', code: '' },
+    { name: 'Filipino sa Piling Larang (Isports)', code: '' },
+    { name: 'Filipino sa Piling Larang (Sining at Disenyo)', code: '' },
+    { name: 'Filipino sa Piling Larang (Teknikal-Bokasyunal)', code: '' },
+    { name: 'Inquiries, Investigations and Immersion', code: '' },
+    { name: 'Practical Research 1', code: '' },
+    { name: 'Practical Research 2', code: '' },
+
+    // Specialized Subjects
+    // ABM
+    { name: 'Applied Economics', code: '' },
+    { name: 'Business Ethics and Social Responsibility', code: '' },
+    { name: 'Business Finance', code: '' },
+    { name: 'Business Math', code: '' },
+    { name: 'Fundumentals of Accountancy, Bus, and Mgt 1', code: '' },
+    { name: 'Fundamentals of Accountancy, Bus, and Mgt 2', code: '' },
+    { name: 'Organization and Management', code: '' },
+    { name: 'Principles of Marketing', code: '' },
+    // HUMMS
+    { name: 'Community Engagement, Solidarity and Citizenship', code: '' },
+    { name: 'Creative Nonfiction', code: '' },
+    { name: 'Creative Writing', code: '' },
+    { name: 'Culminating Activity', code: '' },
+    { name: 'Disciplines and Ideas in the Applied Social Sciences', code: '' },
+    { name: 'Disciplines and Ideas in the Social Sciences', code: '' },
+    { name: 'Introduction of World Religions and Belief System', code: '' },
+    { name: 'Malikhaing Pagsulat', code: '' },
+    { name: 'Philippines Politics and Governance', code: '' },
+    { name: 'Trend, Networks, and Critical Thinking in the 21st Century', code: '' },
+    // STEM
+    { name: 'Basic Calculus', code: '' },
+    { name: 'Biology 1', code: '' },
+    { name: 'Biology 2', code: '' },
+    { name: 'General Chemistry 1', code: '' },
+    { name: 'General Chemistry 2', code: '' },
+    { name: 'General Physics 1', code: '' },
+    { name: 'General Physics 2', code: '' },
+    { name: 'Pre - Calculus', code: '' },
+    // Arts and Design Track
+    { name: 'Apprenticeship and Exploration in the Performing Arts (Music)', code: '' },
+    { name: 'Creative Industries I - Arts and Design Appreciation and Productions', code: '' },
+    { name: 'Creative Industries II: Performing Arts', code: '' },
+    { name: 'Developing Filipino Identity in the Arts', code: '' },
+    { name: 'Integrating Elements and Principles of Organization in the Arts', code: '' },
+    { name: 'Leadership and Management in Different Arts and Fields', code: '' },
+    { name: 'Physical and Personal Dev. In the Arts', code: '' },
+    { name: 'Production in the Performing Arts', code: '' },
+    // Sports Track
+    { name: 'Apprenticeship (Off - Campus)', code: '' },
+    { name: 'Fitness, Sports, and Recreation', code: '' },
+    { name: 'Fitness Testing and Basic Exercise Programming', code: '' },
+    { name: 'Fundamentals of Coaching', code: '' },
+    { name: 'Human Movement', code: '' },
+    { name: 'Practicum (In - Campus)', code: '' },
+    { name: 'Psychosocial Aspects of Sports and Exercise', code: '' },
+    { name: 'Safety and First Aid', code: '' },
+    { name: 'Sports Officiating and Activity Management', code: '' }
   ] as CurriculumSubject[]
 };
 
@@ -248,6 +336,11 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     if (normalized.includes('readingandliteracy')) return 'readingAndLiteracy';
     if (normalized.includes('filipino')) return 'filipino';
     if (normalized.includes('english')) return 'english';
+    if (normalized.includes('generalmathematics') || normalized === 'genmath') return 'generalMathematics';
+    if (normalized.includes('generalscience') || normalized === 'genscience') return 'generalScience';
+    if (normalized.includes('lifeandcareerskills')) return 'lifeAndCareerSkills';
+    if (normalized.includes('pagaaralngkasaysayan') || normalized.includes('kasaysayanatlipunangpilipino')) return 'pagAaralNgKasaysayan';
+    if (normalized.includes('effectivecommunication') || normalized.includes('mabisangkomunikasyon')) return 'effectiveCommunication';
     if (normalized.includes('mathematics') || normalized.includes('math')) return 'mathematics';
     if (normalized.includes('science')) return 'science';
     if (normalized.includes('aralingpanlipunan') || normalized === 'ap') return 'ap';
@@ -394,6 +487,13 @@ export function getStandardSubjectPriority(name: string): number {
     // 2. Matatag G1-3 Core Priorities
     if (normalized.includes('readingandliteracy')) return 2;
     if (normalized.includes('language')) return 1;
+    
+    // 2.5. SSHS G11 Core Priorities
+    if (normalized.includes('effectivecommunication') || normalized.includes('mabisangkomunikasyon')) return 5;
+    if (normalized.includes('generalmathematics')) return 6;
+    if (normalized.includes('generalscience')) return 7;
+    if (normalized.includes('lifeandcareerskills')) return 8;
+    if (normalized.includes('pagaaralngkasaysayan') || normalized.includes('kasaysayanatlipunangpilipino')) return 9;
     
     // 3. Core Academic Subjects
     if (normalized.includes('filipino')) return 10;

@@ -19,9 +19,27 @@ const GRADE_LEVELS = [
 
 const TRACKS = ['Academic', 'TVL', 'Sports', 'Arts and Design'];
 
+const STRAND_MAPPING: Record<string, string> = {
+    'STEM': 'Science, Technology, Engineering, and Mathematics',
+    'ABM': 'Accountancy, Business, and Management',
+    'HUMSS': 'Humanities and Social Sciences',
+    'GAS': 'General Academic Strand',
+    'ICT': 'Information and Communications Technology'
+};
+
 const STRANDS: Record<string, string[]> = {
-    Academic: ['STEM', 'ABM', 'HUMSS', 'GAS'],
-    TVL: ['Home Economics', 'Agri-Fishery Arts', 'Industrial Arts', 'ICT'],
+    Academic: [
+        'Science, Technology, Engineering, and Mathematics',
+        'Accountancy, Business, and Management',
+        'Humanities and Social Sciences',
+        'General Academic Strand'
+    ],
+    TVL: [
+        'Home Economics',
+        'Agri-Fishery Arts',
+        'Industrial Arts',
+        'Information and Communications Technology'
+    ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],
 };
@@ -96,6 +114,21 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         is_pept_passer: false,
         is_als_passer: false,
         is_other_eligibility: false,
+        // SHS Specific
+        shs_admission_date: '',
+        is_hs_completer: false,
+        hs_gen_ave: '',
+        hs_graduation_date: '',
+        is_jhs_completer: false,
+        jhs_gen_ave: '',
+        jhs_school_name: '',
+        jhs_school_address: '',
+        jhs_graduation_date: '',
+        shs_pept_rating: '',
+        shs_pept_date: '',
+        shs_als_rating: '',
+        shs_als_clc_name_address: '',
+        shs_other_credentials: '',
         ...initialData
     });
 
@@ -109,17 +142,36 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
     useEffect(() => {
         if (student) {
+            const mappedStrand = STRAND_MAPPING[student.strand || ''] || student.strand || '';
             setFormData({
                 ...student,
+                strand: mappedStrand,
                 is_elem_completer: student.is_elem_completer ?? !!(student.elementary_school || '').trim(),
                 is_pept_passer: student.is_pept_passer ?? false,
                 is_als_passer: student.is_als_passer ?? false,
                 is_other_eligibility: student.is_other_eligibility ?? false,
+                // Prefill SHS spec
+                shs_admission_date: student.shs_admission_date ?? '',
+                is_hs_completer: student.is_hs_completer ?? false,
+                hs_gen_ave: student.hs_gen_ave ?? '',
+                hs_graduation_date: student.hs_graduation_date ?? '',
+                is_jhs_completer: student.is_jhs_completer ?? false,
+                jhs_gen_ave: student.jhs_gen_ave ?? '',
+                jhs_school_name: student.jhs_school_name ?? '',
+                jhs_school_address: student.jhs_school_address ?? '',
+                jhs_graduation_date: student.jhs_graduation_date ?? '',
+                shs_pept_rating: student.shs_pept_rating ?? '',
+                shs_pept_date: student.shs_pept_date ?? '',
+                shs_als_rating: student.shs_als_rating ?? '',
+                shs_als_clc_name_address: student.shs_als_clc_name_address ?? '',
+                shs_other_credentials: student.shs_other_credentials ?? '',
             });
         } else if (initialData) {
+            const mappedStrand = STRAND_MAPPING[initialData.strand || ''] || initialData.strand || '';
             setFormData(prev => ({
                 ...prev,
-                ...initialData
+                ...initialData,
+                strand: mappedStrand
             }));
         }
     }, [student, initialData]);
@@ -151,9 +203,15 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         if (saveStatus !== 'idle') {
             setSaveStatus('idle');
         }
-        // If Grade Level changes, clear section to avoid mismatch and allow new selection
+        // If Grade Level changes, clear section, track, and strand to avoid mismatch and allow new selection
         if (name === 'grade_level') {
-            setFormData(prev => ({ ...prev, grade_level: value, student_section: '' }));
+            setFormData(prev => ({ 
+                ...prev, 
+                grade_level: value, 
+                student_section: '',
+                track: '',
+                strand: ''
+            }));
             return;
         }
 
@@ -207,6 +265,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const applyPendingProfile = () => {
         if (!pendingProfile) return;
 
+        const mappedStrand = STRAND_MAPPING[pendingProfile.strand || ''] || pendingProfile.strand || '';
         setFormData((prev) => ({
             ...prev,
             ...pendingProfile,
@@ -215,6 +274,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             student_section: prev.student_section || '',
             weight: prev.weight ?? pendingProfile.weight ?? '',
             height: prev.height ?? pendingProfile.height ?? '',
+            strand: prev.strand || mappedStrand
         }));
         setPendingProfile(null);
     };
@@ -272,6 +332,21 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             kinder_completion_cert: !!formData.kinder_completion_cert,
             pept_checked: !!formData.pept_checked,
             other_checked: !!formData.other_checked,
+            // SHS Specific
+            shs_admission_date: formData.shs_admission_date || '',
+            is_hs_completer: !!formData.is_hs_completer,
+            hs_gen_ave: formData.hs_gen_ave || '',
+            hs_graduation_date: formData.hs_graduation_date || '',
+            is_jhs_completer: !!formData.is_jhs_completer,
+            jhs_gen_ave: formData.jhs_gen_ave || '',
+            jhs_school_name: formData.jhs_school_name || '',
+            jhs_school_address: formData.jhs_school_address || '',
+            jhs_graduation_date: formData.jhs_graduation_date || '',
+            shs_pept_rating: formData.shs_pept_rating || '',
+            shs_pept_date: formData.shs_pept_date || '',
+            shs_als_rating: formData.shs_als_rating || '',
+            shs_als_clc_name_address: formData.shs_als_clc_name_address || '',
+            shs_other_credentials: formData.shs_other_credentials || '',
         };
 
         try {
@@ -306,8 +381,9 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
     const gradeInt = parseInt(formData.grade_level?.match(/\d+/)?.[0] || '0');
     const isElementary = gradeInt >= 1 && gradeInt <= 6;
-    const isJHS = gradeInt >= 7 && gradeInt <= 10;
     const isSHS = gradeInt >= 11 && gradeInt <= 12;
+    const isGrade11 = gradeInt === 11;
+    const isGrade12 = gradeInt === 12;
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -437,6 +513,18 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             className="form-input"
                                         />
                                     </div>
+                                    {isSHS && (
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Date of SHS Admission (mm/dd/yyyy)</label>
+                                            <input
+                                                type="date"
+                                                name="shs_admission_date"
+                                                value={formData.shs_admission_date || ''}
+                                                onChange={handleChange}
+                                                className="form-input"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-semibold mb-2 text-deped-blue">Address *</label>
                                         <textarea
@@ -498,24 +586,26 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
                                     {isSHS && (
                                         <>
-                                            <div>
+                                            <div className={isGrade11 ? "md:col-span-2" : ""}>
                                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Track *</label>
                                                 <select name="track" value={formData.track || ''} onChange={handleChange} required className="form-input">
                                                     <option value="">Select Track</option>
-                                                    {TRACKS.map((t) => (
+                                                    {(isGrade11 ? ['Academic', 'TechPro'] : TRACKS).map((t) => (
                                                         <option key={t} value={t}>{t}</option>
                                                     ))}
                                                 </select>
                                             </div>
-                                            <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Strand *</label>
-                                                <select name="strand" value={formData.strand || ''} onChange={handleChange} required className="form-input">
-                                                    <option value="">Select Strand</option>
-                                                    {formData.track && STRANDS[formData.track]?.map((s) => (
-                                                        <option key={s} value={s}>{s}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            {isGrade12 && (
+                                                <div>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">Strand *</label>
+                                                    <select name="strand" value={formData.strand || ''} onChange={handleChange} required className="form-input">
+                                                        <option value="">Select Strand</option>
+                                                        {formData.track && STRANDS[formData.track]?.map((s) => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -524,7 +614,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                             {/* Health Information (SF8) */}
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                 <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
-                                    <span className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
+                                    <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                     Health Information
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -560,7 +650,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                             {isElementary ? (
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                     <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
-                                        <span className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
+                                        <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                         Eligibility for Elementary Enrolment
                                     </h4>
                                     <div className="mb-4 p-3 bg-white rounded-lg border border-gray-100">
@@ -574,7 +664,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                 <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
                                                     <input 
                                                         type="checkbox" 
-                                                        checked={!!(formData as any)[item.id]} 
+                                                        checked={!!formData[item.id as keyof Student]} 
                                                         onChange={(e) => setFormData(prev => ({ ...prev, [item.id]: e.target.checked }))}
                                                         className="w-4 h-4 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                     />
@@ -598,87 +688,319 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                    <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
-                                        <span className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
-                                        Eligibility for Secondary Enrolment
+                            ) : isSHS ? (
+                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-6">
+                                    <h4 className="text-lg font-bold text-deped-blue mb-2 flex items-center gap-2">
+                                        <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
+                                        Eligibility for SHS Enrolment
                                     </h4>
-                                    <div className="mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">
-                                        <label className="block text-xs font-bold uppercase tracking-wider text-blue-800 mb-4">Basis of SF10 Eligibility</label>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            {[
-                                                { id: 'is_elem_completer', label: 'Elem. Completer' },
-                                                { id: 'is_pept_passer', label: 'PEPT Passer' },
-                                                { id: 'is_als_passer', label: 'ALS A&E Passer' },
-                                                { id: 'is_other_eligibility', label: 'Others' }
-                                            ].map((item) => (
-                                                <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors group">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={!!(formData as any)[item.id]}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                                                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                    />
-                                                    <span className="text-sm font-bold text-gray-700 group-hover:text-blue-700">{item.label}</span>
-                                                </label>
-                                            ))}
+                                    
+                                    <div className="grid grid-cols-1 gap-6">
+                                        {/* HS Completer Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <label className="flex items-center gap-3 cursor-pointer mb-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="is_hs_completer"
+                                                    checked={!!formData.is_hs_completer}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_hs_completer: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                                />
+                                                <span className="font-bold text-gray-800">High School Completer *</span>
+                                            </label>
+                                            
+                                            {formData.is_hs_completer && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Gen. Ave</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="hs_gen_ave" 
+                                                            value={formData.hs_gen_ave || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm" 
+                                                            placeholder="00.00"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Graduation/Completion (mm/dd/yyyy)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="hs_graduation_date" 
+                                                            value={formData.hs_graduation_date || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm" 
+                                                            placeholder="MM / DD / YYYY"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="md:col-span-1">
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Previous School Name</label>
-                                            <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">School ID</label>
-                                            <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-1 text-deped-blue">School Address</label>
-                                            <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Gen. Average</label>
-                                            <input type="text" name="average_grade" value={formData.average_grade || ''} onChange={handleChange} className="form-input" />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Citation (if any)</label>
-                                            <input type="text" name="citation" value={formData.citation || ''} onChange={handleChange} className="form-input" />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
-                            {/* Universal Other Credentials */}
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
-                                    <span className="w-1.5 h-6 bg-gradient-to-b from-deped-blue to-blue-400 rounded-full" />
-                                    Other Credential Details
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">PEPT Rating</label>
-                                        <input type="text" name="pept_rating" value={formData.pept_rating || ''} onChange={handleChange} className="form-input" />
+                                        {/* JHS Completer Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <label className="flex items-center gap-3 cursor-pointer mb-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="is_jhs_completer"
+                                                    checked={!!formData.is_jhs_completer}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_jhs_completer: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                                />
+                                                <span className="font-bold text-gray-800">Junior High School Completer</span>
+                                            </label>
+                                            
+                                            {formData.is_jhs_completer && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3 pl-8">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Gen. Ave</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="jhs_gen_ave" 
+                                                            value={formData.jhs_gen_ave || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="00.00"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Graduation (mm/dd/yyyy)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="jhs_graduation_date" 
+                                                            value={formData.jhs_graduation_date || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="MM / DD / YYYY"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Name of School</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="jhs_school_name" 
+                                                            value={formData.jhs_school_name || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="School Name"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-4">
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">School Address</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="jhs_school_address" 
+                                                            value={formData.jhs_school_address || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="School Address"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* PEPT Passer Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <label className="flex items-center gap-3 cursor-pointer mb-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="is_pept_passer"
+                                                    checked={!!formData.is_pept_passer}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_pept_passer: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                                />
+                                                <span className="font-bold text-gray-800">PEPT Passer **</span>
+                                            </label>
+                                            
+                                            {formData.is_pept_passer && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Rating</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="shs_pept_rating" 
+                                                            value={formData.shs_pept_rating || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="Rating"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Examination/Assessment (mm/dd/yyyy)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="shs_pept_date" 
+                                                            value={formData.shs_pept_date || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="MM / DD / YYYY"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* ALS A&E Passer Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <label className="flex items-center gap-3 cursor-pointer mb-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="is_als_passer"
+                                                    checked={!!formData.is_als_passer}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_als_passer: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                                />
+                                                <span className="font-bold text-gray-800">ALS A&E Passer ***</span>
+                                            </label>
+                                            
+                                            {formData.is_als_passer && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Rating</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="shs_als_rating" 
+                                                            value={formData.shs_als_rating || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="Rating"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Name & Address of CLC (Community Learning Center)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="shs_als_clc_name_address" 
+                                                            value={formData.shs_als_clc_name_address || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm"
+                                                            placeholder="CLC Name & Address"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Others Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <label className="flex items-center gap-3 cursor-pointer mb-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="is_other_eligibility"
+                                                    checked={!!formData.is_other_eligibility}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_other_eligibility: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                                />
+                                                <span className="font-bold text-gray-800">Others (Pls. Specify)</span>
+                                            </label>
+                                            
+                                            {formData.is_other_eligibility && (
+                                                <div className="mt-3 pl-8">
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Specify Credential</label>
+                                                    <input 
+                                                        type="text" 
+                                                        name="shs_other_credentials" 
+                                                        value={formData.shs_other_credentials || ''} 
+                                                        onChange={handleChange} 
+                                                        className="form-input text-sm"
+                                                        placeholder="Specify credential presented..."
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">ALS Rating</label>
-                                        <input type="text" name="als_rating" value={formData.als_rating || ''} onChange={handleChange} className="form-input" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Others (Pls. Specify)</label>
-                                        <input type="text" name="other_credentials" value={formData.other_credentials || ''} onChange={handleChange} className="form-input" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Date of Exam (mm/dd/yyyy)</label>
-                                        <input type="text" name="pept_date" value={formData.pept_date || ''} onChange={handleChange} className="form-input" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Testing Center Address</label>
-                                        <input type="text" name="testing_center" value={formData.testing_center || ''} onChange={handleChange} className="form-input" />
+
+                                    {/* Footnotes */}
+                                    <div className="text-[10px] text-gray-500 space-y-1 border-t border-gray-200 pt-4 mt-2">
+                                        <p>* High School Completers are students who graduated from secondary school under the old curriculum</p>
+                                        <p>** PEPT - Philippine Educational Placement Test for JHS</p>
+                                        <p>*** ALS A&E - Alternative Learning System Accreditation and Equivalency Test for JHS</p>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
+                                            Eligibility for Secondary Enrolment
+                                        </h4>
+                                        <div className="mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-blue-800 mb-4">Basis of SF10 Eligibility</label>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                {[
+                                                    { id: 'is_elem_completer', label: 'Elem. Completer' },
+                                                    { id: 'is_pept_passer', label: 'PEPT Passer' },
+                                                    { id: 'is_als_passer', label: 'ALS A&E Passer' },
+                                                    { id: 'is_other_eligibility', label: 'Others' }
+                                                ].map((item) => (
+                                                    <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors group">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={!!formData[item.id as keyof Student]}
+                                                            onChange={(e) => setFormData(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                        />
+                                                        <span className="text-sm font-bold text-gray-700 group-hover:text-blue-700">{item.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-1">
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Previous School Name</label>
+                                                <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School ID</label>
+                                                <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-1 text-deped-blue">School Address</label>
+                                                <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Gen. Average</label>
+                                                <input type="text" name="average_grade" value={formData.average_grade || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Citation (if any)</label>
+                                                <input type="text" name="citation" value={formData.citation || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Universal Other Credentials */}
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
+                                            Other Credential Details
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">PEPT Rating</label>
+                                                <input type="text" name="pept_rating" value={formData.pept_rating || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">ALS Rating</label>
+                                                <input type="text" name="als_rating" value={formData.als_rating || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Others (Pls. Specify)</label>
+                                                <input type="text" name="other_credentials" value={formData.other_credentials || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Date of Exam (mm/dd/yyyy)</label>
+                                                <input type="text" name="pept_date" value={formData.pept_date || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Testing Center Address</label>
+                                                <input type="text" name="testing_center" value={formData.testing_center || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
 

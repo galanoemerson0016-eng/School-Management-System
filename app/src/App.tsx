@@ -9,6 +9,7 @@ import {
   SubjectsPage,
   SectionsPage,
   EClassRecord,
+  ShsEClassRecord,
   SF9Page,
   SF10Page,
   SF8Page,
@@ -85,7 +86,12 @@ function LoadingSplash() {
 
 function App() {
   const { isAuthenticated, isLoading } = useAuthStore();
-  const { currentView, schoolProfile, isSyncReady } = useAppStore();
+  const { currentView, schoolProfile, isSyncReady, selectedSection, sections } = useAppStore();
+
+  const selectedSectionObj = sections.find(s => s.section_name === selectedSection);
+  const isSHSSection = selectedSectionObj 
+    ? (selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12'))
+    : false;
 
   const isExpired = schoolProfile?.subscription_end_date 
     ? new Date(schoolProfile.subscription_end_date) < new Date() 
@@ -182,9 +188,9 @@ function App() {
       case 'subjects':
         return <SubjectsPage />;
       case 'class-record':
-        return <EClassRecord />;
+        return isSHSSection ? <ShsEClassRecord /> : <EClassRecord />;
       case 'eclass':
-        return <EClassRecord />;
+        return isSHSSection ? <ShsEClassRecord /> : <EClassRecord />;
       case 'sf9':
         return <SF9Page />;
       case 'sf10':

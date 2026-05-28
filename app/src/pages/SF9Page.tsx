@@ -4,8 +4,9 @@ Font.registerHyphenationCallback(word => [word]);
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
+import { formatGradeForDisplay } from '../lib/grading';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
     if (gl.includes('grade')) {
@@ -171,21 +172,21 @@ function computeStudentGrades(
     const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
     // Determine the base list of subjects for SF9
     // 1. Get DB subjects for this section
-    let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id);
+    let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && s.term !== 'none');
     
     // 2. If none, get DB subjects for this grade level
     if (sectionDbSubjects.length === 0) {
         sectionDbSubjects = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-            return !s.section_id && subjectGradeNum === gradeLevelNum;
+            return !s.section_id && subjectGradeNum === gradeLevelNum && s.term !== 'none';
         });
     }
 
-    let baseSubjects: { name: string; isHeader?: boolean; isComponent?: boolean; isReserved?: boolean }[] = [];
+    let baseSubjects: SF9SubjectItem[] = [];
 
     if (sectionDbSubjects.length > 0) {
         // Use DB Subjects
-        baseSubjects = sectionDbSubjects.map(s => ({ name: s.subject_name }));
+        baseSubjects = sectionDbSubjects.map(s => ({ name: s.subject_name, id: s.id }));
         
         // Ensure MAPEH Header exists if missing but components exist
         const hasMapehHeader = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
@@ -206,8 +207,186 @@ function computeStudentGrades(
     // Build the final order for SF9 display
     const currentSubjects: SF9SubjectItem[] = [];
     
-    // If we have manual selections, use them to build the list
-    if (subjectSelections && Object.keys(subjectSelections).length > 0) {
+    const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
+
+    if (isSHS) {
+        // Resolve target list of subjects
+        const selectedSubjects: typeof baseSubjects = [];
+        if (subjectSelections && Object.keys(subjectSelections).length > 0) {
+            for (let i = 0; i < 13; i++) {
+                const selectedId = subjectSelections[i];
+                if (selectedId && selectedId !== 'none') {
+                    const subject = subjects.find(s => s.id === selectedId);
+                    if (subject) {
+                        selectedSubjects.push({ name: subject.subject_name, id: subject.id });
+                    }
+                }
+            }
+        } else {
+            selectedSubjects.push(...baseSubjects);
+        }
+
+        const isGrade12 = gradeLevelNum === 12;
+
+        if (isGrade12) {
+            const coresList: typeof baseSubjects = [];
+            const appliedList: typeof baseSubjects = [];
+            const specializedList: typeof baseSubjects = [];
+
+            selectedSubjects.forEach(s => {
+                if (s.isReserved || s.isHeader) return;
+                const normName = s.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                // 1. Core Subjects
+                const cores = [
+                    "21st century literature from the philippines and the world",
+                    "contemporary philippine arts from the regions",
+                    "disaster readiness and risk reduction",
+                    "earth and life science",
+                    "earth science",
+                    "general mathematics",
+                    "introduction to philosophy of the human person",
+                    "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+                    "media and information literacy",
+                    "oral communication in context",
+                    "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+                    "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+                    "personal development",
+                    "physical education and health 1",
+                    "physical education and health 2",
+                    "physical education and health 3",
+                    "physical education and health 4",
+                    "physical science",
+                    "reading and writing skills",
+                    "statistics and probability",
+                    "understanding culture society and politics",
+                    "understanding culture, society and politics",
+                    "21st century literature",
+                    "contemporary philippine arts",
+                    "pe and health 3",
+                    "pe and health 4"
+                ];
+
+                // 2. Applied Subjects
+                const applied = [
+                    "empowerment technologies",
+                    "english for academic and professional purposes",
+                    "entrepreneurship",
+                    "filipino sa piling larang akademik",
+                    "filipino sa piling larang akademiko",
+                    "filipino sa piling larang isports",
+                    "filipino sa piling larang sining at disenyo",
+                    "filipino sa piling larang teknikal bokasyunal",
+                    "filipino sa piling larang teknikal-bokasyunal",
+                    "filipino sa piling larang",
+                    "inquiries investigations and immersion",
+                    "inquiries, investigations and immersion",
+                    "practical research 1",
+                    "practical research 2"
+                ];
+
+                if (cores.some(c => {
+                    const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return normName === cNorm || normName.includes(cNorm) || cNorm.includes(normName);
+                })) {
+                    coresList.push(s);
+                } else if (applied.some(a => {
+                    const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return normName === aNorm || normName.includes(aNorm) || aNorm.includes(normName);
+                })) {
+                    appliedList.push(s);
+                } else {
+                    specializedList.push(s);
+                }
+            });
+
+            const sortedCores = sortSubjects(coresList, s => s.name);
+            const sortedApplied = sortSubjects(appliedList, s => s.name);
+            const sortedSpecialized = sortSubjects(specializedList, s => s.name);
+
+            if (sortedCores.length > 0) {
+                currentSubjects.push({ name: 'Core Subjects', isHeader: true });
+                sortedCores.forEach(s => currentSubjects.push(s));
+            }
+            if (sortedApplied.length > 0) {
+                currentSubjects.push({ name: 'Applied Subjects', isHeader: true });
+                sortedApplied.forEach(s => currentSubjects.push(s));
+            }
+            if (sortedSpecialized.length > 0) {
+                currentSubjects.push({ name: 'Specialized Subjects', isHeader: true });
+                sortedSpecialized.forEach(s => currentSubjects.push(s));
+            }
+
+            while (currentSubjects.length < 13) {
+                currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true });
+            }
+        } else {
+            const coreSubjectsList: typeof baseSubjects = [];
+            const electiveSubjectsList: typeof baseSubjects = [];
+
+            selectedSubjects.forEach(s => {
+                if (s.isReserved || s.isHeader) return;
+                const norm = s.name.trim().toLowerCase();
+                const cores = [
+                    'effective communication',
+                    'mabisang komunikasyon',
+                    'general mathematics',
+                    'general science',
+                    'life and career skills',
+                    'pag-aaral ng kasaysayan at lipunang pilipino',
+                    'kasaysayan at lipunang pilipino'
+                ];
+                
+                if (cores.some(c => norm.includes(c))) {
+                    coreSubjectsList.push(s);
+                } else {
+                     electiveSubjectsList.push(s);
+                }
+            });
+
+            const commSubjs = coreSubjectsList.filter(s => {
+                const n = normalizeSubjectName(s.name);
+                return n === 'effectivecommunication' || n === 'mabisangkomunikasyon';
+            });
+            
+            const otherCores = coreSubjectsList.filter(s => {
+                const n = normalizeSubjectName(s.name);
+                return n !== 'effectivecommunication' && n !== 'mabisangkomunikasyon';
+            });
+
+            const sortedOtherCores = sortSubjects(otherCores, s => s.name);
+            const sortedElectives = sortSubjects(electiveSubjectsList, s => s.name);
+
+            const finalCores: typeof baseSubjects = [];
+            if (commSubjs.length > 0) {
+                const effComm = commSubjs.find(s => normalizeSubjectName(s.name) === 'effectivecommunication');
+                const mabKom = commSubjs.find(s => normalizeSubjectName(s.name) === 'mabisangkomunikasyon');
+                
+                finalCores.push({ name: 'Effective Communication & Mabisang Komunikasyon' });
+                if (effComm) {
+                    finalCores.push({ ...effComm, isComponent: true });
+                }
+                if (mabKom) {
+                    finalCores.push({ ...mabKom, isComponent: true });
+                }
+            }
+            finalCores.push(...sortedOtherCores);
+
+            if (finalCores.length > 0) {
+                currentSubjects.push({ name: 'Core Subjects', isHeader: true });
+                finalCores.forEach(s => currentSubjects.push(s));
+            }
+
+            if (sortedElectives.length > 0) {
+                currentSubjects.push({ name: 'Electives', isHeader: true });
+                sortedElectives.forEach(s => currentSubjects.push({ name: s.name, id: s.id }));
+            }
+
+            while (currentSubjects.length < 13) {
+                currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true });
+            }
+        }
+    } else if (subjectSelections && Object.keys(subjectSelections).length > 0) {
         for (let i = 0; i < 13; i++) {
             const selectedId = subjectSelections[i];
             if (selectedId && selectedId !== 'none') {
@@ -325,10 +504,24 @@ function computeStudentGrades(
         return 0;
     });
 
+    const effectiveCommGrades = getSubjectGrades('Effective Communication');
+    const mabisangKomGrades = getSubjectGrades('Mabisang Komunikasyon');
+    const parentCommGrades = [0, 1, 2].map(qIdx => {
+        const ec = effectiveCommGrades[qIdx] || 0;
+        const mk = mabisangKomGrades[qIdx] || 0;
+        if (ec > 0 && mk > 0) return Math.round((ec + mk) / 2);
+        if (ec > 0) return ec;
+        if (mk > 0) return mk;
+        return 0;
+    });
+
     currentSubjects.forEach(sf9Subject => {
-        if (normalizeSubjectName(sf9Subject.name) === 'mapeh') {
+        const normName = normalizeSubjectName(sf9Subject.name);
+        if (normName === 'mapeh') {
             // MAPEH Header shows the average of components
             grades[sf9Subject.name] = mapehFinalGrades;
+        } else if (normName === 'effectivecommunicationmabisangkomunikasyon') {
+            grades[sf9Subject.name] = parentCommGrades;
         } else {
             grades[sf9Subject.name] = getSubjectGrades(sf9Subject.name);
         }
@@ -337,22 +530,44 @@ function computeStudentGrades(
     return { subjects: currentSubjects, grades };
 }
 
-function calculateGeneralAverage(grades: Record<string, number[]>) {
+function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[] = []) {
     let total = 0;
     let count = 0;
+    const dbSubjects = useAppStore.getState().subjects;
+
     Object.keys(grades).forEach(key => {
         const norm = normalizeSubjectName(key);
-        // Exclude components from the average count (they are part of MAPEH)
+        const subjItem = currentSubjectsList.find(s => s.name === key);
+        
+        // Exclude components from the average count (they are part of MAPEH or parent subjects)
         const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
-                           norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');
+                           norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth') ||
+                           subjItem?.isComponent;
+                           
         const isExcluded = key.startsWith('*') || 
                           key.toLowerCase().includes('arabic language') || 
                           key.toLowerCase().includes('islamic values');
 
+        // Exclude category headers from the average
+        if (
+            subjItem?.name === 'Core Subjects' || 
+            subjItem?.name === 'Electives' || 
+            subjItem?.name === 'Applied Subjects' || 
+            subjItem?.name === 'Specialized Subjects'
+        ) return;
+
         // Exclude reserved rows, components, and specific excluded subjects
         if (!key.startsWith('reserved_extra') && !isComponent && !isExcluded) {
             const gradeRow = grades[key] || [0, 0, 0];
-            const finalGrade = calculateFinalGrade(gradeRow);
+            
+            // Find subject term
+            const dbSubj = subjItem?.id 
+                ? dbSubjects.find(s => s.id === subjItem.id) 
+                : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
+            const term = dbSubj?.term;
+            if (term === 'none') return;
+
+            const finalGrade = calculateFinalGrade(gradeRow, term);
             if (finalGrade > 0) {
                 total += finalGrade;
                 count++;
@@ -479,7 +694,12 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     };
 }
 
-function calculateFinalGrade(quarterGrades: number[]): number {
+function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none'): number {
+    if (term === 'none') return 0;
+    if (term === 1 || Number(term) === 1) return quarterGrades[0] || 0;
+    if (term === 2 || Number(term) === 2) return quarterGrades[1] || 0;
+    if (term === 3 || Number(term) === 3) return quarterGrades[2] || 0;
+
     if (quarterGrades.length !== 3 || !quarterGrades.every(g => g > 0)) return 0;
     return Math.round(quarterGrades.reduce((a, b) => a + b, 0) / 3);
 }
@@ -529,6 +749,17 @@ function SF9Pages({
     adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, printMode = 'full'
 }: SF9ExactDocumentProps) {
 
+    const STRAND_MAPPING: Record<string, string> = {
+        'STEM': 'Science, Technology, Engineering, and Mathematics',
+        'ABM': 'Accountancy, Business, and Management',
+        'HUMSS': 'Humanities and Social Sciences',
+        'GAS': 'General Academic Strand',
+        'ICT': 'Information and Communications Technology'
+    };
+
+    const strandDisplay = student.strand ? (STRAND_MAPPING[student.strand] || student.strand).toUpperCase() : '';
+    const trackDisplay = student.track ? student.track.toUpperCase() : '';
+
     // Print mode helpers
     const isValuesOnly = printMode === 'term2' || printMode === 'term3';
     const transparentBorder = '#FFFFFF';
@@ -537,7 +768,8 @@ function SF9Pages({
     // Determine SF9 Label and Alignment
     const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
     const isES = gradeNum >= 1 && gradeNum <= 6;
-    const sf9Identifier = isES ? 'SF9-ES' : 'SF9-JHS';
+    const isSHS = gradeNum === 11 || gradeNum === 12;
+    const sf9Identifier = isES ? 'SF9-ES' : isSHS ? 'SF9-SHS' : 'SF9-JHS';
     const sf9TextAlign = isES ? 'left' : 'right';
 
     // Determine which term columns to show values for
@@ -678,6 +910,16 @@ function SF9Pages({
                                 <Text style={styles.infoLabelRight}>School Year:</Text>
                                 <Text style={styles.infoValueShort}>{schoolYear}</Text>
                             </View>
+                            {isSHS && (
+                                <View style={[styles.infoRow, { alignItems: 'flex-end' }]}>
+                                    <Text style={[styles.infoLabel, { width: gradeNum === 12 ? 70 : 50, paddingBottom: 2 }]}>{gradeNum === 12 ? 'Track/Strand:' : 'Track:'}</Text>
+                                    <Text style={[styles.infoValue, { flexGrow: 1, fontSize: gradeNum === 12 ? 7 : 10, paddingBottom: 2 }]}>
+                                        {gradeNum === 12 
+                                            ? `${trackDisplay}${strandDisplay ? ` - ${strandDisplay}` : ''}` 
+                                            : trackDisplay}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                         <Text style={[{ marginTop: 20, textAlign: 'left', fontSize: 10, fontWeight: 'bold' }, isValuesOnly ? { color: transparentBorder } : {}]}>Dear Parents:</Text>
                         <Text style={[{ marginTop: 10, textAlign: 'justify', lineHeight: 1.4, fontSize: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
@@ -688,11 +930,11 @@ function SF9Pages({
                         </Text>
                         <View style={[{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 30 }, isValuesOnly ? { opacity: 0 } : {}]}>
                             <View style={{ width: '45%', alignItems: 'center' }}>
-                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2 }}>{principal?.toUpperCase()}</Text>
+                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2, paddingBottom: 4 }}>{principal?.toUpperCase()}</Text>
                                 <Text style={{ fontSize: 9 }}>{principalTitle || 'Secondary School Principal I'}</Text>
                             </View>
                             <View style={{ width: '45%', alignItems: 'center' }}>
-                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2 }}>{adviser?.toUpperCase()}</Text>
+                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2, paddingBottom: 4 }}>{adviser?.toUpperCase()}</Text>
                                 <Text style={{ fontSize: 9 }}>Teacher Adviser</Text>
                             </View>
                         </View>
@@ -744,39 +986,58 @@ function SF9Pages({
                                 <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>FINAL GRADE</Text></View>
                                 <View style={[styles.lpHeaderCell, { width: '23%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>REMARKS</Text></View>
                             </View>
-                            {currentSubjects.map((subj, idx) => {
-                                const gradeRow = grades[subj.name] || [0, 0, 0];
-                                const finalGrade = calculateFinalGrade(gradeRow);
-                                const isReserved = subj.isReserved;
-                                return (
-                                    <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                        <View style={[styles.lpCell, { width: '36%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
-                                            <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
-                                                {isReserved ? '' : subj.name}
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.lpCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(0) ? (gradeRow[0] || '') : ''}</Text></View>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(1) ? (gradeRow[1] || '') : ''}</Text></View>
-                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(2) ? (gradeRow[2] || '') : ''}</Text></View>
-                                            </View>
-                                        </View>
-                                        <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (finalGrade || '') : ''}</Text></View>
-                                        <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center' }]}><Text>{showFinalAndRemarks ? getRemarks(finalGrade) : ''}</Text></View>
-                                    </View>
-                                );
-                            })}
-                            <View style={[styles.lpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.lpCell, { width: '36%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
-                                <View style={[styles.lpCell, { width: '30%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
-                                <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (calculateGeneralAverage(grades) || '') : ''}</Text></View>
-                                <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                    {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades)).map((line, i) => (
-                                        <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>
-                                    )) : <Text></Text>}
-                                </View>
-                            </View>
+                             {currentSubjects.map((subj, idx) => {
+                                 const gradeRow = grades[subj.name] || [0, 0, 0];
+                                 const dbSubjects = useAppStore.getState().subjects;
+                                 const dbSubj = subj.id 
+                                     ? dbSubjects.find(s => s.id === subj.id) 
+                                     : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subj.name.toLowerCase().trim());
+                                 const term = dbSubj?.term;
+                                 const finalGrade = calculateFinalGrade(gradeRow, term);
+                                 const isReserved = subj.isReserved;
+                                 const isHeader = subj.isHeader;
+                                 const isCategoryHeader = isHeader && (
+                                     subj.name === 'Core Subjects' || 
+                                     subj.name === 'Electives' ||
+                                     subj.name === 'Applied Subjects' ||
+                                     subj.name === 'Specialized Subjects'
+                                 );
+                                 
+                                 const isOfferedInTerm = (tNum: number) => {
+                                     if (isCategoryHeader || isReserved) return false;
+                                     if (term === undefined || term === null || term === 'all') return true;
+                                     return Number(term) === tNum;
+                                 };
+
+                                 return (
+                                     <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}, isCategoryHeader ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                         <View style={[styles.lpCell, { width: '36%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
+                                             <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
+                                                 {isReserved ? '' : isCategoryHeader ? subj.name.toUpperCase() : subj.name}
+                                             </Text>
+                                         </View>
+                                         <View style={[styles.lpCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                             <View style={{ flexDirection: 'row', flex: 1 }}>
+                                                 <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}</Text></View>
+                                                 <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}</Text></View>
+                                                 <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}</Text></View>
+                                             </View>
+                                         </View>
+                                         <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{!isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}</Text></View>
+                                         <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center' }]}><Text>{!isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}</Text></View>
+                                     </View>
+                                 );
+                             })}
+                             <View style={[styles.lpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                 <View style={[styles.lpCell, { width: '36%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
+                                 <View style={[styles.lpCell, { width: '30%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
+                                 <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (formatGradeForDisplay(calculateGeneralAverage(grades, currentSubjects), student.grade_level) || '') : ''}</Text></View>
+                                 <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
+                                     {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects)).map((line, i) => (
+                                         <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>
+                                     )) : <Text></Text>}
+                                 </View>
+                             </View>
                         </View>
                         <View style={styles.legendContainer}>
                             <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>Descriptors & Grading Scale</Text>
@@ -976,29 +1237,6 @@ export function SF9Page() {
         });
     }, [sections, user]);
 
-    const groupedSections = useMemo(() => {
-        const groups: Record<string, Section[]> = {
-            'ELEMENTARY': [],
-            'JUNIOR HIGH SCHOOL': [],
-            'SENIOR HIGH SCHOOL': []
-        };
-        
-        filteredSections.forEach(s => {
-            const gl = (s.section_grade_level || '').toLowerCase();
-            const num = parseInt(gl.replace(/\D/g, '')) || 0;
-            
-            if (gl.includes('kinder') || (num >= 1 && num <= 6)) {
-                groups['ELEMENTARY'].push(s);
-            } else if (num >= 7 && num <= 10) {
-                groups['JUNIOR HIGH SCHOOL'].push(s);
-            } else if (num >= 11 && num <= 12) {
-                groups['SENIOR HIGH SCHOOL'].push(s);
-            }
-        });
-        
-        return groups;
-    }, [filteredSections]);
-
     // Auto-select advisory section first, then fallback to first available
     useEffect(() => {
         if (!selectedSection && filteredSections.length > 0) {
@@ -1012,6 +1250,18 @@ export function SF9Page() {
     }, [filteredSections, selectedSection]);
 
     const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
+    const isShsSf9Section = useMemo(() => {
+        const grade = (selectedSectionObj?.section_grade_level || '').toString();
+        const num = parseInt(grade.replace(/\D/g, '')) || 0;
+        return num === 11 || num === 12;
+    }, [selectedSectionObj?.section_grade_level]);
+
+    useEffect(() => {
+        if (isShsSf9Section) {
+            setSelectedStudent(null);
+            setIsBatchReady(false);
+        }
+    }, [isShsSf9Section]);
     const adviserName = useMemo(() => {
         const fromProfile = (schoolProfile?.adviser_name || '').trim();
         const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
@@ -1119,7 +1369,7 @@ export function SF9Page() {
     }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, sf2Sheets, pageSize, sections, printMode]);
 
     const handlePrint = useCallback(async () => {
-        if (!selectedStudent || !singleDocument) return;
+        if (!selectedStudent || !singleDocument || isShsSf9Section) return;
         try {
             const { pdf } = await import('@react-pdf/renderer');
             const blob = await pdf(singleDocument).toBlob();
@@ -1146,7 +1396,7 @@ export function SF9Page() {
         } catch (error) {
             console.error('Print failed:', error);
         }
-    }, [selectedStudent, singleDocument]);
+    }, [selectedStudent, singleDocument, isShsSf9Section]);
 
     // Override Ctrl+P to use the official print engine
     useEffect(() => {
@@ -1361,59 +1611,31 @@ export function SF9Page() {
     }, []);
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
+        <div className="flex flex-col h-screen bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
-                <div className="flex items-center justify-center w-full h-16 px-2 lg:px-4 gap-2 lg:gap-3 select-none overflow-x-auto scrollbar-none">
+             <div className="z-20 bg-white/75 backdrop-blur-2xl border-b border-slate-200/70 shadow-[0_8px_28px_rgba(15,23,42,0.05)] relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
+                <div className="flex items-center justify-center w-full h-18 px-3 lg:px-5 gap-2.5 lg:gap-3 select-none overflow-x-auto scrollbar-none">
                     
                     {/* Identity & Context (Left) */}
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0 min-w-0">
                         <button 
-                            onClick={() => setCurrentView('main')}
+                            onClick={() => setCurrentView('school-forms')}
                             className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="flex flex-col mr-0.5 lg:mr-1 shrink-0">
-                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF9 Report</h2>
-                            <p className="text-[7.5px] font-black text-blue-600 uppercase tracking-widest leading-none">Progress Report</p>
-                        </div>
-
-                        {filteredSections.length > 0 && (
-                            <div className="relative group shrink-0">
-                                <select 
-                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[120px] lg:min-w-[135px] duration-200"
-                                    value={selectedSection}
-                                    onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setIsBatchReady(false); }}
-                                >
-                                    <option value="">Select Section</option>
-                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                        groupSections.length > 0 && (
-                                            <optgroup key={group} label={group}>
-                                                {groupSections.map(s => (
-                                                    <option key={s.id} value={s.id}>
-                                                        {s.section_grade_level} - {s.section_name}
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )
-                                    ))}
-                                </select>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                            </div>
-                        )}
 
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
-                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[140px] lg:min-w-[155px] disabled:opacity-30 duration-200"
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-35 lg:min-w-38.75 disabled:opacity-30 duration-200"
                                     value={selectedStudent?.lrn || ''}
                                     onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
-                                    disabled={!selectedSection}
+                                    disabled={!selectedSection || isShsSf9Section}
                                 >
-                                    <option value="">Select Learner</option>
+                                    <option value="">{isShsSf9Section ? 'Template Locked' : 'Select Learner'}</option>
                                     {males.length > 0 && (
                                         <optgroup label="MALE">
                                             {males.map(s => <option key={s.lrn} value={s.lrn}>{s.last_name}, {s.first_name}</option>)}
@@ -1428,6 +1650,7 @@ export function SF9Page() {
                                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                             </div>
                         )}
+
                     </div>
 
                     {/* View & Formatting Controls (Center) */}
@@ -1436,7 +1659,7 @@ export function SF9Page() {
                             <select
                                 value={printMode}
                                 onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[85px] lg:min-w-[95px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-21.25 lg:min-w-23.75 duration-200"
                             >
                                 <option value="full">Full Report</option>
                                 <option value="term1">Term 1 Only</option>
@@ -1450,7 +1673,7 @@ export function SF9Page() {
                             <select
                                 value={pageSize}
                                 onChange={(e) => setPageSize(e.target.value as 'A4' | 'LETTER')}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[75px] lg:w-[80px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-18.75 lg:w-20 duration-200"
                             >
                                 <option value="A4">A4</option>
                                 <option value="LETTER">Letter</option>
@@ -1491,7 +1714,7 @@ export function SF9Page() {
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         {/* Divider between Center and Right */}
                         <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
-                        {selectedStudent && !isBatchReady && (
+                        {selectedStudent && !isBatchReady && !isShsSf9Section && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
                                 className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
@@ -1501,7 +1724,7 @@ export function SF9Page() {
                             </button>
                         )}
 
-                        {selectedStudent && (
+                        {selectedStudent && !isShsSf9Section && (
                             <div className="flex items-center gap-1 shrink-0">
                                 <button
                                     onClick={handleSpeak}
@@ -1514,7 +1737,7 @@ export function SF9Page() {
                                     <select
                                         value={speechRate}
                                         onChange={(e) => setSpeechRate(Number(e.target.value))}
-                                        className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-xl px-1.5 text-[9px] font-bold text-slate-600 outline-none w-[45px] duration-200 cursor-pointer text-center"
+                                        className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-xl px-1.5 text-[9px] font-bold text-slate-600 outline-none w-11.25 duration-200 cursor-pointer text-center"
                                         title="Speech Rate"
                                     >
                                         <option value="1">1.0x</option>
@@ -1533,19 +1756,21 @@ export function SF9Page() {
                         <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0 h-9">
                             <button
                                 onClick={() => setIsBatchReady(false)}
+                                disabled={isShsSf9Section}
                                 className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
                             >
                                 Indiv
                             </button>
                             <button
                                 onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
+                                disabled={isShsSf9Section}
                                 className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
                             >
                                 Batch
                             </button>
                         </div>
 
-                        {!isBatchReady && singleDocument && (
+                        {!isBatchReady && singleDocument && !isShsSf9Section && (
                             <div className="flex items-center gap-1 shrink-0">
                                 <button
                                     onClick={handlePrint}
@@ -1569,28 +1794,93 @@ export function SF9Page() {
              </div>
 
              {/* Workspace Viewer Area */}
-             <div className="flex-1 overflow-auto bg-slate-100 relative custom-scrollbar">
-                <div className="w-full min-h-full flex flex-col items-center justify-start py-10 px-10 relative">
-                    {selectedStudent && singleDocument && !isBatchReady ? (
-                        <div 
+             <div className="flex-1 overflow-auto bg-linear-to-b from-slate-100/70 to-blue-100/40 relative custom-scrollbar">
+                <div className="w-full min-h-full flex flex-col items-center justify-start py-6 sm:py-8 px-3 sm:px-6 lg:px-10 relative">
+                    {isShsSf9Section && selectedSectionObj ? (
+                        <motion.div
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.45, ease: 'easeOut' }}
+                            className="flex-1 w-full max-w-6xl mx-auto flex items-center justify-center py-3 sm:py-6"
+                        >
+                            <div className="relative w-full rounded-3xl border border-slate-200/80 bg-white/80 backdrop-blur-xl shadow-[0_24px_60px_rgba(30,64,175,0.12)] overflow-hidden">
+                                <div className="absolute inset-0 bg-linear-to-br from-blue-100/45 via-transparent to-indigo-100/35" />
+                                <div className="absolute -top-16 -left-12 w-56 h-56 rounded-full bg-blue-300/20 blur-3xl" />
+                                <div className="absolute -bottom-20 -right-10 w-64 h-64 rounded-full bg-indigo-300/20 blur-3xl" />
+
+                                <div className="relative grid lg:grid-cols-[1.1fr_1fr] gap-6 lg:gap-10 p-6 sm:p-8 lg:p-10 items-center">
+                                    <div className="space-y-5">
+                                        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-blue-200 bg-blue-50 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">
+                                            <Clock3 className="w-3.5 h-3.5" />
+                                            Preparing Official DepEd-Compliant Template
+                                        </span>
+
+                                        <div className="space-y-3">
+                                            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 leading-[1.05]">
+                                                Senior High School SF9 Template Coming Soon
+                                            </h2>
+                                            <p className="text-sm sm:text-base text-slate-700 leading-relaxed font-semibold max-w-2xl">
+                                                The Grade 11 and Grade 12 SF9 generation module is currently being finalized to align with the latest official DepEd formatting standards.
+                                            </p>
+                                            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium max-w-2xl">
+                                                All core processing logic and student data handling are already in place. The preview and export features will be re-enabled once the final template structure is completed.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="relative h-64 sm:h-72 rounded-3xl border border-white/70 bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_12px_30px_rgba(15,23,42,0.08)] overflow-hidden">
+                                        <div className="absolute inset-x-0 top-0 h-11 bg-linear-to-r from-blue-500/15 to-indigo-500/20 border-b border-slate-200/60" />
+                                        <motion.div
+                                            initial={{ y: 4, opacity: 0.8 }}
+                                            animate={{ y: [-2, 4, -2], opacity: [0.85, 1, 0.85] }}
+                                            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                                            className="absolute top-6 left-6 right-6 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm"
+                                        >
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                                                    <FileText className="w-4 h-4" />
+                                                </div>
+                                                <div className="text-[11px] font-black text-slate-700 uppercase tracking-wider">SF9 SHS Layout Queue</div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="h-2 rounded-full bg-slate-200/80" />
+                                                <div className="h-2 rounded-full bg-slate-200/80 w-10/12" />
+                                                <div className="h-2 rounded-full bg-blue-200/70 w-8/12" />
+                                            </div>
+                                        </motion.div>
+                                        <motion.div
+                                            initial={{ y: -2, opacity: 0.8 }}
+                                            animate={{ y: [4, -2, 4], opacity: [0.8, 1, 0.8] }}
+                                            transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+                                            className="absolute bottom-5 right-5 w-36 rounded-2xl border border-blue-100 bg-blue-50/90 p-3 shadow-sm"
+                                        >
+                                            <div className="text-[9px] font-black uppercase tracking-wider text-blue-700">Status</div>
+                                            <div className="mt-1 text-[11px] font-bold text-slate-700 leading-tight">Template validation in progress</div>
+                                        </motion.div>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    ) : selectedStudent && singleDocument && !isBatchReady ? (
+                        <div
                             className="transition-all duration-700 ease-out origin-top flex flex-col items-center"
-                            style={{ 
-                                transform: `scale(${zoom}) translateZ(0)`, 
+                            style={{
+                                transform: `scale(${zoom}) translateZ(0)`,
                                 transformOrigin: 'top center',
                                 willChange: 'transform',
                                 backfaceVisibility: 'hidden',
                                 WebkitBackfaceVisibility: 'hidden',
-                                height: 'calc(100vh - 200px)' 
+                                height: 'calc(100vh - 200px)'
                             }}
                         >
-                             <div className="w-full h-full min-w-[1122px] min-h-[793px] bg-white rounded-sm border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden relative group">
+                            <div className="w-full h-full min-w-280.5 min-h-198.25 bg-white rounded-sm border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden relative group">
                                 <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-1000" />
                                 <PDFViewer width="100%" height="100%" showToolbar={false} className="border-none w-full h-full">
                                     {singleDocument!}
                                 </PDFViewer>
                             </div>
                         </div>
-                    ) : (isBatchReady && selectedSectionObj) ? (
+                    ) : isBatchReady && selectedSectionObj ? (
                         <div className="flex-1 w-full max-w-4xl mx-auto flex flex-col items-center justify-center space-y-8 py-6">
                             <div className="relative">
                                 <div className="w-24 h-24 rounded-4xl bg-blue-600 flex items-center justify-center shadow-2xl shadow-blue-500/30 mx-auto relative z-10 transform -rotate-6">
@@ -1598,18 +1888,20 @@ export function SF9Page() {
                                 </div>
                                 <div className="absolute inset-x-0 -bottom-3 h-6 bg-blue-900/10 blur-xl rounded-full scale-110" />
                             </div>
-                            
+
                             <div className="text-center space-y-2">
                                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">Batch Generation Center</h2>
-                                <p className="text-lg text-slate-500 font-medium">Preparing official SF9 records for <span className="text-blue-600 font-bold">{selectedSectionObj.section_name}</span></p>
+                                <p className="text-lg text-slate-500 font-medium">
+                                    Preparing official SF9 records for <span className="text-blue-600 font-bold">{selectedSectionObj.section_name}</span>
+                                </p>
                             </div>
 
                             <div className="w-full max-w-xl bg-white rounded-4xl border border-slate-200/60 shadow-xl p-8 space-y-6">
                                 {batchProgress > 0 && (
                                     <div className="space-y-4">
                                         <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner p-1">
-                                            <motion.div 
-                                                className="h-full bg-linear-to-r from-blue-600 to-indigo-600 rounded-full" 
+                                            <motion.div
+                                                className="h-full bg-linear-to-r from-blue-600 to-indigo-600 rounded-full"
                                                 initial={{ width: 0 }}
                                                 animate={{ width: `${batchProgress}%` }}
                                                 transition={{ duration: 0.3 }}
@@ -1674,23 +1966,39 @@ export function SF9Page() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-10 py-10">
-                            <div className="relative group">
-                                <div className="absolute -inset-20 bg-indigo-500/5 blur-[120px] rounded-full group-hover:bg-indigo-500/10 transition-all duration-1000" />
-                                <div className="relative w-56 h-56 bg-white rounded-[4rem] border border-slate-200 flex items-center justify-center transform group-hover:rotate-6 hover:scale-105 transition-all duration-700 shadow-xl">
-                                    <FileText className="w-24 h-24 text-slate-100 drop-shadow-[0_0_10px_rgba(0,0,0,0.02)]" />
-                                    <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-indigo-600 rounded-4xl flex items-center justify-center shadow-2xl ring-8 ring-slate-50 group-hover:translate-x-2 group-hover:-translate-y-2 transition-all duration-500">
-                                        <span className="text-3xl font-black text-white italic tracking-tighter">SF9</span>
+                        <motion.div
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.35, ease: 'easeOut' }}
+                            className="flex-1 w-full max-w-5xl mx-auto flex flex-col items-center justify-center py-8"
+                        >
+                            <div className="relative w-full rounded-3xl border border-slate-200/80 bg-white/85 backdrop-blur-xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] px-6 sm:px-10 py-10 sm:py-12 text-center overflow-hidden">
+                                <div className="absolute inset-0 bg-linear-to-br from-indigo-50/70 via-white/60 to-blue-50/60" />
+                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-96 h-40 bg-blue-300/20 blur-3xl rounded-full" />
+
+                                <div className="relative flex flex-col items-center gap-7">
+                                    <div className="relative group">
+                                        <div className="absolute -inset-10 bg-indigo-500/10 blur-3xl rounded-full opacity-70 group-hover:opacity-100 transition-all duration-700" />
+                                        <div className="relative w-52 h-52 sm:w-56 sm:h-56 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform group-hover:-translate-y-1 transition-all duration-500 shadow-xl">
+                                            <FileText className="w-24 h-24 text-slate-200" />
+                                            <div className="absolute -bottom-5 -right-5 w-22 h-22 bg-linear-to-br from-indigo-600 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl ring-8 ring-white">
+                                                <span className="text-3xl font-black text-white italic tracking-tighter">SF9</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">Ready to Generate</h2>
+                                        <p className="text-slate-600 font-semibold max-w-2xl mx-auto leading-relaxed text-sm sm:text-base">
+                                            Select a learner for individual report preview, or switch to batch mode to generate official SF9 cards for the entire section.
+                                        </p>
+                                        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-blue-700/75">
+                                            Fast workflow • Clean exports • Teacher-friendly controls
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Ready to Generate</h2>
-                                <p className="text-slate-400 font-bold max-w-sm mx-auto leading-relaxed uppercase text-[10px] tracking-[0.3em] opacity-60">
-                                    Select a learner or switch to batch mode from the top toolbar to prepare progress reports.
-                                </p>
-                            </div>
-                        </div>
+                        </motion.div>
                     )}
                 </div>
              </div>

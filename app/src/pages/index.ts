@@ -24,3 +24,4 @@ export { ActivationPage } from './ActivationPage';
 export { NameTagPage } from './NameTagPage';
 export { LIRPage } from './LIRPage';
 export { TemporaryGradeSlipPage } from './TemporaryGradeSlipPage';
+export { ShsEClassRecord } from './ShsEClassRecord';

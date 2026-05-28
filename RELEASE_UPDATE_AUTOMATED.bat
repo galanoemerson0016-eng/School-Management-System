@@ -119,7 +119,7 @@ cd /d "%~dp0"
 call git add app/package.json
 call git commit -m "Bump version to v%NEW_VERSION%"
 call git tag -f "v%NEW_VERSION%"
-call git push origin main --tags -f
+call git push origin main "v%NEW_VERSION%" -f
 echo  Tag v%NEW_VERSION% pushed successfully. Cloud macOS build triggered.
 echo.
 

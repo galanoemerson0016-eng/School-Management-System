@@ -61,6 +61,131 @@ const isElementaryLevel = (gradeLevel: string) => {
     return false;
 };
 
+const getSubjectCategory = (subjectName: string, gradeLevel: string): string => {
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+    if (!isSHS) {
+        return '';
+    }
+
+    const normalized = subjectName.trim().toLowerCase();
+    const isG12 = gradeLevel.includes('12');
+
+    if (isG12) {
+        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Core Subjects
+        const cores = [
+            "21st century literature from the philippines and the world",
+            "contemporary philippine arts from the regions",
+            "disaster readiness and risk reduction",
+            "earth and life science",
+            "earth science",
+            "general mathematics",
+            "introduction to philosophy of the human person",
+            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+            "media and information literacy",
+            "oral communication in context",
+            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+            "personal development",
+            "physical education and health 1",
+            "physical education and health 2",
+            "physical education and health 3",
+            "physical education and health 4",
+            "physical science",
+            "reading and writing skills",
+            "statistics and probability",
+            "understanding culture society and politics",
+            "understanding culture, society and politics",
+            "21st century literature",
+            "contemporary philippine arts",
+            "pe and health 3",
+            "pe and health 4"
+        ];
+        if (cores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core';
+        }
+
+        // 2. Applied Subjects
+        const applied = [
+            "empowerment technologies",
+            "english for academic and professional purposes",
+            "entrepreneurship",
+            "filipino sa piling larang akademik",
+            "filipino sa piling larang akademiko",
+            "filipino sa piling larang isports",
+            "filipino sa piling larang sining at disenyo",
+            "filipino sa piling larang teknikal bokasyunal",
+            "filipino sa piling larang teknikal-bokasyunal",
+            "filipino sa piling larang",
+            "inquiries investigations and immersion",
+            "inquiries, investigations and immersion",
+            "practical research 1",
+            "practical research 2"
+        ];
+        if (applied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied';
+        }
+
+        // 3. Specialized Subjects
+        return 'Specialized';
+    }
+
+    const norm = normalized;
+
+    // 1. Core Subject (All Tracks)
+    const cores = [
+        'effective communication',
+        'mabisang komunikasyon',
+        'general mathematics',
+        'general science',
+        'life and career skills',
+        'pag-aaral ng kasaysayan at lipunang pilipino',
+        'kasaysayan at lipunang pilipino'
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'Core Subject (All Tracks)';
+    }
+
+    // 2. TechPro Elective (Work Immersion)
+    if (norm.startsWith('work immersion')) {
+        return 'TechPro Elective (Work Immersion)';
+    }
+
+    // 3. Academic Elective (Field Experience / Exposure, and Sports and Arts)
+    if (norm.startsWith('field exposure') || norm.startsWith('field experience') || norm.includes('apprenticeship')) {
+        return 'Academic Elective (Field Experience / Exposure, and Sports and Arts)';
+    }
+
+    // 4. TechPro Electives (All Other Electives)
+    const techProElectives = [
+        'beauty care', 'barbering', 'caregiving', 'hairdressing', 'wellness', 'massage', 'hilot',
+        'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+        'organic agriculture', 'poultry', 'ruminants', 'swine', 'garments', 'handicrafts', 'weaving',
+        'automotive servicing', 'electrical repair', 'engine and chassis', 'driving and automotive',
+        'motorcycle', 'small engine', 'carpentry', 'construction operation', 'metal arc welding',
+        'technical drafting', 'animation', 'illustration', 'visual graphics', 'bakery operation',
+        'events management', 'food and beverage operation', 'hotel operation', 'housekeeping',
+        'kitchen operations', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+        'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic',
+        'broadband installation', 'computer programming', 'computer systems servicing',
+        'contact center services', 'marine engineering', 'marine transportation', 'ships catering'
+    ];
+    if (techProElectives.some(tp => norm.includes(tp))) {
+        return 'TechPro Elective (All Other Electives)';
+    }
+
+    // 5. Academic Elective (All Other Electives)
+    return 'Academic Elective (All Other Electives)';
+};
+
+
 
 
 
@@ -75,6 +200,8 @@ type QuarterGradeDetail = {
     value: number;
     musicArts?: number | null;
     peHealth?: number | null;
+    effectiveComm?: number | null;
+    mabisangKom?: number | null;
 };
 
 type QuarterGradeCell = number | QuarterGradeDetail;
@@ -91,7 +218,11 @@ type VirtualSectionSubject = Subject & {
     _mapehGroups?: { 
         musicArts: Subject[], 
         peHealth: Subject[] 
-    } 
+    };
+    _ecmkGroups?: {
+        effectiveComm: Subject[],
+        mabisangKom: Subject[]
+    }
 };
 
 const isQuarterGradeDetail = (value: QuarterGradeCell | undefined): value is QuarterGradeDetail => {
@@ -108,6 +239,9 @@ const getQuarterGradeDetail = (value: QuarterGradeCell | undefined) => {
 
 const SUBJECT_COLUMN_WIDTH = 55;
 const MAPEH_SUBCOLUMN_WIDTH = 48;
+const ECMK_SUBCOLUMN_WIDTH = 80;
+
+const isEcmkParent = (name: string) => name.toLowerCase().includes('effective communication') && name.toLowerCase().includes('mabisang komunikasyon');
 const GENERAL_AVERAGE_COLUMN_WIDTH = 66;
 const AVERAGE_COLUMN_WIDTH = GENERAL_AVERAGE_COLUMN_WIDTH;
 const showLegacyQuarter4 = false;
@@ -283,6 +417,15 @@ export function ConsolidatedGradesPage() {
         }
 
         const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
+        const sectionGradeLevel = sectionObj.section_grade_level || '';
+        const trackNorm = (sectionObj.section_name || '').toUpperCase();
+        let sectionTrack = 'Academic Track';
+        if (trackNorm.includes('STEM')) sectionTrack = 'Academic - STEM';
+        else if (trackNorm.includes('ABM')) sectionTrack = 'Academic - ABM';
+        else if (trackNorm.includes('HUMSS')) sectionTrack = 'Academic - HUMSS';
+        else if (trackNorm.includes('GAS')) sectionTrack = 'Academic - GAS';
+        else if (trackNorm.includes('TVL') || trackNorm.includes('TECHPRO') || trackNorm.includes('HE') || trackNorm.includes('ICT')) sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+
         setIsSyncing(true);
         let syncCount = 0;
 
@@ -291,7 +434,7 @@ export function ConsolidatedGradesPage() {
             for (const student of sectionStudents) {
                 // Process each subject in the section
                 for (const subject of sectionSubjects) {
-                    if (subject.is_virtual && subject.subject_name.toUpperCase() === 'MAPEH') continue;
+                    if (subject.is_virtual && (subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(subject.subject_name))) continue;
 
                     // 1. Find HPS for this subject/quarter
                     const hpsRec = hpsRecords.find(r => 
@@ -335,7 +478,7 @@ export function ConsolidatedGradesPage() {
                     const qaScore = qaScores.reduce((a, b) => a + b, 0);
                     const qaHPS = hps_qa.reduce((a, b) => a + b, 0);
 
-                    const weights = getWeights(getSubjectCluster(subject.subject_name));
+                    const weights = getWeights(getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack));
                     const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
                     const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
                     const qaWS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100 * weights.quarterly_exam;
@@ -378,9 +521,24 @@ export function ConsolidatedGradesPage() {
         const termLabel = TERM_LABELS[selectedTerm];
         const wb = XLSX.utils.book_new();
 
-        sectionSubjects.forEach(subject => {
-            if (subject.is_virtual && subject.subject_name.toUpperCase() === 'MAPEH') return;
+        const subjectsToExport: VirtualSectionSubject[] = [];
+        sectionSubjects.forEach(sub => {
+            if (sub.subject_name.toUpperCase() === 'MAPEH') {
+                if (sub._mapehGroups) {
+                    subjectsToExport.push(...(sub._mapehGroups.musicArts || []));
+                    subjectsToExport.push(...(sub._mapehGroups.peHealth || []));
+                }
+            } else if (isEcmkParent(sub.subject_name)) {
+                if (sub._ecmkGroups) {
+                    subjectsToExport.push(...(sub._ecmkGroups.effectiveComm || []));
+                    subjectsToExport.push(...(sub._ecmkGroups.mabisangKom || []));
+                }
+            } else {
+                subjectsToExport.push(sub);
+            }
+        });
 
+        subjectsToExport.forEach(subject => {
             // 1. Create Metadata Rows (Rows 1-5)
             const metadata = [
                 ['SUBJECT_ID:', subject.id],
@@ -584,14 +742,23 @@ const groupedSections = useMemo(() => {
         
         // 2. Get all actual subject records for this section or grade level from the database
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id);
+        const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
+        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && s.term !== 'none');
         
         // If no section-specific subjects exist, look for grade-level templates
         if (sectionDbSubjects.length === 0) {
             sectionDbSubjects = subjects.filter(s => {
                 const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum;
+                return !s.section_id && subjectGradeNum === sectionGradeNum && s.term !== 'none';
             });
+        }
+
+        // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
+        if (selectedTerm !== 'all') {
+            const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
+            if (termNum !== null) {
+                sectionDbSubjects = sectionDbSubjects.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === termNum);
+            }
         }
 
         // 3. Determine the base list of subjects
@@ -604,8 +771,8 @@ const groupedSections = useMemo(() => {
             baseList = sectionDbSubjects.map(s => ({ ...s, is_virtual: false } as VirtualSectionSubject));
             
             // Special Case: If we have MAPEH components but no MAPEH header row in the DB, create a virtual one
-            const hasMapehHeader = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
-            const hasMapehComponents = sectionDbSubjects.some(s => {
+            const hasMapehHeader = !isSHS && sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+            const hasMapehComponents = !isSHS && sectionDbSubjects.some(s => {
                 const n = normalizeSubjectName(s.subject_name);
                 return n.includes('musicandarts') || n.includes('musicarts') || 
                        n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
@@ -615,6 +782,21 @@ const groupedSections = useMemo(() => {
                 baseList.push({
                     id: `virtual-mapeh-${sectionObj.id}`,
                     subject_name: 'MAPEH',
+                    section_id: sectionObj.id,
+                    grade_level: sectionObj.section_grade_level,
+                    is_virtual: true
+                } as VirtualSectionSubject);
+            }
+
+            // Special Case: If we have both EC and MK components but no parent header, create a virtual one
+            const hasEcmkHeader = sectionDbSubjects.some(s => isEcmkParent(s.subject_name));
+            const hasEc = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+            const hasMk = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+
+            if (hasEc && hasMk && !hasEcmkHeader) {
+                baseList.push({
+                    id: `virtual-ecmk-${sectionObj.id}`,
+                    subject_name: 'Effective Communication & Mabisang Komunikasyon',
                     section_id: sectionObj.id,
                     grade_level: sectionObj.section_grade_level,
                     is_virtual: true
@@ -631,10 +813,10 @@ const groupedSections = useMemo(() => {
             } as VirtualSectionSubject));
         }
 
-        // 4. Post-process: Identify MAPEH groups for all items in the list
-        const withMapehData = baseList.map(base => {
+        // 4. Post-process: Identify MAPEH and EC&MK groups for all items in the list
+        const withGroupData = baseList.map(base => {
             const norm = normalizeSubjectName(base.subject_name);
-            if (norm === 'mapeh') {
+            if (norm === 'mapeh' && !isSHS) {
                 return {
                     ...base,
                     _mapehGroups: {
@@ -649,26 +831,40 @@ const groupedSections = useMemo(() => {
                     }
                 };
             }
+            if (isEcmkParent(base.subject_name)) {
+                return {
+                    ...base,
+                    _ecmkGroups: {
+                        effectiveComm: sectionDbSubjects.filter(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication'),
+                        mabisangKom: sectionDbSubjects.filter(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon')
+                    }
+                };
+            }
             return base;
         });
 
         // 5. Apply Global Standard Ordering (Filipino -> English -> ... -> MAPEH -> Specialization)
-        const sortedSubjects = sortSubjects(withMapehData, s => s.subject_name);
+        const sortedSubjects = sortSubjects(withGroupData, s => s.subject_name);
 
-        // 6. Filter out individual MAPEH components from the main row list (they are sub-columns under MAPEH header)
+        // 6. Filter out individual MAPEH components and EC/MK components from the main row list (they are sub-columns under their parent header)
         return sortedSubjects.filter(sub => {
             const norm = normalizeSubjectName(sub.subject_name);
-            const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
-                               norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth');
+            const isMapehComponent = !isSHS && (norm.includes('musicandarts') || norm.includes('musicarts') || 
+                               norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth'));
             
-            return !isComponent || norm === 'mapeh';
+            // Filter out EC/MK individual components only if a parent group exists
+            const hasEcmkParentInList = sortedSubjects.some(s => isEcmkParent(s.subject_name));
+            const isEcOrMkComponent = hasEcmkParentInList && (norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon');
+
+            return (!isMapehComponent || norm === 'mapeh') && !isEcOrMkComponent;
         });
-    }, [subjects, sectionObj, schoolProfile.curriculum]);
+    }, [subjects, sectionObj, schoolProfile.curriculum, selectedTerm]);
+
 
 
 
     const selectableSubjects = useMemo(() => {
-        return sectionSubjects.filter((subject) => subject.subject_name.toUpperCase() !== 'MAPEH');
+        return sectionSubjects.filter((subject) => subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(subject.subject_name));
     }, [sectionSubjects]);
 
     const [subjectColumnSelections, setSubjectColumnSelections] = useState<Record<string, string>>({});
@@ -703,7 +899,7 @@ const groupedSections = useMemo(() => {
 
     const subjectColumns = useMemo(() => {
         return sectionSubjects.map((baseSubject) => {
-            if (baseSubject.subject_name.toUpperCase() === 'MAPEH') {
+            if (baseSubject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(baseSubject.subject_name)) {
                 return { baseId: baseSubject.id, subject: baseSubject };
             }
 
@@ -724,6 +920,12 @@ const groupedSections = useMemo(() => {
         return isElementaryLevel(sectionObj.section_grade_level);
     }, [sectionObj]);
 
+    const isSHSSection = useMemo(() => {
+        if (!sectionObj) return false;
+        const gradeNum = parseInt((sectionObj.section_grade_level || '').replace(/\D/g, '')) || 0;
+        return gradeNum === 11 || gradeNum === 12;
+    }, [sectionObj]);
+
     
     const learnerNameColumnWidth = useMemo(() => {
         const longestName = sectionStudents.reduce((longest, student) => {
@@ -742,9 +944,9 @@ const groupedSections = useMemo(() => {
     const subjectColumnWidth = useMemo(() => {
         if (selectedTerm === 'all') return 30;
 
-        // 1. Calculate total logical sub-columns (MAPEH takes 3 slots, others take 1)
+        // 1. Calculate total logical sub-columns (MAPEH and EC&MK take 3 slots, others take 1)
         const totalSubCols = sectionSubjects.reduce((acc, sub) => {
-            if (sub.subject_name.toUpperCase() === 'MAPEH') return acc + 3;
+            if (sub.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(sub.subject_name)) return acc + 3;
             return acc + 1;
         }, 0);
 
@@ -838,6 +1040,65 @@ const groupedSections = useMemo(() => {
                             totalFinal += finalRating;
                             subjectCount++;
                         }
+                    } else {
+                        studentData[subject.id] = {};
+                    }
+                } else if (subject._ecmkGroups) {
+                    // EC & MK parent: average Effective Communication and Mabisang Komunikasyon
+                    const subjectGrades: any = {};
+                    let virtualFinalTotal = 0;
+                    let virtualQCount = 0;
+
+                    for (let q = 1; q <= 4; q++) {
+                        const qKey = `q${q}` as QuarterKey;
+                        const ecResults: number[] = [];
+                        const mkResults: number[] = [];
+
+                        subject._ecmkGroups.effectiveComm.forEach(comp => {
+                            const r = gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
+                            if (r && r.final_grade && Number(r.final_grade) > 0) {
+                                ecResults.push(Number(r.final_grade));
+                            }
+                        });
+
+                        subject._ecmkGroups.mabisangKom.forEach(comp => {
+                            const r = gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
+                            if (r && r.final_grade && Number(r.final_grade) > 0) {
+                                mkResults.push(Number(r.final_grade));
+                            }
+                        });
+
+                        if (ecResults.length > 0 || mkResults.length > 0) {
+                            const ecAvg = ecResults.length > 0 ? Math.round(ecResults.reduce((a, b) => a + b, 0) / ecResults.length) : null;
+                            const mkAvg = mkResults.length > 0 ? Math.round(mkResults.reduce((a, b) => a + b, 0) / mkResults.length) : null;
+                            
+                            const ec = ecAvg || 0;
+                            const mk = mkAvg || 0;
+                            let qAvg = null;
+                            if (ec > 0 && mk > 0) qAvg = Math.round((ec + mk) / 2);
+                            else if (ec > 0) qAvg = ec;
+                            else if (mk > 0) qAvg = mk;
+
+                            subjectGrades[qKey] = {
+                                value: qAvg,
+                                effectiveComm: ecAvg,
+                                mabisangKom: mkAvg
+                            };
+
+                            if (q <= 3 && qAvg !== null) {
+                                virtualFinalTotal += qAvg;
+                                virtualQCount++;
+                            }
+                        }
+                    }
+
+                    if (virtualQCount > 0) {
+                        const finalRating = Math.round(virtualFinalTotal / virtualQCount);
+                        subjectGrades.final = finalRating;
+                        studentData[subject.id] = subjectGrades;
+                        
+                        totalFinal += finalRating;
+                        subjectCount++;
                     } else {
                         studentData[subject.id] = {};
                     }
@@ -1159,6 +1420,10 @@ const groupedSections = useMemo(() => {
             const width = 3 * MAPEH_SUBCOLUMN_WIDTH;
             return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
         }
+        if (showGenAvg && isEcmkParent(sub.subject_name)) {
+            const width = 3 * ECMK_SUBCOLUMN_WIDTH;
+            return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
+        }
 
         const width = termColSpan(sub) * subjectColumnWidth;
         return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
@@ -1166,7 +1431,7 @@ const groupedSections = useMemo(() => {
     
     const termColSpan = useCallback((sub: VirtualSectionSubject) => {
         if (selectedTerm === 'all') return 4;
-        if (sub.subject_name.toUpperCase() === 'MAPEH') return 3;
+        if (sub.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(sub.subject_name)) return 3;
         return 1;
     }, [selectedTerm]);
 
@@ -1231,10 +1496,10 @@ const groupedSections = useMemo(() => {
             </div>
 
             {/* TIER 3: Filter & Action Toolbar */}
-            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 bg-white dark:bg-white/5 p-2.5 lg:p-3 rounded-[16px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200/60 dark:border-white/10 no-print relative z-20 mb-6 mx-6">
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2.5 bg-white dark:bg-white/5 p-2.5 lg:p-3 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200/60 dark:border-white/10 no-print relative z-20 mb-6 mx-6">
                 {/* LEFT: Dropdowns */}
                 <div className="flex items-center gap-2 shrink-0">
-                    <div className="relative w-[180px] shrink-0">
+                    <div className="relative w-45 shrink-0">
                         <select
                             className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedSection ?? ''}
@@ -1260,7 +1525,7 @@ const groupedSections = useMemo(() => {
                         </div>
                     </div>
 
-                    <div className="relative w-[120px] shrink-0">
+                    <div className="relative w-30 shrink-0">
                         <select
                             className="h-8 w-full appearance-none bg-white dark:bg-[#0B1121] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-medium py-1 pl-2.5 pr-7 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors cursor-pointer hover:bg-slate-50"
                             value={selectedTerm}
@@ -1425,10 +1690,47 @@ const groupedSections = useMemo(() => {
                         {/* Table Section */}
                         <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
                             <thead>
+                                {isSHSSection && (
+                                    <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
+                                        <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                        {subjectColumns.map((column, index) => {
+                                            const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
+                                            const parts = cat.split(' (');
+                                            return (
+                                                <th
+                                                    key={`subject-type-${column.baseId}-${index}`}
+                                                    colSpan={termColSpan(column.subject)}
+                                                    className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
+                                                >
+                                                    {parts.length > 1 ? (
+                                                        <>
+                                                            {parts[0]}<br />({parts[1]}
+                                                        </>
+                                                    ) : (
+                                                        cat
+                                                    )}
+                                                </th>
+                                            );
+                                        })}
+                                        {showGenAvg && (
+                                            <>
+                                                <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                                <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                                {showDescriptor && (
+                                                    <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                                )}
+                                            </>
+                                        )}
+                                    </tr>
+                                )}
                                 <tr className="bg-gray-50/80">
-                                    <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                    {!isSHSSection && (
+                                        <>
+                                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                        </>
+                                    )}
                                     {subjectColumns.map((column, index) => (
-                                        selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' ? (
+                                        selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
                                             <th
                                                 key={`subject-column-${column.baseId}-${index}`}
                                                 rowSpan={2}
@@ -1462,7 +1764,7 @@ const groupedSections = useMemo(() => {
                                             </th>
                                         ) : (
                                             <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                                {column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
+                                                {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
                                                     column.subject.subject_name
                                                 ) : (
                                                     selectedTerm === 'q1' ? (
@@ -1495,7 +1797,7 @@ const groupedSections = useMemo(() => {
                                             </th>
                                         )
                                     ))}
-                                    {showGenAvg && (
+                                    {!isSHSSection && showGenAvg && (
                                         <>
                                             <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
                                             <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
@@ -1513,6 +1815,13 @@ const groupedSections = useMemo(() => {
                                                     <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
                                                     <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
                                                     <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
+                                                </>
+                                            )}
+                                            {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
+                                                <>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Effective<br/>Communication</th>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Mabisang<br/>Komunikasyon</th>
+                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
                                                 </>
                                             )}
                                             
@@ -1557,6 +1866,8 @@ const groupedSections = useMemo(() => {
                                                             
                                                             if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && column.subject._mapehGroups) {
                                                                 inputColIndex += 2;
+                                                            } else if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && column.subject._ecmkGroups) {
+                                                                inputColIndex += 2;
                                                             } else if (selectedTerm !== 'all') {
                                                                 inputColIndex += 1;
                                                             }
@@ -1595,6 +1906,40 @@ const groupedSections = useMemo(() => {
                                                                                 )}
                                                                             </td>
                                                                             <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                                                        </>
+                                                                    ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
+                                                                        <>
+                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
+                                                                                    <GradeInput
+                                                                                        studentLrn={student.lrn}
+                                                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
+                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
+                                                                                        activeSchoolYear={activeSchoolYear}
+                                                                                        subjects={subjects}
+                                                                                        sectionObj={sectionObj}
+                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                                                        row={studentRow} col={currentCol}
+                                                                                    />
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
+                                                                                    <GradeInput
+                                                                                        studentLrn={student.lrn}
+                                                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
+                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
+                                                                                        activeSchoolYear={activeSchoolYear}
+                                                                                        subjects={subjects}
+                                                                                        sectionObj={sectionObj}
+                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                                                        row={studentRow} col={currentCol + 1}
+                                                                                    />
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                                                         </>
                                                                     ) : (
                                                                         <>
@@ -1690,6 +2035,8 @@ const groupedSections = useMemo(() => {
 
                                                             if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && column.subject._mapehGroups) {
                                                                 inputColIndex += 2;
+                                                            } else if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && column.subject._ecmkGroups) {
+                                                                inputColIndex += 2;
                                                             } else if (selectedTerm !== 'all') {
                                                                 inputColIndex += 1;
                                                             }
@@ -1730,6 +2077,40 @@ const groupedSections = useMemo(() => {
                                                                                 )}
                                                                             </td>
                                                                             <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                                                                        </>
+                                                                    ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
+                                                                        <>
+                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
+                                                                                    <GradeInput
+                                                                                        studentLrn={student.lrn}
+                                                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
+                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
+                                                                                        activeSchoolYear={activeSchoolYear}
+                                                                                        subjects={subjects}
+                                                                                        sectionObj={sectionObj}
+                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                                                        row={studentRow} col={currentCol}
+                                                                                    />
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
+                                                                                    <GradeInput
+                                                                                        studentLrn={student.lrn}
+                                                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
+                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
+                                                                                        activeSchoolYear={activeSchoolYear}
+                                                                                        subjects={subjects}
+                                                                                        sectionObj={sectionObj}
+                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
+                                                                                        row={studentRow} col={currentCol + 1}
+                                                                                    />
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
                                                                         </>
                                                                     ) : (
                                                                         <>
@@ -1818,7 +2199,7 @@ const groupedSections = useMemo(() => {
                                 {/* First Row: Learning Progress and Summary of Promotion */}
                                 <div className="mt-8 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-10 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
                                     {/* Left Side: Learning Progress and Achievement */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
                                         <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
                                             Learning Progress and Achievement
                                         </div>
@@ -1883,7 +2264,7 @@ const groupedSections = useMemo(() => {
                                     </div>
 
                                     {/* Right Side: Summary of Promotion & Class Performance */}
-                                    <div className="flex flex-col gap-4 flex-1 w-full max-w-[550px]">
+                                    <div className="flex flex-col gap-4 flex-1 w-full max-w-137.5">
                                         {/* Summary of Promotion */}
                                         <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm">
                                             <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
@@ -1954,7 +2335,7 @@ const groupedSections = useMemo(() => {
                                 {/* Second Row: Academic Excellence and Subject Performance Profile */}
                                 <div className="mt-6 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-8 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
                                     {/* Left Side: Academic Excellence Awards (Honor Roll) Summary */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
                                         <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
                                             Academic Excellence Awards (Honor Roll) Summary
                                         </div>
@@ -2003,7 +2384,7 @@ const groupedSections = useMemo(() => {
                                             {academicExcellenceStats.total === 0 ? (
                                                 <div className="italic text-slate-500 text-center py-1">No awardees for this term. (Average 90.00+ required)</div>
                                             ) : (
-                                                <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                                <div className="space-y-1.5 max-h-30 overflow-y-auto custom-scrollbar">
                                                     {academicExcellenceStats.highest.students.length > 0 && (
                                                         <div>
                                                             <span className="font-bold text-yellow-800">🏆 Highest Honors:</span>{' '}
@@ -2028,7 +2409,7 @@ const groupedSections = useMemo(() => {
                                     </div>
 
                                     {/* Right Side: Learning Area (Subject) Performance Profile */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-[550px]">
+                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
                                         <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
                                             Learning Area (Subject) Performance Profile
                                         </div>

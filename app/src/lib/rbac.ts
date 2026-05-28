@@ -143,8 +143,11 @@ export function filterSectionsForUser(user: User | null | undefined, sections: S
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
     if (!user || !section) return [];
     
+    // Exclude subjects marked as 'none' (Not Offered)
+    const activeSubjects = subjects.filter(s => s.term !== 'none');
+    
     // First, find subjects directly linked to this section
-    const directlyLinked = subjects.filter((subject) => subject.section_id === section.id);
+    const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
     
     // Only show subjects that are registered in the section configuration
     if (section.is_teaching_load) {
@@ -154,11 +157,11 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         }
         
         // Find subjects (regardless of section_id) that match the grade level and are selected as taught
-        const gradeMatches = subjects.filter(s => 
+        const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 
             registeredNames.has(s.subject_name)
         );
-
+ 
         // Combine and remove duplicates by subject name
         const combined = [...directlyLinked, ...gradeMatches];
         const unique: Subject[] = [];

@@ -50,12 +50,12 @@ export function TemporaryGradeSlipPage() {
     const sectionSubjects = useMemo(() => {
         if (!selectedSectionObj) return [];
         const sectionGradeNum = parseInt(selectedSectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-        let dbSubjects = subjects.filter(s => s.section_id === selectedSectionObj.id);
+        let dbSubjects = subjects.filter(s => s.section_id === selectedSectionObj.id && s.term !== 'none');
         
         if (dbSubjects.length === 0) {
             dbSubjects = subjects.filter(s => {
                 const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum;
+                return !s.section_id && subjectGradeNum === sectionGradeNum && s.term !== 'none';
             });
         }
         
@@ -311,17 +311,34 @@ export function TemporaryGradeSlipPage() {
                                     {/* Center cross mark for cutting */}
                                     <div className="cut-cross" />
                                     
-                                    {sectionStudents.slice(pageIdx * 4, (pageIdx + 1) * 4).map((student) => (
-                                        <GradeSlipCard 
-                                            key={student.lrn} 
-                                            student={student} 
-                                            schoolProfile={schoolProfile}
-                                            section={selectedSectionObj}
-                                            subjects={sectionSubjects}
-                                            records={gradingSheetRecords}
-                                            activeSchoolYear={activeSchoolYear}
-                                        />
-                                    ))}
+                                     {sectionStudents.slice(pageIdx * 4, (pageIdx + 1) * 4).map((student) => {
+                                         const gradeLevelNum = parseInt(selectedSectionObj?.section_grade_level?.replace(/\D/g, '') || '0');
+                                         const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
+                                         if (isSHS) {
+                                             return (
+                                                 <ShsGradeSlipCard 
+                                                     key={student.lrn} 
+                                                     student={student} 
+                                                     schoolProfile={schoolProfile}
+                                                     section={selectedSectionObj}
+                                                     subjects={sectionSubjects}
+                                                     records={gradingSheetRecords}
+                                                     activeSchoolYear={activeSchoolYear}
+                                                 />
+                                             );
+                                         }
+                                         return (
+                                             <GradeSlipCard 
+                                                 key={student.lrn} 
+                                                 student={student} 
+                                                 schoolProfile={schoolProfile}
+                                                 section={selectedSectionObj}
+                                                 subjects={sectionSubjects}
+                                                 records={gradingSheetRecords}
+                                                 activeSchoolYear={activeSchoolYear}
+                                             />
+                                         );
+                                     })}
                                 </div>
                             ))}
                         </div>
@@ -474,20 +491,20 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                         <span className="w-10">LRN:</span>
                         <span className="flex-1 border-b border-black font-bold pb-0.5 leading-none">{student.lrn}</span>
                     </div>
-                    <div className="flex w-[80px]">
+                    <div className="flex w-20">
                         <span className="w-8">Age:</span>
                         <span className="flex-1 border-b border-black font-bold pb-0.5 leading-none text-center">{student.age || ''}</span>
                     </div>
                 </div>
                 <div className="flex gap-4">
                     <div className="flex flex-1">
-                        <span className="w-[60px]">Grade Level:</span>
+                        <span className="w-15">Grade Level:</span>
                         <span className="flex-1 border-b border-black font-bold leading-none text-center pb-0.5">
                             {section?.section_grade_level?.replace(/Grade/i, '').trim() || ''}
                         </span>
                     </div>
                     <div className="flex flex-1">
-                        <span className="w-[45px]">Section:</span>
+                        <span className="w-11.25">Section:</span>
                         <span className="flex-1 border-b border-black font-bold leading-none text-center uppercase pb-0.5">
                             {section?.section_name || ''}
                         </span>
@@ -565,7 +582,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             {/* Footer Signatures */}
             <div className="mt-auto px-1 flex flex-col items-center justify-center shrink-0 w-full text-center">
                 <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
-                <div className="w-[180px] mx-auto text-center mt-2.5">
+                <div className="w-45 mx-auto text-center mt-2.5">
                     <div className="font-bold text-[9px] uppercase border-b border-black pb-0.5 leading-none">
                         {schoolProfile.adviser_name || '_________________________'}
                     </div>
@@ -575,3 +592,508 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         </div>
     );
 }
+
+interface ShsGradeSlipCardProps {
+    student: Student;
+    schoolProfile: SchoolProfile;
+    section: Section | undefined;
+    subjects: Subject[];
+    records: ClassRecord[];
+    activeSchoolYear: string;
+}
+
+function isOffTerm(term: Subject['term'] | undefined, q: number) {
+    if (term === undefined || term === 'all' || term === 'none' || term === null) return false;
+    const termNum = Number(term);
+    if (isNaN(termNum)) return false;
+    return termNum !== q;
+}
+
+function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, activeSchoolYear }: ShsGradeSlipCardProps) {
+    const baseUrl = import.meta.env.BASE_URL;
+    const logoUrl = schoolProfile.logo_url || 'school-logo.png';
+    const depedLogo = `${baseUrl}deped_logo_left.png`;
+
+    const studentGrades = useMemo(() => {
+        const rawGrades: Record<string, { q1: number; q2: number; q3: number; final: number; term?: Subject['term'] }> = {};
+        
+        subjects.forEach((subj) => {
+            let q1 = 0, q2 = 0, q3 = 0;
+            for (let q = 1; q <= 3; q++) {
+                const r = records.find(rec => rec.student_lrn === student.lrn && rec.subject_id === subj.id && Number(rec.quarter) === q && rec.school_year === activeSchoolYear);
+                if (r && r.final_grade && Number(r.final_grade) > 0) {
+                    const val = Number(r.final_grade);
+                    if (q === 1) q1 = val;
+                    if (q === 2) q2 = val;
+                    if (q === 3) q3 = val;
+                }
+            }
+            
+            const term = subj.term;
+            let final = 0;
+            if (term === 1 || Number(term) === 1) {
+                final = q1;
+            } else if (term === 2 || Number(term) === 2) {
+                final = q2;
+            } else if (term === 3 || Number(term) === 3) {
+                final = q3;
+            } else {
+                let sum = 0;
+                let cnt = 0;
+                if (q1 > 0) { sum += q1; cnt++; }
+                if (q2 > 0) { sum += q2; cnt++; }
+                if (q3 > 0) { sum += q3; cnt++; }
+                final = cnt > 0 ? Math.round(sum / cnt) : 0;
+            }
+            
+            rawGrades[subj.id] = { q1, q2, q3, final, term };
+        });
+
+        const coreSubjectsList = subjects.filter(subj => {
+            const norm = subj.subject_name.trim().toLowerCase();
+            const cores = [
+                'effective communication',
+                'mabisang komunikasyon',
+                'general mathematics',
+                'general science',
+                'life and career skills',
+                'pag-aaral ng kasaysayan at lipunang pilipino',
+                'kasaysayan at lipunang pilipino'
+            ];
+            return cores.some(c => norm.includes(c));
+        });
+
+        const commSubjs = coreSubjectsList.filter(s => {
+            const n = normalizeSubjectName(s.subject_name);
+            return n === 'effectivecommunication' || n === 'mabisangkomunikasyon';
+        });
+
+        let parentQ1 = 0, parentQ2 = 0, parentQ3 = 0, parentFinal = 0;
+        let parentTerm: Subject['term'] = undefined;
+
+        if (commSubjs.length > 0) {
+            const effComm = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+            const mabKom = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+            
+            if (effComm && effComm.term) parentTerm = effComm.term;
+            else if (mabKom && mabKom.term) parentTerm = mabKom.term;
+
+            const ecGrade = effComm ? rawGrades[effComm.id] : null;
+            const mkGrade = mabKom ? rawGrades[mabKom.id] : null;
+
+            const ec1 = ecGrade?.q1 || 0;
+            const mk1 = mkGrade?.q1 || 0;
+            if (ec1 > 0 && mk1 > 0) parentQ1 = Math.round((ec1 + mk1) / 2);
+            else if (ec1 > 0) parentQ1 = ec1;
+            else if (mk1 > 0) parentQ1 = mk1;
+
+            const ec2 = ecGrade?.q2 || 0;
+            const mk2 = mkGrade?.q2 || 0;
+            if (ec2 > 0 && mk2 > 0) parentQ2 = Math.round((ec2 + mk2) / 2);
+            else if (ec2 > 0) parentQ2 = ec2;
+            else if (mk2 > 0) parentQ2 = mk2;
+
+            const ec3 = ecGrade?.q3 || 0;
+            const mk3 = mkGrade?.q3 || 0;
+            if (ec3 > 0 && mk3 > 0) parentQ3 = Math.round((ec3 + mk3) / 2);
+            else if (ec3 > 0) parentQ3 = ec3;
+            else if (mk3 > 0) parentQ3 = mk3;
+
+            if (parentTerm === 1 || Number(parentTerm) === 1) {
+                parentFinal = parentQ1;
+            } else if (parentTerm === 2 || Number(parentTerm) === 2) {
+                parentFinal = parentQ2;
+            } else if (parentTerm === 3 || Number(parentTerm) === 3) {
+                parentFinal = parentQ3;
+            } else {
+                let sum = 0;
+                let cnt = 0;
+                if (parentQ1 > 0) { sum += parentQ1; cnt++; }
+                if (parentQ2 > 0) { sum += parentQ2; cnt++; }
+                if (parentQ3 > 0) { sum += parentQ3; cnt++; }
+                parentFinal = cnt > 0 ? Math.round(sum / cnt) : 0;
+            }
+        }
+
+        const gradesLookup: Record<string, { q1: string; q2: string; q3: string; final: string; remarks: string; term?: Subject['term'] }> = {};
+        
+        gradesLookup['parent_ec_mk'] = {
+            q1: parentQ1 > 0 ? parentQ1.toString() : '',
+            q2: parentQ2 > 0 ? parentQ2.toString() : '',
+            q3: parentQ3 > 0 ? parentQ3.toString() : '',
+            final: parentFinal > 0 ? parentFinal.toString() : '',
+            remarks: parentFinal > 0 ? (parentFinal >= 75 ? 'Passed' : 'Failed') : '',
+            term: parentTerm
+        };
+
+        subjects.forEach((subj) => {
+            const rg = rawGrades[subj.id];
+            gradesLookup[subj.id] = {
+                q1: rg.q1 > 0 ? rg.q1.toString() : '',
+                q2: rg.q2 > 0 ? rg.q2.toString() : '',
+                q3: rg.q3 > 0 ? rg.q3.toString() : '',
+                final: rg.final > 0 ? rg.final.toString() : '',
+                remarks: rg.final > 0 ? (rg.final >= 75 ? 'Passed' : 'Failed') : '',
+                term: rg.term
+            };
+        });
+
+        let genAvgQ1Total = 0, genAvgQ1Count = 0;
+        let genAvgQ2Total = 0, genAvgQ2Count = 0;
+        let genAvgQ3Total = 0, genAvgQ3Count = 0;
+        let genAvgFinalTotal = 0, genAvgFinalCount = 0;
+
+        const isComponentId = (id: string) => {
+            const subj = subjects.find(s => s.id === id);
+            if (!subj) return false;
+            const norm = normalizeSubjectName(subj.subject_name);
+            return norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon';
+        };
+
+        subjects.forEach((subj) => {
+            if (isComponentId(subj.id)) return;
+
+            const rg = rawGrades[subj.id];
+            
+            if (rg.q1 > 0 && !isOffTerm(rg.term, 1)) {
+                genAvgQ1Total += rg.q1;
+                genAvgQ1Count++;
+            }
+            if (rg.q2 > 0 && !isOffTerm(rg.term, 2)) {
+                genAvgQ2Total += rg.q2;
+                genAvgQ2Count++;
+            }
+            if (rg.q3 > 0 && !isOffTerm(rg.term, 3)) {
+                genAvgQ3Total += rg.q3;
+                genAvgQ3Count++;
+            }
+            if (rg.final > 0) {
+                genAvgFinalTotal += rg.final;
+                genAvgFinalCount++;
+            }
+        });
+
+        if (commSubjs.length > 0) {
+            if (parentQ1 > 0 && !isOffTerm(parentTerm, 1)) {
+                genAvgQ1Total += parentQ1;
+                genAvgQ1Count++;
+            }
+            if (parentQ2 > 0 && !isOffTerm(parentTerm, 2)) {
+                genAvgQ2Total += parentQ2;
+                genAvgQ2Count++;
+            }
+            if (parentQ3 > 0 && !isOffTerm(parentTerm, 3)) {
+                genAvgQ3Total += parentQ3;
+                genAvgQ3Count++;
+            }
+            if (parentFinal > 0) {
+                genAvgFinalTotal += parentFinal;
+                genAvgFinalCount++;
+            }
+        }
+
+        const genT1 = genAvgQ1Count > 0 ? Math.round(genAvgQ1Total / genAvgQ1Count).toString() : '';
+        const genT2 = genAvgQ2Count > 0 ? Math.round(genAvgQ2Total / genAvgQ2Count).toString() : '';
+        const genT3 = genAvgQ3Count > 0 ? Math.round(genAvgQ3Total / genAvgQ3Count).toString() : '';
+        const genAvg = genAvgFinalCount > 0 ? Math.round(genAvgFinalTotal / genAvgFinalCount).toString() : '';
+        const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
+
+        return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
+    }, [subjects, records, student.lrn, activeSchoolYear]);
+
+    const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
+    
+    const nameFontSize = useMemo(() => {
+        if (studentFullName.length > 35) return 'text-[7.5px] leading-tight';
+        if (studentFullName.length > 25) return 'text-[8.2px] leading-tight';
+        return 'text-[9px]';
+    }, [studentFullName]);
+
+    const getSubjectFontSizeStyle = (name: string, isComponent?: boolean) => {
+        const len = name.length;
+        if (len === 0) return { fontSize: '10px' };
+
+        const usableWidth = isComponent ? 158 : 170;
+        const charWidthRatio = 0.54;
+        const calculatedSize = usableWidth / (len * charWidthRatio);
+        const finalSize = Math.max(7.5, Math.min(10, calculatedSize));
+        
+        return {
+            fontSize: `${finalSize.toFixed(2)}px`,
+            lineHeight: finalSize < 8.5 ? '1' : '1.1'
+        };
+    };
+
+    const sortedRows = useMemo(() => {
+        const coreSubjectsList: Subject[] = [];
+        const electiveSubjectsList: Subject[] = [];
+
+        subjects.forEach((subj) => {
+            const norm = subj.subject_name.trim().toLowerCase();
+            const cores = [
+                'effective communication',
+                'mabisang komunikasyon',
+                'general mathematics',
+                'general science',
+                'life and career skills',
+                'pag-aaral ng kasaysayan at lipunang pilipino',
+                'kasaysayan at lipunang pilipino'
+            ];
+            if (cores.some(c => norm.includes(c))) {
+                coreSubjectsList.push(subj);
+            } else {
+                electiveSubjectsList.push(subj);
+            }
+        });
+
+        const commSubjs = coreSubjectsList.filter(s => {
+            const n = normalizeSubjectName(s.subject_name);
+            return n === 'effectivecommunication' || n === 'mabisangkomunikasyon';
+        });
+
+        const otherCores = coreSubjectsList.filter(s => {
+            const n = normalizeSubjectName(s.subject_name);
+            return n !== 'effectivecommunication' && n !== 'mabisangkomunikasyon';
+        });
+
+        const sortedOtherCores = sortSubjects(otherCores, s => s.subject_name);
+        const sortedElectives = sortSubjects(electiveSubjectsList, s => s.subject_name);
+
+        type ShsSubjectItem = 
+            | { type: 'header'; name: string }
+            | { type: 'parent'; name: string; id: string; term?: Subject['term'] }
+            | { type: 'subject'; name: string; id: string; isComponent?: boolean; term?: Subject['term'] };
+
+        const finalRows: ShsSubjectItem[] = [];
+
+        const finalCores: ShsSubjectItem[] = [];
+        if (commSubjs.length > 0) {
+            const effComm = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+            const mabKom = commSubjs.find(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+            const parentTerm = effComm?.term || mabKom?.term;
+
+            finalCores.push({
+                type: 'parent',
+                name: 'Effective Communication & Mabisang Komunikasyon',
+                id: 'parent_ec_mk',
+                term: parentTerm
+            });
+
+            if (effComm) {
+                finalCores.push({
+                    type: 'subject',
+                    name: effComm.subject_name,
+                    id: effComm.id,
+                    isComponent: true,
+                    term: effComm.term
+                });
+            }
+            if (mabKom) {
+                finalCores.push({
+                    type: 'subject',
+                    name: mabKom.subject_name,
+                    id: mabKom.id,
+                    isComponent: true,
+                    term: mabKom.term
+                });
+            }
+        }
+
+        sortedOtherCores.forEach(s => {
+            finalCores.push({
+                type: 'subject',
+                name: s.subject_name,
+                id: s.id,
+                term: s.term
+            });
+        });
+
+        if (finalCores.length > 0) {
+            finalRows.push({ type: 'header', name: 'Core Subjects' });
+            finalRows.push(...finalCores);
+        }
+
+        if (sortedElectives.length > 0) {
+            finalRows.push({ type: 'header', name: 'Electives' });
+            sortedElectives.forEach(s => {
+                finalRows.push({
+                    type: 'subject',
+                    name: s.subject_name,
+                    id: s.id,
+                    term: s.term
+                });
+            });
+        }
+
+        return finalRows;
+    }, [subjects]);
+
+    return (
+        <div className="grade-slip-card font-serif text-[9px] relative text-black leading-tight">
+            {/* Header Section */}
+            <div className="flex items-center justify-between mb-1.5 px-1 shrink-0">
+                <img src={depedLogo} className="w-10 h-10 object-contain" alt="DepEd" />
+                <div className="text-center font-bold leading-none">
+                    <p className="uppercase text-[9px]">{schoolProfile.name}</p>
+                    <p className="uppercase text-[9px] font-normal tracking-wide mt-0.5">SCHOOL YEAR: {activeSchoolYear}</p>
+                    <h3 className="text-[9px] font-black tracking-widest mt-1.5 uppercase leading-none">Grade Slip</h3>
+                </div>
+                <img src={logoUrl} className="w-10 h-10 object-contain" alt="School" />
+            </div>
+
+            {/* Student Info */}
+            <div className="mb-1.5 px-1 shrink-0 text-[9px]">
+                <div className="flex mb-0.5 items-baseline">
+                    <span className="w-10 text-[9px]">Name:</span>
+                    <span className={`flex-1 border-b border-black font-bold uppercase pb-0.5 leading-none ${nameFontSize}`}>
+                        {studentFullName}
+                    </span>
+                </div>
+                <div className="flex gap-4 mb-0.5">
+                    <div className="flex flex-1">
+                        <span className="w-10">LRN:</span>
+                        <span className="flex-1 border-b border-black font-bold pb-0.5 leading-none">{student.lrn}</span>
+                    </div>
+                    <div className="flex w-20">
+                        <span className="w-8">Age:</span>
+                        <span className="flex-1 border-b border-black font-bold pb-0.5 leading-none text-center">{student.age || ''}</span>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex flex-1">
+                        <span className="w-15 shrink-0">Grade Level:</span>
+                        <span className="flex-1 border-b border-black font-bold leading-none text-center pb-0.5">
+                            {section?.section_grade_level?.replace(/Grade/i, '').trim() || ''}
+                        </span>
+                    </div>
+                    <div className="flex flex-1">
+                        <span className="w-10 shrink-0">Section:</span>
+                        <span className="flex-1 border-b border-black font-bold leading-none text-center uppercase pb-0.5">
+                            {section?.section_name || ''}
+                        </span>
+                    </div>
+                    <div className="flex flex-[1.2]">
+                        <span className="w-10 shrink-0">Track:</span>
+                        <span className="flex-1 border-b border-black font-bold leading-none pb-0.5 uppercase text-center">
+                            {student.track || ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Grades Table */}
+            <div className="flex-1 min-h-0 mb-1.5 px-1">
+                <table className="grade-table">
+                    <thead>
+                        <tr>
+                            <th rowSpan={2} className="subject-col">LEARNING AREAS</th>
+                            <th colSpan={3}>TERM</th>
+                            <th rowSpan={2} className="final-col leading-tight"><div className="w-min mx-auto">FINAL GRADE</div></th>
+                            <th rowSpan={2} className="remarks-col">REMARKS</th>
+                        </tr>
+                        <tr>
+                            <th className="q-col">1</th>
+                            <th className="q-col">2</th>
+                            <th className="q-col">3</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedRows.map((row, idx) => {
+                            if (row.type === 'header') {
+                                return (
+                                    <tr key={`header-${idx}`}>
+                                        <td 
+                                            colSpan={6} 
+                                            style={{ 
+                                                backgroundColor: '#E5E7EB', 
+                                                fontWeight: 'bold', 
+                                                textAlign: 'left', 
+                                                padding: '2px 4px',
+                                                fontSize: '8px',
+                                                textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {row.name}
+                                        </td>
+                                    </tr>
+                                );
+                            }
+
+                            const isParent = row.type === 'parent';
+                            const id = isParent ? 'parent_ec_mk' : row.id;
+                            const grades = studentGrades.subjectGrades[id] || { q1: '', q2: '', q3: '', final: '', remarks: '', term: undefined };
+                            const isComponent = !isParent && row.isComponent;
+
+                            return (
+                                <tr key={id}>
+                                    <td 
+                                        className={`subject-col ${isComponent ? 'pl-3 font-normal' : 'font-bold'}`}
+                                        style={{
+                                            ...getSubjectFontSizeStyle(row.name, isComponent),
+                                            fontWeight: isComponent ? 'normal' : 'bold'
+                                        }}
+                                    >
+                                        {row.name}
+                                    </td>
+                                    {[1, 2, 3].map(q => {
+                                        const offTerm = isOffTerm(row.term, q);
+                                        if (offTerm) {
+                                            return (
+                                                <td key={q} className="q-col" style={{ backgroundColor: '#E5E7EB' }}>
+                                                    {'\u00A0'}
+                                                </td>
+                                            );
+                                        }
+                                        const qVal = q === 1 ? grades.q1 : q === 2 ? grades.q2 : grades.q3;
+                                        return (
+                                            <td key={q} className="q-col">
+                                                {qVal || '\u00A0'}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="final-col">{grades.final || '\u00A0'}</td>
+                                    <td className="remarks-col text-[6.5px] tracking-tighter uppercase">{grades.remarks || '\u00A0'}</td>
+                                </tr>
+                            );
+                        })}
+                        {/* Visual Separator Row */}
+                        <tr style={{ height: '2px' }}>
+                            <td 
+                                colSpan={6} 
+                                style={{ 
+                                    backgroundColor: 'black', 
+                                    height: '2px', 
+                                    padding: 0, 
+                                    borderLeft: '1px solid black',
+                                    borderRight: '1px solid black',
+                                    borderTop: '1px solid black',
+                                    borderBottom: '1px solid black'
+                                }} 
+                            />
+                        </tr>
+                        <tr>
+                            <td className="subject-col font-bold text-[10px] text-center pb-1 pt-1">General Average</td>
+                            <td className="q-col font-bold">{studentGrades.genT1 || '\u00A0'}</td>
+                            <td className="q-col font-bold">{studentGrades.genT2 || '\u00A0'}</td>
+                            <td className="q-col font-bold">{studentGrades.genT3 || '\u00A0'}</td>
+                            <td className="final-col font-bold">{studentGrades.genAvg || '\u00A0'}</td>
+                            <td className="remarks-col text-[6.5px] tracking-tighter uppercase font-bold">{studentGrades.genRemarks || '\u00A0'}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Footer Signatures */}
+            <div className="mt-auto px-1 flex flex-col items-center justify-center shrink-0 w-full text-center">
+                <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
+                <div className="w-45 mx-auto text-center mt-2.5">
+                    <div className="font-bold text-[9px] uppercase border-b border-black pb-0.5 leading-none">
+                        {schoolProfile.adviser_name || '_________________________'}
+                    </div>
+                    <p className="text-[8px] italic mt-0.5">Adviser</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+

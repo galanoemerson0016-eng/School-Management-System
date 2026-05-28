@@ -152,7 +152,7 @@ export function mapStudentToSpecData({
       // Get all subjects for this grade from the database
       let dbSubjectsForGrade = dbSubjects.filter(s => {
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-        return subjectGradeNum === grade;
+        return subjectGradeNum === grade && s.term !== 'none';
       });
 
       const seen = new Set<string>();
@@ -304,7 +304,7 @@ export function mapStudentToSpecData({
         if (r.student_lrn !== student.lrn) return false;
         
         const dbSubject = dbSubjects.find(s => s.id === r.subject_id);
-        if (!dbSubject) return false;
+        if (!dbSubject || dbSubject.term === 'none') return false;
 
         const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
         if (subjectGradeNum !== gradeLevel) return false;

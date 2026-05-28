@@ -161,8 +161,8 @@ export function SF6Page() {
             let failedCount = 0;
 
             recordsBySubject.forEach((records, subjectId) => {
-                const hasLinkedSubject = subjects.some((subject) => subject.id === subjectId);
-                if (!hasLinkedSubject) return;
+                const linkedSubject = subjects.find((subject) => subject.id === subjectId);
+                if (!linkedSubject || linkedSubject.term === 'none') return;
 
                 const graded = records.filter((record) => (Number(record.final_grade) || 0) > 0);
                 if (graded.length === 0) return;

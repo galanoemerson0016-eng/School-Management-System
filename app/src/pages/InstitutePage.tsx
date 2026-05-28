@@ -297,13 +297,22 @@ export function InstitutePage() {
                                         placeholder="District"
                                         icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
                                     />
-                                    <FormInput 
-                                        label="Region" 
-                                        value={formData.region} 
-                                        onChange={v => setFormData({ ...formData, region: v })} 
-                                        placeholder="Region"
-                                        icon={<Globe className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
-                                    />
+                                    <div className="space-y-1">
+                                        <label className="block text-[9.5px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                            <Globe className="w-4 h-4 inline mr-1.5 text-slate-400 dark:text-slate-500 align-middle" />
+                                            <span className="align-middle">Region</span>
+                                        </label>
+                                        <select
+                                            value={formData.region || ''}
+                                            onChange={e => setFormData({ ...formData, region: e.target.value })}
+                                            className="w-full rounded-2xl py-2 px-4 outline-none transition-all bg-slate-50/60 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11.5px] font-semibold text-slate-700 dark:text-slate-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 shadow-xs"
+                                        >
+                                            <option value="">Select Region</option>
+                                            {['CAR', 'NCR', 'Region I', 'Region II', 'Region III', 'Region IV-A', 'MIMAROPA', 'Region V', 'Region VI', 'Region VII', 'Region VIII', 'NIR', 'Region IX', 'Region X', 'Region XI', 'Region XII', 'CARAGA', 'BARMM'].map(r => (
+                                                <option key={r} value={r}>{r}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     <FormInput 
                                         label="Division" 
                                         value={formData.division} 

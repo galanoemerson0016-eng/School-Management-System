@@ -575,6 +575,27 @@ export function StudentsPage() {
                                     {isImporting ? 'Importing...' : 'Import SF1'}
                                 </motion.button>
                             )}
+
+                            {canEdit && sectionStudents.length > 0 && (
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => {
+                                        if (selectedSectionObj) {
+                                            setPendingAction({
+                                                kind: 'clear-section',
+                                                sectionName: selectedSectionObj.section_name,
+                                                count: sectionStudents.length
+                                            });
+                                        }
+                                    }}
+                                    className="px-4 py-2.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-bold text-sm hover:bg-rose-100/50 hover:border-rose-200 transition-all flex items-center gap-2"
+                                    title="Delete All Students in Section"
+                                >
+                                    <Trash className="w-4 h-4" />
+                                    Delete All
+                                </motion.button>
+                            )}
                             
                             {canEdit && (
                                 <motion.button

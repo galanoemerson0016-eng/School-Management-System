@@ -43,6 +43,15 @@ export function SF5Page() {
         return sections.find(s => s.section_name === selectedSection || s.id === selectedSection);
     }, [sections, selectedSection]);
 
+    const curriculumLabel = useMemo(() => {
+        const gradeText = (currentSectionInfo?.section_grade_level || '').toString().toLowerCase();
+        const gradeNum = parseInt(gradeText.replace(/\D/g, '')) || 0;
+
+        if (gradeNum === 11) return 'Strengthened Senior High School';
+        if (gradeNum === 12) return 'K-12';
+        return 'Matatag';
+    }, [currentSectionInfo?.section_grade_level]);
+
     // Helpers to compute average and status
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -53,7 +62,7 @@ export function SF5Page() {
 
     const sectionSubjects = useMemo(() => {
         if (!currentSectionInfo) return [];
-        return subjects.filter((subject) => subject.section_id === currentSectionInfo.id);
+        return subjects.filter((subject) => subject.section_id === currentSectionInfo.id && subject.term !== 'none');
     }, [subjects, currentSectionInfo]);
 
     const isMusicArtsSubject = (name: string) => {
@@ -479,45 +488,45 @@ export function SF5Page() {
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">Region</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{schoolProfile.region || 'Test Region'}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{schoolProfile.region || 'Test Region'}</div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">School ID</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{schoolProfile.school_id || '123456'}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{schoolProfile.school_id || '123456'}</div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">School Name</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{schoolProfile.name || 'Test School'}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{schoolProfile.name || 'Test School'}</div>
                                                             </div>
                                                         </div>
 
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">Division</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{schoolProfile.division || 'Test Division'}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{schoolProfile.division || 'Test Division'}</div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">School Year</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{activeSchoolYear}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{activeSchoolYear}</div>
                                                             </div>
                                                         </div>
 
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">District</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">{schoolProfile.district || 'Test District'}</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{schoolProfile.district || 'Test District'}</div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">Curriculum</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">MATATAG</div>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">{curriculumLabel}</div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <span className="w-20 shrink-0 text-[12px] whitespace-nowrap">Grade Level</span>
-                                                                <div className="border border-black px-2 w-18 flex-none h-[22px] flex items-center justify-center font-bold tracking-wide">
+                                                                <div className="border border-black px-2 w-18 flex-none h-5.5 flex items-center justify-center font-bold tracking-wide">
                                                                     {currentSectionInfo?.section_grade_level?.replace('Grade ', '') || 'Grade 1'}
                                                                 </div>
-                                                                <span className="ml-[2px] shrink-0 text-[12px] whitespace-nowrap">Section</span>
-                                                                <div className="border border-black px-2 flex-1 h-[22px] flex items-center font-bold tracking-wide">
+                                                                <span className="ml-0.5 shrink-0 text-[12px] whitespace-nowrap">Section</span>
+                                                                <div className="border border-black px-2 flex-1 h-5.5 flex items-center font-bold tracking-wide">
                                                                     {currentSectionInfo?.section_name || 'Test Section'}
                                                                 </div>
                                                             </div>
@@ -547,7 +556,7 @@ export function SF5Page() {
                                                                     ACTION TAKEN:<br/>PROMOTED,<br/>*Conditional or<br/>RETAINED
                                                                 </th>
                                                                 <th className="border border-black p-1 font-normal align-top text-[8.5px]" colSpan={2}>
-                                                                    <div className="leading-tight mb-[2px] mt-0.5">INCOMPLETE SUBJECT/S</div>
+                                                                    <div className="leading-tight mb-0.5 mt-0.5">INCOMPLETE SUBJECT/S</div>
                                                                     <div className="text-[7.5px] leading-none px-1 pb-1">
                                                                         (This column is for K to 12 Curriculum and remaining RBEC in High School.)
                                                                     </div>

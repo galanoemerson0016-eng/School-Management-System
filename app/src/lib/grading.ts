@@ -21,14 +21,210 @@ export const WEIGHTS_MAPEH_TLE = {
     quarterly_exam: 0.20,      // 20%
 };
 
-export type SubjectCluster = 'languages_ap_esp' | 'science_math' | 'mapeh_tle';
+// SHS Core Subjects, Other SHS Academic Electives (20/50/30)
+export const WEIGHTS_SHS_CORE_ACADEMIC = {
+    written_works: 0.20,
+    performance_tasks: 0.50,
+    quarterly_exam: 0.30,
+};
 
-// Determine subject cluster based on subject name
-export function getSubjectCluster(subjectName: string): SubjectCluster {
+// SHS Field Exposure, Arts Apprenticeship, Creative Production and Innovation (15/70/15)
+export const WEIGHTS_SHS_FIELD_EXPOSURE = {
+    written_works: 0.15,
+    performance_tasks: 0.70,
+    quarterly_exam: 0.15,
+};
+
+// SHS Arts, Sports, Health and Wellness Electives (20/60/20)
+export const WEIGHTS_SHS_ARTS_SPORTS = {
+    written_works: 0.20,
+    performance_tasks: 0.60,
+    quarterly_exam: 0.20,
+};
+
+// SHS Research Electives and Design and Innovation (40/60/0)
+export const WEIGHTS_SHS_RESEARCH = {
+    written_works: 0.40,
+    performance_tasks: 0.60,
+    quarterly_exam: 0.00,
+};
+
+// SHS TechPro Electives (15/65/20)
+export const WEIGHTS_SHS_TECHPRO = {
+    written_works: 0.15,
+    performance_tasks: 0.65,
+    quarterly_exam: 0.20,
+};
+
+// SHS Work Immersion (20/80/0)
+export const WEIGHTS_SHS_IMMERSION = {
+    written_works: 0.20,
+    performance_tasks: 0.80,
+    quarterly_exam: 0.00,
+};
+
+// Grade 12 Core Subjects (all tracks) (25/50/25)
+export const WEIGHTS_G12_CORE = {
+    written_works: 0.25,
+    performance_tasks: 0.50,
+    quarterly_exam: 0.25,
+};
+
+// Grade 12 Academic Track - All other subjects (25/45/30)
+export const WEIGHTS_G12_ACADEMIC_OTHER = {
+    written_works: 0.25,
+    performance_tasks: 0.45,
+    quarterly_exam: 0.30,
+};
+
+// Grade 12 Academic Track - Work Immersion / Research / Business Enterprise Simulation (35/40/25)
+export const WEIGHTS_G12_ACADEMIC_IMMERSION_RESEARCH = {
+    written_works: 0.35,
+    performance_tasks: 0.40,
+    quarterly_exam: 0.25,
+};
+
+// Grade 12 TVL / Sports / Arts Track - All other subjects (and Immersion/Research) (20/60/20)
+export const WEIGHTS_G12_TVL_ALL = {
+    written_works: 0.20,
+    performance_tasks: 0.60,
+    quarterly_exam: 0.20,
+};
+
+export type SubjectCluster = 
+    | 'languages_ap_esp' 
+    | 'science_math' 
+    | 'mapeh_tle' 
+    | 'shs_core_academic' 
+    | 'shs_field_exposure' 
+    | 'shs_arts_sports' 
+    | 'shs_research' 
+    | 'shs_techpro' 
+    | 'shs_immersion'
+    | 'g12_core'
+    | 'g12_academic_other'
+    | 'g12_academic_immersion_research'
+    | 'g12_tvl_all';
+
+// Determine subject cluster based on subject name, grade level, and track
+export function getSubjectCluster(subjectName: string, gradeLevel?: string, track?: string): SubjectCluster {
     const name = subjectName.toLowerCase();
     const cleanName = name.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    const isSHS = gradeLevel ? (gradeLevel.includes('11') || gradeLevel.includes('12')) : false;
 
-    // MAPEH, TLE, EPP, Specialization cluster (20/60/20)
+    if (isSHS) {
+        const isG12 = gradeLevel ? gradeLevel.includes('12') : false;
+        
+        if (isG12) {
+            // Check if Core Subject
+            const norm = subjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cores = [
+                "21st century literature from the philippines and the world",
+                "contemporary philippine arts from the regions",
+                "disaster readiness and risk reduction",
+                "earth and life science",
+                "earth science",
+                "general mathematics",
+                "introduction to philosophy of the human person",
+                "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+                "media and information literacy",
+                "oral communication in context",
+                "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+                "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+                "personal development",
+                "physical education and health 1",
+                "physical education and health 2",
+                "physical education and health 3",
+                "physical education and health 4",
+                "physical science",
+                "reading and writing skills",
+                "statistics and probability",
+                "understanding culture society and politics",
+                "understanding culture, society and politics",
+                "21st century literature",
+                "contemporary philippine arts",
+                "pe and health 3",
+                "pe and health 4"
+            ];
+            const isCore = cores.some(c => {
+                const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+                return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+            });
+
+            if (isCore) {
+                return 'g12_core';
+            }
+
+            // Determine if track is TVL
+            const isTVL = track ? (
+                track.toLowerCase().includes('tvl') || 
+                track.toLowerCase().includes('techpro') || 
+                track.toLowerCase().includes('he') || 
+                track.toLowerCase().includes('ict') ||
+                track.toLowerCase().includes('sports') ||
+                track.toLowerCase().includes('arts')
+            ) : false;
+
+            if (isTVL) {
+                return 'g12_tvl_all';
+            }
+
+            // Check if Academic Track Immersion/Research
+            const isImmersionResearch = 
+                name.includes('work immersion') || cleanName.includes('workimmersion') ||
+                name.includes('research') || name.includes('inquiries') || name.includes('investigation') ||
+                name.includes('business') || name.includes('simulation') || name.includes('enterprise') ||
+                name.includes('exhibit') || name.includes('performance');
+
+            if (isImmersionResearch) {
+                return 'g12_academic_immersion_research';
+            }
+
+            return 'g12_academic_other';
+        }
+
+        // Grade 11 logic
+        // 1. Work Immersion
+        if (name.includes('work immersion') || cleanName.includes('workimmersion')) {
+            return 'shs_immersion';
+        }
+        // 2. Research Electives
+        if (name.includes('research') || name.includes('inquiries') || name.includes('investigation') || name.includes('design and innovation') || cleanName.includes('designandinnovation')) {
+            return 'shs_research';
+        }
+        // 3. Field Exposure
+        if (name.includes('field exposure') || cleanName.includes('fieldexposure') || name.includes('apprenticeship') || name.includes('creative production') || cleanName.includes('creativeproduction')) {
+            return 'shs_field_exposure';
+        }
+        // 4. Arts & Sports
+        if (name.includes('creative industries') || cleanName.includes('creativeindustries') || 
+            name.includes('arts 1') || name.includes('arts 2') || name.includes('arts1') || name.includes('arts2') ||
+            name.includes('movement') || name.includes('fitness') || name.includes('recreation') || 
+            name.includes('sports') || name.includes('dance') || name.includes('coaching') || name.includes('officiating')) {
+            return 'shs_arts_sports';
+        }
+        // 5. TechPro Electives
+        const techPros = [
+            'aesthetic services', 'aesthethic services', 'beauty care', 'barbering services', 'caregiving', 'hairdressing', 'wellness services', 'hilot',
+            'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+            'organic agriculture', 'poultry production', 'ruminants production', 'swine production', 'garments artisanry',
+            'handicrafts', 'weaving', 'automotive servicing', 'electrical repair', 'engine and chassis', 'driving',
+            'motorcycle', 'small engine', 'carpentry', 'construction operation', 'manual metal arc welding', 'welding',
+            'technical drafting', 'animation', 'illustration', 'visual graphics', 'bakery operation',
+            'events management', 'food and beverage', 'hotel operation', 'front office', 'housekeeping', 'kitchen operations',
+            'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+            'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic systems', 'broadband installation',
+            'computer programming', 'java', '.net', 'oracle', 'computer systems servicing', 'contact center', 'marine engineering',
+            'marine transportation', 'support level', 'ships catering'
+        ];
+        if (techPros.some(tp => name.includes(tp) || cleanName.includes(tp.replace(/\s+/g, '')))) {
+            return 'shs_techpro';
+        }
+        // Default SHS Academic/Core
+        return 'shs_core_academic';
+    }
+
+    // Elementary & JHS mapping
     if (name.includes('mapeh') || cleanName.includes('mapeh') ||
         name.includes('music') || cleanName.includes('music') ||
         name.includes('arts') || cleanName.includes('arts') ||
@@ -61,6 +257,26 @@ export function getWeights(cluster: SubjectCluster) {
             return WEIGHTS_SCIENCE_MATH;
         case 'mapeh_tle':
             return WEIGHTS_MAPEH_TLE;
+        case 'shs_core_academic':
+            return WEIGHTS_SHS_CORE_ACADEMIC;
+        case 'shs_field_exposure':
+            return WEIGHTS_SHS_FIELD_EXPOSURE;
+        case 'shs_arts_sports':
+            return WEIGHTS_SHS_ARTS_SPORTS;
+        case 'shs_research':
+            return WEIGHTS_SHS_RESEARCH;
+        case 'shs_techpro':
+            return WEIGHTS_SHS_TECHPRO;
+        case 'shs_immersion':
+            return WEIGHTS_SHS_IMMERSION;
+        case 'g12_core':
+            return WEIGHTS_G12_CORE;
+        case 'g12_academic_other':
+            return WEIGHTS_G12_ACADEMIC_OTHER;
+        case 'g12_academic_immersion_research':
+            return WEIGHTS_G12_ACADEMIC_IMMERSION_RESEARCH;
+        case 'g12_tvl_all':
+            return WEIGHTS_G12_TVL_ALL;
         case 'languages_ap_esp':
         default:
             return WEIGHTS_LANGUAGES_AP_ESP;
@@ -119,3 +335,108 @@ export function transmuteGrade(initialGrade: number): number {
     const matched = transmutationRanges.find((range) => score >= range.min && score <= range.max);
     return matched ? matched.grade : 60;
 }
+
+// Grade stage checkers
+export function isKindergarten(gradeLevel: string): boolean {
+    const gl = (gradeLevel || '').toLowerCase();
+    return gl.includes('kinder');
+}
+
+export function isGrade1To3(gradeLevel: string): boolean {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('grade')) {
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        return num >= 1 && num <= 3;
+    }
+    return false;
+}
+
+export function isKeyStage1(gradeLevel: string): boolean {
+    return isKindergarten(gradeLevel) || isGrade1To3(gradeLevel);
+}
+
+export function isSHS(gradeLevel: string): boolean {
+    const gl = (gradeLevel || '').toLowerCase();
+    return gl.includes('11') || gl.includes('12') || gl.includes('shs');
+}
+
+// Letter grade transmutes for Key Stage 1
+export function getKs1LetterGrade(numericGrade: number, gradeLevel: string): string {
+    const score = Math.round(numericGrade);
+    
+    if (isKindergarten(gradeLevel)) {
+        if (score >= 80) return 'C';
+        if (score >= 65) return 'D';
+        return 'B';
+    }
+    
+    if (isGrade1To3(gradeLevel)) {
+        if (score >= 90) return 'A';
+        if (score >= 80) return 'B';
+        if (score >= 75) return 'C';
+        if (score >= 65) return 'D';
+        return 'E';
+    }
+    
+    return String(score);
+}
+
+// English/Filipino descriptor for KS1 letter grades
+export function getKs1Descriptor(letterGrade: string, gradeLevel: string): string {
+    const lg = (letterGrade || '').toUpperCase().trim();
+    
+    if (isKindergarten(gradeLevel)) {
+        switch (lg) {
+            case 'C': return 'Consistent (Palagiang Naipapakita)';
+            case 'D': return 'Developing (Umuusbong)';
+            case 'B': return 'Beginning (Nagsisimula)';
+            default: return '';
+        }
+    }
+    
+    // Grades 1-3
+    switch (lg) {
+        case 'A': return 'Advancing (Namumukod-tangi)';
+        case 'B': return 'Benchmarking (Napamamalas)';
+        case 'C': return 'Connecting (Natutungo)';
+        case 'D': return 'Developing (Napauunlad)';
+        case 'E': return 'Emerging (Nagsisimula)';
+        default: return '';
+    }
+}
+
+// Unified qualitative descriptors for Grades 4-12 (KS2-KS4) or KS1 letters
+export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string): string {
+    if (!grade || grade <= 0) return '';
+    
+    if (isKeyStage1(gradeLevel)) {
+        const letter = getKs1LetterGrade(grade, gradeLevel);
+        return getKs1Descriptor(letter, gradeLevel);
+    }
+    
+    // Grades 4-12
+    if (grade >= 90) return 'Advancing (Namumukod-tangi)';
+    if (grade >= 80) return 'Benchmarking (Napamamalas)';
+    if (grade >= 75) return 'Connecting (Natutungo)';
+    if (grade >= 65) return 'Developing (Napauunlad)';
+    return 'Emerging (Nasisimula)';
+}
+
+// Formatter to display numerical grade as descriptive letter (for KS1) or rounded number (for KS2-KS4)
+export function formatGradeForDisplay(numericGrade: number | string | null | undefined, gradeLevel: string): string {
+    if (numericGrade === null || numericGrade === undefined || numericGrade === '') return '';
+    
+    // If it's already a letter like A, B, C, D, E, just return it
+    const strVal = String(numericGrade).trim();
+    if (/^[A-E]$/i.test(strVal)) return strVal.toUpperCase();
+    
+    const grade = Number(numericGrade);
+    if (isNaN(grade) || grade <= 0) return strVal;
+    
+    if (isKeyStage1(gradeLevel)) {
+        return getKs1LetterGrade(grade, gradeLevel);
+    }
+    
+    return String(Math.round(grade));
+}
+

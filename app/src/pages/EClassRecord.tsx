@@ -6,7 +6,7 @@ import { Printer, CloudUpload, Plus, Minus } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
-import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const WW_COUNT = 5;
@@ -16,6 +16,130 @@ const ST_COUNT = 3;
 const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
     const src = Array.isArray(scores) ? scores : [];
     return Array.from({ length: count }, (_, i) => src[i] ?? '');
+};
+
+const getSubjectCategory = (subjectName: string, gradeLevel: string): string => {
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+    if (!isSHS) {
+        return 'Core Subject (All Tracks)';
+    }
+
+    const normalized = subjectName.trim().toLowerCase();
+    const isG12 = gradeLevel.includes('12');
+
+    if (isG12) {
+        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Core Subjects
+        const cores = [
+            "21st century literature from the philippines and the world",
+            "contemporary philippine arts from the regions",
+            "disaster readiness and risk reduction",
+            "earth and life science",
+            "earth science",
+            "general mathematics",
+            "introduction to philosophy of the human person",
+            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+            "media and information literacy",
+            "oral communication in context",
+            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+            "personal development",
+            "physical education and health 1",
+            "physical education and health 2",
+            "physical education and health 3",
+            "physical education and health 4",
+            "physical science",
+            "reading and writing skills",
+            "statistics and probability",
+            "understanding culture society and politics",
+            "understanding culture, society and politics",
+            "21st century literature",
+            "contemporary philippine arts",
+            "pe and health 3",
+            "pe and health 4"
+        ];
+        if (cores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core';
+        }
+
+        // 2. Applied Subjects
+        const applied = [
+            "empowerment technologies",
+            "english for academic and professional purposes",
+            "entrepreneurship",
+            "filipino sa piling larang akademik",
+            "filipino sa piling larang akademiko",
+            "filipino sa piling larang isports",
+            "filipino sa piling larang sining at disenyo",
+            "filipino sa piling larang teknikal bokasyunal",
+            "filipino sa piling larang teknikal-bokasyunal",
+            "filipino sa piling larang",
+            "inquiries investigations and immersion",
+            "inquiries, investigations and immersion",
+            "practical research 1",
+            "practical research 2"
+        ];
+        if (applied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied';
+        }
+
+        // 3. Specialized Subjects
+        return 'Specialized';
+    }
+
+    const norm = normalized;
+
+    // 1. Core Subject (All Tracks)
+    const cores = [
+        'effective communication',
+        'mabisang komunikasyon',
+        'general mathematics',
+        'general science',
+        'life and career skills',
+        'pag-aaral ng kasaysayan at lipunang pilipino',
+        'kasaysayan at lipunang pilipino'
+    ];
+    if (cores.some(c => norm.includes(c))) {
+        return 'Core Subject (All Tracks)';
+    }
+
+    // 2. TechPro Elective (Work Immersion)
+    if (norm.startsWith('work immersion')) {
+        return 'TechPro Elective (Work Immersion)';
+    }
+
+    // 3. Academic Elective (Field Experience / Exposure, and Sports and Arts)
+    if (norm.startsWith('field exposure') || norm.startsWith('field experience') || norm.includes('apprenticeship')) {
+        return 'Academic Elective (Field Experience / Exposure, and Sports and Arts)';
+    }
+
+    // 4. TechPro Electives (All Other Electives)
+    const techProElectives = [
+        'beauty care', 'barbering', 'caregiving', 'hairdressing', 'wellness', 'massage', 'hilot',
+        'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+        'organic agriculture', 'poultry', 'ruminants', 'swine', 'garments', 'handicrafts', 'weaving',
+        'automotive servicing', 'electrical repair', 'engine and chassis', 'driving and automotive',
+        'motorcycle', 'small engine', 'carpentry', 'construction operation', 'metal arc welding',
+        'technical drafting', 'animation', 'illustration', 'visual graphics', 'bakery operation',
+        'events management', 'food and beverage operation', 'hotel operation', 'housekeeping',
+        'kitchen operations', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+        'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic',
+        'broadband installation', 'computer programming', 'computer systems servicing',
+        'contact center services', 'marine engineering', 'marine transportation', 'ships catering'
+    ];
+    if (techProElectives.some(tp => norm.includes(tp))) {
+        return 'TechPro Elective (All Other Electives)';
+    }
+
+    // 5. Academic Elective (All Other Electives)
+    return 'Academic Elective (All Other Electives)';
 };
 
 export function EClassRecord() {
@@ -112,7 +236,7 @@ export function EClassRecord() {
         
         // Use the same filtering logic as the main dropdown to find components
         // This ensures generic subjects assigned to the section are also caught
-        const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects);
+        const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
         
         return sectionSubjects.filter(s => {
             const n = s.subject_name.toLowerCase();
@@ -125,7 +249,7 @@ export function EClassRecord() {
     const filteredSubjects = useMemo(() => {
         if (!selectedSectionObj) return [];
 
-        let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)];
+        let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)].filter(s => s.term !== 'none');
         
         // Remove individual components from main dropdown
         base = base.filter(s => {
@@ -134,6 +258,17 @@ export function EClassRecord() {
                                 ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
             return !isComponent;
         });
+
+        // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
+        if (typeof quarter === 'number') {
+            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === quarter);
+        } else if (quarter === 'summary_t1') {
+            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 1);
+        } else if (quarter === 'summary_t2') {
+            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 2);
+        } else if (quarter === 'summary_t3') {
+            base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === 3);
+        }
 
         const hasMapeh = base.some(s => s.subject_name.toUpperCase() === 'MAPEH');
         if (!hasMapeh && mapehComponents.length > 0) {
@@ -147,7 +282,64 @@ export function EClassRecord() {
         }
 
         return base.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
-    }, [subjects, selectedSectionObj, user, mapehComponents]);
+    }, [subjects, selectedSectionObj, user, mapehComponents, quarter]);
+
+    // Group subjects by category if it's SHS
+    const groupedSubjects = useMemo(() => {
+        const isSHS = sectionGradeLevel.includes('11') || sectionGradeLevel.includes('12');
+        if (!isSHS) return null;
+
+        const isG12 = sectionGradeLevel.includes('12');
+
+        if (isG12) {
+            const grouped = {
+                'Core': [] as Subject[],
+                'Applied': [] as Subject[],
+                'Specialized': [] as Subject[]
+            };
+
+            filteredSubjects.forEach(s => {
+                const cat = getSubjectCategory(s.subject_name, sectionGradeLevel);
+                if (grouped[cat as keyof typeof grouped]) {
+                    grouped[cat as keyof typeof grouped].push(s);
+                } else {
+                    grouped['Specialized'].push(s);
+                }
+            });
+
+            return grouped;
+        } else {
+            const grouped = {
+                'Core Subject (All Tracks)': [] as Subject[],
+                'Academic Elective (All Other Electives)': [] as Subject[],
+                'Academic Elective (Field Experience / Exposure, and Sports and Arts)': [] as Subject[],
+                'TechPro Elective (All Other Electives)': [] as Subject[],
+                'TechPro Elective (Work Immersion)': [] as Subject[]
+            };
+
+            filteredSubjects.forEach(s => {
+                const cat = getSubjectCategory(s.subject_name, sectionGradeLevel);
+                if (grouped[cat as keyof typeof grouped]) {
+                    grouped[cat as keyof typeof grouped].push(s);
+                } else {
+                    grouped['Academic Elective (All Other Electives)'].push(s);
+                }
+            });
+
+            return grouped;
+        }
+    }, [filteredSubjects, sectionGradeLevel]);
+
+    // Reset selected subject if it's no longer offered in the current term
+    useEffect(() => {
+        if (selectedSubject && selectedSubject !== 'virtual_mapeh' && filteredSubjects.length > 0) {
+            const exists = filteredSubjects.some(s => s.id === selectedSubject);
+            if (!exists) {
+                setSelectedSubject('');
+                setGlobalSubject('');
+            }
+        }
+    }, [quarter, filteredSubjects, selectedSubject, setGlobalSubject]);
 
     // Determine the actual subject ID to use for grading/fetching
     const effectiveSubjectId = useMemo(() => {
@@ -216,9 +408,20 @@ export function EClassRecord() {
     // Get current subject and its weight cluster
 
 
+    const sectionTrack = useMemo(() => {
+        if (!selectedSection) return '';
+        const norm = selectedSection.toUpperCase();
+        if (norm.includes('STEM')) return 'Academic - STEM';
+        if (norm.includes('ABM')) return 'Academic - ABM';
+        if (norm.includes('HUMSS')) return 'Academic - HUMSS';
+        if (norm.includes('GAS')) return 'Academic - GAS';
+        if (norm.includes('TVL') || norm.includes('TECHPRO') || norm.includes('HE') || norm.includes('ICT')) return 'Technical-Vocational-Livelihood (TVL)';
+        return 'Academic Track';
+    }, [selectedSection]);
+
     const currentCluster = useMemo(() => {
-        return getSubjectCluster(subjectName);
-    }, [subjectName]);
+        return getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
+    }, [subjectName, sectionGradeLevel, sectionTrack]);
 
     const currentWeights = useMemo(() => {
         return getWeights(currentCluster);
@@ -344,6 +547,11 @@ export function EClassRecord() {
         };
     }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights]);
 
+    const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
+        if (!hasScores || grade <= 0) return '';
+        return getGradeDescriptorWithFilipino(grade, sectionGradeLevel);
+    }, [sectionGradeLevel]);
+
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
         const isMapeh = subjectName.toUpperCase() === 'MAPEH';
         
@@ -431,16 +639,7 @@ export function EClassRecord() {
             descriptor,
             isMapeh: false
         };
-    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents]);
-
-    const getGradeDescriptor = (grade: number, hasScores: boolean) => {
-        if (!hasScores || grade <= 0) return '';
-        if (grade >= 90) return 'Advancing (Namumukod-tangi)';
-        if (grade >= 80) return 'Benchmarking (Napamamalas)';
-        if (grade >= 75) return 'Connecting (Natutungo)';
-        if (grade >= 65) return 'Developing (Napauunlad)';
-        return 'Emerging (Nasisimula)';
-    };
+    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor]);
 
     const proficiencyDataCalc = useMemo(() => {
         const levels = [
@@ -797,9 +996,22 @@ export function EClassRecord() {
                             disabled={!selectedSection}
                         >
                             <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
-                            {filteredSubjects.map((s) => (
-                                <option key={s.id} value={s.id}>{s.subject_name}</option>
-                            ))}
+                            {groupedSubjects ? (
+                                Object.entries(groupedSubjects).map(([category, items]) => {
+                                    if (items.length === 0) return null;
+                                    return (
+                                        <optgroup key={category} label={category}>
+                                            {items.map((s) => (
+                                                <option key={s.id} value={s.id}>{s.subject_name}</option>
+                                            ))}
+                                        </optgroup>
+                                    );
+                                })
+                            ) : (
+                                filteredSubjects.map((s) => (
+                                    <option key={s.id} value={s.id}>{s.subject_name}</option>
+                                ))
+                            )}
                         </select>
                     </div>
 
@@ -833,14 +1045,9 @@ export function EClassRecord() {
                             <option value={2}>Term 2</option>
                             <option value={3}>Term 3</option>
                             {(selectedSubject === 'virtual_mapeh' || subjectName.toUpperCase() === 'MAPEH') ? (
-                                <>
-                                    <option value="summary_t1">Term 1 Summary</option>
-                                    <option value="summary_t2">Term 2 Summary</option>
-                                    <option value="summary_t3">Term 3 Summary</option>
-                                    <option value="summary_final">Final Summary</option>
-                                </>
+                                <option value="summary_final">Final Summary</option>
                             ) : (
-                                <option value="summary">Summary</option>
+                                <option value="summary">Final Summary</option>
                             )}
                         </select>
                     </div>
@@ -1039,26 +1246,26 @@ export function EClassRecord() {
                                                 {summary.isMapeh ? (
                                                     (summary as any).mapehMode === 'final' ? (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).ma || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).pe || ''}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).ma, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).pe, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     )
                                                 ) : (
                                                     <>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
-                                                        <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
                                                             {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
@@ -1082,26 +1289,26 @@ export function EClassRecord() {
                                                 {summary.isMapeh ? (
                                                     (summary as any).mapehMode === 'final' ? (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).ma || ''}</td>
-                                                            <td className="border border-black text-center font-semibold">{(summary as any).pe || ''}</td>
-                                                            <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).ma, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).pe, sectionGradeLevel)}</td>
+                                                            <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                             <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         </>
                                                     )
                                                 ) : (
                                                     <>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t1 || ''}</td>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t2 || ''}</td>
-                                                        <td className="border border-black text-center font-semibold">{(summary as any).t3 || ''}</td>
-                                                        <td className="border border-black text-center font-bold bg-gray-50">{summary.final || ''}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t1, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t2, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-semibold">{formatGradeForDisplay((summary as any).t3, sectionGradeLevel)}</td>
+                                                        <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                         <td className="border border-black text-center font-medium text-[9px]">{summary.descriptor || ''}</td>
                                                         <td className={`border border-black text-center font-bold text-[9px] ${summary.final !== '' && Number(summary.final) >= 75 ? 'text-green-700' : 'text-red-600'}`}>
                                                             {summary.final !== '' ? (Number(summary.final) >= 75 ? 'PASSED' : 'FAILED') : ''}
@@ -1186,7 +1393,7 @@ export function EClassRecord() {
                                 style={{ gridTemplateColumns: '250px 1fr 1fr 1fr' }}
                             >
                                 <div className="h-9 px-2 border-r border-black font-bold bg-yellow-100 flex items-center justify-center text-center">
-                                    {(quarter as any) === 'summary' ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
+                                    {(typeof quarter === 'string' && quarter.startsWith('summary')) ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
                                 </div>
                                 <div className="h-9 px-2 border-r border-black flex items-center justify-center whitespace-nowrap overflow-hidden">
                                     <span className="font-bold mr-2 whitespace-nowrap shrink-0">GRADE & SECTION:</span>
@@ -1349,7 +1556,7 @@ export function EClassRecord() {
                                                 <td className="border border-black bg-yellow-100 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
                                                 <td className="border border-black bg-gray-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
                                                 <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
-                                                    {summary.quarterlyGrade > 0 ? summary.quarterlyGrade : ''}
+                                                    {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
                                                 </td>
                                                 <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1">
                                                     {descriptor}

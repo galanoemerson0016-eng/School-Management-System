@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
-import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, type GradeLevel } from '../../lib/curriculum';
+import { STANDARD_SUBJECTS, type GradeLevel } from '../../lib/curriculum';
 import { motion } from 'framer-motion';
-import { X, Save, Shield, BookOpen, AlertCircle } from 'lucide-react';
+import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check } from 'lucide-react';
 
 interface SectionFormProps {
     section: Section | null;
@@ -19,8 +19,176 @@ const GRADE_LEVELS = [
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
 
+const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
+    const normalized = subjectName.trim().toLowerCase();
+    const isG11 = gradeLevel.includes('11');
+    const isG12 = gradeLevel.includes('12');
+
+    if (isG11) {
+        const cores = [
+            'effective communication',
+            'mabisang komunikasyon',
+            'general mathematics',
+            'general science',
+            'life and career skills',
+            'pag-aaral ng kasaysayan at lipunang pilipino',
+            'kasaysayan at lipunang pilipino'
+        ];
+        if (cores.some(c => normalized.includes(c))) {
+            return 'Core Subject (All Tracks)';
+        }
+
+        if (normalized.startsWith('field exposure') || normalized.startsWith('field experience') || normalized.includes('apprenticeship')) {
+            return 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)';
+        }
+
+        const techPros = [
+            'aesthetic services', 'aesthethic services', 'aesthetic', 'aesthethic', 'beauty care', 'barbering services', 'caregiving', 'hairdressing', 'wellness services', 'hilot',
+            'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+            'organic agriculture', 'poultry production', 'ruminants production', 'swine production', 'garments artisanry',
+            'handicrafts', 'weaving', 'automotive servicing', 'electrical repair', 'engine and chassis', 'driving',
+            'motorcycle', 'small engine', 'carpentry', 'construction operation', 'manual metal arc welding', 'welding',
+            'technical drafting', 'animation', 'illustration', 'visual graphics', 'visual graphic', 'bakery operation',
+            'events management', 'food and beverage', 'hotel operation', 'front office', 'housekeeping', 'kitchen operations',
+            'kitchen operation', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+            'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic systems', 'broadband installation',
+            'computer programming', 'java', '.net', 'oracle', 'computer systems servicing', 'contact center', 'marine engineering',
+            'marine transportation', 'support level', 'ships catering'
+        ];
+        if (techPros.some(tp => normalized.includes(tp))) {
+            return 'TechPro Elective (All Other Elective)';
+        }
+
+        return 'Academic Elective (All Other Electives)';
+    }
+
+    if (isG12) {
+        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Core Subjects
+        const cores = [
+            "21st century literature from the philippines and the world",
+            "contemporary philippine arts from the regions",
+            "disaster readiness and risk reduction",
+            "earth and life science",
+            "earth science",
+            "general mathematics",
+            "introduction to philosophy of the human person",
+            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+            "media and information literacy",
+            "oral communication in context",
+            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+            "personal development",
+            "physical education and health 1",
+            "physical education and health 2",
+            "physical education and health 3",
+            "physical education and health 4",
+            "physical science",
+            "reading and writing skills",
+            "statistics and probability",
+            "understanding culture society and politics",
+            "understanding culture, society and politics",
+            "21st century literature",
+            "contemporary philippine arts",
+            "pe and health 3",
+            "pe and health 4"
+        ];
+        if (cores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core Subjects';
+        }
+
+        // 2. Applied Subjects
+        const applied = [
+            "empowerment technologies",
+            "english for academic and professional purposes",
+            "entrepreneurship",
+            "filipino sa piling larang akademik",
+            "filipino sa piling larang akademiko",
+            "filipino sa piling larang isports",
+            "filipino sa piling larang sining at disenyo",
+            "filipino sa piling larang teknikal bokasyunal",
+            "filipino sa piling larang teknikal-bokasyunal",
+            "filipino sa piling larang",
+            "inquiries investigations and immersion",
+            "inquiries, investigations and immersion",
+            "practical research 1",
+            "practical research 2"
+        ];
+        if (applied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied Subjects';
+        }
+
+        // 3. Specialized Subjects
+        return 'Specialized Subjects';
+    }
+
+    return '';
+};
+
+const getCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
+    const normalized = subjectName.trim().toLowerCase();
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+
+    if (isSHS) {
+        return getShsCategoryForSubject(subjectName, gradeLevel);
+    }
+
+    const isJHS = gradeLevel.includes('Grade 7') || gradeLevel.includes('Grade 8') || gradeLevel.includes('Grade 9') || gradeLevel.includes('Grade 10');
+
+    if (isJHS) {
+        const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
+        if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
+            return 'Core Academic Subjects';
+        }
+        const values = ['values education', 'gmrc', 'good manners'];
+        if (values.some(v => normalized.includes(v))) {
+            return 'Values / Character Education';
+        }
+        const livelihood = ['technology and livelihood', 'tle', 'specialization', 'e.p.p.', 'epp'];
+        if (livelihood.some(l => normalized.includes(l))) {
+            return 'Technology & Livelihood (TLE)';
+        }
+        const mapeh = ['music', 'arts', 'physical education', 'health', 'mapeh', 'pe '];
+        if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
+            return 'MAPEH (Music, Arts, PE, Health)';
+        }
+        return 'Other Subjects';
+    }
+
+    // Elementary (Grade 1 - 6)
+    const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
+    if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
+        return 'Core Academic Subjects';
+    }
+    const values = ['gmrc', 'good manners', 'values education', 'islamic values'];
+    if (values.some(v => normalized.includes(v))) {
+        return 'Values / Character Education';
+    }
+    const languages = ['language', 'reading', 'literacy', 'arabic language', 'mother tongue'];
+    if (languages.some(l => normalized.includes(l))) {
+        return 'Languages & Literacy';
+    }
+    const livelihood = ['makabansa', 'e.p.p.', 'epp', 'tle', 'technology and livelihood', 'specialization'];
+    if (livelihood.some(l => normalized.includes(l))) {
+        return 'Livelihood & Makabansa';
+    }
+    const mapeh = ['mapeh', 'music', 'arts', 'physical education', 'health', 'pe '];
+    if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
+        return 'MAPEH (Music, Arts, PE, Health)';
+    }
+
+    return 'Other Subjects';
+};
+
 export function SectionForm({ section, onClose }: SectionFormProps) {
-    const { sections, addSection, updateSection, subjects, addSubject, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
+    const { sections, addSection, updateSection, subjects, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -68,7 +236,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
     const availableSubjects = useMemo(() => {
         const grade = formData.section_grade_level as GradeLevel;
-        const currentSectionId = section?.id || formData.id;
 
         // The Subjects Hub is the Source of Truth.
         // We only show subjects that exist in the hub for this grade.
@@ -113,17 +280,87 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             .filter(a => normalizeSubjectLabel(a.name) !== 'mapeh')
             .sort((a, b) => {
                 const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
-                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name)); // Fixed potential typo in original
-                
-                // Note: The original code had a bug where it compared name to a.name instead of b.name in indexB calculation
-                const indexB_fixed = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
+                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
 
-                if (indexA !== -1 && indexB_fixed !== -1) return indexA - indexB_fixed;
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
                 if (indexA !== -1) return -1;
-                if (indexB_fixed !== -1) return 1;
+                if (indexB !== -1) return 1;
                 return a.name.localeCompare(b.name);
             });
-    }, [formData.id, formData.section_grade_level, section?.id, subjects]);
+    }, [formData.section_grade_level, subjects]);
+
+    const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+    const toggleCategory = (categoryName: string) => {
+        setCollapsedCategories(prev => {
+            const currentVal = prev[categoryName] ?? true; // Default to collapsed
+            return {
+                ...prev,
+                [categoryName]: !currentVal
+            };
+        });
+    };
+
+    const selectAllInCategory = (categorySubjects: { name: string }[]) => {
+        const current = formData.taught_subjects || [];
+        const toAdd = categorySubjects.map(s => s.name);
+        const next = Array.from(new Set([...current, ...toAdd]));
+        setFormData({ ...formData, taught_subjects: next });
+    };
+
+    const clearAllInCategory = (categorySubjects: { name: string }[]) => {
+        const current = formData.taught_subjects || [];
+        const toRemove = new Set(categorySubjects.map(s => s.name));
+        const next = current.filter(name => !toRemove.has(name));
+        setFormData({ ...formData, taught_subjects: next });
+    };
+
+    const groupedSubjects = useMemo(() => {
+        const grade = formData.section_grade_level || 'Grade 11';
+        const isSHS = grade.includes('11') || grade.includes('12');
+
+        if (!isSHS) {
+            return {
+                '': availableSubjects
+            };
+        }
+        
+        let catOrder: string[] = [];
+        if (isSHS) {
+            const gradeNum = parseInt(grade.replace(/\D/g, '')) || 0;
+            catOrder = gradeNum === 11 ? [
+                'Core Subject (All Tracks)',
+                'Academic Elective (All Other Electives)',
+                'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
+                'TechPro Elective (All Other Elective)'
+            ] : [
+                'Core Subjects',
+                'Applied Subjects',
+                'Specialized Subjects'
+            ];
+        }
+
+        const groups: Record<string, typeof availableSubjects> = {};
+        
+        catOrder.forEach(cat => {
+            groups[cat] = [];
+        });
+
+        availableSubjects.forEach((subject) => {
+            const cat = getCategoryForSubject(subject.name, grade);
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(subject);
+        });
+
+        const filtered: Record<string, typeof availableSubjects> = {};
+        Object.entries(groups).forEach(([cat, list]) => {
+            if (list.length > 0) {
+                filtered[cat] = list;
+            }
+        });
+
+        return filtered;
+    }, [availableSubjects, formData.section_grade_level]);
 
     const handleAdvisoryChange = (checked: boolean) => {
         if (checked) {
@@ -203,8 +440,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 is_advisory: !!formData.is_advisory
             };
 
-            const sectionId = sectionData.id!;
-
             if (section) {
                 await updateSection(sectionData);
                 showNotification('Section updated successfully.', 'success');
@@ -239,7 +474,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4">
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -350,19 +585,73 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                     </label>
                                     
                                     {availableSubjects.length > 0 ? (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                            {availableSubjects.map((subj) => (
-                                                <div 
-                                                    key={subj.name}
-                                                    onClick={() => toggleSubject(subj.name)}
-                                                    className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-2.5 ${formData.taught_subjects?.includes(subj.name) ? 'bg-white border-amber-400 shadow-sm' : 'bg-white/50 border-slate-100 hover:border-amber-200'}`}
-                                                >
-                                                    <div className={`w-3.5 h-3.5 rounded border-2 transition-all ${formData.taught_subjects?.includes(subj.name) ? 'bg-amber-500 border-amber-500' : 'border-slate-200 group-hover:border-amber-400'}`} />
-                                                    <span className={`text-[10px] font-black uppercase tracking-tight ${formData.taught_subjects?.includes(subj.name) ? 'text-amber-600' : 'text-slate-500'}`}>
-                                                        {subj.name}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                        <div className="space-y-4">
+                                            {Object.entries(groupedSubjects).map(([category, list]) => {
+                                                const grade = formData.section_grade_level || 'Grade 11';
+                                                const isSHS = grade.includes('11') || grade.includes('12');
+                                                const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
+                                                
+                                                return (
+                                                    <div key={category} className="bg-slate-50 border border-slate-200/50 rounded-2xl overflow-hidden shadow-xs">
+                                                        {/* Category Header */}
+                                                        {category && (
+                                                            <div className="bg-slate-100/80 px-4 py-3 flex items-center justify-between border-b border-slate-200/50">
+                                                                <div 
+                                                                    onClick={() => toggleCategory(category)}
+                                                                    className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
+                                                                >
+                                                                    <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
+                                                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider truncate">
+                                                                        {category}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-500">
+                                                                        {list.length}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => selectAllInCategory(list)}
+                                                                        className="text-indigo-600 hover:text-indigo-800 transition-colors font-bold animate-pulse hover:animate-none"
+                                                                    >
+                                                                        Select All
+                                                                    </button>
+                                                                    <span className="text-slate-300">|</span>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => clearAllInCategory(list)}
+                                                                        className="text-slate-400 hover:text-slate-600 transition-colors font-bold"
+                                                                    >
+                                                                        Clear All
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Category Grid */}
+                                                        {!isCollapsed && (
+                                                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
+                                                                {list.map((subj) => (
+                                                                    <div 
+                                                                        key={subj.name}
+                                                                        onClick={() => toggleSubject(subj.name)}
+                                                                        className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-2.5 ${formData.taught_subjects?.includes(subj.name) ? 'bg-white border-amber-400 shadow-sm' : 'bg-white/50 border-slate-100 hover:border-amber-200'}`}
+                                                                    >
+                                                                        <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${formData.taught_subjects?.includes(subj.name) ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'border-slate-200 group-hover:border-amber-400'}`}>
+                                                                            {formData.taught_subjects?.includes(subj.name) && (
+                                                                                <Check className="w-3 h-3 stroke-[3.5]" />
+                                                                            )}
+                                                                        </div>
+                                                                        <span className={`text-[9px] font-black uppercase tracking-tight truncate ${formData.taught_subjects?.includes(subj.name) ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                                            {subj.name}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <p className="text-[10px] font-bold text-slate-400 italic">No standard subjects found.</p>
@@ -385,7 +674,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
                         {/* Adviser / Teacher (LOCKED) */}
                         <div className="col-span-2">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1 flex items-center gap-2">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1 flex items-center gap-2">
                                 {formData.is_advisory ? 'Adviser Name' : 'Subject Teacher Name'} (LOCKED)
                                 <Shield className="w-3 h-3 text-blue-500" />
                             </label>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, ShieldCheck, ArrowRight, Lock, User, CheckCircle2, Loader2, AlertCircle, Zap, Clock, Monitor, Apple } from 'lucide-react';
+import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple } from 'lucide-react';
 import { useAppStore, useAuthStore } from '../stores';
 import { getMachineId } from '../utils/machine-id';
 
@@ -22,7 +22,9 @@ export function ActivationPage() {
         setWasLicenseReset(true);
         localStorage.removeItem('formease-license-reset-detected');
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read license reset status from localStorage:', error);
+    }
   }, []);
 
   const isExpired = React.useMemo(() => {
@@ -136,9 +138,9 @@ export function ActivationPage() {
             await useAuthStore.getState().logout();
         }, 2500);
 
-    } catch (error: any) {
+    } catch (error) {
         setStatus('error');
-        setErrorMessage(error.message || 'Failed to start trial.');
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to start trial.');
     }
   };
 
@@ -221,9 +223,9 @@ export function ActivationPage() {
         await useAuthStore.getState().logout();
       }, 2500);
 
-    } catch (error: any) {
+    } catch (error) {
       setStatus('error');
-      setErrorMessage(error.message || 'Verification failed.');
+      setErrorMessage(error instanceof Error ? error.message : 'Verification failed.');
     }
   };
 
@@ -233,7 +235,7 @@ export function ActivationPage() {
         const { db } = await import('../services/database');
         await db.nukeDatabase();
         window.location.reload();
-      } catch (e) {
+      } catch {
         alert('Failed to reset system.');
       }
     }

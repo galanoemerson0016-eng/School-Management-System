@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "1.0.52",
+  "version": "1.0.53",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -95,6 +95,7 @@
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
     "node-machine-id": "^1.1.12",
+    "pdf-parse": "^2.4.5",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

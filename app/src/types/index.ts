@@ -109,6 +109,22 @@ export interface Student {
     is_pept_passer?: boolean;
     is_als_passer?: boolean;
     is_other_eligibility?: boolean;
+
+    // SHS Specific Enrolment and Eligibility Fields
+    shs_admission_date?: string;
+    is_hs_completer?: boolean;
+    hs_gen_ave?: string;
+    hs_graduation_date?: string;
+    is_jhs_completer?: boolean;
+    jhs_gen_ave?: string;
+    jhs_school_name?: string;
+    jhs_school_address?: string;
+    jhs_graduation_date?: string;
+    shs_pept_rating?: string;
+    shs_pept_date?: string;
+    shs_als_rating?: string;
+    shs_als_clc_name_address?: string;
+    shs_other_credentials?: string;
     
     // Parent info
     parent_name?: string;
@@ -148,6 +164,7 @@ export interface Subject {
     teacher_id?: string; // Assigned teacher
     order?: number; // Display order for reordering
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
+    term?: 1 | 2 | 3 | 'all' | 'none'; // The term this subject is offered in
 }
 
 export interface ClassRecord {
