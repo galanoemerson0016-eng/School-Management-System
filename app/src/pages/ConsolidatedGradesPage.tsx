@@ -1686,101 +1686,139 @@ const groupedSections = useMemo(() => {
                                 </div>
                             </div>
                         </div>
-
                         {/* Table Section */}
                         <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
                             <thead>
-                                {isSHSSection && (
-                                    <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                                        <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
-                                        {subjectColumns.map((column, index) => {
-                                            const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
-                                            const parts = cat.split(' (');
-                                            return (
-                                                <th
-                                                    key={`subject-type-${column.baseId}-${index}`}
-                                                    colSpan={termColSpan(column.subject)}
-                                                    className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
-                                                >
-                                                    {parts.length > 1 ? (
-                                                        <>
-                                                            {parts[0]}<br />({parts[1]}
-                                                        </>
-                                                    ) : (
-                                                        cat
+                                {isSHSSection ? (
+                                    <>
+                                        {/* Row 1: SHS Categories */}
+                                        <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
+                                            <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                            {subjectColumns.map((column, index) => {
+                                                const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
+                                                const parts = cat.split(' (');
+                                                return (
+                                                    <th
+                                                        key={`subject-type-${column.baseId}-${index}`}
+                                                        colSpan={termColSpan(column.subject)}
+                                                        className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
+                                                    >
+                                                        {parts.length > 1 ? (
+                                                            <>
+                                                                {parts[0]}<br />({parts[1]}
+                                                            </>
+                                                        ) : (
+                                                            cat
+                                                        )}
+                                                    </th>
+                                                );
+                                            })}
+                                            {showGenAvg && (
+                                                <>
+                                                    <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                                    <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                                    {showDescriptor && (
+                                                        <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
                                                     )}
-                                                </th>
-                                            );
-                                        })}
-                                        {showGenAvg && (
-                                            <>
-                                                <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                                <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
-                                                {showDescriptor && (
-                                                    <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
-                                                )}
-                                            </>
-                                        )}
-                                    </tr>
-                                )}
-                                <tr className="bg-gray-50/80">
-                                    {!isSHSSection && (
-                                        <>
-                                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
-                                        </>
-                                    )}
-                                    {subjectColumns.map((column, index) => (
-                                        selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
-                                            <th
-                                                key={`subject-column-${column.baseId}-${index}`}
-                                                rowSpan={2}
-                                                className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
-                                                title={column.subject.subject_name}
-                                                style={getSubjectHeaderStyle(column.subject)}
-                                            >
-                                                {selectedTerm === 'q1' ? (
-                                                    <div className="relative w-full">
-                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                            {column.subject.subject_name}
-                                                        </span>
-                                                        <select
-                                                            value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                            onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                        >
-                                                            <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
-                                                            {selectableSubjects.map((option) => (
-                                                                <option key={option.id} value={option.id}>
-                                                                    {option.subject_name}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
+                                                </>
+                                            )}
+                                        </tr>
+                                        {/* Row 2: Subject Names */}
+                                        <tr className="bg-gray-50/80">
+                                            {subjectColumns.map((column, index) => (
+                                                selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
+                                                    <th
+                                                        key={`subject-column-${column.baseId}-${index}`}
+                                                        rowSpan={2}
+                                                        className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                                        title={column.subject.subject_name}
+                                                        style={getSubjectHeaderStyle(column.subject)}
+                                                    >
+                                                        {selectedTerm === 'q1' ? (
+                                                            <div className="relative w-full">
+                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                                    {column.subject.subject_name}
+                                                                </span>
+                                                                <select
+                                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                                    onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
+                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                                >
+                                                                    <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
+                                                                    {selectableSubjects.map((option) => (
+                                                                        <option key={option.id} value={option.id}>
+                                                                            {option.subject_name}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                                {column.subject.subject_name}
+                                                            </span>
+                                                        )}
+                                                    </th>
                                                 ) : (
-                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                        {column.subject.subject_name}
-                                                    </span>
-                                                )}
-                                            </th>
-                                        ) : (
-                                            <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                                {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
-                                                    column.subject.subject_name
-                                                ) : (
-                                                    selectedTerm === 'q1' ? (
+                                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                                        {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                                            column.subject.subject_name
+                                                        ) : (
+                                                            selectedTerm === 'q1' ? (
+                                                                <div className="relative w-full">
+                                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                                        {column.subject.subject_name}
+                                                                    </span>
+                                                                    <select
+                                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                                        onChange={(e) => {
+                                                                            const nextId = e.target.value;
+                                                                            setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
+                                                                        }}
+                                                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
+                                                                        aria-label={`Select subject for column ${index + 1}`}
+                                                                    >
+                                                                        {selectableSubjects.map((option) => (
+                                                                            <option key={option.id} value={option.id}>
+                                                                                {option.subject_name}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                                    {column.subject.subject_name}
+                                                                </span>
+                                                            )
+                                                        )}
+                                                    </th>
+                                                )
+                                            ))}
+                                        </tr>
+                                    </>
+                                ) : (
+                                    /* Row 1: JHS/Elementary Subject Names (Categories omitted) */
+                                    <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
+                                        <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                        {subjectColumns.map((column, index) => (
+                                            selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
+                                                <th
+                                                    key={`subject-column-${column.baseId}-${index}`}
+                                                    rowSpan={2}
+                                                    className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                                    title={column.subject.subject_name}
+                                                    style={getSubjectHeaderStyle(column.subject)}
+                                                >
+                                                    {selectedTerm === 'q1' ? (
                                                         <div className="relative w-full">
                                                             <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
                                                                 {column.subject.subject_name}
                                                             </span>
                                                             <select
                                                                 value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                                onChange={(e) => {
-                                                                    const nextId = e.target.value;
-                                                                    setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                                }}
-                                                                className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                                aria-label={`Select subject for column ${index + 1}`}
+                                                                onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
+                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                                             >
+                                                                <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
                                                                 {selectableSubjects.map((option) => (
                                                                     <option key={option.id} value={option.id}>
                                                                         {option.subject_name}
@@ -1792,21 +1830,56 @@ const groupedSections = useMemo(() => {
                                                         <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
                                                             {column.subject.subject_name}
                                                         </span>
-                                                    )
+                                                    )}
+                                                </th>
+                                            ) : (
+                                                <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                                    {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                                        column.subject.subject_name
+                                                    ) : (
+                                                        selectedTerm === 'q1' ? (
+                                                            <div className="relative w-full">
+                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                                    {column.subject.subject_name}
+                                                                </span>
+                                                                <select
+                                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                                    onChange={(e) => {
+                                                                        const nextId = e.target.value;
+                                                                        setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
+                                                                    }}
+                                                                    className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
+                                                                    aria-label={`Select subject for column ${index + 1}`}
+                                                                >
+                                                                    {selectableSubjects.map((option) => (
+                                                                        <option key={option.id} value={option.id}>
+                                                                            {option.subject_name}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                                {column.subject.subject_name}
+                                                            </span>
+                                                        )
+                                                    )}
+                                                </th>
+                                            )
+                                        ))}
+                                        {showGenAvg && (
+                                            <>
+                                                <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                                <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                                {showDescriptor && (
+                                                    <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
                                                 )}
-                                            </th>
-                                        )
-                                    ))}
-                                    {!isSHSSection && showGenAvg && (
-                                        <>
-                                            <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                            <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
-                                            {showDescriptor && (
-                                                <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
-                                            )}
-                                        </>
-                                    )}
-                                </tr>
+                                            </>
+                                        )}
+                                    </tr>
+                                )}
+
+                                {/* Row 3: Subheaders (T1, T2, T3, Final, Music, Arts, etc.) */}
                                 <tr className="bg-gray-50/80">
                                     {subjectColumns.map((column, index) => (
                                         <Fragment key={`subject-subheader-${column.baseId}-${index}`}>

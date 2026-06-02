@@ -226,13 +226,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const currentName = formData.adviser_name || '';
         const isGeneric = currentName.toLowerCase() === 'admin' || currentName === '';
         
-        if (isGeneric && schoolProfile?.adviser_name) {
+        if (formData.is_advisory && isGeneric && schoolProfile?.adviser_name) {
             setFormData(prev => ({ 
                 ...prev, 
                 adviser_name: schoolProfile.adviser_name
             }));
         }
-    }, [schoolProfile, formData.adviser_name]);
+    }, [schoolProfile, formData.adviser_name, formData.is_advisory]);
 
     const availableSubjects = useMemo(() => {
         const grade = formData.section_grade_level as GradeLevel;
@@ -376,7 +376,11 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 return;
             }
         }
-        setFormData({ ...formData, is_advisory: checked });
+        setFormData(prev => ({ 
+            ...prev, 
+            is_advisory: checked,
+            adviser_name: checked ? (schoolProfile?.adviser_name || user?.displayName || '') : ''
+        }));
     };
 
     const toggleSubject = (subjectName: string) => {
@@ -392,13 +396,16 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         if (section) {
             const profileName = (schoolProfile?.adviser_name || '').trim();
             const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
+            const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
             
             // Legacy Migration: If is_advisory is undefined, infer it
             setFormData({
                 ...section,
-                // Force update adviser name if profile name is set and current one is a placeholder or generic
-                adviser_name: (!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''),
-                is_advisory: section.is_advisory ?? !section.is_teaching_load,
+                // Force update adviser name if profile name is set and it is an advisory class. Otherwise keep it empty/as is.
+                adviser_name: isAdvisory 
+                    ? ((!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''))
+                    : '',
+                is_advisory: isAdvisory,
                 taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : [])
             });
         }
@@ -431,7 +438,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 section_name: formData.section_name!,
                 section_grade_level: formData.section_grade_level!,
                 adviser_id: formData.adviser_id || '',
-                adviser_name: formData.adviser_name || '',
+                adviser_name: formData.is_advisory ? (formData.adviser_name || '') : '',
                 subject_name: formData.subject_name,
                 taught_subjects: formData.is_teaching_load 
                     ? (formData.taught_subjects || []).filter(s => validSubjectNames.has(s))
@@ -682,7 +689,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 <input 
                                     readOnly
                                     className="w-full bg-slate-100 border-2 border-slate-200/50 rounded-2xl px-5 py-3.5 text-sm font-black text-slate-500 outline-none cursor-not-allowed transition-all"
-                                    value={formData.adviser_name}
+                                    value={formData.is_advisory ? (formData.adviser_name || '') : (schoolProfile?.adviser_name || user?.displayName || '')}
                                 />
                                 <div className="absolute right-5 top-1/2 -translate-y-1/2">
                                     <Shield className="w-4 h-4 text-slate-300" />

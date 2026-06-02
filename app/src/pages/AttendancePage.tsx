@@ -27,6 +27,15 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
 const TOTAL_COLUMNS = 25; // 5 weeks × 5 days (Mon-Fri)
 const DAYS = Array.from({ length: TOTAL_COLUMNS }, (_, i) => i + 1);
 
+const getDynamicFontSizeClass = (text: string, baseClass: string = "text-[12.5px]") => {
+    if (!text) return baseClass;
+    if (text.length > 35) return "text-[9px] leading-none";
+    if (text.length > 28) return "text-[10px] leading-tight";
+    if (text.length > 20) return "text-[11.5px] leading-tight";
+    return baseClass;
+};
+
+
 export function AttendancePage() {
 
     const SF2_BASE_WIDTH = 1350;
@@ -461,6 +470,27 @@ export function AttendancePage() {
     }, [previewViewportWidth, SF2_BASE_WIDTH]);
 
     const effectiveZoom = zoom * fitZoom;
+
+    const adviserName = useMemo(() => {
+        const sec = sections.find(s => s.section_name === selectedSection);
+        const fromProfile = (schoolProfile?.adviser_name || '').trim();
+        const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
+
+        // Source of Truth: If profile has a real name, use it!
+        if (!isGenericProfile && fromProfile) return fromProfile;
+
+        if (!sec) return fromProfile || user?.displayName || '';
+
+        const fromTeacher = sec.adviser_id
+            ? teachers.find(t => t.uid === sec.adviser_id)?.displayName
+            : '';
+        const fromSection = (fromTeacher || sec.adviser_name || '').trim();
+
+        if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
+            return fromSection;
+        }
+        return fromProfile || user?.displayName || '';
+    }, [sections, selectedSection, schoolProfile, user, teachers]);
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
@@ -990,33 +1020,14 @@ export function AttendancePage() {
                         <div className="p-2.5 mt-auto bg-slate-50/50">
                             <p className="font-bold text-black text-[10.5px] mb-3">I certify that this is a true and correct report.</p>
                             <div className="text-center mb-3">
-                                <div className="font-black border-b-2 border-black w-56 mx-auto uppercase text-[12.5px] text-black py-0.5 tracking-wide">
-                                    {(() => {
-                                        const sec = sections.find(s => s.section_name === selectedSection);
-                                        const fromProfile = (schoolProfile?.adviser_name || '').trim();
-                                        const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
-
-                                        // Source of Truth: If profile has a real name, use it!
-                                        if (!isGenericProfile && fromProfile) return fromProfile;
-
-                                        if (!sec) return fromProfile || user?.displayName || '';
-
-                                        const fromTeacher = sec.adviser_id
-                                            ? teachers.find(t => t.uid === sec.adviser_id)?.displayName
-                                            : '';
-                                        const fromSection = (fromTeacher || sec.adviser_name || '').trim();
-
-                                        if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
-                                            return fromSection;
-                                        }
-                                        return fromProfile || user?.displayName || '';
-                                    })()}
+                                <div className={`font-black border-b-2 border-black w-[280px] mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(adviserName, "text-[12.5px]")}`}>
+                                    {adviserName}
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of Teacher over Printed Name)</div>
                             </div>
                             <div className="text-[10.5px] font-bold text-black mb-1">Attested by:</div>
                             <div className="text-center">
-                                <div className="font-black border-b-2 border-black w-56 mx-auto uppercase text-[12.5px] text-black py-0.5 tracking-wide">
+                                <div className={`font-black border-b-2 border-black w-[280px] mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(schoolProfile?.head_name || '', "text-[12.5px]")}`}>
                                     {schoolProfile?.head_name}
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of School Head over Printed Name)</div>

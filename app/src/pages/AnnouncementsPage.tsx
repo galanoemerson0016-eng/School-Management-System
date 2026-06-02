@@ -182,24 +182,7 @@ export function AnnouncementsPage() {
 
     return (
         <div className="space-y-6">
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-wrap gap-4 justify-between items-center"
-            >
-                <div>
-                    <h2 className="text-3xl font-extrabold text-deped-blue tracking-tight">Announcements</h2>
-                    <p className="text-gray-500 font-medium mt-1">{announcements.length} total announcements</p>
-                </div>
-                {canManageAnnouncements && (
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" /> New Announcement
-                    </button>
-                )}
-            </motion.div>
+
 
             {/* Login Page Announcement Editor */}
             <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden">
@@ -294,32 +277,44 @@ export function AnnouncementsPage() {
                 </div>
             </div>
 
-            {/* Search & Filters */}
-            <div className="flex flex-wrap gap-3 items-center">
-                <div className="relative flex-1 min-w-[200px] max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search announcements..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue"
-                    />
+            {/* Redesigned Compact Filter & Action Row */}
+            <div className="flex flex-wrap gap-3 items-center justify-between bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs">
+                <div className="flex flex-wrap gap-3 items-center flex-1">
+                    <div className="relative flex-1 min-w-[200px] max-w-xs group">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search announcements..."
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 transition-all"
+                        />
+                    </div>
+                    <div className="flex gap-1.5">
+                        {['all', 'general', 'urgent', 'event'].map(type => (
+                            <button
+                                key={type}
+                                onClick={() => setTypeFilter(type)}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider transition-all capitalize select-none cursor-pointer ${typeFilter === type
+                                    ? 'bg-slate-900 text-white shadow-xs'
+                                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                    }`}
+                            >
+                                {type === 'all' ? 'All' : type}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    {['all', 'general', 'urgent', 'event'].map(type => (
-                        <button
-                            key={type}
-                            onClick={() => setTypeFilter(type)}
-                            className={`px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize ${typeFilter === type
-                                ? 'bg-deped-blue text-white shadow-md'
-                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                                }`}
-                        >
-                            {type === 'all' ? 'All' : type}
-                        </button>
-                    ))}
-                </div>
+
+                {canManageAnnouncements && (
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0 animate-in fade-in"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        New Announcement
+                    </button>
+                )}
             </div>
 
             {/* Announcements List */}

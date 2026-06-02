@@ -383,6 +383,7 @@ export function SchoolFormsPage() {
             'name-tags': { type: 'sf10', action: 'Opened Name Tag Generator', detail: `Preparing batch tags for sections` },
             lir: { type: 'sf10', action: 'Opened Learner\'s Individual Record', detail: `S.Y. ${activeSchoolYear}` },
             tgs: { type: 'sf9', action: 'Opened Temporary Grade Slip', detail: `S.Y. ${activeSchoolYear}` },
+            'anecdotal-record': { type: 'sf10', action: 'Opened Anecdotal Record', detail: `S.Y. ${activeSchoolYear}` },
         };
         const entry = actionMap[formId];
         if (entry && user) {
@@ -540,6 +541,18 @@ export function SchoolFormsPage() {
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
+            ],
+        },
+        {
+            id: 'anecdotal-record',
+            title: 'Anecdotal Record',
+            description: 'Log and track significant student behaviors, observations, strengths, weaknesses, and interventions.',
+            icon: FileText,
+            color: 'rose',
+            badge: 'New',
+            stats: [
+                { label: 'Learners', value: activeStudentsCount },
+                { label: 'Records', value: 'Auto-Saved' },
             ],
         },
     ];

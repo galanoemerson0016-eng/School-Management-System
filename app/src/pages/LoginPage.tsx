@@ -4,9 +4,11 @@ import { useSystemStore } from '../stores/system-store';
 import {
     User, Eye, EyeOff, GraduationCap, BookOpen, ScrollText, School,
     Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2,
-    XCircle, CheckCircle2
+    XCircle, CheckCircle2, Power
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+
 
 // =============================================================================
 // FLOATING PARTICLES — Ambient decoration
@@ -23,7 +25,7 @@ const Particles = ({ darkMode }: { darkMode: boolean }) => {
     })), []);
 
     return (
-        <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 z-1 overflow-hidden pointer-events-none">
             {particles.map((p) => (
                 <div
                     key={p.id}
@@ -51,7 +53,7 @@ const Particles = ({ darkMode }: { darkMode: boolean }) => {
 const BackgroundOrbs = ({ darkMode }: { darkMode: boolean }) => (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div
-            className={`absolute top-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full blur-[40px] animate-blob ${darkMode ? 'bg-blue-900/20' : 'bg-blue-100/40'
+            className={`absolute top-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full blur-2xl animate-blob ${darkMode ? 'bg-blue-900/20' : 'bg-blue-100/40'
                 }`}
         />
         <div
@@ -134,6 +136,7 @@ export const LoginPage = () => {
     const [language, setLanguage] = useState<'EN' | 'FIL'>('EN');
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isCardHovered, setIsCardHovered] = useState(false);
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     const { login, isLoading, error, getSecurityQuestion, recoverCredentials } = useAuthStore();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
@@ -266,11 +269,11 @@ export const LoginPage = () => {
                 />
 
                 {/* Premium Deep Green Gradient Overlay */}
-                <div className="absolute inset-0 z-[1] bg-gradient-to-br from-[#023c27]/60 via-[#064e3b]/50 to-[#052e16]/30 mix-blend-multiply" />
-                <div className="absolute inset-0 z-[1] bg-emerald-950/15" />
+                <div className="absolute inset-0 z-1 bg-linear-to-br from-[#023c27]/60 via-[#064e3b]/50 to-[#052e16]/30 mix-blend-multiply" />
+                <div className="absolute inset-0 z-1 bg-emerald-950/15" />
 
                 {/* Subtle Noise Texture */}
-                <div className="absolute inset-0 z-[2] opacity-[0.04]" style={{
+                <div className="absolute inset-0 z-2 opacity-[0.04]" style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
                 }} />
 
@@ -307,7 +310,7 @@ export const LoginPage = () => {
 
                         {/* School Name */}
                         <div className="flex flex-col mb-2 text-shadow-sm items-center max-w-[90%]">
-                            <h1 className="text-[1.8rem] xl:text-[2.5rem] font-black tracking-tight leading-tight text-white drop-shadow-2xl text-center break-words">
+                            <h1 className="text-[1.8rem] xl:text-[2.5rem] font-black tracking-tight leading-tight text-white drop-shadow-2xl text-center wrap-break-word">
                                 {schoolProfile.name.toUpperCase()}
                             </h1>
                         </div>
@@ -322,7 +325,7 @@ export const LoginPage = () => {
                     >
                         {/* Highlighted Tagline */}
                         <div className="inline-flex w-fit justify-center items-center gap-2 bg-emerald-400/15 backdrop-blur-md border border-emerald-300/30 px-4 py-2 rounded-xl shadow-[0_0_20px_rgba(52,211,153,0.15)]">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse shadow-[0_0_8px_theme(colors.emerald.300)]" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse shadow-[0_0_8px_var(--color-emerald-300)]" />
                             <p className="text-xs xl:text-sm text-emerald-50 font-bold tracking-[0.15em] uppercase drop-shadow-md text-center">
                                 Empowering Education Through Innovation
                             </p>
@@ -374,7 +377,7 @@ export const LoginPage = () => {
                 initial={{ x: 60, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className={`w-full lg:w-[42%] h-full flex flex-col justify-center items-center p-6 md:p-8 relative overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-[#F5F7FA]'
+                className={`w-full lg:w-[42%] h-full flex flex-col justify-center items-center p-6 md:p-8 relative overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-login-bg'
                     }`}
             >
                 {/* Background Orbs */}
@@ -402,7 +405,7 @@ export const LoginPage = () => {
                         <button
                             onClick={() => setLanguage(language === 'EN' ? 'FIL' : 'EN')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wide transition-all duration-300 ${darkMode
-                                ? 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.1] border border-white/[0.08]'
+                                ? 'bg-white/6 text-gray-400 hover:bg-white/10 border border-white/8'
                                 : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200/60 shadow-sm'
                                 }`}
                         >
@@ -414,7 +417,7 @@ export const LoginPage = () => {
                         <button
                             onClick={() => setDarkMode(!darkMode)}
                             className={`p-2 rounded-xl transition-all duration-300 ${darkMode
-                                ? 'bg-white/[0.06] text-amber-400 hover:bg-white/[0.1] border border-white/[0.08]'
+                                ? 'bg-white/6 text-amber-400 hover:bg-white/10 border border-white/8'
                                 : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200/60 shadow-sm'
                                 }`}
                         >
@@ -430,6 +433,18 @@ export const LoginPage = () => {
                                 )}
                             </AnimatePresence>
                         </button>
+
+                        {/* Close App Button */}
+                        <button
+                            onClick={() => setShowCloseConfirm(true)}
+                            className={`p-2 rounded-xl transition-all duration-300 ${darkMode
+                                ? 'bg-white/6 text-red-400 hover:bg-red-500/20 border border-white/8'
+                                : 'bg-white text-gray-500 hover:bg-red-50 hover:text-red-500 border border-gray-200/60 shadow-sm'
+                                }`}
+                            title="Close Application"
+                        >
+                            <Power className="w-4 h-4" />
+                        </button>
                     </div>
                 </motion.div>
 
@@ -438,12 +453,12 @@ export const LoginPage = () => {
                     onHoverStart={() => setIsCardHovered(true)}
                     onHoverEnd={() => setIsCardHovered(false)}
                     className={`w-full max-w-[420px] z-10 p-9 md:p-10 rounded-[24px] relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
-                        ? 'bg-white/[0.04] backdrop-blur-2xl border border-white/[0.08] shadow-[0_20px_60px_rgba(0,0,0,0.4)]'
+                        ? 'bg-white/4 backdrop-blur-2xl border border-white/8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]'
                         : 'bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_60px_rgba(0,0,0,0.06)]'
-                        } ${isCardHovered && !darkMode ? 'shadow-[0_25px_70px_rgba(10,61,145,0.08)]' : ''} ${isCardHovered && darkMode ? 'border-white/[0.12] shadow-[0_25px_70px_rgba(0,0,0,0.5)]' : ''}`}
+                        } ${isCardHovered && !darkMode ? 'shadow-[0_25px_70px_rgba(10,61,145,0.08)]' : ''} ${isCardHovered && darkMode ? 'border-white/12 shadow-[0_25px_70px_rgba(0,0,0,0.5)]' : ''}`}
                 >
                     {/* Card inner glow (top edge) */}
-                    <div className={`absolute top-0 left-[15%] right-[15%] h-[1px] rounded-full ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-deped-blue-light/20 to-transparent'
+                    <div className={`absolute top-0 left-[15%] right-[15%] h-px rounded-full ${darkMode ? 'bg-linear-to-r from-transparent via-white/20 to-transparent' : 'bg-linear-to-r from-transparent via-deped-blue-light/20 to-transparent'
                         }`} />
 
                     {/* Logo with float animation */}
@@ -454,7 +469,7 @@ export const LoginPage = () => {
                         className="flex justify-center mb-6"
                     >
                         <div className={`animate-logo-float p-3.5 rounded-2xl transition-all duration-300 ${darkMode
-                            ? 'bg-white/[0.06] border border-white/[0.1] shadow-lg shadow-black/20'
+                            ? 'bg-white/6 border border-white/10 shadow-lg shadow-black/20'
                             : 'bg-white border border-gray-100 shadow-lg shadow-gray-200/50'
                             }`}>
                             <img
@@ -517,7 +532,7 @@ export const LoginPage = () => {
 
                         {/* User ID Field */}
                         <div className="space-y-2">
-                            <label className={`text-[11px] font-bold uppercase tracking-[0.1em] ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <label className={`text-[11px] font-bold uppercase tracking-widest ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 {t.userId}
                             </label>
                             <div className="relative group">
@@ -525,7 +540,7 @@ export const LoginPage = () => {
                                     type="text"
                                     required
                                     className={`login-input block w-full px-4 py-3.5 rounded-xl transition-all duration-300 outline-none font-medium text-[15px] ${darkMode
-                                        ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600 focus:bg-white/[0.06] focus:border-blue-500/40'
+                                        ? 'bg-white/4 border border-white/8 text-white placeholder-gray-600 focus:bg-white/6 focus:border-blue-500/40'
                                         : 'bg-white border border-gray-200/80 text-gray-900 placeholder-gray-400 shadow-sm focus:border-deped-blue-light/60 focus:bg-white'
                                         }`}
                                     placeholder={t.userIdPlaceholder}
@@ -539,7 +554,7 @@ export const LoginPage = () => {
 
                         {/* Password Field */}
                         <div className="space-y-2">
-                            <label className={`text-[11px] font-bold uppercase tracking-[0.1em] ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            <label className={`text-[11px] font-bold uppercase tracking-widest ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 {t.password}
                             </label>
                             <div className="relative group">
@@ -547,7 +562,7 @@ export const LoginPage = () => {
                                     type={showPassword ? "text" : "password"}
                                     required
                                     className={`login-input block w-full px-4 py-3.5 pr-12 rounded-xl transition-all duration-300 outline-none font-medium text-[15px] ${darkMode
-                                        ? 'bg-white/[0.04] border border-white/[0.08] text-white placeholder-gray-600 focus:bg-white/[0.06] focus:border-blue-500/40'
+                                        ? 'bg-white/4 border border-white/8 text-white placeholder-gray-600 focus:bg-white/6 focus:border-blue-500/40'
                                         : 'bg-white border border-gray-200/80 text-gray-900 placeholder-gray-400 shadow-sm focus:border-deped-blue-light/60 focus:bg-white'
                                         }`}
                                     placeholder={t.passwordPlaceholder}
@@ -645,7 +660,7 @@ export const LoginPage = () => {
                             type="submit"
                             disabled={isLoading}
                             className={`w-full py-3.5 rounded-xl font-bold text-[15px] transition-all duration-300 mt-3 flex items-center justify-center gap-2.5 ${isLoading ? 'cursor-not-allowed opacity-80' : ''
-                                } bg-gradient-to-r from-[#0A3D91] to-[#3A7BFF] text-white shadow-lg hover:shadow-xl hover:shadow-deped-blue/25`}
+                                } bg-linear-to-r from-deped-blue to-deped-blue-light text-white shadow-lg hover:shadow-xl hover:shadow-deped-blue/25`}
                             style={{
                                 boxShadow: isLoading ? undefined : '0 4px 20px rgba(10, 61, 145, 0.3)',
                             }}
@@ -768,6 +783,20 @@ export const LoginPage = () => {
                     )}
                 </AnimatePresence>
             </motion.div>
+
+            <ConfirmationModal
+                open={showCloseConfirm}
+                title="Close Application"
+                message="Are you sure you want to exit FormEase Pro?"
+                intent="danger"
+                confirmLabel="Yes, Exit App"
+                cancelLabel="Cancel"
+                onConfirm={() => {
+                    setShowCloseConfirm(false);
+                    window.electronAPI?.closeApp();
+                }}
+                onCancel={() => setShowCloseConfirm(false)}
+            />
         </div>
     );
 };

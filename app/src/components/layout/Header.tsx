@@ -29,6 +29,7 @@ const viewTitles: Record<string, string> = {
     'name-tags': 'Name Tag Generator',
     lir: "Learner's Individual Record",
     tgs: 'Temporary Grade Slip',
+    'anecdotal-record': 'Anecdotal Record Hub',
 };
 
 export function Header() {

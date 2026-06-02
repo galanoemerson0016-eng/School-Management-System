@@ -26,6 +26,7 @@ export const STANDARD_SUBJECTS = {
         { name: 'Filipino', code: '' },
         { name: 'English', code: '' },
         { name: 'Mathematics', code: '' },
+        { name: 'Science', code: '' },
         { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
         { name: 'Makabansa', code: '' },
         { name: '*Arabic Language', code: '' },

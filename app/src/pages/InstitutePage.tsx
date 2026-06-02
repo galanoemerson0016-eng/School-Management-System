@@ -25,7 +25,7 @@ import type { SchoolProfile } from '../types';
 import { canManageSchoolProfile } from '../lib/rbac';
 
 export function InstitutePage() {
-    const { schoolProfile, updateSchoolProfile } = useAppStore();
+    const { schoolProfile, updateSchoolProfile, sections, setCurrentView } = useAppStore();
     const { user } = useAuthStore();
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -215,16 +215,16 @@ export function InstitutePage() {
         visible: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 300, damping: 25 } }
     };
 
-    const displaySchoolName = schoolProfile.name || 'Calibungan High School';
-    const displaySchoolId = schoolProfile.school_id || '307014';
-    const displayRegion = schoolProfile.region || 'Region III';
-    const displayDivision = schoolProfile.division || 'Tarlac Province';
-    const displayDistrict = schoolProfile.district || 'Victoria East';
-    const displayHeadName = schoolProfile.head_name || 'Agapito S. Gonzaga';
-    const displayHeadPosition = schoolProfile.head_position || 'Principal I';
-    const displayAdviserName = schoolProfile.adviser_name || 'Emerson M. Galano';
-    const displayGradeLevel = schoolProfile.grade_level || 'Grade 10';
-    const displaySection = schoolProfile.section || 'Curie';
+    const displaySchoolName = schoolProfile.name || '';
+    const displaySchoolId = schoolProfile.school_id || '';
+    const displayRegion = schoolProfile.region || '';
+    const displayDivision = schoolProfile.division || '';
+    const displayDistrict = schoolProfile.district || '';
+    const displayHeadName = schoolProfile.head_name || '';
+    const displayHeadPosition = schoolProfile.head_position || '';
+    const displayAdviserName = schoolProfile.adviser_name || '';
+    const displayGradeLevel = schoolProfile.grade_level || '';
+    const displaySection = schoolProfile.section || '';
 
     const GRADE_GROUPS: Record<string, number[]> = {
         primary: [1,2,3,4,5,6],
@@ -558,7 +558,7 @@ export function InstitutePage() {
                         </div>
 
                         <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight uppercase leading-none">
-                            {displaySchoolName}
+                            {displaySchoolName || 'My School Name'}
                         </h1>
 
                         <div className="flex items-center gap-2 mt-3.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
@@ -642,34 +642,58 @@ export function InstitutePage() {
                             <span className="text-[10px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-widest">Advisory Details</span>
                         </div>
                     </div>
+                          {!schoolProfile.grade_level || !schoolProfile.section ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 relative z-10 gap-5">
+                            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/5">
+                                <Shield className="w-8 h-8 animate-pulse" />
+                            </div>
+                            <div className="space-y-2">
+                                <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                                    {sections.length === 0 ? 'No Classes Created' : 'Advisory Class Not Set'}
+                                </h5>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed max-w-[260px] mx-auto">
+                                    {sections.length === 0 
+                                        ? 'Please create classes and sections first to define your school profile and advisory assignment.' 
+                                        : 'Specify which class is your official advisory under the Classes & Sections manager.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentView('sections')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-slate-850 dark:hover:bg-slate-750 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
+                            >
+                                {sections.length === 0 ? 'Create Sections' : 'Go to Classes & Sections'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center gap-5 my-auto relative z-10">
+                            {/* Adviser Photo Circle */}
+                            <div className="relative">
+                                <div className="w-24 h-24 rounded-full border-4 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 overflow-hidden flex items-center justify-center p-1 shadow-md shadow-slate-200/20 dark:shadow-none transition-transform duration-500 hover:scale-105">
+                                    {schoolProfile.adviser_image_url ? (
+                                        <img 
+                                            src={schoolProfile.adviser_image_url} 
+                                            alt={displayAdviserName} 
+                                            className="w-full h-full object-cover rounded-full"
+                                        />
+                                    ) : (
+                                        <User className="w-12 h-12 text-slate-400 dark:text-slate-505" />
+                                    )}
+                                </div>
+                            </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center gap-5 my-auto relative z-10">
-                        {/* Adviser Photo Circle */}
-                        <div className="relative">
-                            <div className="w-24 h-24 rounded-full border-4 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 overflow-hidden flex items-center justify-center p-1 shadow-md shadow-slate-200/20 dark:shadow-none transition-transform duration-500 hover:scale-105">
-                                {schoolProfile.adviser_image_url ? (
-                                    <img 
-                                        src={schoolProfile.adviser_image_url} 
-                                        alt={displayAdviserName} 
-                                        className="w-full h-full object-cover rounded-full"
-                                    />
-                                ) : (
-                                    <User className="w-12 h-12 text-slate-400 dark:text-slate-505" />
-                                )}
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div>
+                                    <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-2">Current Adviser</span>
+                                    <div className="text-2xl font-black text-slate-800 dark:text-white truncate max-w-[280px]" title={displayAdviserName}>{displayAdviserName || 'Not Assigned'}</div>
+                                </div>
+                                <div>
+                                    <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-2">Class Assignment</span>
+                                    <div className="text-base font-extrabold text-slate-600 dark:text-slate-350">{displayGradeLevel} • {displaySection}</div>
+                                </div>
                             </div>
                         </div>
-
-                        <div className="flex flex-col items-center gap-4 text-center">
-                            <div>
-                                <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-2">Current Adviser</span>
-                                <div className="text-2xl font-black text-slate-800 dark:text-white truncate max-w-[280px]" title={displayAdviserName}>{displayAdviserName}</div>
-                            </div>
-                            <div>
-                                <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-2">Class Assignment</span>
-                                <div className="text-base font-extrabold text-slate-600 dark:text-slate-350">{displayGradeLevel} • {displaySection}</div>
-                            </div>
-                        </div>
-                    </div>
+                    )}
 
 
                 </motion.div>

@@ -18,6 +18,13 @@ const normalizeScores = (scores: (number | string)[] | undefined, count: number)
     return Array.from({ length: count }, (_, i) => src[i] ?? '');
 };
 
+const getDynamicFontSizeClass = (text: string, baseClass: string = "text-[11px]") => {
+    if (!text) return baseClass;
+    if (text.length > 30) return "text-[8px] leading-none";
+    if (text.length > 20) return "text-[9px] leading-tight";
+    return baseClass;
+};
+
 const getSubjectCategory = (subjectName: string, gradeLevel: string): string => {
     const norm = subjectName.trim().toLowerCase();
     const isG12 = gradeLevel.includes('12');
@@ -946,7 +953,7 @@ export function ShsEClassRecord() {
                         <div id="printable-summary-record" className="w-[816px] max-w-full bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none">
                             <div className="flex flex-col mb-4">
                                 <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
-                                    <div className="w-20 h-20 shrink-0">
+                                    <div className="w-14 h-14 shrink-0">
                                         <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                     </div>
                                     <div className="text-center flex-1 mx-4 text-black">
@@ -955,35 +962,35 @@ export function ShsEClassRecord() {
                                             (Pursuant to DepEd Order 8 series of 2015)
                                         </p>
                                     </div>
-                                    <div className="w-32 h-20 shrink-0 flex items-center justify-center">
+                                    <div className="w-24 h-14 shrink-0 flex items-center justify-center">
                                         <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between text-[11px] font-bold text-black uppercase w-full">
-                                    <div className="flex flex-col gap-0 w-[38%] text-[11px] font-bold text-black">
-                                        <div className="flex items-center">
-                                            <span className="w-24 text-right pr-2 font-black text-[11px]">REGION</span>
-                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.region}</div>
+                                <div className="flex items-stretch justify-between text-[11px] font-bold text-black uppercase w-full">
+                                    <div className="flex flex-col gap-0 w-[44%] text-[11px] font-bold text-black justify-between">
+                                        <div className="flex items-stretch flex-1">
+                                            <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">REGION</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[11px]")}`}>{schoolProfile.region}</div>
                                         </div>
-                                        <div className="flex items-center">
-                                            <span className="w-24 text-right pr-2 font-black text-[11px]">SCHOOL NAME</span>
-                                            <div className="border-x border-b border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.name}</div>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black">
-                                        <div className="flex items-center">
-                                            <span className="w-20 text-right pr-2 font-black text-[11px]">DIVISION</span>
-                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.division}</div>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <span className="w-20 text-right pr-2 font-black text-[11px]">SCHOOL ID</span>
-                                            <div className="border-x border-b border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.school_id}</div>
+                                        <div className="flex items-stretch flex-1">
+                                            <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL NAME</span>
+                                            <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[11px]")}`}>{schoolProfile.name}</div>
                                         </div>
                                     </div>
-                                    <div className="w-[30%] flex items-stretch h-[44px]">
+                                    <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black justify-between">
+                                        <div className="flex items-stretch flex-1">
+                                            <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">DIVISION</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[11px]")}`}>{schoolProfile.division}</div>
+                                        </div>
+                                        <div className="flex items-stretch flex-1">
+                                            <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL ID</span>
+                                            <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[11px]")}`}>{schoolProfile.school_id}</div>
+                                        </div>
+                                    </div>
+                                    <div className="w-[24%] flex items-stretch">
                                         <div className="px-3 flex items-center bg-transparent font-black text-[11px] uppercase whitespace-nowrap">SCHOOL YEAR</div>
-                                        <div className="border border-black flex-1 bg-white flex items-center justify-center font-bold text-[11px]">{activeSchoolYear}</div>
+                                        <div className={`border border-black flex-1 bg-white flex items-center justify-center text-center font-bold wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[11px]")}`}>{activeSchoolYear}</div>
                                     </div>
                                 </div>
                             </div>
@@ -1098,7 +1105,7 @@ export function ShsEClassRecord() {
                             <div key={section.gender} className={`p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
                              <div className="flex flex-col mb-4">
                                  <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
-                                     <div className="w-20 h-20 shrink-0">
+                                     <div className="w-14 h-14 shrink-0">
                                          <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                      </div>
                                      <div className="text-center flex-1 mx-4 text-black">
@@ -1107,35 +1114,35 @@ export function ShsEClassRecord() {
                                              (Pursuant to DepEd Order 8 series of 2015)
                                          </p>
                                      </div>
-                                     <div className="w-32 h-20 shrink-0 flex items-center justify-center">
+                                     <div className="w-24 h-14 shrink-0 flex items-center justify-center">
                                          <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                      </div>
                                  </div>
 
-                                 <div className="flex items-center justify-between text-[11px] font-bold text-black uppercase w-full">
-                                     <div className="flex flex-col gap-0 w-[38%] text-[11px] font-bold text-black">
-                                         <div className="flex items-center">
-                                             <span className="w-24 text-right pr-2 font-black text-[11px]">REGION</span>
-                                             <div className="border border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.region}</div>
+                                 <div className="flex items-stretch justify-between text-[11px] font-bold text-black uppercase w-full">
+                                     <div className="flex flex-col gap-0 w-[44%] text-[11px] font-bold text-black justify-between">
+                                         <div className="flex items-stretch flex-1">
+                                             <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">REGION</span>
+                                             <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[11px]")}`}>{schoolProfile.region}</div>
                                          </div>
-                                         <div className="flex items-center">
-                                             <span className="w-24 text-right pr-2 font-black text-[11px]">SCHOOL NAME</span>
-                                             <div className="border-x border-b border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.name}</div>
-                                         </div>
-                                     </div>
-                                     <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black">
-                                         <div className="flex items-center">
-                                             <span className="w-20 text-right pr-2 font-black text-[11px]">DIVISION</span>
-                                             <div className="border border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.division}</div>
-                                         </div>
-                                         <div className="flex items-center">
-                                             <span className="w-20 text-right pr-2 font-black text-[11px]">SCHOOL ID</span>
-                                             <div className="border-x border-b border-black px-2 py-0.5 flex-1 bg-white truncate h-[22px] flex items-center font-bold text-[11px]">{schoolProfile.school_id}</div>
+                                         <div className="flex items-stretch flex-1">
+                                             <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL NAME</span>
+                                             <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[11px]")}`}>{schoolProfile.name}</div>
                                          </div>
                                      </div>
-                                     <div className="w-[30%] flex items-stretch h-[44px]">
+                                     <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black justify-between">
+                                         <div className="flex items-stretch flex-1">
+                                             <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">DIVISION</span>
+                                             <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[11px]")}`}>{schoolProfile.division}</div>
+                                         </div>
+                                         <div className="flex items-stretch flex-1">
+                                             <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL ID</span>
+                                             <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[11px]")}`}>{schoolProfile.school_id}</div>
+                                         </div>
+                                     </div>
+                                     <div className="w-[24%] flex items-stretch">
                                          <div className="px-3 flex items-center bg-transparent font-black text-[11px] uppercase whitespace-nowrap">SCHOOL YEAR</div>
-                                         <div className="border border-black flex-1 bg-white flex items-center justify-center font-bold text-[11px]">{activeSchoolYear}</div>
+                                         <div className={`border border-black flex-1 bg-white flex items-center justify-center text-center font-bold wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[11px]")}`}>{activeSchoolYear}</div>
                                      </div>
                                  </div>
                              </div>

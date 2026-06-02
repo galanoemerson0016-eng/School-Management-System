@@ -495,135 +495,102 @@ export function StudentsPage() {
     return (
         <div className="space-y-6 pb-8">
             {/* Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-wrap gap-4 justify-between items-center"
-            >
-                <div>
-                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                        {viewMode === 'overview' ? 'Student Information' : selectedSectionDisplayName}
-                    </h2>
-                    {viewMode === 'overview' ? (
-                        <p className="text-gray-500 font-medium mt-1">{totalStudents} Learners • {statsSectionsCount} Sections</p>
-                    ) : (
-                        <div className="flex items-center gap-2 mt-1.5">
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg uppercase tracking-wider border border-slate-200/50">
+            {/* Redesigned Compact Header & Action Row - Rendered only in section_detail mode */}
+            {viewMode === 'section_detail' && (
+                <div className="flex flex-wrap items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs relative z-10">
+                    <div className="flex flex-wrap items-center gap-3.5">
+                        <div className="flex items-center gap-2.5">
+                            <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                                {selectedSectionDisplayName}
+                            </h2>
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[8px] font-black rounded-md uppercase tracking-wider border border-slate-200/50">
                                 {selectedSectionGradeDisplay}
                             </span>
-                            <span className="text-slate-300">/</span>
-                            <p className="text-slate-500 font-bold text-xs">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none border-l border-slate-200/80 pl-3">
                                 Adviser: {selectedSectionAdviser}
-                            </p>
+                            </span>
                         </div>
-                    )}
-                </div>
+                    </div>
 
-                <div className="flex gap-2">
-                    {viewMode === 'section_detail' && (
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                    {/* Compact Actions Row */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
                             onClick={() => setViewMode('overview')}
-                            className="px-4 py-2.5 bg-white text-gray-700 border border-gray-100 rounded-xl font-bold text-sm shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2"
+                            className="h-9 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
-                            <ChevronLeft className="w-4 h-4" />
-                            Overview
-                        </motion.button>
-                    )}
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            Back
+                        </button>
 
-                    {viewMode === 'overview' && canAddGlobally && (
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleAdd}
-                            className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        <button
+                            onClick={handleExportStudents}
+                            className="h-9 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
-                            <UserPlus className="w-4 h-4" />
-                            Add Learner
-                        </motion.button>
-                    )}
+                            <Download className="w-3.5 h-3.5" />
+                            Export CSV
+                        </button>
 
-                    {viewMode === 'section_detail' && (
-                        <>
-                            <motion.button
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={handleExportStudents}
-                                className="px-4 py-2.5 bg-white text-gray-700 border border-gray-100 rounded-xl font-bold text-sm shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2"
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleSF1Import}
+                            accept=".csv,.xlsx,.xls"
+                            className="hidden"
+                        />
+                        {canEdit && (
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isImporting}
+                                className="h-9 px-3.5 bg-white text-emerald-600 border border-emerald-200 rounded-xl font-bold text-xs hover:bg-emerald-50 transition-all flex items-center gap-1.5 cursor-pointer"
                             >
-                                <Download className="w-4 h-4" />
-                                Export CSV
-                            </motion.button>
+                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                {isImporting ? 'Importing...' : 'Import SF1'}
+                            </button>
+                        )}
 
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleSF1Import}
-                                accept=".csv,.xlsx,.xls"
-                                className="hidden"
-                            />
-                            {canEdit && (
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isImporting}
-                                    className="px-4 py-2.5 bg-white text-emerald-600 border border-emerald-200 rounded-xl font-bold text-sm hover:bg-emerald-50 transition-all flex items-center gap-2"
-                                >
-                                    <FileSpreadsheet className="w-4 h-4" />
-                                    {isImporting ? 'Importing...' : 'Import SF1'}
-                                </motion.button>
-                            )}
-
-                            {canEdit && sectionStudents.length > 0 && (
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => {
-                                        if (selectedSectionObj) {
-                                            setPendingAction({
-                                                kind: 'clear-section',
-                                                sectionName: selectedSectionObj.section_name,
-                                                count: sectionStudents.length
-                                            });
-                                        }
-                                    }}
-                                    className="px-4 py-2.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-bold text-sm hover:bg-rose-100/50 hover:border-rose-200 transition-all flex items-center gap-2"
-                                    title="Delete All Students in Section"
-                                >
-                                    <Trash className="w-4 h-4" />
-                                    Delete All
-                                </motion.button>
-                            )}
-                            
-                            {canEdit && (
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => {
-                                        if (selectedSectionObj) {
-                                            setEditingStudent(null);
-                                            setFormDataForModal({
-                                                grade_level: selectedSectionObj.section_grade_level,
-                                                student_section: selectedSectionObj.section_name
-                                            });
-                                        } else {
-                                            setEditingStudent(null);
-                                            setFormDataForModal(undefined);
-                                        }
-                                        setIsModalOpen(true);
-                                    }}
-                                    className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                                >
-                                    <UserPlus className="w-4 h-4" />
-                                    Add Learner
-                                </motion.button>
-                            )}
-                        </>
-                    )}
+                        {canEdit && sectionStudents.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (selectedSectionObj) {
+                                        setPendingAction({
+                                            kind: 'clear-section',
+                                            sectionName: selectedSectionObj.section_name,
+                                            count: sectionStudents.length
+                                        });
+                                    }
+                                }}
+                                className="h-9 px-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-bold text-xs hover:bg-rose-100 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                title="Delete All Students in Section"
+                            >
+                                <Trash className="w-3.5 h-3.5" />
+                                Delete All
+                            </button>
+                        )}
+                        
+                        {canEdit && (
+                            <button
+                                onClick={() => {
+                                    if (selectedSectionObj) {
+                                        setEditingStudent(null);
+                                        setFormDataForModal({
+                                            grade_level: selectedSectionObj.section_grade_level,
+                                            student_section: selectedSectionObj.section_name
+                                        });
+                                    } else {
+                                        setEditingStudent(null);
+                                        setFormDataForModal(undefined);
+                                    }
+                                    setIsModalOpen(true);
+                                }}
+                                className="h-9 px-4 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-755 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
+                            >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                Add Learner
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </motion.div>
+            )}
 
             <AnimatePresence mode="wait">
                 {viewMode === 'overview' && (
@@ -635,86 +602,92 @@ export function StudentsPage() {
                         exit="exit"
                         className="space-y-8"
                     >
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-                            {/* Sleek Stats */}
-                            <div className="flex items-center gap-6 px-4">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                                        <Users className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
-                                        <p className="text-sm font-black text-slate-800 leading-none">{totalStudents}</p>
-                                    </div>
-                                </div>
-                                <div className="w-px h-8 bg-slate-100" />
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600">
-                                        <Users className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Male</p>
-                                        <p className="text-sm font-black text-slate-800 leading-none">{totalMale}</p>
-                                    </div>
-                                </div>
-                                <div className="w-px h-8 bg-slate-100" />
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-pink-50 flex items-center justify-center text-pink-500">
-                                        <Users className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Female</p>
-                                        <p className="text-sm font-black text-slate-800 leading-none">{totalFemale}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Search */}
-                            <div className="relative w-full md:w-72">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    value={overviewSearch}
-                                    onChange={(e) => setOverviewSearch(e.target.value)}
-                                    placeholder="Search section, adviser..."
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-transparent rounded-xl text-sm font-medium focus:outline-none focus:bg-white focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
-                                />
-                                {overviewSearch.trim() && (
-                                    <button onClick={() => setOverviewSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Pill Tabs for Categories */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={() => { setActiveCategory(null); setOverviewSearch(''); }}
-                                className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
-                                    !activeCategory 
-                                        ? 'bg-slate-800 text-white shadow-md' 
-                                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700'
-                                }`}
-                            >
-                                All Levels
-                            </button>
-                            {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => (
-                                <button
-                                    key={group}
-                                    onClick={() => { setActiveCategory(group); setOverviewSearch(''); }}
-                                    className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                                        activeCategory === group 
-                                            ? 'bg-deped-blue text-white shadow-md' 
-                                            : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2.5 rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.02)]">
+                            {/* Segmented Capsule Toggles (Left aligned) */}
+                            <div className="flex bg-slate-100/90 p-1 rounded-2xl border border-slate-200/40 relative max-w-full overflow-x-auto scrollbar-none shrink-0">
+                                {/* All Levels button */}
+                                <button 
+                                    onClick={() => {
+                                        setActiveCategory(null);
+                                        setOverviewSearch('');
+                                    }}
+                                    className={`relative px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap ${
+                                        activeCategory === null ? 'text-white' : 'text-slate-500 hover:text-slate-800'
                                     }`}
                                 >
-                                    {group === 'ELEMENTARY' ? <BookOpen className="w-3 h-3" /> : 
-                                     group === 'JUNIOR HIGH SCHOOL' ? <School className="w-3 h-3" /> : 
-                                     <GraduationCap className="w-3 h-3" />}
-                                    {group.replace(' SCHOOL', '')} ({groupSections.length})
+                                    {activeCategory === null && (
+                                        <motion.div 
+                                            layoutId="active-student-segment"
+                                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                            className="absolute inset-0 rounded-xl shadow-md bg-[#527083] -z-10"
+                                        />
+                                    )}
+                                    All Levels
                                 </button>
-                            ))}
+
+                                {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => {
+                                    const isActive = activeCategory === group;
+                                    const label = group === 'ELEMENTARY' ? 'Elementary' :
+                                                  group === 'JUNIOR HIGH SCHOOL' ? 'Junior High' : 'Senior High';
+                                    return (
+                                        <button 
+                                            key={group} 
+                                            onClick={() => {
+                                                setActiveCategory(group);
+                                                setOverviewSearch('');
+                                            }}
+                                            className={`relative px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap ${
+                                                isActive ? 'text-white' : 'text-slate-500 hover:text-slate-800'
+                                            }`}
+                                        >
+                                            {isActive && (
+                                                <motion.div 
+                                                    layoutId="active-student-segment"
+                                                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                                    className="absolute inset-0 rounded-xl shadow-md bg-[#527083] -z-10"
+                                                />
+                                            )}
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Search (Centered) */}
+                            <div className="relative group w-full md:w-80 max-w-md md:mx-auto">
+                                <div className="absolute -inset-0.5 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl blur-xs opacity-5 group-focus-within:opacity-20 transition duration-300" />
+                                <div className="relative bg-slate-50 border border-slate-200/80 p-1 rounded-2xl shadow-2xs transition-all duration-300 flex items-center gap-2 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400">
+                                    <div className="pl-3.5 pr-1 text-slate-400 group-focus-within:text-blue-500 transition-colors flex items-center">
+                                        <Search className="w-3.5 h-3.5" />
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search section, adviser..."
+                                        className="w-full bg-transparent border-none py-1.5 pr-3 text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none"
+                                        value={overviewSearch}
+                                        onChange={(e) => setOverviewSearch(e.target.value)}
+                                    />
+                                    {overviewSearch.trim() && (
+                                        <button 
+                                            onClick={() => setOverviewSearch('')}
+                                            className="mr-1.5 px-2 py-1 text-[8px] font-black text-slate-400 hover:text-slate-600 bg-slate-100 rounded-md uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Add Learner Button (Right aligned) */}
+                            {canAddGlobally && (
+                                <button
+                                    onClick={handleAdd}
+                                    className="w-full md:w-auto px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-wider shadow-sm hover:bg-slate-800 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                                >
+                                    <UserPlus className="w-3.5 h-3.5" />
+                                    Add Learner
+                                </button>
+                            )}
                         </div>
 
                         {!activeCategory && !overviewSearch.trim() && filteredSectionsList.length === 0 && (

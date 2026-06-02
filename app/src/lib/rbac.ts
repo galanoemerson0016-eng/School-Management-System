@@ -23,7 +23,10 @@ export type AppView =
     | 'users'
     | 'settings'
     | 'certificates'
-    | 'about';
+    | 'about'
+    | 'lir'
+    | 'tgs'
+    | 'anecdotal-record';
 
 export type SubjectArea =
     | 'English'
