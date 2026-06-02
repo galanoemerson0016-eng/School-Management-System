@@ -1,0 +1,167 @@
+name: Build, Release and Deploy
+ 
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: Build macOS App
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build macOS installers
+        working-directory: app
+        run: npm run electron:build:mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            app/release/*.dmg
+            app/release/*.zip
+            app/release/latest-mac.yml
+          retention-days: 1
+
+  build-win:
+    name: Build Windows App
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Windows installers
+        working-directory: app
+        run: npm run electron:build:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            app/release/*.exe
+            app/release/latest.yml
+            app/release/*.blockmap
+          retention-days: 1
+
+  release-deploy:
+    name: Release & Deploy
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Create release directory
+        run: mkdir -p app/release
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: app/release
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: app/release
+
+      - name: Run CI/CD asset patching and renaming
+        run: node app/scripts/patch-metadata-ci.cjs
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # 1. Create Private Repo Release (historical record)
+      - name: Create Private GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FormEase Pro v${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            app/release/*.dmg
+            app/release/*.zip
+            app/release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Create Public Repo Release (FormEase-Releases)
+      - name: Create Public GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: galanoemerson0016-eng/FormEase-Releases
+          token: ${{ secrets.RELEASE_REPO_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: FormEase Pro v${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            app/release/*.dmg
+            app/release/*.zip
+            app/release/*.exe
+
+      # 3. Deploy update-server metadata to Firebase
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Update Server to Firebase Hosting
+        working-directory: update-server
+        run: firebase deploy --only hosting --project formease-app-a3e68
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # 4. Build and Deploy license-portal to Firebase
+      - name: Install Licensing Portal dependencies
+        working-directory: license-portal
+        run: npm ci
+
+      - name: Build Licensing Portal website
+        working-directory: license-portal
+        run: npm run build
+
+      - name: Deploy Licensing Portal to Firebase Hosting
+        working-directory: license-portal
+        run: firebase deploy --only hosting --project formease-licensing
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

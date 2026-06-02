@@ -9,15 +9,67 @@ import { licenseService } from '../lib/license-service';
 
 export default function UpdatesPage() {
   const [downloadInfo, setDownloadInfo] = useState({
-    win_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro.Setup.1.0.51.exe',
-    mac_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.51/FormEase.Pro-1.0.51-mac.dmg',
-    version: '1.0.51',
+    win_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.55/FormEase.Pro.Setup.1.0.55.exe',
+    mac_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.55/FormEase.Pro-1.0.55.dmg',
+    mac_arm_url: 'https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.55/FormEase.Pro-1.0.55-arm64.dmg',
+    version: '1.0.55',
     notes: ''
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(false);
+    async function fetchMetadata() {
+      try {
+        const winRes = await fetch('/updates/latest.yml');
+        if (!winRes.ok) throw new Error('Failed to fetch Windows release metadata');
+        const winText = await winRes.text();
+
+        const versionMatch = winText.match(/^version:\s*(.+)$/m);
+        const version = versionMatch ? versionMatch[1].trim() : '1.0.55';
+
+        const winUrlMatch = winText.match(/^\s*-\s*url:\s*(https?:\/\/[^\s]+)/m);
+        const winUrl = winUrlMatch 
+          ? winUrlMatch[1].trim() 
+          : `https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v${version}/FormEase.Pro.Setup.${version}.exe`;
+
+        let macUrl = `https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v${version}/FormEase.Pro-${version}.dmg`;
+        let macArmUrl = `https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v${version}/FormEase.Pro-${version}-arm64.dmg`;
+
+        try {
+          const macRes = await fetch('/updates/latest-mac.yml');
+          if (macRes.ok) {
+            const macText = await macRes.text();
+            const dmgUrls = [...macText.matchAll(/^\s*-\s*url:\s*(https?:\/\/[^\s]+\.dmg)/gm)].map(m => m[1].trim());
+            if (dmgUrls.length > 0) {
+              const armUrl = dmgUrls.find(url => url.includes('arm64'));
+              const intelUrl = dmgUrls.find(url => !url.includes('arm64'));
+              
+              if (intelUrl) macUrl = intelUrl;
+              if (armUrl) macArmUrl = armUrl;
+              else if (intelUrl) macArmUrl = intelUrl;
+            }
+          }
+        } catch (macErr) {
+          console.warn('Error fetching Mac metadata, using defaults:', macErr);
+        }
+
+        setDownloadInfo({
+          win_url: winUrl,
+          mac_url: macUrl,
+          mac_arm_url: macArmUrl,
+          version: version,
+          notes: ''
+        });
+      } catch (err: any) {
+        console.error('Error fetching release metadata:', err);
+        setError(err.message || 'Error loading release details');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchMetadata();
   }, []);
 
   const changelogs = [
@@ -132,15 +184,26 @@ export default function UpdatesPage() {
               </p>
             </div>
             
-            <a 
-              href={downloadInfo.mac_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/15"
-            >
-              <DownloadCloud className="w-4 h-4" />
-              <span>Download for macOS</span>
-            </a>
+            <div className="flex flex-col gap-3 w-full">
+              <a 
+                href={downloadInfo.mac_arm_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/15"
+              >
+                <DownloadCloud className="w-4 h-4" />
+                <span>Apple Silicon (M1/M2/M3)</span>
+              </a>
+              <a 
+                href={downloadInfo.mac_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-3 w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase tracking-widest transition-all border border-white/10"
+              >
+                <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
+                <span>Intel Core (Older Macs)</span>
+              </a>
+            </div>
           </motion.div>
 
         </div>
