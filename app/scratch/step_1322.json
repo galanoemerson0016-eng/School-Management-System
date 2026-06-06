@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Declare fitMode (defaulting to 'width') and isMoreMenuOpen (defaulting to false) state variables in SF9Page.tsx.\"",
+  "EndLine": "1687",
+  "Instruction": "\"Declare fitMode and isMoreMenuOpen states.\"",
+  "ReplacementContent": "\"    const [isBatchReady, setIsBatchReady] = useState(false);\\n    const [zoom, setZoom] = useState(1);\\n    const [fitMode, setFitMode] = useState<'width' | 'page'>('width');\\n    const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);\\n    const [batchProgress, setBatchProgress] = useState(0);\"",
+  "StartLine": "1683",
+  "TargetContent": "\"    const [isBatchReady, setIsBatchReady] = useState(false);\\n    const [zoom, setZoom] = useState(1);\\n    const [batchProgress, setBatchProgress] = useState(0);\"",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Declaring page states in SF9Page.tsx\"",
+  "toolSummary": "\"Replace file content\""
+}

@@ -4,8 +4,29 @@ import { Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 // Register hyphenation if needed
 Font.registerHyphenationCallback(word => [word]);
 
+const fontOrigin = window.location.origin;
+const base = import.meta.env.BASE_URL || '/';
+const fontPath = `${fontOrigin}${base.endsWith('/') ? base : base + '/'}fonts`;
+
+try {
+    Font.register({
+        family: 'BookmanOldStyle',
+        fonts: [
+            { src: `${fontPath}/BOOKOS.TTF` },
+            { src: `${fontPath}/BOOKOSB.TTF`, fontWeight: 'bold' },
+            { src: `${fontPath}/BOOKOSI.TTF`, fontStyle: 'italic' },
+            { src: `${fontPath}/BOOKOSBI.TTF`, fontWeight: 'bold', fontStyle: 'italic' }
+        ]
+    });
+    Font.register({ family: 'BookmanOldStyle-Bold', src: `${fontPath}/BOOKOSB.TTF` });
+    Font.register({ family: 'BookmanOldStyle-Italic', src: `${fontPath}/BOOKOSI.TTF` });
+    Font.register({ family: 'BookmanOldStyle-BoldItalic', src: `${fontPath}/BOOKOSBI.TTF` });
+} catch (e) {
+    console.error('Failed to register Bookman Old Style fonts:', e);
+}
+
 const styles = StyleSheet.create({
-    page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'Times-Roman' },
+    page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'BookmanOldStyle' },
     // PAGE 1 STYLES
     page1Container: { flexDirection: 'row', height: '100%' },
     leftColumn: { width: '50%', paddingRight: 15 },
@@ -548,3 +569,4 @@ const logoLeftUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/84/Departm
 const logoRightUrl = 'https://upload.wikimedia.org/wikipedia/commons/8/84/Department_of_Education_%28DepEd%29.svg';
 
 export default SF9SHSPages;
+

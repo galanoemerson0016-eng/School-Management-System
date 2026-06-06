@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Reduce \\\"LEARNER'S PERFORMANCE REPORT\\\" title font size by 1.5 points (16 → 14.5)\"",
+  "EndLine": "132",
+  "Instruction": "\"Reduce singleReportTitle font size from 16 to 14.5\"",
+  "ReplacementContent": "\"    singleReportTitle: { fontSize: 14.5, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },\"",
+  "StartLine": "132",
+  "TargetContent": "\"    singleReportTitle: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },\"",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Editing stylesheet font size\"",
+  "toolSummary": "\"Reduce report title font size\""
+}

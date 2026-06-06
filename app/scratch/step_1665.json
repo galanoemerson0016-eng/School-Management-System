@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Adjust single comments and signatures sizes in stylesheet to increase comments row height and decrease signatures height\"",
+  "EndLine": "184",
+  "Instruction": "\"Change minHeight of comments rows and margins/height of signatures rows in styles\"",
+  "ReplacementContent": "\"    singleCommentsContainer: { marginBottom: 2 },\\n    singleCommentsBox: { borderWidth: 1, borderColor: '#000', borderRadius: 2, flexDirection: 'column' },\\n    singleCommentTermRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', minHeight: 48, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },\\n    singleCommentTermRowLast: { flexDirection: 'row', minHeight: 48, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },\\n    singleCommentLabel: { width: '15%', fontSize: 11, fontWeight: 'bold' },\\n    singleCommentValue: { flex: 1, fontSize: 11 },\\n\\n    singleSignaturesContainer: { marginBottom: 2, paddingHorizontal: 30 },\\n    singleSignatureRow: { flexDirection: 'row', marginBottom: 1, alignItems: 'center' },\\n    singleSignatureLabel: { fontSize: 9.5, fontWeight: 'bold', width: 40 },\\n    singleSignatureLine: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#000', height: 4 },\"",
+  "StartLine": "173",
+  "TargetContent": "\"    singleCommentsContainer: { marginBottom: 4 },\\n    singleCommentsBox: { borderWidth: 1, borderColor: '#000', borderRadius: 2, flexDirection: 'column' },\\n    singleCommentTermRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', minHeight: 32, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },\\n    singleCommentTermRowLast: { flexDirection: 'row', minHeight: 32, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },\\n    singleCommentLabel: { width: '15%', fontSize: 11, fontWeight: 'bold' },\\n    singleCommentValue: { flex: 1, fontSize: 11 },\\n\\n    singleSignaturesContainer: { marginBottom: 4, paddingHorizontal: 30 },\\n    singleSignatureRow: { flexDirection: 'row', marginBottom: 3, alignItems: 'center' },\\n    singleSignatureLabel: { fontSize: 11, fontWeight: 'bold', width: 40 },\\n    singleSignatureLine: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#000', height: 8 },\"",
+  "TargetFile": "\"c:/Users/Emerson/Desktop/FormEase Pro/app/src/pages/SF9Page.tsx\"",
+  "toolAction": "\"Updating comments and signatures stylesheet rules\"",
+  "toolSummary": "\"Update comments and signatures styles\""
+}

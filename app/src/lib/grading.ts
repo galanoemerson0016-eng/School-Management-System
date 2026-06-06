@@ -1,4 +1,7 @@
+import { useAppStore } from '../stores';
+
 // Grade computation weights based on current school policy
+// Updated per DepEd Order (SY 2026-2027): Assessment, Grading System, Awards & Recognition
 
 // Subject Cluster 1: AP, English, Filipino, Mathematics, Science, GMRC / Values Education
 export const WEIGHTS_LANGUAGES_AP_ESP = {
@@ -105,6 +108,67 @@ export type SubjectCluster =
     | 'g12_academic_other'
     | 'g12_academic_immersion_research'
     | 'g12_tvl_all';
+
+/**
+ * EXs internal sub-weights per DepEd Order (SY 2026-2027).
+ * Within the EXs component: ST1 = 30%, ST2 = 30%, TE = 40%.
+ */
+export const EXS_SUBWEIGHTS = {
+    st1: 0.30, // First Summative Test
+    st2: 0.30, // Second Summative Test
+    te:  0.40, // Term Examination
+} as const;
+
+/**
+ * Clusters where EXs consists ONLY of TE (no STs), so TE carries 100% of EXs weight.
+ * Applies to: SHS Field Exposure, Arts Apprenticeship, Creative Production and Innovation.
+ */
+export const EXS_TE_ONLY_CLUSTERS: SubjectCluster[] = ['shs_field_exposure'];
+
+/**
+ * Clusters that have NO EXs component (weight is already 0).
+ * Applies to: Research Electives, Design and Innovation, Work Immersion.
+ */
+export const EXS_NONE_CLUSTERS: SubjectCluster[] = ['shs_research', 'shs_immersion'];
+
+/**
+ * Compute the weighted Percentage Score for the Examinations (EXs) component.
+ * Per the DepEd Order: ST1 = 30%, ST2 = 30%, TE = 40% of the EXs component.
+ *
+ * For clusters with TE-only EXs (e.g. Field Exposure), TE carries 100%.
+ * For clusters with no EXs (e.g. Research/Work Immersion), returns 0.
+ *
+ * @param st1Score - Student's raw score on Summative Test 1
+ * @param st1HPS   - Highest Possible Score for ST1
+ * @param st2Score - Student's raw score on Summative Test 2
+ * @param st2HPS   - Highest Possible Score for ST2
+ * @param teScore  - Student's raw score on Term Examination
+ * @param teHPS    - Highest Possible Score for TE
+ * @param cluster  - Subject cluster to determine EXs mode
+ * @returns A percentage score (0–100) for the EXs component
+ */
+export function computeExamsWeightedScore(
+    st1Score: number, st1HPS: number,
+    st2Score: number, st2HPS: number,
+    teScore: number, teHPS: number,
+    cluster: SubjectCluster
+): number {
+    // No EXs component for these clusters
+    if (EXS_NONE_CLUSTERS.includes(cluster)) return 0;
+
+    // TE-only EXs: TE gets 100% of the EXs percentage score
+    if (EXS_TE_ONLY_CLUSTERS.includes(cluster)) {
+        if (teHPS <= 0) return 0;
+        return (teScore / teHPS) * 100;
+    }
+
+    // Standard: ST1 (30%), ST2 (30%), TE (40%) of EXs component
+    const st1PS = st1HPS > 0 ? (st1Score / st1HPS) * 100 : 0;
+    const st2PS = st2HPS > 0 ? (st2Score / st2HPS) * 100 : 0;
+    const tePS  = teHPS  > 0 ? (teScore  / teHPS)  * 100 : 0;
+
+    return (st1PS * EXS_SUBWEIGHTS.st1) + (st2PS * EXS_SUBWEIGHTS.st2) + (tePS * EXS_SUBWEIGHTS.te);
+}
 
 // Determine subject cluster based on subject name, grade level, and track
 export function getSubjectCluster(subjectName: string, gradeLevel?: string, track?: string): SubjectCluster {
@@ -283,10 +347,83 @@ export function getWeights(cluster: SubjectCluster) {
     }
 }
 
-// Transmutation table (DepEd Order 8 s. 2015)
-export function transmuteGrade(initialGrade: number): number {
+// Transmutation table (DepEd Order 8 s. 2015 / Adjusted for SY 2026-2027)
+export function transmuteGrade(initialGrade: number, schoolYear?: string): number {
     const score = Math.min(100, Math.max(0, initialGrade)); // Clamp 0-100
+    
+    // Parse the school year, defaulting to the store's activeSchoolYear
+    let sy = schoolYear;
+    try {
+        if (!sy) {
+            sy = useAppStore.getState().activeSchoolYear;
+        }
+    } catch (_e) {
+        // useAppStore might not be initialized or available in test environments
+    }
+    if (!sy) sy = '2026-2027'; // Fallback to transition SY
 
+
+    // Parse the school year start year
+    const syStart = parseInt(sy.split('-')[0]) || 2026;
+
+    // Beginning SY 2027-2028, a zero-based grading system is implemented: no transmutation.
+    if (syStart >= 2027) {
+        return Math.round(score);
+    }
+
+    // Check if it's SY 2026-2027 for the adjusted transmutation table
+    const isTransitionSY = sy === '2026-2027';
+
+    if (isTransitionSY) {
+        // Table 4: Adjusted Transmutation Table (only for SY 2026-2027)
+        const transmutationRanges = [
+            { min: 99.50, max: 100.00, grade: 100 },
+            { min: 98.32, max: 99.49, grade: 99 },
+            { min: 97.14, max: 98.31, grade: 98 },
+            { min: 95.96, max: 97.13, grade: 97 },
+            { min: 94.78, max: 95.95, grade: 96 },
+            { min: 93.60, max: 94.77, grade: 95 },
+            { min: 92.42, max: 93.59, grade: 94 },
+            { min: 91.24, max: 92.41, grade: 93 },
+            { min: 90.06, max: 91.23, grade: 92 },
+            { min: 88.88, max: 90.05, grade: 91 },
+            { min: 87.70, max: 88.87, grade: 90 },
+            { min: 86.52, max: 87.69, grade: 89 },
+            { min: 85.34, max: 86.51, grade: 88 },
+            { min: 84.16, max: 85.33, grade: 87 },
+            { min: 82.98, max: 84.15, grade: 86 },
+            { min: 81.80, max: 82.97, grade: 85 },
+            { min: 80.62, max: 81.79, grade: 84 },
+            { min: 79.44, max: 80.61, grade: 83 },
+            { min: 78.26, max: 79.43, grade: 82 },
+            { min: 77.08, max: 78.25, grade: 81 },
+            { min: 75.90, max: 77.07, grade: 80 },
+            { min: 74.72, max: 75.89, grade: 79 },
+            { min: 73.54, max: 74.71, grade: 78 },
+            { min: 72.36, max: 73.53, grade: 77 },
+            { min: 71.18, max: 72.35, grade: 76 },
+            { min: 70.00, max: 71.17, grade: 75 },
+            { min: 65.34, max: 69.99, grade: 74 },
+            { min: 60.67, max: 65.33, grade: 73 },
+            { min: 56.01, max: 60.66, grade: 72 },
+            { min: 51.34, max: 56.00, grade: 71 },
+            { min: 46.67, max: 51.33, grade: 70 },
+            { min: 42.01, max: 46.66, grade: 69 },
+            { min: 37.34, max: 42.00, grade: 68 },
+            { min: 32.68, max: 37.33, grade: 67 },
+            { min: 28.01, max: 32.67, grade: 66 },
+            { min: 23.35, max: 28.00, grade: 65 },
+            { min: 18.68, max: 23.34, grade: 64 },
+            { min: 14.01, max: 18.67, grade: 63 },
+            { min: 9.35,  max: 14.00, grade: 62 },
+            { min: 4.68,  max: 9.34,  grade: 61 },
+            { min: 0.00,  max: 4.67,  grade: 60 },
+        ];
+        const matched = transmutationRanges.find((range) => score >= range.min && score <= range.max);
+        return matched ? matched.grade : 60;
+    }
+
+    // Default DO 8 s. 2015 Transmutation Table
     const transmutationRanges = [
         { min: 99.5, max: 100.0, grade: 100 },
         { min: 97.5, max: 99.49, grade: 99 },
@@ -329,14 +466,52 @@ export function transmuteGrade(initialGrade: number): number {
         { min: 43.0, max: 45.99, grade: 62 },
         { min: 40.0, max: 42.99, grade: 61 },
         { min: 25.0, max: 39.99, grade: 60 },
-        { min: 0.0, max: 24.0, grade: 60 }, // default minimum
+        { min: 0.0, max: 24.0, grade: 60 },
     ];
-
     const matched = transmutationRanges.find((range) => score >= range.min && score <= range.max);
     return matched ? matched.grade : 60;
 }
 
-// Grade stage checkers
+// ─── SY-Aware Descriptive Grading (KS1 Transition) ─────────────────────────
+
+/**
+ * Returns true if a grade level is under DESCRIPTIVE grading for the given SY.
+ * Per DepEd Order (KS1 Transition):
+ *  - SY 2026-2027: Descriptive for Kindergarten and Grade 1
+ *  - SY 2027-2028: Descriptive for Kindergarten, Grade 1, Grade 2
+ *  - SY 2028-2029+: Descriptive for all KS1 (Kindergarten to Grade 3)
+ *
+ * @param gradeLevel - e.g. "Grade 1", "Kindergarten", "Grade 3"
+ * @param schoolYear - e.g. "2026-2027" (defaults to 2026-2027 if not provided)
+ */
+export function isDescriptiveGrading(gradeLevel: string, schoolYear?: string): boolean {
+    const gl = (gradeLevel || '').toLowerCase();
+    if (gl.includes('kinder')) return true; // Always descriptive
+
+    const gradeNum = parseInt(gl.replace(/\D/g, '')) || 0;
+    if (gradeNum < 1 || gradeNum > 3) return false; // Only KS1 (G1-G3) ever go descriptive
+
+    // Parse the school year, defaulting to the store's activeSchoolYear
+    let sy = schoolYear;
+    try {
+        if (!sy) {
+            sy = useAppStore.getState().activeSchoolYear;
+        }
+    } catch (_e) {
+        // useAppStore might not be initialized
+    }
+    if (!sy) sy = '2026-2027';
+
+    // Parse the school year start year
+    const syStart = parseInt(sy.split('-')[0]) || 2026;
+
+    if (syStart >= 2028) return gradeNum >= 1 && gradeNum <= 3; // G1-G3 all descriptive
+    if (syStart >= 2027) return gradeNum <= 2;                   // G1-G2 descriptive
+    return gradeNum <= 1;                                        // SY 2026-2027: G1 only
+}
+
+// ─── Grade Stage Checkers ─────────────────────────────────────────────────────
+
 export function isKindergarten(gradeLevel: string): boolean {
     const gl = (gradeLevel || '').toLowerCase();
     return gl.includes('kinder');
@@ -406,10 +581,10 @@ export function getKs1Descriptor(letterGrade: string, gradeLevel: string): strin
 }
 
 // Unified qualitative descriptors for Grades 4-12 (KS2-KS4) or KS1 letters
-export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string): string {
+export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string, schoolYear?: string): string {
     if (!grade || grade <= 0) return '';
     
-    if (isKeyStage1(gradeLevel)) {
+    if (isDescriptiveGrading(gradeLevel, schoolYear)) {
         const letter = getKs1LetterGrade(grade, gradeLevel);
         return getKs1Descriptor(letter, gradeLevel);
     }
@@ -419,11 +594,11 @@ export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string
     if (grade >= 80) return 'Benchmarking (Napamamalas)';
     if (grade >= 75) return 'Connecting (Natutungo)';
     if (grade >= 65) return 'Developing (Napauunlad)';
-    return 'Emerging (Nasisimula)';
+    return 'Emerging (Nagsisimula)';
 }
 
 // Formatter to display numerical grade as descriptive letter (for KS1) or rounded number (for KS2-KS4)
-export function formatGradeForDisplay(numericGrade: number | string | null | undefined, gradeLevel: string): string {
+export function formatGradeForDisplay(numericGrade: number | string | null | undefined, gradeLevel: string, schoolYear?: string): string {
     if (numericGrade === null || numericGrade === undefined || numericGrade === '') return '';
     
     // If it's already a letter like A, B, C, D, E, just return it
@@ -433,7 +608,7 @@ export function formatGradeForDisplay(numericGrade: number | string | null | und
     const grade = Number(numericGrade);
     if (isNaN(grade) || grade <= 0) return strVal;
     
-    if (isKeyStage1(gradeLevel)) {
+    if (isDescriptiveGrading(gradeLevel, schoolYear)) {
         return getKs1LetterGrade(grade, gradeLevel);
     }
     

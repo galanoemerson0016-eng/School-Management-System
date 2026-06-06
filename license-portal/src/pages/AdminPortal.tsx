@@ -341,7 +341,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
         <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
-      <nav className="relative z-50 w-full p-6 flex items-center justify-between border-b border-white/10 backdrop-blur-xl bg-white/[0.03]">
+      <nav className="relative z-50 w-full p-6 flex items-center justify-between border-b border-white/10 backdrop-blur-xl bg-white/3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-600 rounded-xl">
             <Shield className="w-6 h-6 text-white" />
@@ -382,7 +382,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                    {trials.length > 0 ? (
                       trials.map((t) => (
-                         <div key={t.id} className="bg-white/[0.03] border border-white/10 rounded-[2rem] p-6 flex flex-col justify-between space-y-6 relative overflow-hidden">
+                         <div key={t.id} className="bg-white/3 border border-white/10 rounded-4xl p-6 flex flex-col justify-between space-y-6 relative overflow-hidden">
                             <div className="flex items-start justify-between">
                                <div className="flex items-center gap-4">
                                   <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
@@ -393,12 +393,20 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                                      <p className="text-[10px] text-slate-500 font-mono select-all uppercase tracking-wide truncate max-w-[150px]">{t.machine_id}</p>
                                   </div>
                                 </div>
-                               <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 text-[8px] font-black uppercase tracking-widest">Active Trial</span>
+                               {(() => {
+                                  const startedAt = parseDate(t.started_at);
+                                  const isExpired = startedAt ? (new Date().getTime() - startedAt.getTime() > 1 * 60 * 60 * 1000) : true;
+                                  return isExpired ? (
+                                     <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-500 text-[8px] font-black uppercase tracking-widest">Expired</span>
+                                  ) : (
+                                     <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-500 text-[8px] font-black uppercase tracking-widest">Active Trial</span>
+                                  );
+                               })()}
                             </div>
                             <div className="border-t border-white/5 pt-4 space-y-2">
                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                  <span>Claimed At:</span>
-                                  <span>{t.started_at ? new Date(t.started_at).toLocaleString() : 'N/A'}</span>
+                                   <span>Claimed At:</span>
+                                   <span>{t.started_at ? (parseDate(t.started_at)?.toLocaleString() || 'N/A') : 'N/A'}</span>
                                </div>
                             </div>
                             <button onClick={() => handleRevokeTrial(t.id)} className="w-full py-3 bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/20 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
@@ -408,7 +416,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                          </div>
                       ))
                    ) : (
-                      <div className="col-span-full py-16 text-center text-slate-400 font-bold text-sm bg-white/[0.02] border border-white/5 border-dashed rounded-3xl">No trial devices registered.</div>
+                      <div className="col-span-full py-16 text-center text-slate-400 font-bold text-sm bg-white/2 border border-white/5 border-dashed rounded-3xl">No trial devices registered.</div>
                    )}
                 </div>
              </motion.div>
@@ -418,19 +426,19 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                    <h2 className="text-3xl font-black text-white mb-2">System Maintenance</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center text-center space-y-6">
+                   <div className="bg-white/3 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center text-center space-y-6">
                       <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20"><Trash2 className="w-8 h-8 text-red-500" /></div>
                       <h3 className="text-xl font-black text-white">Database Cleanup</h3>
                       <button onClick={handleCleanup} className="w-full py-4 bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/20 rounded-2xl font-black text-xs uppercase tracking-widest">Delete Pending Keys</button>
                    </div>
-                   <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center text-center space-y-6">
+                   <div className="bg-white/3 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center text-center space-y-6">
                       <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20"><Wrench className="w-8 h-8 text-blue-500" /></div>
                       <h3 className="text-xl font-black text-white">Repair Expirations</h3>
                       <button onClick={handleRepairExpirations} className="w-full py-4 bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 border border-red-600/20 rounded-2xl font-black text-xs uppercase tracking-widest">Fix Expiry Dates</button>
                    </div>
                 </div>
 
-                <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 space-y-6">
+                <div className="bg-white/3 border border-white/10 rounded-[2.5rem] p-8 space-y-6">
                     <div className="flex items-center gap-3">
                        <div className="p-2 bg-blue-600/10 rounded-xl text-blue-500"><DownloadCloud className="w-6 h-6" /></div>
                        <div className="text-left">
@@ -510,7 +518,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                 </div>
                 <div className="grid grid-cols-1 gap-4">
                   {Array.isArray(requests) && requests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter).map((req) => (
-                    <div key={req.id} className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div key={req.id} className="bg-white/3 border border-white/10 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                       <div className="flex items-center gap-6">
                         <div className={`p-4 rounded-2xl ${req.platform === 'mac' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-blue-500/10 text-blue-400'}`}>
                           {req.platform === 'mac' ? <Apple className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
@@ -554,7 +562,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                     </div>
                   ))}
                   {(!requests || requests.filter(r => requestStatusFilter === 'all' || r.status === requestStatusFilter).length === 0) && (
-                    <div className="py-20 text-center bg-white/[0.02] border-2 border-dashed border-white/5 rounded-3xl">
+                    <div className="py-20 text-center bg-white/2 border-2 border-dashed border-white/5 rounded-3xl">
                       <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No requests found in this category</p>
                     </div>
                   )}
@@ -564,7 +572,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
              <motion.div key="gen">
                 <div className="text-center py-10">
                    <h2 className="text-3xl font-black text-white mb-8">Quick Generator</h2>
-                   <div className="max-w-md mx-auto space-y-6 bg-white/[0.03] p-10 rounded-[3rem] border border-white/10">
+                   <div className="max-w-md mx-auto space-y-6 bg-white/3 p-10 rounded-[3rem] border border-white/10">
                       <div className="flex gap-3 p-1 bg-white/5 rounded-2xl border border-white/10">
                         <button onClick={() => setSelectedPlatform('windows')} className={`flex-1 py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-black transition-all ${selectedPlatform === 'windows' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}><Monitor className="w-4 h-4" /> Windows</button>
                         <button onClick={() => setSelectedPlatform('mac')} className={`flex-1 py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-black transition-all ${selectedPlatform === 'mac' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}><Apple className="w-4 h-4" /> macOS</button>
@@ -576,8 +584,8 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
              </motion.div>
           ) : activeTab === 'advertisement' ? (
               <motion.div key="advertisement" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full flex items-center justify-center pt-2 pb-10 px-4">
-                <div className="relative w-full max-w-[1200px] p-[2px] rounded-[3rem] bg-gradient-to-br from-blue-500/80 via-indigo-500/80 to-purple-600/80 shadow-[0_0_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 via-indigo-500/30 to-purple-600/30 blur-3xl opacity-60 pointer-events-none" />
+                <div className="relative w-full max-w-[1200px] p-[2px] rounded-[3rem] bg-linear-to-br from-blue-500/80 via-indigo-500/80 to-purple-600/80 shadow-[0_0_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col">
+                  <div className="absolute inset-0 bg-linear-to-br from-blue-500/30 via-indigo-500/30 to-purple-600/30 blur-3xl opacity-60 pointer-events-none" />
                   <div className="relative bg-[#040814] rounded-[3rem] px-8 py-10 lg:py-12 w-full h-full flex flex-col justify-center text-center overflow-hidden">
                       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
                       <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
@@ -591,12 +599,12 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                               <span className="text-[11px] font-black text-green-400 uppercase tracking-[0.2em]">Live Deployment</span>
                           </div>
 
-                          <h2 className="text-5xl lg:text-[4rem] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-indigo-300 to-purple-300 mb-3 drop-shadow-lg tracking-tight leading-tight">FormEase Pro is Changing the Game!</h2>
+                          <h2 className="text-5xl lg:text-[4rem] font-black text-transparent bg-clip-text bg-linear-to-r from-blue-300 via-indigo-300 to-purple-300 mb-3 drop-shadow-lg tracking-tight leading-tight">FormEase Pro is Changing the Game!</h2>
                           <p className="text-lg lg:text-xl text-slate-400 font-bold mb-8 max-w-4xl mx-auto leading-relaxed">Join the rapidly growing community of educators who have already streamlined their workflow. Secure your spot before the current batch sells out!</p>
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-8 mb-8 w-full max-w-5xl mx-auto">
-                              <div className="bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-xl border border-white/[0.05] rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                              <div className="bg-linear-to-b from-white/5 to-transparent backdrop-blur-xl border border-white/5 rounded-4xl p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                                  <div className="absolute inset-0 bg-linear-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                   <div className="w-14 h-14 lg:w-16 lg:h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20 shadow-[0_0_30px_rgba(59,130,246,0.15)] group-hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] transition-shadow duration-300">
                                       <Monitor className="w-7 h-7 lg:w-8 lg:h-8 text-blue-400" />
                                   </div>
@@ -604,8 +612,8 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                                   <p className="text-[10px] lg:text-[11px] font-black text-blue-400 uppercase tracking-[0.15em]">Windows Devices</p>
                               </div>
                               
-                              <div className="bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-xl border border-white/[0.05] rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                              <div className="bg-linear-to-b from-white/5 to-transparent backdrop-blur-xl border border-white/5 rounded-4xl p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                                  <div className="absolute inset-0 bg-linear-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                   <div className="w-14 h-14 lg:w-16 lg:h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.15)] group-hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-shadow duration-300">
                                       <Apple className="w-7 h-7 lg:w-8 lg:h-8 text-indigo-400" />
                                   </div>
@@ -613,8 +621,8 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                                   <p className="text-[10px] lg:text-[11px] font-black text-indigo-400 uppercase tracking-[0.15em]">macOS Devices</p>
                               </div>
 
-                              <div className="bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-xl border border-white/[0.05] rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                                  <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                              <div className="bg-linear-to-b from-white/5 to-transparent backdrop-blur-xl border border-white/5 rounded-4xl p-6 shadow-2xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+                                  <div className="absolute inset-0 bg-linear-to-br from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                   <div className="w-14 h-14 lg:w-16 lg:h-16 bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-green-500/20 shadow-[0_0_30px_rgba(34,197,94,0.15)] group-hover:shadow-[0_0_30px_rgba(34,197,94,0.3)] transition-shadow duration-300">
                                       <Key className="w-7 h-7 lg:w-8 lg:h-8 text-green-400" />
                                   </div>
@@ -623,7 +631,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                               </div>
                           </div>
 
-                          <div className="w-full max-w-4xl mx-auto bg-gradient-to-r from-white/[0.02] to-white/[0.05] border border-white/[0.08] rounded-[2rem] p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+                          <div className="w-full max-w-4xl mx-auto bg-linear-to-r from-white/2 to-white/5 border border-white/8 rounded-4xl p-6 backdrop-blur-xl shadow-2xl relative overflow-hidden">
                               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
                               <div className="relative z-10 flex justify-between items-end mb-3">
                                   <div className="text-left">
@@ -638,15 +646,15 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                                   </div>
                               </div>
                               <div className="relative h-4 lg:h-5 bg-black/60 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                                  <div className="absolute inset-0 bg-white/[0.02] mix-blend-overlay" />
+                                  <div className="absolute inset-0 bg-white/2 mix-blend-overlay" />
                                   <motion.div 
                                       initial={{ width: 0 }}
                                       animate={{ width: `${Math.min(100, Math.round((stats.total / 150) * 100))}%` }}
                                       transition={{ duration: 1.5, ease: "easeOut" }}
-                                      className="h-full bg-gradient-to-r from-green-400 via-blue-500 to-indigo-500 rounded-full relative"
+                                      className="h-full bg-linear-to-r from-green-400 via-blue-500 to-indigo-500 rounded-full relative"
                                   >
-                                      <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent" />
-                                      <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white/40 to-transparent blur-sm" />
+                                      <div className="absolute inset-0 bg-linear-to-b from-white/20 to-transparent" />
+                                      <div className="absolute right-0 top-0 bottom-0 w-10 bg-linear-to-l from-white/40 to-transparent blur-sm" />
                                   </motion.div>
                               </div>
                               <p className="text-[9px] lg:text-[10px] font-black text-slate-500 mt-3 uppercase tracking-[0.15em] flex items-center justify-center gap-2">
@@ -682,7 +690,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
 
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredLicenses.map(license => (
-                    <div key={license.id} className={`p-6 border rounded-[2.5rem] relative overflow-hidden transition-all ${license.status === 'activated' ? 'bg-green-500/[0.03] border-green-500/20 shadow-xl shadow-green-500/5' : 'bg-blue-500/[0.03] border-blue-500/30'}`}>
+                    <div key={license.id} className={`p-6 border rounded-[2.5rem] relative overflow-hidden transition-all ${license.status === 'activated' ? 'bg-green-500/3 border-green-500/20 shadow-xl shadow-green-500/5' : 'bg-blue-500/3 border-blue-500/30'}`}>
                        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${license.status === 'activated' ? 'bg-green-500/10' : 'bg-blue-500/10'}`} />
                        
                        <div className="flex justify-between items-start mb-6">
@@ -766,7 +774,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       {/* Image Preview Modal */}
       <AnimatePresence>
         {previewImage && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-xl bg-black/80" onClick={() => setPreviewImage(null)}>
+          <div className="fixed inset-0 z-200 flex items-center justify-center p-6 backdrop-blur-xl bg-black/80" onClick={() => setPreviewImage(null)}>
              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
                 <img src={previewImage} alt="Receipt Preview" className="w-full h-full object-contain rounded-[3rem] shadow-2xl border border-white/10" />
                 <button onClick={() => setPreviewImage(null)} className="absolute -top-4 -right-4 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md transition-all shadow-xl">
@@ -780,7 +788,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       {/* Decline Modal */}
       <AnimatePresence>
         {declineModal.isOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/60">
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-6 backdrop-blur-md bg-black/60">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-[#0A192F] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
                <div className="mb-6 text-center">
                   <h3 className="text-xl font-black text-white">Decline Request</h3>

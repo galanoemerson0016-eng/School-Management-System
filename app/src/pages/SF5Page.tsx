@@ -240,15 +240,15 @@ export function SF5Page() {
 
     const proficiencyData = useMemo(() => {
         const calculateLevel = (studentsList: typeof studentData) => {
-            let a = 0, p = 0, ap = 0, d = 0, b = 0;
+            let advancing = 0, benchmarking = 0, connecting = 0, developing = 0, emerging = 0;
             studentsList.forEach(st => {
-                if (st.genAve >= 90) a++;
-                else if (st.genAve >= 85) p++;
-                else if (st.genAve >= 80) ap++;
-                else if (st.genAve >= 75) d++;
-                else if (st.genAve > 0) b++; // Need to have a grade
+                if (st.genAve >= 90) advancing++;
+                else if (st.genAve >= 80) benchmarking++;
+                else if (st.genAve >= 75) connecting++;
+                else if (st.genAve >= 65) developing++;
+                else if (st.genAve > 0) emerging++;
             });
-            return { a, p, ap, d, b };
+            return { advancing, benchmarking, connecting, developing, emerging };
         };
         return {
             males: calculateLevel(males),
@@ -648,48 +648,48 @@ export function SF5Page() {
                                                                 <tbody>
                                                                     <tr>
                                                                         <td className="border border-black py-1 text-center px-1 leading-tight">
-                                                                            <span className="text-[10px]">Did Not Meet Expectations</span><br/>
-                                                                            <span className="text-[9px]">( 74 and below)</span>
+                                                                            <span className="text-[10px]">Emerging</span><br/>
+                                                                            <span className="text-[9px]">(64 and below)</span>
                                                                         </td>
-                                                                        <td className="border border-black py-1">{proficiencyData.males.b || '0'}</td>
-                                                                        <td className="border border-black py-1">{proficiencyData.females.b || '0'}</td>
-                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.b + proficiencyData.females.b) || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.males.emerging || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.females.emerging || '0'}</td>
+                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.emerging + proficiencyData.females.emerging) || '0'}</td>
                                                                     </tr>
                                                                     <tr>
                                                                         <td className="border border-black py-1 text-center px-1 leading-tight">
-                                                                            <span className="text-[10px]">Fairly Satisfactory</span><br/>
-                                                                            <span className="text-[9px]">( 75-79)</span>
+                                                                            <span className="text-[10px]">Developing</span><br/>
+                                                                            <span className="text-[9px]">(65-74)</span>
                                                                         </td>
-                                                                        <td className="border border-black py-1">{proficiencyData.males.d || '0'}</td>
-                                                                        <td className="border border-black py-1">{proficiencyData.females.d || '0'}</td>
-                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.d + proficiencyData.females.d) || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.males.developing || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.females.developing || '0'}</td>
+                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.developing + proficiencyData.females.developing) || '0'}</td>
                                                                     </tr>
                                                                     <tr>
                                                                         <td className="border border-black py-1 text-center px-1 leading-tight">
-                                                                            <span className="text-[10px]">Satisfactory</span><br/>
-                                                                            <span className="text-[9px]">( 80-84)</span>
+                                                                            <span className="text-[10px]">Connecting</span><br/>
+                                                                            <span className="text-[9px]">(75-79)</span>
                                                                         </td>
-                                                                        <td className="border border-black py-1">{proficiencyData.males.ap || '0'}</td>
-                                                                        <td className="border border-black py-1">{proficiencyData.females.ap || '0'}</td>
-                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.ap + proficiencyData.females.ap) || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.males.connecting || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.females.connecting || '0'}</td>
+                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.connecting + proficiencyData.females.connecting) || '0'}</td>
                                                                     </tr>
                                                                     <tr>
                                                                         <td className="border border-black py-1 text-center px-1 leading-tight">
-                                                                            <span className="text-[10px]">Very Satisfactory</span><br/>
-                                                                            <span className="text-[9px]">( 85 -89)</span>
+                                                                            <span className="text-[10px]">Benchmarking</span><br/>
+                                                                            <span className="text-[9px]">(80-89)</span>
                                                                         </td>
-                                                                        <td className="border border-black py-1">{proficiencyData.males.p || '0'}</td>
-                                                                        <td className="border border-black py-1">{proficiencyData.females.p || '0'}</td>
-                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.p + proficiencyData.females.p) || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.males.benchmarking || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.females.benchmarking || '0'}</td>
+                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.benchmarking + proficiencyData.females.benchmarking) || '0'}</td>
                                                                     </tr>
                                                                     <tr>
                                                                         <td className="border border-black py-1 text-center px-1 leading-tight">
-                                                                            <span className="text-[10px]">Outstanding</span><br/>
-                                                                            <span className="text-[9px]">( 90 -100)</span>
+                                                                            <span className="text-[10px]">Advancing</span><br/>
+                                                                            <span className="text-[9px]">(90-100)</span>
                                                                         </td>
-                                                                        <td className="border border-black py-1">{proficiencyData.males.a || '0'}</td>
-                                                                        <td className="border border-black py-1">{proficiencyData.females.a || '0'}</td>
-                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.a + proficiencyData.females.a) || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.males.advancing || '0'}</td>
+                                                                        <td className="border border-black py-1">{proficiencyData.females.advancing || '0'}</td>
+                                                                        <td className="border border-black py-1 font-bold">{(proficiencyData.males.advancing + proficiencyData.females.advancing) || '0'}</td>
                                                                     </tr>
                                                                 </tbody>
                                                             </table>

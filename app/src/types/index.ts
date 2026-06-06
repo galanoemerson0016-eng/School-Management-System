@@ -32,6 +32,9 @@ export interface SchoolProfile {
     head_name: string;
     head_position: string;
     grade_levels_offered: string;
+    municipality?: string;
+    city?: string;
+    province?: string;
     logo_url?: string;
     head_signature_url?: string;
     adviser_name?: string;
@@ -138,7 +141,60 @@ export interface Student {
     mother_name?: string;
     guardian_name?: string;
     guardian_relationship?: string;
+    awardEvaluations?: AwardEvaluation[];
 }
+
+export interface AwardEvaluation {
+    id: string; // format: `${lrn}_${schoolYear}_${term}_${awardType}`
+    student_lrn: string;
+    schoolYear: string;
+    term: 1 | 2 | 3 | 'EOSY';
+    awardType: 'Leadership' | 'Research' | 'Innovation' | 'WorkImmersion' | 'CharacterTrait' | 'GMRCMerit' | 'PerfectAttendance' | 'SpecialRecognition';
+    
+    // Leadership: motivational (40), planning (40), contribution (20)
+    leadershipScores?: {
+        motivational: number;
+        planning: number;
+        contribution: number;
+        total: number;
+        position: string;
+        noDerogatory: boolean;
+    };
+    
+    // Research / Design & Innovation: Table 1 / Table 2
+    projectTitle?: string;
+    projectMembers?: string[]; // Array of LRNs
+    researchScores?: {
+        finalGrade: number; // 20
+        significance: number; // 35 or 30
+        rigor?: number; // 30 (Research only)
+        originality?: number; // 20 (Innovation only)
+        feasibility?: number; // 20 (Innovation only)
+        presentation: number; // 15 or 10
+        total: number;
+    };
+    
+    // Work Immersion details
+    workImmersionDetails?: {
+        grade: number;
+        supervisorRating: string;
+        teacherRating: string;
+        isEndorsed: boolean;
+    };
+    
+    // Character Trait
+    characterTraitId?: string; // e.g. Maka-Diyos, Maka-tao, etc.
+    characterTraitTitle?: string; // contextualized title
+    characterTraitDescription?: string;
+    
+    // GMRC Merit (competency)
+    gmrcCompetency?: string;
+    
+    // Special Recognition / custom achievement
+    specialRecognitionTitle?: string;
+    specialRecognitionLevel?: 'regional' | 'national' | 'international' | 'school' | string;
+}
+
 
 export interface Section {
     id: string;

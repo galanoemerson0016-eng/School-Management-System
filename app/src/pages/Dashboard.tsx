@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { SVGProps } from 'react';
 import { useAppStore } from '../stores';
+import { isDescriptiveGrading } from '../lib/grading';
 import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Calendar, Bell, Trophy, AlertTriangle, Zap, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity } from 'lucide-react';
@@ -14,6 +15,14 @@ const getLocalDateString = (date: Date) => {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const toTitleCase = (str: string): string => {
+    if (!str) return '';
+    return str
+        .trim()
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
 };
 
 const addDays = (date: Date, offset: number) => {
@@ -60,12 +69,19 @@ export function Dashboard() {
     const gradingSheetRecords = useAppStore((s) => s.gradingSheetRecords);
     const setCurrentView = useAppStore((s) => s.setCurrentView);
     const setSelectedSection = useAppStore((s) => s.setSelectedSection);
-    const setSelectedSubject = useAppStore((s) => s.setSelectedSubject);
     const isSyncReady = useAppStore((s) => s.isSyncReady);
     const attendanceRecords = useAppStore((s) => s.attendanceRecords);
+    const activeSchoolYear = useAppStore((s) => s.activeSchoolYear);
+    const schoolYears = useAppStore((s) => s.schoolYears);
 
     const [selectedMetric, setSelectedMetric] = useState<'at-risk' | 'top' | null>(null);
     const [calendarDayOffset, setCalendarDayOffset] = useState(0);
+
+    const [selectedSchoolYear, setSelectedSchoolYear] = useState(activeSchoolYear || '2026-2027');
+    const [selectedQuarter, setSelectedQuarter] = useState<string>('overall'); // 'overall', '1', '2', '3'
+    const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('all');
+    const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     const attendanceStats = useMemo(() => {
         const last14Days = Array.from({ length: 14 }, (_, i) => {
@@ -137,6 +153,16 @@ export function Dashboard() {
             s.student_section && (validSectionIds.has(s.student_section) || validSectionNames.has(s.student_section))
         );
     }, [students, officialSections]);
+
+    const advisoryStudents = useMemo(() => {
+        const advisorySecs = sections.filter(s => s.is_advisory || (s as typeof sections[number] & { is_advisory_class?: boolean }).is_advisory_class);
+        if (advisorySecs.length === 0) return [];
+        const validSectionIds = new Set(advisorySecs.map(s => s.id));
+        const validSectionNames = new Set(advisorySecs.map(s => s.section_name));
+        return students.filter(s => 
+            s.student_section && (validSectionIds.has(s.student_section) || validSectionNames.has(s.student_section))
+        );
+    }, [students, sections]);
 
     const filteredStudentLrns = useMemo(() => {
         return new Set(filteredStudents.map(s => s.lrn));
@@ -228,7 +254,12 @@ export function Dashboard() {
         };
     }, [consolidatedRecords, studentMap, subjectMap, sectionMapById]);
 
-    const { failingStudentList, topStudentList } = metricsResult;
+    const { failingStudentList } = metricsResult;
+
+    // Current quarter (heuristic: use latest quarter found in records or default to 1)
+    const currentQtr = useMemo(() => {
+        return consolidatedRecords.length > 0 ? Math.max(...consolidatedRecords.map(r => r.quarter)) : 1;
+    }, [consolidatedRecords]);
 
     // --- NEW: Grading Progress Pulse ---
     const gradingProgress = useMemo(() => {
@@ -244,13 +275,37 @@ export function Dashboard() {
         });
 
         if (totalSlots === 0) return 0;
-
-        // Current quarter (heuristic: use latest quarter found in records or default to 1)
-        const currentQtr = consolidatedRecords.length > 0 ? Math.max(...consolidatedRecords.map(r => r.quarter)) : 1;
         
         const filledSlots = consolidatedRecords.filter(r => r.quarter === currentQtr).length;
         return Math.min(100, Math.round((filledSlots / totalSlots) * 100));
-    }, [officialSections, officialSubjects, filteredStudents, consolidatedRecords]);
+    }, [officialSections, officialSubjects, filteredStudents, consolidatedRecords, currentQtr]);
+
+    const achieversCountForCard = useMemo(() => {
+        const list = advisoryStudents.map(student => {
+            if (isDescriptiveGrading(student.grade_level, activeSchoolYear)) return null;
+
+            const records = consolidatedRecords.filter(r => 
+                r.student_lrn === student.lrn && 
+                r.school_year === activeSchoolYear &&
+                r.quarter === currentQtr &&
+                r.final_grade !== undefined && 
+                r.final_grade !== null && 
+                r.final_grade !== '' &&
+                Number(r.final_grade) > 0
+            );
+
+            if (records.length === 0) return null;
+
+            const hasGradeBelow80 = records.some(r => Number(r.final_grade) < 80);
+            if (hasGradeBelow80) return null;
+
+            const sum = records.reduce((sum, r) => sum + Number(r.final_grade), 0);
+            const average = sum / records.length;
+            return Math.round(average * 100) / 100;
+        }).filter(avg => avg !== null && avg >= 90);
+
+        return list.length;
+    }, [advisoryStudents, consolidatedRecords, activeSchoolYear, currentQtr]);
 
 
 
@@ -318,12 +373,157 @@ export function Dashboard() {
 
 
 
-    const handleViewRecord = (sectionName: string, subjectId: string) => {
-        if (!sectionName || !subjectId) return;
-        setSelectedSection(sectionName);
-        setSelectedSubject(subjectId);
-        setCurrentView('eclass');
-    };
+
+
+    // --- Academic Achievers Data & Filter Memos ---
+    const achieversList = useMemo(() => {
+        const list = advisoryStudents.map(student => {
+            if (isDescriptiveGrading(student.grade_level, selectedSchoolYear)) return null;
+
+            const records = consolidatedRecords.filter(r => 
+                r.student_lrn === student.lrn && 
+                r.school_year === selectedSchoolYear &&
+                (selectedQuarter === 'overall' ? true : r.quarter === Number(selectedQuarter)) &&
+                r.final_grade !== undefined && 
+                r.final_grade !== null && 
+                r.final_grade !== '' &&
+                Number(r.final_grade) > 0
+            );
+
+            if (records.length === 0) return null;
+
+            let average = 0;
+            let hasGradeBelow80 = false;
+
+            if (selectedQuarter === 'overall') {
+                const subjectIds = Array.from(new Set(records.map(r => r.subject_id)));
+                if (subjectIds.length === 0) return null;
+
+                let totalSubjectsYearlyGradeSum = 0;
+                let validSubjectsCount = 0;
+
+                for (const subId of subjectIds) {
+                    const subRecords = records.filter(r => r.subject_id === subId);
+                    const termGrades = [1, 2, 3].map(q => {
+                        const rec = subRecords.find(r => r.quarter === q);
+                        return rec ? Number(rec.final_grade) : 0;
+                    }).filter(g => g > 0);
+
+                    if (termGrades.length > 0) {
+                        const yearlySubGrade = Math.round(termGrades.reduce((sum, g) => sum + g, 0) / termGrades.length);
+                        if (yearlySubGrade < 80) {
+                            hasGradeBelow80 = true;
+                        }
+                        totalSubjectsYearlyGradeSum += yearlySubGrade;
+                        validSubjectsCount++;
+                    }
+                }
+
+                if (validSubjectsCount === 0) return null;
+                average = totalSubjectsYearlyGradeSum / validSubjectsCount;
+            } else {
+                hasGradeBelow80 = records.some(r => Number(r.final_grade) < 80);
+                const sum = records.reduce((sum, r) => sum + Number(r.final_grade), 0);
+                average = sum / records.length;
+            }
+
+            if (hasGradeBelow80) return null;
+
+            const roundedAverage = Math.round(average * 100) / 100;
+
+            return {
+                student,
+                average: roundedAverage
+            };
+        })
+        .filter((item): item is { student: Student; average: number } => item !== null && item.average >= 90);
+
+        return list.sort((a, b) => {
+            if (b.average !== a.average) {
+                return b.average - a.average;
+            }
+            const nameA = `${a.student.last_name}, ${a.student.first_name}`.toLowerCase();
+            const nameB = `${b.student.last_name}, ${b.student.first_name}`.toLowerCase();
+            return nameA.localeCompare(nameB);
+        });
+    }, [advisoryStudents, consolidatedRecords, selectedSchoolYear, selectedQuarter]);
+
+    const filteredAchievers = useMemo(() => {
+        return achieversList.filter(item => {
+            const student = item.student;
+            
+            if (selectedGradeLevel !== 'all' && student.grade_level !== selectedGradeLevel) {
+                return false;
+            }
+
+            if (selectedSectionFilter !== 'all') {
+                const studentSec = student.student_section;
+                const secObj = sections.find(sec => sec.id === studentSec || sec.section_name === studentSec);
+                const filterSecObj = sections.find(sec => sec.id === selectedSectionFilter || sec.section_name === selectedSectionFilter);
+                if (!secObj || !filterSecObj || secObj.section_name !== filterSecObj.section_name) {
+                    return false;
+                }
+            }
+
+            if (searchQuery.trim() !== '') {
+                const search = searchQuery.toLowerCase();
+                const fullName = `${student.first_name} ${student.last_name}`.toLowerCase();
+                const lastFirst = `${student.last_name}, ${student.first_name}`.toLowerCase();
+                const lrn = student.lrn.toLowerCase();
+                if (!fullName.includes(search) && !lastFirst.includes(search) && !lrn.includes(search)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [achieversList, selectedGradeLevel, selectedSectionFilter, searchQuery, sections]);
+
+    const highestAverage = useMemo(() => {
+        if (filteredAchievers.length === 0) return 0;
+        return Math.max(...filteredAchievers.map(item => item.average));
+    }, [filteredAchievers]);
+
+    const lowestAverage = useMemo(() => {
+        if (filteredAchievers.length === 0) return 0;
+        return Math.min(...filteredAchievers.map(item => item.average));
+    }, [filteredAchievers]);
+
+    const gradeLevels = useMemo(() => {
+        const grades = new Set<string>();
+        advisoryStudents.forEach(s => {
+            if (s.grade_level) grades.add(s.grade_level);
+        });
+        return Array.from(grades).sort((a, b) => {
+            const numA = parseInt(a.replace(/^\D+/g, '')) || 0;
+            const numB = parseInt(b.replace(/^\D+/g, '')) || 0;
+            return numA - numB;
+        });
+    }, [advisoryStudents]);
+
+    const sectionOptions = useMemo(() => {
+        const sectionSet = new Set<string>();
+        advisoryStudents.forEach(s => {
+            if (s.student_section) {
+                if (selectedGradeLevel === 'all' || s.grade_level === selectedGradeLevel) {
+                    const secObj = sections.find(sec => sec.id === s.student_section || sec.section_name === s.student_section);
+                    if (secObj) {
+                        sectionSet.add(secObj.section_name);
+                    } else {
+                        sectionSet.add(s.student_section);
+                    }
+                }
+            }
+        });
+        return Array.from(sectionSet).sort();
+    }, [advisoryStudents, selectedGradeLevel, sections]);
+
+    const schoolYearOptions = useMemo(() => {
+        if (schoolYears.length === 0) {
+            return [activeSchoolYear || '2026-2027'];
+        }
+        return schoolYears.map(sy => sy.label);
+    }, [schoolYears, activeSchoolYear]);
 
 
 
@@ -484,12 +684,12 @@ export function Dashboard() {
                                     <Trophy className="w-5 h-5" />
                                 </div>
                                 <div className="text-left">
-                                    <h4 className="text-[15px] font-black tracking-tight leading-tight">Top Performers</h4>
-                                    <p className="text-emerald-100/80 text-[8px] font-bold uppercase tracking-[0.2em] mt-0.5">GPA ≥ 90%</p>
+                                    <h4 className="text-[15px] font-black tracking-tight leading-tight">Academic Achievers</h4>
+                                    <p className="text-emerald-100/80 text-[8px] font-bold uppercase tracking-[0.2em] mt-0.5">GA ≥ 90%</p>
                                 </div>
                             </div>
                             <div className="relative z-10 flex flex-col items-center justify-center shrink-0">
-                                <span className="text-3xl font-black block tabular-nums drop-shadow-md leading-none mb-0.5">{metricsResult.topPerformersCount}</span>
+                                <span className="text-3xl font-black block tabular-nums drop-shadow-md leading-none mb-0.5">{achieversCountForCard}</span>
                                 <span className="text-[7.5px] font-bold uppercase tracking-[0.15em] opacity-60 leading-none">Learners</span>
                             </div>
                         </motion.button>
@@ -533,7 +733,7 @@ export function Dashboard() {
                             </div>
                         </div>
                         <div className="flex-1 flex items-center justify-center relative min-h-[105px] h-[105px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                 <PieChart>
                                     <Pie
                                         data={genderPieData}
@@ -750,7 +950,7 @@ export function Dashboard() {
 
                 {/* 5. Drill-down Modal (Styled as premium dialog) */}
                 <AnimatePresence>
-                    {selectedMetric && (
+                    {selectedMetric === 'at-risk' && (
                         <div className="fixed inset-0 z-100 flex items-center justify-center p-6 backdrop-blur-2xl bg-slate-900/60">
                             <motion.div
                                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -758,38 +958,34 @@ export function Dashboard() {
                                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                                 className="bg-white rounded-[3rem] shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col border border-slate-200"
                             >
-                                <div className={`p-8 border-b flex justify-between items-center ${selectedMetric === 'at-risk' ? 'bg-rose-50/50' : 'bg-emerald-50/50'}`}>
+                                <div className="p-8 border-b flex justify-between items-center bg-rose-50/50">
                                     <div className="flex items-center gap-6">
-                                        <div className={`p-4 rounded-2xl ${selectedMetric === 'at-risk' ? 'bg-rose-500 text-white shadow-xl shadow-rose-200' : 'bg-emerald-500 text-white shadow-xl shadow-emerald-200'}`}>
-                                            {selectedMetric === 'at-risk' ? <AlertTriangle className="w-8 h-8" /> : <Trophy className="w-8 h-8" />}
+                                        <div className="p-4 rounded-2xl bg-rose-500 text-white shadow-xl shadow-rose-200">
+                                            <AlertTriangle className="w-8 h-8" />
                                         </div>
                                         <div>
-                                            <h3 className={`text-3xl font-black ${selectedMetric === 'at-risk' ? 'text-rose-900' : 'text-emerald-900'}`}>
-                                                {selectedMetric === 'at-risk' ? 'Academic Intervention' : 'Top Performers'}
-                                            </h3>
-                                            <p className="text-[11px] font-black text-slate-400 tracking-widest uppercase mt-1">
-                                                {selectedMetric === 'at-risk' ? 'Students requiring immediate support' : 'Exceptional student performance'}
-                                            </p>
+                                            <h3 className="text-3xl font-black text-rose-900">Academic Intervention</h3>
+                                            <p className="text-[11px] font-black text-slate-400 tracking-widest uppercase mt-1">Students requiring immediate support</p>
                                         </div>
                                     </div>
                                     <button 
                                         onClick={() => setSelectedMetric(null)} 
                                         className="w-12 h-12 rounded-2xl hover:bg-slate-100 flex items-center justify-center text-2xl transition-colors text-slate-400"
                                     >
-                                        <X />
+                                        <X className="w-6 h-6" />
                                     </button>
                                 </div>
                                 
                                 <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar bg-slate-50/30">
-                                    {(selectedMetric === 'at-risk' ? failingStudentList : topStudentList).length > 0 ? (
-                                        (selectedMetric === 'at-risk' ? failingStudentList : topStudentList).map((student: GroupedStudentMetric) => (
+                                    {failingStudentList.length > 0 ? (
+                                        failingStudentList.map((student: GroupedStudentMetric) => (
                                             <div key={student.lrn} className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                                 <div className="flex items-center gap-5">
                                                     <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-2xl">
                                                         {student.gender === 'Male' ? '👨‍🎓' : '👩‍🎓'}
                                                     </div>
                                                     <div>
-                                                        <h5 className="text-xl font-black text-slate-900 uppercase">{student.last_name}, {student.first_name}</h5>
+                                                        <h5 className="text-xl font-black text-slate-900">{toTitleCase(student.last_name)}, {toTitleCase(student.first_name)}</h5>
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">LRN: {student.lrn} • {student.student_section}</p>
                                                     </div>
                                                 </div>
@@ -797,8 +993,8 @@ export function Dashboard() {
                                                     {student.details.map((detail: SubjectDetail, idx: number) => (
                                                         <div key={`${detail.subject_id}-${idx}`} className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-3">
                                                             <span className="text-[10px] font-black text-slate-600 uppercase">{detail.subject_name}</span>
-                                                            <div className={`w-px h-3 bg-slate-200`} />
-                                                            <span className={`text-xs font-black ${selectedMetric === 'at-risk' ? 'text-rose-600' : 'text-emerald-600'}`}>{detail.grade}</span>
+                                                            <div className="w-px h-3 bg-slate-200" />
+                                                            <span className="text-xs font-black text-rose-600">{detail.grade}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -806,7 +1002,9 @@ export function Dashboard() {
                                                     whileHover={{ scale: 1.05 }}
                                                     whileTap={{ scale: 0.95 }}
                                                     onClick={() => {
-                                                        handleViewRecord(student.student_section || '', student.details[0].subject_id);
+                                                        const secObj = sections.find(sec => sec.id === student.student_section || sec.section_name === student.student_section);
+                                                        setSelectedSection(secObj ? secObj.section_name : (student.student_section || ''));
+                                                        setCurrentView('consolidated-grades');
                                                         setSelectedMetric(null);
                                                     }}
                                                     className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-slate-900/20"
@@ -821,11 +1019,260 @@ export function Dashboard() {
                                         </div>
                                     )}
                                 </div>
-                                
                                 <div className="p-6 bg-white border-t flex justify-end">
                                     <button 
                                         onClick={() => setSelectedMetric(null)} 
                                         className="px-10 py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 text-xs uppercase tracking-widest"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+
+                    {selectedMetric === 'top' && (
+                        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 md:p-6 backdrop-blur-2xl bg-slate-900/60 overflow-hidden">
+                            <motion.div
+                                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                                className="bg-app-bg rounded-[2.5rem] shadow-2xl max-w-5xl w-full max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col border border-slate-200"
+                            >
+                                {/* Sticky Header */}
+                                <div className="p-6 md:p-8 border-b bg-white flex justify-between items-center shrink-0">
+                                    <div className="flex items-center gap-4 md:gap-6">
+                                        <div className="p-3.5 md:p-4 rounded-2xl bg-emerald-500 text-white shadow-xl shadow-emerald-200">
+                                            <Trophy className="w-6 h-6 md:w-8 md:h-8" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+                                                Academic Achievers
+                                            </h3>
+                                            <p className="text-[10px] md:text-xs font-bold text-slate-400 tracking-wider uppercase mt-1">
+                                                Students with a General Average of 90 and Above
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedMetric(null)} 
+                                        className="w-10 h-10 md:w-12 md:h-12 rounded-2xl hover:bg-slate-100 flex items-center justify-center text-2xl transition-colors text-slate-400"
+                                        aria-label="Close"
+                                    >
+                                        <X className="w-5 h-5 md:w-6 md:h-6" />
+                                    </button>
+                                </div>
+                                
+                                {/* Scrollable Container */}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-6">
+                                    
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-between">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Qualifiers</span>
+                                            <span className="text-2xl font-black text-emerald-600 mt-2">{filteredAchievers.length}</span>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-between">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Highest Average</span>
+                                            <span className="text-2xl font-black text-slate-800 mt-2">
+                                                {highestAverage > 0 ? highestAverage.toFixed(2) : '0.00'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-between">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Lowest Average</span>
+                                            <span className="text-2xl font-black text-slate-800 mt-2">
+                                                {lowestAverage > 0 ? lowestAverage.toFixed(2) : '0.00'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-between">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">School Year</span>
+                                            <span className="text-sm font-black text-slate-700 mt-2 truncate">{selectedSchoolYear}</span>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-xs flex flex-col justify-between col-span-2 md:col-span-1">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Term</span>
+                                            <span className="text-sm font-black text-slate-700 mt-2 truncate">
+                                                {selectedQuarter === 'overall' ? 'End of School Year' : `Term ${selectedQuarter}`}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Filters Controls Row */}
+                                    <div className="bg-white p-4 rounded-3xl border border-slate-155 shadow-xs grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                                        
+                                        {/* Search Student */}
+                                        <div className="relative md:col-span-1">
+                                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                placeholder="Search student..."
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-800"
+                                            />
+                                        </div>
+
+                                        {/* Grade Level */}
+                                        <div>
+                                            <select 
+                                                value={selectedGradeLevel}
+                                                onChange={(e) => {
+                                                    setSelectedGradeLevel(e.target.value);
+                                                    setSelectedSectionFilter('all');
+                                                }}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="all">All Grade Levels</option>
+                                                {gradeLevels.map(grade => (
+                                                    <option key={grade} value={grade}>{grade}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Section */}
+                                        <div>
+                                            <select 
+                                                value={selectedSectionFilter}
+                                                onChange={(e) => setSelectedSectionFilter(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="all">All Sections</option>
+                                                {sectionOptions.map(section => (
+                                                    <option key={section} value={section}>{section}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* School Year */}
+                                        <div>
+                                            <select 
+                                                value={selectedSchoolYear}
+                                                onChange={(e) => setSelectedSchoolYear(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                            >
+                                                {schoolYearOptions.map(sy => (
+                                                    <option key={sy} value={sy}>{sy}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Term */}
+                                        <div>
+                                            <select 
+                                                value={selectedQuarter}
+                                                onChange={(e) => setSelectedQuarter(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                            >
+                                                <option value="1">Term 1</option>
+                                                <option value="2">Term 2</option>
+                                                <option value="3">Term 3</option>
+                                                <option value="overall">End of School Year</option>
+                                            </select>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Student Card List */}
+                                    <div className="space-y-4 max-h-[45vh] overflow-y-auto custom-scrollbar pr-1">
+                                        {filteredAchievers.length > 0 ? (
+                                            filteredAchievers.map((item, index) => {
+                                                const student = item.student;
+                                                const rank = index + 1;
+                                                const average = item.average;
+                                                
+                                                // Honors details
+                                                const honorsLabel = 'With Academic Excellence';
+                                                const badgeStyles = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-800/30';
+                                                const cardAccent = 'hover:border-emerald-200 dark:hover:border-emerald-850/50';
+
+                                                // Rank Badge styling
+                                                let rankBadge = null;
+                                                let avatarBg = 'bg-slate-50 dark:bg-slate-800';
+                                                
+                                                if (rank === 1) {
+                                                    rankBadge = <span className="text-xl">🥇</span>;
+                                                    avatarBg = 'bg-gradient-to-tr from-yellow-100 via-amber-200 to-yellow-300 text-amber-900 dark:from-yellow-950 dark:to-amber-800';
+                                                } else if (rank === 2) {
+                                                    rankBadge = <span className="text-xl">🥈</span>;
+                                                    avatarBg = 'bg-gradient-to-tr from-slate-100 via-slate-200 to-slate-300 text-slate-900 dark:from-slate-900 dark:to-slate-700';
+                                                } else if (rank === 3) {
+                                                    rankBadge = <span className="text-xl">🥉</span>;
+                                                    avatarBg = 'bg-gradient-to-tr from-orange-100 via-orange-200 to-amber-300 text-orange-950 dark:from-orange-950 dark:to-amber-900';
+                                                } else {
+                                                    rankBadge = <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{rank}</span>;
+                                                }
+
+                                                return (
+                                                    <div 
+                                                        key={student.lrn} 
+                                                        className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-4 group ${cardAccent}`}
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            {/* Rank Badge */}
+                                                            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                                                                {rankBadge}
+                                                            </div>
+                                                            
+                                                            {/* Student Avatar */}
+                                                            <div className={`w-12 h-12 ${avatarBg} rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform`}>
+                                                                {student.gender === 'Male' ? '👨‍🎓' : '👩‍🎓'}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <h5 className="text-sm font-black text-slate-800 dark:text-slate-100 tracking-tight truncate">
+                                                                        {toTitleCase(student.last_name)}, {toTitleCase(student.first_name)}{student.middle_name ? ' ' + toTitleCase(student.middle_name) : ''}
+                                                                    </h5>
+                                                                    <span className={`px-2 py-0.5 border text-[8px] font-bold uppercase rounded-md ${badgeStyles}`}>
+                                                                        {honorsLabel}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1">
+                                                                    LRN: {student.lrn} <span className="mx-1.5 text-slate-300 dark:text-slate-700">•</span> {student.student_section || 'No Section'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800 w-full md:w-auto">
+                                                            <div className="text-left md:text-right">
+                                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">General Average</span>
+                                                                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-500 tracking-tight tabular-nums">
+                                                                    {average.toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                            <motion.button
+                                                                whileHover={{ scale: 1.02 }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                                onClick={() => {
+                                                                    const secObj = sections.find(sec => sec.id === student.student_section || sec.section_name === student.student_section);
+                                                                    setSelectedSection(secObj ? secObj.section_name : (student.student_section || ''));
+                                                                    setCurrentView('consolidated-grades');
+                                                                    setSelectedMetric(null);
+                                                                }}
+                                                                className="px-5 py-2.5 bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors shadow-sm w-full md:w-auto text-center"
+                                                            >
+                                                                View Profile
+                                                            </motion.button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="text-center py-16 bg-white border border-slate-150 border-dashed rounded-3xl flex flex-col items-center justify-center p-6">
+                                                <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center text-xl mb-3">
+                                                    📭
+                                                </div>
+                                                <p className="text-xs font-black text-slate-400 uppercase tracking-wider text-center max-w-md">
+                                                    No students currently meet the General Average requirement of 90 and above.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                </div>
+                                
+                                {/* Bottom Action Footer */}
+                                <div className="p-6 bg-white border-t flex justify-end shrink-0">
+                                    <button 
+                                        onClick={() => setSelectedMetric(null)} 
+                                        className="px-8 py-3.5 bg-slate-900 text-white font-black rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/15 text-xs uppercase tracking-widest"
                                     >
                                         Dismiss
                                     </button>

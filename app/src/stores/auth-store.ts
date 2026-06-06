@@ -107,12 +107,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
 
       // CLOUD AUTH: Sign in anonymously to satisfy Firebase Security Rules
-      try {
-        const cloudUser = await signInAnonymously(auth);
-        user.uid = cloudUser.user.uid; // Use real Firebase UID
-        localStorage.setItem('auth_user_uid', user.uid); // Save for other stores
-      } catch (cloudErr) {
-        console.warn('Cloud connection failed (Offline mode active):', cloudErr);
+      if (navigator.onLine) {
+        try {
+          const cloudUser = await signInAnonymously(auth);
+          user.uid = cloudUser.user.uid; // Use real Firebase UID
+          localStorage.setItem('auth_user_uid', user.uid); // Save for other stores
+        } catch (cloudErr) {
+          console.warn('Cloud connection failed (Offline mode active):', cloudErr);
+        }
+      } else {
+        console.log('📡 Offline mode: Skipping cloud authentication');
       }
 
       set({
@@ -206,12 +210,16 @@ export async function initializeAuthStore() {
         roles: ['admin']
       };
 
-      try {
-        const cloudUser = await signInAnonymously(auth);
-        user.uid = cloudUser.user.uid;
-        localStorage.setItem('auth_user_uid', user.uid);
-      } catch (cloudErr) {
-        console.warn('Trial Cloud session initialization failed:', cloudErr);
+      if (navigator.onLine) {
+        try {
+          const cloudUser = await signInAnonymously(auth);
+          user.uid = cloudUser.user.uid;
+          localStorage.setItem('auth_user_uid', user.uid);
+        } catch (cloudErr) {
+          console.warn('Trial Cloud session initialization failed:', cloudErr);
+        }
+      } else {
+        console.log('📡 Offline mode: Skipping trial cloud authentication');
       }
 
       useAuthStore.setState({
@@ -238,12 +246,16 @@ export async function initializeAuthStore() {
         };
 
         // CLOUD AUTH: Restore Firebase session
-        try {
-          const cloudUser = await signInAnonymously(auth);
-          user.uid = cloudUser.user.uid;
-          localStorage.setItem('auth_user_uid', user.uid);
-        } catch (cloudErr) {
-          console.warn('Cloud session restoration failed:', cloudErr);
+        if (navigator.onLine) {
+          try {
+            const cloudUser = await signInAnonymously(auth);
+            user.uid = cloudUser.user.uid;
+            localStorage.setItem('auth_user_uid', user.uid);
+          } catch (cloudErr) {
+            console.warn('Cloud session restoration failed:', cloudErr);
+          }
+        } else {
+          console.log('📡 Offline mode: Skipping cloud session restoration');
         }
 
         useAuthStore.setState({

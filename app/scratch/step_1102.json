@@ -1,0 +1,8 @@
+{
+  "Description": "\"Update fallback right logo sources in SF9Page.tsx (both single-page and multi-page layouts) to use school-logo.png.\"",
+  "Instruction": "\"Change the right logo fallbacks to school-logo.png.\"",
+  "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":1010,\"ReplacementContent\":\"                            </View>\\n                            <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={styles.singleLogo} />\\n                        </View>\",\"StartLine\":1006,\"TargetContent\":\"                            </View>\\n                            <Image src={logoUrl || `${import.meta.env.BASE_URL}deped_logo_right.png`} style={styles.singleLogo} />\\n                        </View>\"},{\"AllowMultiple\":false,\"EndLine\":1344,\"ReplacementContent\":\"                                 <Text style={styles.headerText}>{district}</Text>\\n                            </View>\\n                            <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={styles.logo} />\\n                        </View>\",\"StartLine\":1339,\"TargetContent\":\"                                 <Text style={styles.headerText}>{district}</Text>\\n                            </View>\\n                            <Image src={logoUrl || `${import.meta.env.BASE_URL}deped_logo_right.png`} style={styles.logo} />\\n                        </View>\"}]",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Replacing fallback logos in SF9Page.tsx\"",
+  "toolSummary": "\"Multi-replace logos\""
+}

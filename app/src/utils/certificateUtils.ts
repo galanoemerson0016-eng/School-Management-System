@@ -13,22 +13,10 @@ export interface HonorsInfo {
  * Determines honors category based on General Average
  */
 export function getHonorsInfo(average: number): HonorsInfo | null {
-    if (average >= 98 && average <= 100) {
+    if (average >= 90 && average <= 100) {
         return {
-            tagalog: 'May Pinakamataas na Karangalan',
-            english: 'With Highest Honors',
-            average
-        };
-    } else if (average >= 95 && average < 98) {
-        return {
-            tagalog: 'May Mataas na Karangalan',
-            english: 'With High Honors',
-            average
-        };
-    } else if (average >= 90 && average < 95) {
-        return {
-            tagalog: 'May Karangalan',
-            english: 'With Honors',
+            tagalog: 'Gawad sa Akademikong Kahusayan',
+            english: 'Academic Excellence Award',
             average
         };
     }

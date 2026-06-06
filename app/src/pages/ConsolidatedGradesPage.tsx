@@ -4,7 +4,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
-import { getSubjectCluster, getWeights, transmuteGrade } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import type { Subject } from '../types';
 
@@ -39,9 +39,11 @@ const getDescriptor = (grade: number, gradeLevel: string) => {
     
     // Key Stage 1 (Grades 1-3)
     if (isKeyStage1(gradeLevel)) {
-        if (grade >= 90) return 'Consistent';
-        if (grade >= 80) return 'Developing';
-        return 'Beginning';
+        if (grade >= 90) return 'A';
+        if (grade >= 80) return 'B';
+        if (grade >= 75) return 'C';
+        if (grade >= 65) return 'D';
+        return 'E';
     }
 
     // Key Stage 2 to 4 (Grades 4-12)
@@ -475,16 +477,24 @@ export function ConsolidatedGradesPage() {
                     const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
                     const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
                     const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
-                    const qaScore = qaScores.reduce((a, b) => a + b, 0);
-                    const qaHPS = hps_qa.reduce((a, b) => a + b, 0);
 
-                    const weights = getWeights(getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack));
+                    const cluster = getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack);
+                    const weights = getWeights(cluster);
                     const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
                     const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
-                    const qaWS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100 * weights.quarterly_exam;
+
+                    const st1Score = qaScores[0] || 0;
+                    const st1HPS = hps_qa[0] || 0;
+                    const st2Score = qaScores[1] || 0;
+                    const st2HPS = hps_qa[1] || 0;
+                    const teScore = qaScores[2] || 0;
+                    const teHPS = hps_qa[2] || 0;
+
+                    const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
+                    const qaWS = qaPS * weights.quarterly_exam;
 
                     const initialGrade = wwWS + ptWS + qaWS;
-                    const finalGrade = transmuteGrade(initialGrade);
+                    const finalGrade = transmuteGrade(initialGrade, activeSchoolYear);
 
                     if (finalGrade > 0) {
                         await updateGradingSheetRecord({
@@ -1255,9 +1265,9 @@ const groupedSections = useMemo(() => {
 
     const academicExcellenceStats = useMemo(() => {
         const stats = {
-            highest: { male: 0, female: 0, students: [] as any[] },
-            high: { male: 0, female: 0, students: [] as any[] },
-            honors: { male: 0, female: 0, students: [] as any[] },
+            male: 0,
+            female: 0,
+            students: [] as any[],
             total: 0
         };
 
@@ -1272,7 +1282,7 @@ const groupedSections = useMemo(() => {
             const avg = Number(avgStr);
 
             if (avg >= 90) {
-                let hasFailing = false;
+                let hasGradeBelow80 = false;
                 let hasGrades = false;
                 
                 subjectColumns.forEach(({ subject }) => {
@@ -1281,47 +1291,29 @@ const groupedSections = useMemo(() => {
                         const gradeVal = getQuarterGradeValue(isQuarter ? subGradeObj[selectedTerm as QuarterKey] : subGradeObj.final);
                         if (typeof gradeVal === 'number' && gradeVal > 0) {
                             hasGrades = true;
-                            if (gradeVal < 75) {
-                                hasFailing = true;
+                            if (gradeVal < 80) {
+                                hasGradeBelow80 = true;
                             }
                         }
                     }
                 });
 
-                if (hasGrades && !hasFailing) {
+                if (hasGrades && !hasGradeBelow80) {
                     const studentName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`;
                     const isMale = (student.gender || '').toLowerCase() === 'male';
                     const record = { name: studentName, average: avg.toFixed(2), lrn: student.lrn };
 
-                    if (avg >= 98.00) {
-                        if (isMale) stats.highest.male++;
-                        else stats.highest.female++;
-                        stats.highest.students.push(record);
-                    } else if (avg >= 95.00) {
-                        if (isMale) stats.high.male++;
-                        else stats.high.female++;
-                        stats.high.students.push(record);
-                    } else if (avg >= 90.00) {
-                        if (isMale) stats.honors.male++;
-                        else stats.honors.female++;
-                        stats.honors.students.push(record);
-                    }
+                    if (isMale) stats.male++;
+                    else stats.female++;
+                    stats.students.push(record);
                 }
             }
         });
         
-        const sortHonors = (a: any, b: any) => {
-            const diff = Number(b.average) - Number(a.average);
-            if (diff !== 0) return diff;
-            return a.name.localeCompare(b.name);
-        };
-        stats.highest.students.sort(sortHonors);
-        stats.high.students.sort(sortHonors);
-        stats.honors.students.sort(sortHonors);
+        // Per DepEd Order: awardees shall be listed ALPHABETICALLY to promote fairness
+        stats.students.sort((a, b) => a.name.localeCompare(b.name));
 
-        stats.total = stats.highest.male + stats.highest.female + 
-                      stats.high.male + stats.high.female + 
-                      stats.honors.male + stats.honors.female;
+        stats.total = stats.male + stats.female;
 
         return stats;
     }, [sectionStudents, gradesData, selectedTerm, subjectColumns]);
@@ -2030,7 +2022,7 @@ const groupedSections = useMemo(() => {
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q1) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
                                                                             {(selectedTerm === 'q2' || selectedTerm === 'all') && (
@@ -2047,7 +2039,7 @@ const groupedSections = useMemo(() => {
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q2) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
                                                                             {(selectedTerm === 'q3' || selectedTerm === 'all') && (
@@ -2064,10 +2056,10 @@ const groupedSections = useMemo(() => {
                                                                                             updateGradingSheetRecord={updateGradingSheetRecord}
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q3) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
-                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{sData.final || ''}</td>}
+                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
                                                                         </>
                                                                     )}
                                                                 </Fragment>
@@ -2202,7 +2194,7 @@ const groupedSections = useMemo(() => {
                                                                                             
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q1) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
                                                                             {(selectedTerm === 'q2' || selectedTerm === 'all') && (
@@ -2220,7 +2212,7 @@ const groupedSections = useMemo(() => {
                                                                                             
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q2) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
                                                                             {(selectedTerm === 'q3' || selectedTerm === 'all') && (
@@ -2238,10 +2230,10 @@ const groupedSections = useMemo(() => {
                                                                                             
                                                                                             row={studentRow} col={currentCol}
                                                                                         />
-                                                                                        ) : (getQuarterGradeValue(sData.q3) || '')}
+                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
                                                                                 </td>
                                                                             )}
-                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{sData.final || ''}</td>}
+                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
                                                                         </>
                                                                     )}
                                                                 </Fragment>
@@ -2424,58 +2416,30 @@ const groupedSections = useMemo(() => {
                                             </thead>
                                             <tbody>
                                                 <tr className="border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-yellow-700">🏆 With Highest Honors</td>
-                                                    <td className="p-2 border-r border-black font-medium text-slate-600">98.00 - 100.00</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.highest.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.highest.female || '-'}</td>
-                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.highest.male + academicExcellenceStats.highest.female || '-'}</td>
-                                                </tr>
-                                                <tr className="border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-blue-700">🥈 With High Honors</td>
-                                                    <td className="p-2 border-r border-black font-medium text-slate-600">95.00 - 97.99</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.high.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.high.female || '-'}</td>
-                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.high.male + academicExcellenceStats.high.female || '-'}</td>
-                                                </tr>
-                                                <tr className="border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-slate-700">🥉 With Honors</td>
-                                                    <td className="p-2 border-r border-black font-medium text-slate-600">90.00 - 94.99</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.honors.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.honors.female || '-'}</td>
-                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.honors.male + academicExcellenceStats.honors.female || '-'}</td>
+                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-deped-blue">🏆 Academic Excellence Award</td>
+                                                    <td className="p-2 border-r border-black font-medium text-slate-600">90.00 - 100.00</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.female || '-'}</td>
+                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.total || '-'}</td>
                                                 </tr>
                                                 <tr className="bg-gray-200 font-bold border-b border-black">
                                                     <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL EXCELLENCE AWARDEES</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.highest.male + academicExcellenceStats.high.male + academicExcellenceStats.honors.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.highest.female + academicExcellenceStats.high.female + academicExcellenceStats.honors.female || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.male || '-'}</td>
+                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.female || '-'}</td>
                                                     <td className="p-2 tabular-nums bg-gray-300">{academicExcellenceStats.total || '-'}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                         <div className="p-3 bg-slate-50 border-t border-black text-[9px] leading-relaxed">
-                                            <div className="font-bold uppercase tracking-wider mb-2 text-slate-800 border-b border-slate-200 pb-0.5">Awardees Roster (No failing grades)</div>
+                                            <div className="font-bold uppercase tracking-wider mb-2 text-slate-800 border-b border-slate-200 pb-0.5">Awardees Roster (No final grades below 80)</div>
                                             {academicExcellenceStats.total === 0 ? (
-                                                <div className="italic text-slate-500 text-center py-1">No awardees for this term. (Average 90.00+ required)</div>
+                                                <div className="italic text-slate-500 text-center py-1">No awardees for this term. (Average 90.00+ and no grade below 80 required)</div>
                                             ) : (
                                                 <div className="space-y-1.5 max-h-30 overflow-y-auto custom-scrollbar">
-                                                    {academicExcellenceStats.highest.students.length > 0 && (
-                                                        <div>
-                                                            <span className="font-bold text-yellow-800">🏆 Highest Honors:</span>{' '}
-                                                            <span className="text-slate-700">{academicExcellenceStats.highest.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
-                                                        </div>
-                                                    )}
-                                                    {academicExcellenceStats.high.students.length > 0 && (
-                                                        <div>
-                                                            <span className="font-bold text-blue-800">🥈 High Honors:</span>{' '}
-                                                            <span className="text-slate-700">{academicExcellenceStats.high.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
-                                                        </div>
-                                                    )}
-                                                    {academicExcellenceStats.honors.students.length > 0 && (
-                                                        <div>
-                                                            <span className="font-bold text-slate-800">🥉 Honors:</span>{' '}
-                                                            <span className="text-slate-700">{academicExcellenceStats.honors.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
-                                                        </div>
-                                                    )}
+                                                    <div>
+                                                        <span className="font-bold text-deped-blue">Awardees (Alphabetical):</span>{' '}
+                                                        <span className="text-slate-700">{academicExcellenceStats.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

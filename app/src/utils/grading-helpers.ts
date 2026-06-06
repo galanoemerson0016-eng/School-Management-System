@@ -1,15 +1,34 @@
 // Grading helper utilities
+// Updated per DepEd Order (SY 2026-2027): Assessment, Grading System, Awards & Recognition
 
-import type { ClassRecord, Student, Subject, Section } from '../types';
+import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
+import { isDescriptiveGrading } from '../lib/grading';
 
-export interface HonorStudent {
+// ─── Award Types ──────────────────────────────────────────────────────────────
+
+/**
+ * New award type per DepEd Order (SY 2026-2027).
+ * The old 3-tier honor system (Highest Honors / High Honors / Honors) has been
+ * replaced by the Academic Excellence Award and subject-specific awards.
+ */
+export interface AwardStudent {
     student: Student;
     sectionName: string;
     generalAverage: number;
-    honorType: 'With Highest Honors' | 'With High Honors' | 'With Honors';
+    /** @deprecated Use awardType instead. Kept for backward-compat with certificate code. */
+    honorType: 'Academic Excellence Award';
+    awardType: 'Academic Excellence Award';
     subjectGrades: { subjectName: string; grade: number }[];
 }
+
+/**
+ * @deprecated Use AwardStudent instead.
+ * Kept as a type alias for backward compatibility during migration.
+ */
+export type HonorStudent = AwardStudent;
+
+// ─── General Average ──────────────────────────────────────────────────────────
 
 /**
  * Compute general average for a student across all subjects for a given quarter
@@ -48,58 +67,111 @@ export function computeYearlyAverage(
     return Math.round((termAverages.reduce((a, b) => a + b, 0) / termAverages.length) * 100) / 100;
 }
 
+// ─── Academic Excellence Award ────────────────────────────────────────────────
+
 /**
- * Get honor roll based on general average
+ * Determine if a student qualifies for the Academic Excellence Award.
+ *
+ * Per DepEd Order (SY 2026-2027):
+ *   - General Average of 90 or higher
+ *   - No Final Grade (FG) below 80 in any learning area
+ *   - No derogatory records / disciplinary cases (tracked externally)
+ *
+ * @param generalAverage   - Student's General Average (already computed)
+ * @param subjectFinalGrades - Array of final grades for all learning areas
  */
-export function getHonorType(average: number): HonorStudent['honorType'] | null {
-    if (average >= 98) return 'With Highest Honors';
-    if (average >= 95) return 'With High Honors';
-    if (average >= 90) return 'With Honors';
+export function isAcademicExcellenceAwardee(
+    generalAverage: number,
+    subjectFinalGrades: number[]
+): boolean {
+    if (generalAverage < 90) return false;
+    if (subjectFinalGrades.some(g => g > 0 && g < 80)) return false;
+    return true;
+}
+
+/**
+ * @deprecated Use isAcademicExcellenceAwardee() instead.
+ * Old 3-tier honor system removed per DepEd Order (SY 2026-2027).
+ *
+ * The following tiers no longer exist:
+ *   - "With Highest Honors" (GA ≥ 98) → REMOVED
+ *   - "With High Honors"   (GA ≥ 95) → REMOVED
+ *   - "With Honors"        (GA ≥ 90) → REMOVED
+ *
+ * Replaced by: Academic Excellence Award (GA ≥ 90, no FG < 80, listed alphabetically)
+ */
+export function getHonorType(average: number): AwardStudent['awardType'] | null {
+    // Returns only the single new award type for GA ≥ 90.
+    // Note: This does NOT check for no-FG-below-80 since subject grades are not passed here.
+    // Use isAcademicExcellenceAwardee() for the full check.
+    if (average >= 90) return 'Academic Excellence Award';
     return null;
 }
 
 /**
- * Generate honor roll list for a section
+ * Generate the Academic Excellence Award list for a section.
+ *
+ * Per DepEd Order (SY 2026-2027):
+ *   - GA ≥ 90 AND no FG below 80 in any learning area
+ *   - Listed ALPHABETICALLY (not by grade rank) to promote fairness
  */
 export function generateHonorRoll(
     students: Student[],
     classRecords: ClassRecord[],
     subjects: Subject[],
     sections: Section[],
-    quarter: 1 | 2 | 3 | 4 | 'overall'
-): HonorStudent[] {
-    const honorStudents: HonorStudent[] = [];
+    quarter: 1 | 2 | 3 | 4 | 'overall',
+    schoolYear?: string
+): AwardStudent[] {
+    const awardees: AwardStudent[] = [];
+    const sy = schoolYear || '2026-2027';
 
     for (const student of students) {
+        // Exclude descriptive grading levels from Academic Excellence Awards
+        if (isDescriptiveGrading(student.grade_level, sy)) continue;
+
         const avg = computeStudentAverage(student.lrn, quarter, classRecords);
-        const honorType = getHonorType(avg);
+        if (avg < 90 || avg <= 0) continue;
 
-        if (honorType && avg > 0) {
-            const section = sections.find(s => s.section_name === student.student_section);
-            const studentRecords = classRecords.filter(
-                r => r.student_lrn === student.lrn && (quarter === 'overall' || r.quarter === quarter) && (Number(r.final_grade) || 0) > 0
-            );
+        const studentRecords = classRecords.filter(
+            r => r.student_lrn === student.lrn &&
+                 (quarter === 'overall' || r.quarter === quarter) &&
+                 (Number(r.final_grade) || 0) > 0
+        );
 
-            const subjectGrades = studentRecords.map(r => {
-                const subject = subjects.find(s => s.id === r.subject_id);
-                return {
-                    subjectName: subject?.subject_name || 'Unknown',
-                    grade: Number(r.final_grade) || 0,
-                };
-            });
+        const subjectGrades = studentRecords.map(r => {
+            const subject = subjects.find(s => s.id === r.subject_id);
+            return {
+                subjectName: subject?.subject_name || 'Unknown',
+                grade: Number(r.final_grade) || 0,
+            };
+        });
 
-            honorStudents.push({
-                student,
-                sectionName: section?.section_name || student.student_section || 'Unknown',
-                generalAverage: avg,
-                honorType,
-                subjectGrades,
-            });
-        }
+        // Check: no FG below 80 in any learning area
+        const hasFgBelow80 = subjectGrades.some(sg => sg.grade > 0 && sg.grade < 80);
+        if (hasFgBelow80) continue;
+
+        const section = sections.find(s => s.section_name === student.student_section);
+
+        awardees.push({
+            student,
+            sectionName: section?.section_name || student.student_section || 'Unknown',
+            generalAverage: avg,
+            honorType: 'Academic Excellence Award',  // backward compat
+            awardType: 'Academic Excellence Award',
+            subjectGrades,
+        });
     }
 
-    return honorStudents.sort((a, b) => b.generalAverage - a.generalAverage);
+    // Per DepEd Order: awardees shall be listed ALPHABETICALLY to promote fairness
+    return awardees.sort((a, b) => {
+        const nameA = `${a.student.last_name}, ${a.student.first_name}`.toLowerCase();
+        const nameB = `${b.student.last_name}, ${b.student.first_name}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+    });
 }
+
+// ─── At-Risk Students ─────────────────────────────────────────────────────────
 
 /**
  * Get at-risk students (below 75 in any subject)
@@ -133,6 +205,8 @@ export function getAtRiskStudents(
 
     return atRisk.sort((a, b) => a.grade - b.grade);
 }
+
+// ─── MPS per Subject ──────────────────────────────────────────────────────────
 
 /**
  * Get MPS (Mean Percentage Score) per subject
@@ -171,6 +245,8 @@ export function getMPSPerSubject(
     }).sort((a, b) => b.mps - a.mps);
 }
 
+// ─── Excellence in a Specific Learning Area Award ─────────────────────────────
+
 export interface SubjectAward {
     sectionName: string;
     subjectName: string;
@@ -179,22 +255,32 @@ export interface SubjectAward {
 }
 
 /**
- * Get the top student(s) for each subject within each section
+ * Get the "Excellence in a Specific Learning Area" awardees.
+ *
+ * Per DepEd Order (SY 2026-2027):
+ *   - Conferred on learners who obtain an FG of 90 or higher AND the highest FG
+ *     in the batch in a particular learning area.
+ *   - In cases of identical highest grades, all qualified learners shall be recognized.
  */
 export function getSubjectAwardees(
     students: Student[],
     classRecords: ClassRecord[],
     subjects: Subject[],
     sections: Section[],
-    quarter: 1 | 2 | 3 | 4 | 'overall'
+    quarter: 1 | 2 | 3 | 4 | 'overall',
+    schoolYear?: string
 ): SubjectAward[] {
     const awards: SubjectAward[] = [];
+    const sy = schoolYear || '2026-2027';
 
     for (const section of sections) {
-        const sectionStudents = students.filter(s => s.student_section === section.section_name);
+        const sectionStudents = students.filter(s => {
+            // Exclude descriptive grading levels from Subject Excellence Awards
+            if (isDescriptiveGrading(s.grade_level, sy)) return false;
+            return s.student_section === section.section_name;
+        });
         if (sectionStudents.length === 0) continue;
 
-        // Group records to compute highest grade per subject
         const sectionSubjects = subjects.filter(sub => sub.section_id === section.id);
 
         for (const subject of sectionSubjects) {
@@ -226,7 +312,7 @@ export function getSubjectAwardees(
                 }
             }
 
-            // A typical threshold for Best in Subject is at least 90
+            // Per DepEd Order: FG must be 90 or higher to qualify
             if (topGrade >= 90) {
                 for (const topStudent of topStudents) {
                     awards.push({
@@ -241,4 +327,57 @@ export function getSubjectAwardees(
     }
 
     return awards.sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+}
+
+export function getStudentAbsences(
+    studentLrn: string,
+    sectionId: string,
+    schoolYear: string,
+    term: 1 | 2 | 3 | 'EOSY',
+    attendanceRecords: AttendanceRecord[],
+    sf2Sheets: SF2Sheet[]
+): number {
+    let count = 0;
+    
+    // Filter months to check based on term
+    let monthsToInclude: string[] = [];
+    if (term === 1) monthsToInclude = ['june', 'july', 'august'];
+    else if (term === 2) monthsToInclude = ['september', 'october', 'november', 'december'];
+    else if (term === 3) monthsToInclude = ['january', 'february', 'march', 'april'];
+    else monthsToInclude = ['june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april'];
+
+    // Check SF2Sheets
+    const sheets = sf2Sheets.filter(s => s.section_id === sectionId && s.school_year === schoolYear);
+    sheets.forEach(sheet => {
+        const m = sheet.month.toLowerCase();
+        const matchesTerm = monthsToInclude.some(mi => mi.startsWith(m) || m.startsWith(mi));
+        if (term !== 'EOSY' && !matchesTerm) return;
+
+        const studentAttendance = sheet.attendance[studentLrn];
+        if (studentAttendance) {
+            Object.values(studentAttendance).forEach(status => {
+                if (status === 'absent') {
+                    count++;
+                }
+            });
+        }
+    });
+
+    // Also check individual attendanceRecords (as a fallback or override)
+    const records = attendanceRecords.filter(r => r.student_lrn === studentLrn && r.status === 'absent');
+    if (count === 0 && records.length > 0) {
+        records.forEach(r => {
+            if (term !== 'EOSY') {
+                const dateObj = new Date(r.date);
+                const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();
+                if (monthsToInclude.includes(monthName)) {
+                    count++;
+                }
+            } else {
+                count++;
+            }
+        });
+    }
+
+    return count;
 }

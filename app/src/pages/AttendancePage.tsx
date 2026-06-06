@@ -131,8 +131,15 @@ export function AttendancePage() {
         };
     }, [selectedSection, saveSF2Sheet, activeSchoolYear]);
 
+    const isAdvisorySection = useCallback((section: Section) => {
+        const legacy = 'is_advisory_class' in section ? (section as Section & { is_advisory_class?: boolean }).is_advisory_class : false;
+        return !!section.is_advisory || !!legacy;
+    }, []);
+
     const sortedSections = useMemo(() => {
-        return [...filterAttendanceSections(user, sections)].sort((a: Section, b: Section) => {
+        return [...filterAttendanceSections(user, sections)]
+            .filter(isAdvisorySection)
+            .sort((a: Section, b: Section) => {
             // Extract numeric grade level (e.g. "Grade 7" -> 7)
             const gradeA = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
             const gradeB = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
@@ -140,7 +147,7 @@ export function AttendancePage() {
             if (gradeA !== gradeB) return gradeA - gradeB;
             return a.section_name.localeCompare(b.section_name);
         });
-    }, [sections, user]);
+    }, [sections, user, isAdvisorySection]);
 
     const groupedSections = useMemo(() => {
         const groups: Record<string, Section[]> = {
@@ -496,7 +503,7 @@ export function AttendancePage() {
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button
@@ -522,7 +529,7 @@ export function AttendancePage() {
                                 <select
                                     value={selectedSection}
                                     onChange={(e) => setSelectedSection(e.target.value)}
-                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[110px] lg:w-[130px] duration-200"
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
                                 >
                                     <option value="">Section</option>
                                     {Object.entries(groupedSections).map(([group, groupSections]) => (
@@ -545,7 +552,7 @@ export function AttendancePage() {
                             <select
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[85px] lg:w-[100px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-21.25 lg:w-25 duration-200"
                             >
                                 {months.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -567,7 +574,7 @@ export function AttendancePage() {
                         )}
                     </div>
 
-                    <div className="flex-1 min-w-[12px]" />
+                    <div className="flex-1 min-w-3" />
 
                     <div className="flex items-center gap-2 shrink-0">
                         {/* Paper Size */}
@@ -575,7 +582,7 @@ export function AttendancePage() {
                             <select
                                 value={paperSize}
                                 onChange={(e) => setPaperSize(e.target.value as 'letter' | 'a4' | 'folio')}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
                             >
                                 <option value="letter">Letter</option>
                                 <option value="a4">A4</option>
@@ -649,15 +656,15 @@ export function AttendancePage() {
 
                 {/* === HEADER === */}
                 <div className="flex items-center mb-2">
-                    <div className="w-[75px] shrink-0">
-                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-[70px] h-[70px] object-contain" />
+                    <div className="w-18.75 shrink-0">
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
                     </div>
                     <div className="flex-1 text-center">
                         <p className="text-[22px] font-black leading-tight text-black" style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
                         <p className="italic text-[12px] text-gray-800 font-semibold">(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
                     </div>
-                    <div className="w-[100px] shrink-0 flex justify-end">
-                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-[65px] object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <div className="w-25 shrink-0 flex justify-end">
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     </div>
                 </div>
 
@@ -665,13 +672,13 @@ export function AttendancePage() {
                 <div className="flex items-center mb-2.5 text-[12px] font-black text-black">
                     <div className="flex items-center gap-2">
                         <span className="mr-1 whitespace-nowrap">School ID</span>
-                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-[150px] text-center font-black text-[15px] text-black">{schoolProfile?.school_id}</div>
+                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-37.5 text-center font-black text-[15px] text-black">{schoolProfile?.school_id}</div>
                         <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
-                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-[150px] text-center font-black text-[15px] text-black">{activeSchoolYear}</div>
+                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-37.5 text-center font-black text-[15px] text-black">{activeSchoolYear}</div>
                     </div>
-                    <div className="flex items-center gap-2 ml-auto mr-[60px]">
+                    <div className="flex items-center gap-2 ml-auto mr-15">
                         <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
-                        <div className="border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center w-[220px] text-center font-black text-[15px] text-black uppercase">{selectedMonth}</div>
+                        <div className="border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center w-55 text-center font-black text-[15px] text-black uppercase">{selectedMonth}</div>
                     </div>
                 </div>
 
@@ -679,15 +686,15 @@ export function AttendancePage() {
                 <div className="flex items-center mb-3 text-[12px] font-black text-black">
                     <div className="flex-1 flex items-center gap-2">
                         <span className="mr-1 whitespace-nowrap">Name of School</span>
-                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-[600px] text-center font-black text-[15px] text-black uppercase">{schoolProfile?.name}</div>
+                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-150 text-center font-black text-[15px] text-black uppercase">{schoolProfile?.name}</div>
                     </div>
-                    <div className="flex items-center gap-2 ml-auto mr-[60px]">
+                    <div className="flex items-center gap-2 ml-auto mr-15">
                         <span className="mr-1 whitespace-nowrap">Grade Level</span>
                         <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-16 text-center font-black text-[15px] text-black whitespace-nowrap">
                             {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
                         </div>
                         <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
-                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-[220px] text-center font-black text-[15px] text-black uppercase">{selectedSection}</div>
+                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-55 text-center font-black text-[15px] text-black uppercase">{selectedSection}</div>
                     </div>
                 </div>
 
@@ -765,7 +772,7 @@ export function AttendancePage() {
                     <tbody>
                         {/* Male students FIRST */}
                         {displayStudents.males.map((student, idx) => (
-                            <tr key={student.lrn} className="h-[22px]">
+                            <tr key={student.lrn} className="h-5.5">
                                 <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
                                 <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
                                     {student.last_name}, {student.first_name}
@@ -783,7 +790,7 @@ export function AttendancePage() {
                         ))}
 
                         {/* ← MALE | TOTAL Per Day → (AFTER male students) */}
-                        <tr className="bg-white h-[22px]">
+                        <tr className="bg-white h-5.5">
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
@@ -804,7 +811,7 @@ export function AttendancePage() {
 
                         {/* Female students FIRST */}
                         {displayStudents.females.map((student, idx) => (
-                            <tr key={student.lrn} className="h-[22px]">
+                            <tr key={student.lrn} className="h-5.5">
                                 <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
                                 <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
                                     {student.last_name}, {student.first_name}
@@ -822,7 +829,7 @@ export function AttendancePage() {
                         ))}
 
                         {/* ← FEMALE | TOTAL Per Day → (AFTER female students) */}
-                        <tr className="bg-white h-[22px]">
+                        <tr className="bg-white h-5.5">
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
@@ -842,7 +849,7 @@ export function AttendancePage() {
                         </tr>
 
                         {/* ← Combined TOTAL PER DAY → (LAST) */}
-                        <tr className="bg-white h-[22px]">
+                        <tr className="bg-white h-5.5">
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
@@ -954,7 +961,7 @@ export function AttendancePage() {
                             </colgroup>
                             <thead>
                                 {/* Row 1 of Header */}
-                                <tr className="h-[22px] border-b-2 border-black">
+                                <tr className="h-5.5 border-b-2 border-black">
                                     <th className="border-r-2 border-black p-1 text-center font-black text-[11px] text-black">
                                         Month:
                                     </th>
@@ -966,7 +973,7 @@ export function AttendancePage() {
                                     </th>
                                 </tr>
                                 {/* Row 2 of Header */}
-                                <tr className="h-[24px] border-b-2 border-black">
+                                <tr className="h-6 border-b-2 border-black">
                                     <th className="border-r-2 border-black p-1 text-center font-black text-[13px] text-black uppercase">
                                         {selectedMonth}
                                     </th>
@@ -998,7 +1005,7 @@ export function AttendancePage() {
                                     { label: 'Transferred out', m: 0, f: 0, t: 0 },
                                     { label: 'Transferred in', m: 0, f: 0, t: 0 }
                                 ].map((row, i) => (
-                                    <tr key={i} className="h-[22px] border-b-2 border-black">
+                                    <tr key={i} className="h-5.5 border-b-2 border-black">
                                         <td colSpan={2} className={`border-r-2 border-black p-1 text-[10px] font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''}`}>
                                             {row.label}
                                         </td>
@@ -1020,14 +1027,14 @@ export function AttendancePage() {
                         <div className="p-2.5 mt-auto bg-slate-50/50">
                             <p className="font-bold text-black text-[10.5px] mb-3">I certify that this is a true and correct report.</p>
                             <div className="text-center mb-3">
-                                <div className={`font-black border-b-2 border-black w-[280px] mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(adviserName, "text-[12.5px]")}`}>
+                                <div className={`font-black border-b-2 border-black w-70 mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(adviserName, "text-[12.5px]")}`}>
                                     {adviserName}
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of Teacher over Printed Name)</div>
                             </div>
                             <div className="text-[10.5px] font-bold text-black mb-1">Attested by:</div>
                             <div className="text-center">
-                                <div className={`font-black border-b-2 border-black w-[280px] mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(schoolProfile?.head_name || '', "text-[12.5px]")}`}>
+                                <div className={`font-black border-b-2 border-black w-70 mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(schoolProfile?.head_name || '', "text-[12.5px]")}`}>
                                     {schoolProfile?.head_name}
                                 </div>
                                 <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of School Head over Printed Name)</div>

@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Import MoreHorizontal, Maximize2, and Minimize2 icons from lucide-react in SF9Page.tsx.\"",
+  "EndLine": "7",
+  "Instruction": "\"Import MoreHorizontal, Maximize2, and Minimize2 from lucide-react.\"",
+  "ReplacementContent": "\"import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3, MoreHorizontal, Maximize2, Minimize2 } from 'lucide-react';\"",
+  "StartLine": "7",
+  "TargetContent": "\"import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';\"",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Updating imports in SF9Page.tsx\"",
+  "toolSummary": "\"Replace file content\""
+}

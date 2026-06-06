@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Pass student LRN and school year to getGeneralAverageRemarks call on PDF rendering.\"",
+  "EndLine": "1143",
+  "Instruction": "\"Update getGeneralAverageRemarks call on line 1140 to pass student.lrn and schoolYear.\"",
+  "ReplacementContent": "\"                                  <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>\\n                                      {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects), grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (\\n                                          <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>\\n                                      )) : <Text></Text>}\\n                                  </View>\"",
+  "StartLine": "1139",
+  "TargetContent": "\"                                  <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>\\n                                      {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects), grades, currentSubjects).map((line, i) => (\\n                                          <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>\\n                                      )) : <Text></Text>}\\n                                  </View>\"",
+  "TargetFile": "\"c:/Users/Emerson/Desktop/FormEase Pro/app/src/pages/SF9Page.tsx\"",
+  "toolAction": "\"Updating remarks call 1 in SF9Page\"",
+  "toolSummary": "\"Update remarks call 1\""
+}

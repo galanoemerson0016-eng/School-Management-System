@@ -124,35 +124,39 @@ function App() {
         const profile = state.schoolProfile;
         
         if (profile.is_activated && profile.activation_key && !profile.is_trial) {
-           console.log('🛡️ Verifying license binding...');
-           try {
-              const machineId = await getMachineId();
-              const serial = profile.activation_key.trim().toUpperCase();
-              const projectId = 'formease-licensing';
-              const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
+           if (!navigator.onLine) {
+              console.log('📡 License verification skipped (offline mode detected)');
+           } else {
+              console.log('🛡️ Verifying license binding...');
+              try {
+                 const machineId = await getMachineId();
+                 const serial = profile.activation_key.trim().toUpperCase();
+                 const projectId = 'formease-licensing';
+                 const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
 
-              const response = await fetch(baseUrl);
-              if (response.ok) {
-                 const docData = await response.json();
-                 const fields = docData.fields || {};
-                 const remoteMachineId = fields.machine_id?.stringValue || '';
-                 const remoteStatus = fields.status?.stringValue || 'pending';
+                 const response = await fetch(baseUrl);
+                 if (response.ok) {
+                    const docData = await response.json();
+                    const fields = docData.fields || {};
+                    const remoteMachineId = fields.machine_id?.stringValue || '';
+                    const remoteStatus = fields.status?.stringValue || 'pending';
 
-                 if (remoteStatus !== 'activated' || (remoteMachineId && remoteMachineId !== machineId)) {
-                    console.warn('⚠️ License mismatch or reset detected. Reverting to activation state.');
-                    localStorage.setItem('formease-license-reset-detected', 'true');
-                    await state.updateSchoolProfile({
-                       ...profile,
-                       is_activated: false,
-                       activated_at: undefined,
-                       subscription_end_date: undefined
-                    });
-                 } else {
-                    console.log('✅ License binding verified.');
+                    if (remoteStatus !== 'activated' || (remoteMachineId && remoteMachineId !== machineId)) {
+                       console.warn('⚠️ License mismatch or reset detected. Reverting to activation state.');
+                       localStorage.setItem('formease-license-reset-detected', 'true');
+                       await state.updateSchoolProfile({
+                          ...profile,
+                          is_activated: false,
+                          activated_at: undefined,
+                          subscription_end_date: undefined
+                       });
+                    } else {
+                       console.log('✅ License binding verified.');
+                    }
                  }
+              } catch {
+                 console.warn('📡 License verification skipped (offline or network error)');
               }
-           } catch {
-              console.warn('📡 License verification skipped (offline or network error)');
            }
         }
 

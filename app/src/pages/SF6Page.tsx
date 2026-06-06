@@ -6,11 +6,11 @@ type PaperSize = 'a4' | 'folio';
 type GenderKey = 'male' | 'female' | 'total';
 type StatusKey = 'promoted' | 'conditional' | 'retained';
 type ProficiencyKey =
-    | 'didNotMeet'
-    | 'fairlySatisfactory'
-    | 'satisfactory'
-    | 'verySatisfactory'
-    | 'outstanding'
+    | 'emerging'
+    | 'developing'
+    | 'connecting'
+    | 'benchmarking'
+    | 'advancing'
     | 'total';
 
 interface GenderCounts {
@@ -56,11 +56,11 @@ function createSummaryBucket(id: string, label: string): BucketSummary {
             retained: createCounts(),
         },
         proficiency: {
-            didNotMeet: createCounts(),
-            fairlySatisfactory: createCounts(),
-            satisfactory: createCounts(),
-            verySatisfactory: createCounts(),
-            outstanding: createCounts(),
+            emerging: createCounts(),
+            developing: createCounts(),
+            connecting: createCounts(),
+            benchmarking: createCounts(),
+            advancing: createCounts(),
             total: createCounts(),
         },
     };
@@ -75,11 +75,11 @@ function addToCounts(target: GenderCounts, gender: GenderKey) {
 function addBucketData(target: BucketSummary, source: BucketSummary) {
     const statusKeys: StatusKey[] = ['promoted', 'conditional', 'retained'];
     const proficiencyKeys: ProficiencyKey[] = [
-        'didNotMeet',
-        'fairlySatisfactory',
-        'satisfactory',
-        'verySatisfactory',
-        'outstanding',
+        'emerging',
+        'developing',
+        'connecting',
+        'benchmarking',
+        'advancing',
         'total',
     ];
 
@@ -184,11 +184,11 @@ export function SF6Page() {
             else if (failedCount <= 2) addToCounts(bucket.status.conditional, gender);
             else addToCounts(bucket.status.retained, gender);
 
-            if (genAve < 75) addToCounts(bucket.proficiency.didNotMeet, gender);
-            else if (genAve <= 79) addToCounts(bucket.proficiency.fairlySatisfactory, gender);
-            else if (genAve <= 84) addToCounts(bucket.proficiency.satisfactory, gender);
-            else if (genAve <= 89) addToCounts(bucket.proficiency.verySatisfactory, gender);
-            else addToCounts(bucket.proficiency.outstanding, gender);
+            if (genAve < 65) addToCounts(bucket.proficiency.emerging, gender);
+            else if (genAve <= 74) addToCounts(bucket.proficiency.developing, gender);
+            else if (genAve <= 79) addToCounts(bucket.proficiency.connecting, gender);
+            else if (genAve <= 89) addToCounts(bucket.proficiency.benchmarking, gender);
+            else addToCounts(bucket.proficiency.advancing, gender);
 
             addToCounts(bucket.proficiency.total, gender);
         });
@@ -412,24 +412,24 @@ export function SF6Page() {
                                     </tr>
 
                                     <tr className="h-[40px]">
-                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Did Not Meet Expectations<br />( 74 and below)</td>
-                                        {renderTripletCells((bucket) => bucket.proficiency.didNotMeet)}
+                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Emerging<br />(64 and below)</td>
+                                        {renderTripletCells((bucket) => bucket.proficiency.emerging)}
                                     </tr>
                                     <tr className="h-[40px]">
-                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Fairly Satisfactory<br />(75-79)</td>
-                                        {renderTripletCells((bucket) => bucket.proficiency.fairlySatisfactory)}
+                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Developing<br />(65-74)</td>
+                                        {renderTripletCells((bucket) => bucket.proficiency.developing)}
                                     </tr>
                                     <tr className="h-[40px]">
-                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Satisfactory<br />(80-84)</td>
-                                        {renderTripletCells((bucket) => bucket.proficiency.satisfactory)}
+                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Connecting<br />(75-79)</td>
+                                        {renderTripletCells((bucket) => bucket.proficiency.connecting)}
                                     </tr>
                                     <tr className="h-[40px]">
-                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Very Satisfactory<br />(85-89)</td>
-                                        {renderTripletCells((bucket) => bucket.proficiency.verySatisfactory)}
+                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Benchmarking<br />(80-89)</td>
+                                        {renderTripletCells((bucket) => bucket.proficiency.benchmarking)}
                                     </tr>
                                     <tr className="h-[40px]">
-                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Outstanding<br />(90-100)</td>
-                                        {renderTripletCells((bucket) => bucket.proficiency.outstanding)}
+                                        <td className="border border-black p-0.5 font-bold text-center uppercase">Advancing<br />(90-100)</td>
+                                        {renderTripletCells((bucket) => bucket.proficiency.advancing)}
                                     </tr>
                                     <tr className="h-[34px]">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase bg-slate-50/50">TOTAL</td>

@@ -52,6 +52,9 @@ export function InstitutePage() {
         grade_level: schoolProfile?.grade_level || '',
         section: schoolProfile?.section || '',
         adviser_image_url: schoolProfile?.adviser_image_url || '',
+        municipality: schoolProfile?.municipality || '',
+        city: schoolProfile?.city || '',
+        province: schoolProfile?.province || '',
     }), [schoolProfile]);
 
     const [formData, setFormData] = useState<SchoolProfile>(safeProfile);
@@ -318,7 +321,21 @@ export function InstitutePage() {
                                         value={formData.division} 
                                         onChange={v => setFormData({ ...formData, division: v })} 
                                         placeholder="Division"
-                                        icon={<Building2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
+                                        icon={<Building2 className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
+                                    />
+                                    <FormInput 
+                                        label="Municipality/City" 
+                                        value={formData.municipality || formData.city || ''} 
+                                        onChange={v => setFormData({ ...formData, municipality: v, city: v })} 
+                                        placeholder="e.g. Tarlac City"
+                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
+                                    />
+                                    <FormInput 
+                                        label="Province" 
+                                        value={formData.province || ''} 
+                                        onChange={v => setFormData({ ...formData, province: v })} 
+                                        placeholder="e.g. Tarlac"
+                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
                                     />
                                     <FormInput 
                                         label="School Head Name" 
@@ -619,6 +636,8 @@ export function InstitutePage() {
                         <GridFieldItem label="Region" value={displayRegion} icon={<MapPin />} />
                         <GridFieldItem label="Division" value={displayDivision} icon={<Building2 />} />
                         <GridFieldItem label="District" value={displayDistrict} icon={<MapPin />} />
+                        <GridFieldItem label="Municipality/City" value={schoolProfile.municipality || schoolProfile.city || ''} icon={<MapPin />} />
+                        <GridFieldItem label="Province" value={schoolProfile.province || ''} icon={<MapPin />} />
                         <GridFieldItem 
                             label="Grades Offered" 
                             value={visibleGrades.length > 0 ? `Grade ${visibleGrades[0]} - ${visibleGrades[visibleGrades.length - 1]}` : 'Not Specified'} 

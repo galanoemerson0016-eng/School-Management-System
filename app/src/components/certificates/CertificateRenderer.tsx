@@ -27,6 +27,10 @@ export interface CertificateData {
   headerSchoolName: string;
   signatureUrl1?: string;
   signatureUrl2?: string;
+  bodyTextTagalog?: string;
+  bodyTextEnglish?: string;
+  projectTitle?: string;
+  projectMembers?: string[];
 }
 
 interface CertificateRendererProps {
@@ -138,7 +142,16 @@ export const CertificateRenderer: React.FC<CertificateRendererProps> = ({ data }
               </p>
             </div>
 
-            {data.excellenceAward === 'Subject Excellence Award' ? (
+            {data.bodyTextTagalog ? (
+              <>
+                <p className="text-[11pt] font-bookman mb-0">
+                  {data.bodyTextTagalog}
+                </p>
+                <p className="text-[9pt] font-bookman italic mb-4">
+                  {data.bodyTextEnglish}
+                </p>
+              </>
+            ) : data.excellenceAward === 'Subject Excellence Award' ? (
               <>
                 <p className="text-[11pt] font-bookman mb-0">
                   bilang pagkilala sa natatanging pagganap sa asignaturang {data.awardTitleEnglish.split('in ')[1] || 'Asignatura'}.
@@ -150,12 +163,25 @@ export const CertificateRenderer: React.FC<CertificateRendererProps> = ({ data }
             ) : (
               <>
                 <p className="text-[11pt] font-bookman mb-0">
-                  bilang pagkilala sa matagumpay na pagtamo ng karangalang itinakda ng Kagawaran ng Edukasyon para sa mga mag-aaral sa antas sekundarya.
+                  bilang pagkilala sa matagumpay na pagtamo ng karangalang itinakda ng Kagawaran ng Edukasyon para sa mga mag-aaral.
                 </p>
                 <p className="text-[9pt] font-bookman italic mb-4">
-                  in recognition of having satisfactorily met the standards for academic honors prescribed by the Department of Education for learners in the secondary level.
+                  in recognition of having satisfactorily met the standards for academic honors prescribed by the Department of Education.
                 </p>
               </>
+            )}
+
+            {data.projectTitle && (
+              <div className="mt-3 mb-4 text-center">
+                <p className="text-[10pt] font-bookman font-bold uppercase tracking-wider mb-0 text-gray-800">
+                  Project: "{data.projectTitle}"
+                </p>
+                {data.projectMembers && data.projectMembers.length > 0 && (
+                  <p className="text-[8pt] font-bookman text-gray-500 italic mt-0.5">
+                    Group Members: {data.projectMembers.join(', ')}
+                  </p>
+                )}
+              </div>
             )}
 
             <div className="flex flex-col items-center">

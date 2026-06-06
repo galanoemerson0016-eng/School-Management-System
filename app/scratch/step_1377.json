@@ -1,0 +1,12 @@
+{
+  "AllowMultiple": "false",
+  "Description": "\"Increase \\\"LEARNING PROGRESS AND ACHIEVEMENT\\\" font size to match \\\"LEARNER'S PERFORMANCE REPORT\\\" at 12.5pt\"",
+  "EndLine": "1084",
+  "Instruction": "\"Change the inline fontSize of LEARNING PROGRESS AND ACHIEVEMENT from 8.5 to 12.5\"",
+  "ReplacementContent": "\"                            <Text style={[{ fontSize: 12.5, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'Times-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>\"",
+  "StartLine": "1084",
+  "TargetContent": "\"                            <Text style={[{ fontSize: 8.5, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'Times-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>\"",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Editing inline font size\"",
+  "toolSummary": "\"Match LP&A title font size\""
+}

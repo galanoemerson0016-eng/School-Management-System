@@ -37,6 +37,7 @@ export const licenseService = {
       return snapshot.docs.map(doc => {
         const data = doc.data();
         return { 
+          ...data,
           id: doc.id, 
           serial: data.serial || doc.id,
           status: data.status || 'pending',
@@ -47,8 +48,7 @@ export const licenseService = {
           batch_id: data.batch_id || '',
           duration_months: data.duration_months || 12,
           platform: data.platform || 'windows',
-          created_at: data.created_at || null,
-          ...data 
+          created_at: data.created_at || null
         };
       });
     } catch (e) {
@@ -253,11 +253,11 @@ export const licenseService = {
       return snapshot.docs.map(doc => {
         const data = doc.data();
         return {
+          ...data,
           id: doc.id,
           machine_id: data.machine_id || doc.id,
-          started_at: data.started_at || null,
-          platform: data.platform || 'windows',
-          ...data
+          started_at: parseFirestoreDate(data.started_at)?.toISOString() || null,
+          platform: data.platform || 'windows'
         };
       });
     } catch (e) {

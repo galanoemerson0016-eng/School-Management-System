@@ -6,12 +6,13 @@ import { CertificateRenderer } from '../components/certificates/CertificateRende
 import { filterSF9Sections } from '../lib/rbac';
 import type { CertificateType, HonorsInfo } from '../utils/certificateUtils';
 import { getHonorsInfo, calculateStudentAverage } from '../utils/certificateUtils';
+import { isDescriptiveGrading } from '../lib/grading';
 
 const TEMPLATE_CONFIG: Record<CertificateType, { excellenceAward: string, dateMonth: string }> = {
-    'EOSY': { excellenceAward: 'Academic Excellence Awardee (Academic Excellence Awardee)', dateMonth: 'March' },
-    'T1': { excellenceAward: 'Nagkamit ng Karangalan para sa Unang Termino (First Term Academic Achiever)', dateMonth: 'November' },
-    'T2': { excellenceAward: 'Nagkamit ng Karangalan para sa Ikalawang Termino (Second Term Academic Achiever)', dateMonth: 'January' },
-    'T3': { excellenceAward: 'Nagkamit ng Karangalan para sa Ikatlong Termino (Third Term Academic Achiever)', dateMonth: 'March' },
+    'EOSY': { excellenceAward: 'Akademikong Kahusayan (Academic Excellence Award)', dateMonth: 'March' },
+    'T1': { excellenceAward: 'Akademikong Kahusayan para sa Unang Termino (Academic Excellence Award for the First Term)', dateMonth: 'November' },
+    'T2': { excellenceAward: 'Akademikong Kahusayan para sa Ikalawang Termino (Academic Excellence Award for the Second Term)', dateMonth: 'January' },
+    'T3': { excellenceAward: 'Akademikong Kahusayan para sa Ikatlong Termino (Academic Excellence Award for the Third Term)', dateMonth: 'March' },
 };
 
 export interface CertificateData {
@@ -48,6 +49,21 @@ interface BatchStudent {
     selected: boolean;
 }
 
+interface CustomAward {
+    id: string;
+    lrn: string;
+    studentName: string;
+    awardType: string;
+    awardTitleTagalog: string;
+    awardTitleEnglish: string;
+    excellenceAward: string;
+    bodyTextTagalog: string;
+    bodyTextEnglish: string;
+    projectTitle: string;
+    projectMembers: string[];
+    selected: boolean;
+}
+
 export function CertificateGeneratorPage() {
     const { setCurrentView, students, schoolProfile, gradingSheetRecords, subjects, activeSchoolYear, sections, teachers } = useAppStore();
     const { user } = useAuthStore();
@@ -62,6 +78,7 @@ export function CertificateGeneratorPage() {
     // Batch Processing State
     const [batchStudents, setBatchStudents] = useState<BatchStudent[]>([]);
     const [subjectAwards, setSubjectAwards] = useState<{ subject: string, student: string, average: number, lrn: string, selected: boolean }[]>([]);
+    const [customAwards, setCustomAwards] = useState<CustomAward[]>([]);
     const [isBatchScanning, setIsBatchScanning] = useState(false);
     const [certSidebarWidth, setCertSidebarWidth] = useState(336); // Default w-84 is 336px
     const [isCertResizing, setIsCertResizing] = useState(false);
@@ -90,11 +107,7 @@ export function CertificateGeneratorPage() {
     // Sorted Sections: Grade Level - Section (Alphabetical)
     // Filter by advisory class only for advisers
     const sortedSections = useMemo(() => {
-        let filtered = [...sections]
-            .filter(section => {
-                const grade = section.section_grade_level?.toLowerCase() || '';
-                return grade.includes('7') || grade.includes('8') || grade.includes('9') || grade.includes('10');
-            });
+        let filtered = [...sections];
         
         // Apply user-based filtering (adviser only sees advisory class)
         if (user) {
@@ -102,9 +115,9 @@ export function CertificateGeneratorPage() {
         }
         
         return filtered.sort((a, b) => {
-                // Natural sort for Grade levels (extract numbers)
-                const numA = parseInt((a.section_grade_level || '').replace(/\D/g, '')) || 0;
-                const numB = parseInt((b.section_grade_level || '').replace(/\D/g, '')) || 0;
+                // Natural sort for Grade levels (extract numbers, Kinder is sorted to the beginning)
+                const numA = parseInt((a.section_grade_level || '').replace(/\D/g, '')) || (a.section_grade_level?.toLowerCase().includes('kinder') ? -1 : 0);
+                const numB = parseInt((b.section_grade_level || '').replace(/\D/g, '')) || (b.section_grade_level?.toLowerCase().includes('kinder') ? -1 : 0);
                 
                 if (numA !== numB) return numA - numB;
                 
@@ -233,21 +246,51 @@ export function CertificateGeneratorPage() {
         setIsBatchScanning(true);
         
         setTimeout(() => {
-            const section = sections.find(s => s.id === selectedSectionId);
+const section = sections.find(s => s.id === selectedSectionId);
             const sectionStudents = students.filter(s => s.student_section === section?.section_name || (section?.id && s.student_section === section.id));
             const term = certType === 'EOSY' ? 'EOSY' : parseInt(certType.replace('T', '')) as 1 | 2 | 3;
 
             const qualifying = sectionStudents.map(s => {
+                if (isDescriptiveGrading(section?.section_grade_level || '', activeSchoolYear)) return null;
+
                 const average = calculateStudentAverage(s.lrn, term, gradingSheetRecords, subjects, activeSchoolYear);
                 const honors = getHonorsInfo(average);
                 if (honors) {
+                    // Check if no grade below 80 in any subject for this term
+                    const studentRecords = gradingSheetRecords.filter(r => 
+                        r.student_lrn === s.lrn && 
+                        r.school_year === activeSchoolYear
+                    );
+                    let hasGradeBelow80 = false;
+                    const uniqueSubjectIds = Array.from(new Set(studentRecords.map(r => r.subject_id)));
+                    uniqueSubjectIds.forEach(subId => {
+                        const subject = subjects.find(sub => sub.id === subId);
+                        if (!subject || subject.term === 'none') return;
+                        if (term === 'EOSY') {
+                            const termGrades = [1, 2, 3].map(q => {
+                                const rec = studentRecords.find(r => r.subject_id === subId && r.quarter === q);
+                                return Number(rec?.final_grade || 0);
+                            }).filter(g => g > 0);
+                            if (termGrades.length === 3) {
+                                const finalSubGrade = Math.round(termGrades.reduce((a, b) => a + b, 0) / 3);
+                                if (finalSubGrade < 80) hasGradeBelow80 = true;
+                            }
+                        } else {
+                            const rec = studentRecords.find(r => r.subject_id === subId && r.quarter === term);
+                            const grade = Number(rec?.final_grade || 0);
+                            if (grade > 0 && grade < 80) hasGradeBelow80 = true;
+                        }
+                    });
+
+                    if (hasGradeBelow80) return null;
+
                     return {
                         lrn: s.lrn,
                         name: `${s.first_name} ${s.middle_name ? s.middle_name[0] + '.' : ''} ${s.last_name}`.toUpperCase(),
                         average,
                         honors: {
-                            tagalog: 'May Karangalan',
-                            english: 'With Honors'
+                            tagalog: honors.tagalog,
+                            english: honors.english
                         },
                         selected: true
                     };
@@ -260,6 +303,8 @@ export function CertificateGeneratorPage() {
             const awards: typeof subjectAwards = [];
 
             sectionSubjectIds.forEach(subId => {
+                if (isDescriptiveGrading(section?.section_grade_level || '', activeSchoolYear)) return;
+
                 const subjectName = subjects.find(s => s.id === subId)?.subject_name || 'Subject';
                 let topGrade = 0;
                 let topLrn = '';
@@ -284,8 +329,134 @@ export function CertificateGeneratorPage() {
                 }
             });
 
+            // 3. Custom / Nominated / Classroom Awards Detection
+            const nominated: CustomAward[] = [];
+            sectionStudents.forEach(s => {
+                const evals = s.awardEvaluations || [];
+                const matchingEvals = evals.filter(e => 
+                    e.schoolYear === activeSchoolYear && 
+                    e.term === term
+                );
+
+                matchingEvals.forEach(e => {
+                    let excellenceAward = '';
+                    let awardTitleTagalog = '';
+                    let awardTitleEnglish = '';
+                    let bodyTextTagalog = '';
+                    let bodyTextEnglish = '';
+                    const projectTitle = e.projectTitle || '';
+                    let projectMembersResolved: string[] = [];
+
+                    if (e.projectMembers && e.projectMembers.length > 0) {
+                        projectMembersResolved = e.projectMembers
+                            .map(lrn => {
+                                const stud = students.find(m => m.lrn === lrn);
+                                return stud ? `${stud.first_name} ${stud.last_name}`.toUpperCase() : lrn;
+                            })
+                            .filter(Boolean);
+                    }
+
+                    switch (e.awardType) {
+                        case 'PerfectAttendance':
+                            excellenceAward = 'Gawad sa Katangi-tanging Pagpasok (Perfect Attendance Award)';
+                            awardTitleTagalog = 'Katangi-tanging Pagpasok (Perfect Attendance)';
+                            awardTitleEnglish = 'Perfect Attendance Award';
+                            bodyTextTagalog = 'bilang pagkilala sa katangi-tanging pagpasok nang walang liban sa klase sa buong termino ng Taong Panuruan ' + activeSchoolYear + '.';
+                            bodyTextEnglish = 'in recognition of outstanding attendance with no absences recorded during the term for School Year ' + activeSchoolYear + '.';
+                            break;
+                        case 'CharacterTrait':
+                            excellenceAward = e.characterTraitTitle || 'Gawad sa Pagpapahalaga (Character Trait Award)';
+                            awardTitleTagalog = e.characterTraitTitle || 'Gawad sa Katangi-tanging Asal';
+                            awardTitleEnglish = `${e.characterTraitId || 'Core Value'} Trait Award`;
+                            bodyTextTagalog = e.characterTraitDescription 
+                                ? `bilang pagkilala sa pagpapakita ng ugaling ${e.characterTraitId || 'mabuti'}: ${e.characterTraitDescription}` 
+                                : `bilang pagkilala sa pagpapakita ng ugaling ${e.characterTraitId || 'mabuti'}.`;
+                            bodyTextEnglish = e.characterTraitDescription 
+                                ? `in recognition of demonstrating behavior aligned with ${e.characterTraitId || 'core values'}: ${e.characterTraitDescription}` 
+                                : `in recognition of demonstrating behavior aligned with ${e.characterTraitId || 'core values'}.`;
+                            break;
+                        case 'GMRCMerit':
+                            excellenceAward = 'GMRC Certificate of Merit';
+                            awardTitleTagalog = 'Katibayan ng Pagpapahalaga sa GMRC';
+                            awardTitleEnglish = 'GMRC Certificate of Merit';
+                            bodyTextTagalog = e.gmrcCompetency 
+                                ? `bilang pagkilala sa natatanging pag-unlad at kahusayan sa GMRC: ${e.gmrcCompetency}` 
+                                : 'bilang pagkilala sa natatanging pag-unlad at kahusayan sa GMRC.';
+                            bodyTextEnglish = e.gmrcCompetency 
+                                ? `in recognition of outstanding development and excellence in GMRC competency: ${e.gmrcCompetency}` 
+                                : 'in recognition of outstanding development and excellence in GMRC.';
+                            break;
+                        case 'Leadership': {
+                            excellenceAward = 'Gawad sa Katangi-tanging Pamumuno (Leadership Excellence Award)';
+                            awardTitleTagalog = 'Katangi-tanging Pamumuno (Leadership Excellence)';
+                            awardTitleEnglish = 'Leadership Excellence Award';
+                            const pos = e.leadershipScores?.position || 'Pinuno ng Klase';
+                            bodyTextTagalog = `bilang pagkilala sa ipinamalas na katangi-tanging pamumuno, responsibilidad, at pakikipagtulungan bilang ${pos}.`;
+                            bodyTextEnglish = `in recognition of exemplary leadership, responsibility, and cooperation demonstrated as ${pos}.`;
+                            break;
+                        }
+                        case 'Research':
+                            excellenceAward = 'Gawad sa Kahusayan sa Pananaliksik (Excellence in Research Award)';
+                            awardTitleTagalog = 'Kahusayan sa Pananaliksik (Excellence in Research)';
+                            awardTitleEnglish = 'Excellence in Research Award';
+                            bodyTextTagalog = e.projectTitle 
+                                ? `bilang pagkilala sa natatanging kontribusyon at kahusayan sa pagpaplano at pagsasagawa ng pananaliksik na may pamagat na "${e.projectTitle}".` 
+                                : 'bilang pagkilala sa natatanging kontribusyon at kahusayan sa pagpaplano at pagsasagawa ng pananaliksik.';
+                            bodyTextEnglish = e.projectTitle 
+                                ? `in recognition of outstanding contribution and excellence in planning and executing the research project entitled "${e.projectTitle}".` 
+                                : 'in recognition of outstanding contribution and excellence in planning and executing the research project.';
+                            break;
+                        case 'Innovation':
+                            excellenceAward = 'Gawad sa Kahusayan sa Disenyo at Inobasyon (Excellence in Design & Innovation Award)';
+                            awardTitleTagalog = 'Kahusayan sa Disenyo at Inobasyon (Excellence in Design & Innovation)';
+                            awardTitleEnglish = 'Excellence in Design and Innovation Award';
+                            bodyTextTagalog = e.projectTitle 
+                                ? `bilang pagkilala sa natatanging kontribusyon at kahusayan sa pagpaplano at pagbuo ng inobasyon na may pamagat na "${e.projectTitle}".` 
+                                : 'bilang pagkilala sa natatanging kontribusyon at kahusayan sa pagpaplano at pagbuo ng inobasyon.';
+                            bodyTextEnglish = e.projectTitle 
+                                ? `in recognition of outstanding contribution and excellence in planning and developing the innovation entitled "${e.projectTitle}".` 
+                                : 'in recognition of outstanding contribution and excellence in planning and developing the innovation.';
+                            break;
+                        case 'WorkImmersion': {
+                            excellenceAward = 'Gawad sa Kahusayan sa Work Immersion (Excellence in Work Immersion Award)';
+                            awardTitleTagalog = 'Kahusayan sa Work Immersion (Excellence in Work Immersion)';
+                            awardTitleEnglish = 'Excellence in Work Immersion Award';
+                            const wiGrade = e.workImmersionDetails?.grade || 90;
+                            bodyTextTagalog = `bilang pagkilala sa natatanging kasipagan at kahusayan sa Work Immersion na may markang ${wiGrade} at mataas na rekomendasyon ng kasosyo sa industriya.`;
+                            bodyTextEnglish = `in recognition of outstanding diligence and excellence in Work Immersion with a grade of ${wiGrade} and exemplary endorsement from the partner industry supervisor.`;
+                            break;
+                        }
+                        case 'SpecialRecognition': {
+                            excellenceAward = e.specialRecognitionTitle || 'Natatanging Pagkilala (Special Recognition)';
+                            awardTitleTagalog = e.specialRecognitionTitle || 'Gawad ng Natatanging Pagkilala';
+                            awardTitleEnglish = 'Special Recognition Award';
+                            const lvl = e.specialRecognitionLevel || 'school';
+                            bodyTextTagalog = `bilang pagkilala sa natatanging karangalang idinala sa paaralan sa pamamagitan ng pagwawagi o paglahok sa antas-${lvl} para sa: ${e.specialRecognitionTitle}.`;
+                            bodyTextEnglish = `in recognition of the honor brought to the school by achieving distinction at the ${lvl} level for: ${e.specialRecognitionTitle}.`;
+                            break;
+                        }
+                    }
+
+                    nominated.push({
+                        id: e.id,
+                        lrn: s.lrn,
+                        studentName: `${s.first_name} ${s.middle_name ? s.middle_name[0] + '.' : ''} ${s.last_name}`.toUpperCase(),
+                        awardType: e.awardType,
+                        awardTitleTagalog,
+                        awardTitleEnglish,
+                        excellenceAward,
+                        bodyTextTagalog,
+                        bodyTextEnglish,
+                        projectTitle,
+                        projectMembers: projectMembersResolved,
+                        selected: true
+                    });
+                });
+            });
+
             setBatchStudents(qualifying);
             setSubjectAwards(awards);
+            setCustomAwards(nominated);
 
             // Fetch Adviser Name looking up the teacher UID
             const adviserId = section?.adviser_id;
@@ -606,35 +777,37 @@ export function CertificateGeneratorPage() {
                             </div>
                         </section>
 
-                        {batchStudents.length > 0 && (
+                        {(batchStudents.length > 0 || subjectAwards.length > 0 || customAwards.length > 0) && (
                             <div className="mt-6 space-y-4">
-                                <div className="space-y-2">
-                                    <p className="text-[9px] font-bold text-gray-400 uppercase ml-1">Honor Students ({batchStudents.length})</p>
-                                    <div className="max-h-[200px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
-                                        {batchStudents.map(student => (
-                                            <div 
-                                                key={student.lrn}
-                                                className={`p-3 rounded-xl border transition-all flex items-center justify-between group ${student.selected ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200/50' : 'bg-transparent border-transparent opacity-60'}`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[9px] font-black text-blue-600">
-                                                        {student.average}
+                                {batchStudents.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-bold text-gray-400 uppercase ml-1">Honor Students ({batchStudents.length})</p>
+                                        <div className="max-h-[200px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                            {batchStudents.map(student => (
+                                                <div 
+                                                    key={student.lrn}
+                                                    className={`p-3 rounded-xl border transition-all flex items-center justify-between group ${student.selected ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200/50' : 'bg-transparent border-transparent opacity-60'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[9px] font-black text-blue-600">
+                                                            {student.average}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{student.name}</p>
+                                                            <p className="text-[8px] text-gray-400 font-bold">{student.honors.english}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{student.name}</p>
-                                                        <p className="text-[8px] text-gray-400 font-bold">{student.honors.english}</p>
-                                                    </div>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={student.selected}
+                                                        onChange={() => toggleStudentSelection(student.lrn)}
+                                                        className="w-4 h-4 rounded-md border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                    />
                                                 </div>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={student.selected}
-                                                    onChange={() => toggleStudentSelection(student.lrn)}
-                                                    className="w-4 h-4 rounded-md border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
-                                                />
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {subjectAwards.length > 0 && (
                                     <div className="space-y-2">
@@ -673,6 +846,44 @@ export function CertificateGeneratorPage() {
                                         </div>
                                     </div>
                                 )}
+
+                                {customAwards.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between px-1">
+                                            <p className="text-[9px] font-black text-amber-600 uppercase">Custom & Classroom ({customAwards.length})</p>
+                                            <button 
+                                                onClick={() => setCustomAwards(prev => prev.map(a => ({ ...a, selected: !a.selected })))}
+                                                className="text-[8px] font-black text-blue-500 uppercase hover:underline"
+                                            >
+                                                Toggle All
+                                            </button>
+                                        </div>
+                                        <div className="max-h-[250px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                            {customAwards.map(award => (
+                                                <div 
+                                                    key={award.id}
+                                                    className={`p-3 rounded-xl border transition-all flex items-center justify-between group ${award.selected ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-250/50' : 'bg-transparent border-transparent opacity-60'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-[9px] font-black text-amber-600">
+                                                            {award.awardType.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{award.excellenceAward.split(' (')[0]}</p>
+                                                            <p className="text-[8px] text-amber-500 font-bold uppercase">{award.studentName}</p>
+                                                        </div>
+                                                    </div>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={award.selected}
+                                                        onChange={() => setCustomAwards(prev => prev.map(a => a.id === award.id ? { ...a, selected: !a.selected } : a))}
+                                                        className="w-4 h-4 rounded-md border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -681,7 +892,7 @@ export function CertificateGeneratorPage() {
                 {/* Main Preview Area (Screen Only) */}
                 <div className="flex-1 overflow-y-auto p-12 bg-app-bg dark:bg-[#040711] custom-scrollbar no-print">
                     <div className="flex flex-col items-center gap-12 w-full">
-                        {(batchStudents.filter(s => s.selected).length + subjectAwards.filter(s => s.selected).length) === 0 ? (
+                        {(batchStudents.filter(s => s.selected).length + subjectAwards.filter(s => s.selected).length + customAwards.filter(s => s.selected).length) === 0 ? (
                             <div className="flex flex-col items-center justify-center p-24 text-gray-400 bg-white/5 rounded-3xl border border-dashed border-white/10 w-full max-w-4xl">
                                 <Layers className="w-12 h-12 mb-4 opacity-20" />
                                 <p className="text-sm font-bold uppercase tracking-widest">No students selected for print</p>
@@ -729,6 +940,31 @@ export function CertificateGeneratorPage() {
                                         </div>
                                     </div>
                                 ))}
+
+                                {/* Custom nominated / classroom awards */}
+                                {customAwards.filter(s => s.selected).map(award => (
+                                    <div key={`custom-${award.id}`} className="flex flex-col items-center group relative w-full mt-12">
+                                        <div className="absolute top-[-20px] left-1/2 translate-x-[-50%] bg-amber-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            Preview: {award.excellenceAward.split(' (')[0]} ({award.studentName})
+                                        </div>
+                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm mb-[-120px] xl:mb-[-180px] 2xl:mb-[-100px]">
+                                            <CertificateRenderer data={{
+                                                ...certData,
+                                                learnerName: award.studentName,
+                                                lrn: award.lrn,
+                                                awardTitleTagalog: award.awardTitleTagalog,
+                                                awardTitleEnglish: award.awardTitleEnglish,
+                                                excellenceAward: award.excellenceAward,
+                                                bodyTextTagalog: award.bodyTextTagalog,
+                                                bodyTextEnglish: award.bodyTextEnglish,
+                                                projectTitle: award.projectTitle,
+                                                projectMembers: award.projectMembers,
+                                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
+                                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                            }} />
+                                        </div>
+                                    </div>
+                                ))}
                             </>
                         )}
                     </div>
@@ -758,6 +994,24 @@ export function CertificateGeneratorPage() {
                                 awardTitleTagalog: `May Pinakamataas na Marka sa ${award.subject}`,
                                 awardTitleEnglish: `Highest Grade in ${award.subject}`,
                                 excellenceAward: 'Subject Excellence Award',
+                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
+                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                            }} />
+                        </div>
+                    ))}
+                    {customAwards.filter(s => s.selected).map(award => (
+                        <div key={`print-custom-${award.id}`} className="certificate">
+                            <CertificateRenderer data={{
+                                ...certData,
+                                learnerName: award.studentName,
+                                lrn: award.lrn,
+                                awardTitleTagalog: award.awardTitleTagalog,
+                                awardTitleEnglish: award.awardTitleEnglish,
+                                excellenceAward: award.excellenceAward,
+                                bodyTextTagalog: award.bodyTextTagalog,
+                                bodyTextEnglish: award.bodyTextEnglish,
+                                projectTitle: award.projectTitle,
+                                projectMembers: award.projectMembers,
                                 signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
                                 signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
                             }} />

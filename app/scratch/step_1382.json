@@ -1,0 +1,8 @@
+{
+  "Description": "\"Completely removes the border from the singleBorderWrapper — sets borderWidth to 0 explicitly in both the style and removes the inline borderColor override so no border appears regardless of isValuesOnly state.\"",
+  "Instruction": "\"Remove the borderColor conditional override on singleBorderWrapper and also make sure the borderWidth is 0 by adding an explicit override inline\"",
+  "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":1001,\"ReplacementContent\":\"                <View style={[styles.singleBorderWrapper, { borderWidth: 0 }]}>\",\"StartLine\":1001,\"TargetContent\":\"                <View style={[styles.singleBorderWrapper, isValuesOnly ? { borderColor: transparentBorder } : {}]}>\"}]",
+  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
+  "toolAction": "\"Removing border from singleBorderWrapper JSX\"",
+  "toolSummary": "\"Strip border from SF9 card wrapper\""
+}

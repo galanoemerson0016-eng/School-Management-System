@@ -12,6 +12,33 @@ import { backup } from '../services/backup';
 import { announcementSync } from '../services/announcement-sync';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 
+const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
+const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
+
+function getLocalStorageValue(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setLocalStorageValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures (private mode or blocked storage).
+  }
+}
+
+function removeLocalStorageValue(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures (private mode or blocked storage).
+  }
+}
+
 interface AppState {
   // School profile
   schoolProfile: SchoolProfile;
@@ -165,6 +192,9 @@ const defaultSchoolProfile: SchoolProfile = {
   head_name: '',
   head_position: '',
   grade_levels_offered: '',
+  municipality: '',
+  city: '',
+  province: '',
   adviser_name: '',
   grade_level: '',
   section: '',
@@ -852,10 +882,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAttendanceRecords: (records) => set({ attendanceRecords: records }),
 
   // ==================== UI STATE ====================
-  currentView: 'dashboard',
-  setCurrentView: (view) => set({ currentView: view }),
-  selectedSection: null,
-  setSelectedSection: (section) => set({ selectedSection: section }),
+  currentView: getLocalStorageValue(CURRENT_VIEW_STORAGE_KEY) || 'dashboard',
+  setCurrentView: (view) => {
+    setLocalStorageValue(CURRENT_VIEW_STORAGE_KEY, view);
+    set({ currentView: view });
+  },
+  selectedSection: getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY),
+  setSelectedSection: (section) => {
+    if (section) {
+      setLocalStorageValue(SELECTED_SECTION_STORAGE_KEY, section);
+    } else {
+      removeLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
+    }
+    set({ selectedSection: section });
+  },
   selectedSubject: null,
   setSelectedSubject: (subject) => set({ selectedSubject: subject }),
 
@@ -970,6 +1010,13 @@ export async function initializeAppStore() {
 
 
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
+    const persistedSelectedSection = getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
+    const hasPersistedSection = !!persistedSelectedSection && sections.some(
+      s => s.id === persistedSelectedSection || s.section_name === persistedSelectedSection
+    );
+    const resolvedSelectedSection = hasPersistedSection
+      ? persistedSelectedSection
+      : (advisorySection ? advisorySection.section_name : null);
     
     useAppStore.setState({
       students,
@@ -986,7 +1033,7 @@ export async function initializeAppStore() {
       observedValues,
       schoolProfile: schoolProfile || defaultSchoolProfile,
       isSyncReady: true,
-      selectedSection: advisorySection ? advisorySection.section_name : null
+      selectedSection: resolvedSelectedSection
     });
 
     console.log('✅ App store data loaded from IndexedDB');

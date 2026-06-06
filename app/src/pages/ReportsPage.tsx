@@ -2,15 +2,16 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
-import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees } from '../utils/grading-helpers';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3 } from 'lucide-react';
+import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees, getStudentAbsences } from '../utils/grading-helpers';
+import { isDescriptiveGrading, isKeyStage1 } from '../lib/grading';
 import { exportToCSV } from '../utils/csv-export';
 import { canEditReport, canViewReport, filterOfficialSectionsForUser, filterOfficialRecords, type ReportType } from '../lib/rbac';
 
 const COLORS = ['#003f87', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
 
 export function ReportsPage() {
-    const { students, sections, subjects, gradingSheetRecords, setCurrentView, setSelectedSection, setSelectedSubject } = useAppStore();
+    const { students, sections, subjects, gradingSheetRecords, setCurrentView, setSelectedSection, setSelectedSubject, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 'overall'>(1);
@@ -18,6 +19,11 @@ export function ReportsPage() {
     const [selectedDetailMetric, setSelectedDetailMetric] = useState<'total' | 'at-risk' | null>(null);
     const [atRiskViewMode, setAtRiskViewMode] = useState<'grouped' | 'detailed'>('grouped');
     const [expandedSubjectAwards, setExpandedSubjectAwards] = useState<Record<string, boolean>>({});
+    const [awardsTab, setAwardsTab] = useState<'academic' | 'classroom' | 'special'>('academic');
+    const [selectedSectionForAwards, setSelectedSectionForAwards] = useState<string>('');
+    const [evaluatingStudentLrn, setEvaluatingStudentLrn] = useState<string | null>(null);
+    const [evaluatingAwardType, setEvaluatingAwardType] = useState<string | null>(null);
+    const [evaluationForm, setEvaluationForm] = useState<any>({});
 
     const reportKeyByActive: Record<string, ReportType> = {
         quarterly: 'quarterly-summaries',
@@ -145,14 +151,14 @@ export function ReportsPage() {
 
     // Honor Roll
     const honorRoll = useMemo(() =>
-        generateHonorRoll(validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter),
-        [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter]
+        generateHonorRoll(validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter, activeSchoolYear),
+        [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter, activeSchoolYear]
     );
 
     // Subject Awardees
     const subjectAwardees = useMemo(() =>
-        getSubjectAwardees(validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter),
-        [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter]
+        getSubjectAwardees(validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter, activeSchoolYear),
+        [validStudents, filteredRecords, filteredSubjects, sections, selectedQuarter, activeSchoolYear]
     );
 
     // Grouped Honor Data
@@ -590,7 +596,7 @@ export function ReportsPage() {
                                 {safeActiveReport === 'subject' && 'Subject Performance'}
                                 {safeActiveReport === 'progress' && 'Learner Progress Tracker'}
                                 {safeActiveReport === 'at-risk' && 'At-Risk Students Report'}
-                                {safeActiveReport === 'honor-roll' && 'Honor Roll Report'}
+                                {safeActiveReport === 'honor-roll' && 'Academic Excellence Awards Report'}
                             </h2>
                             {sortedSections.length === 1 && (
                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
@@ -652,7 +658,7 @@ export function ReportsPage() {
                                         </button>
                                     </div>
                                     <div className="h-72">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                             <BarChart data={mpsData} layout="vertical" margin={{ left: 20 }}>
                                                 <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} />
                                                 <YAxis dataKey="subjectName" type="category" tick={{ fontSize: 10 }} width={120} />
@@ -667,7 +673,7 @@ export function ReportsPage() {
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-4">Grade Distribution</h3>
                                     <div className="h-72 flex items-center">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                             <PieChart>
                                                 <Pie
                                                     data={gradeDistribution.filter(d => d.count > 0)}
@@ -785,7 +791,7 @@ export function ReportsPage() {
                                     <h3 className="font-bold text-gray-800 mb-4">Subject Comparison Radar</h3>
                                     <div className="h-80">
                                         {radarData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
+                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                 <RadarChart data={radarData}>
                                                     <PolarGrid strokeDasharray="3 3" />
                                                     <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9 }} />
@@ -805,7 +811,7 @@ export function ReportsPage() {
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                     <h3 className="font-bold text-gray-800 mb-4">Pass Rate by Subject</h3>
                                     <div className="h-80">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                             <BarChart data={mpsData} margin={{ bottom: 60 }}>
                                                 <XAxis
                                                     dataKey="subjectName"
@@ -943,7 +949,7 @@ export function ReportsPage() {
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-gray-800 mb-4">Academic Progress Across Terms</h3>
                                 <div className="h-80">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                         <LineChart data={progressData}>
                                             <XAxis dataKey="quarter" />
                                             <YAxis domain={[0, 100]} />
@@ -1205,8 +1211,6 @@ export function ReportsPage() {
                             </div>
                         </motion.div>
                     )}
-
-                    {/* HONOR ROLL REPORT */}
                     {safeActiveReport === 'honor-roll' && (
                         <motion.div
                             key="honor-roll"
@@ -1215,190 +1219,1512 @@ export function ReportsPage() {
                             exit={{ opacity: 0 }}
                             className="space-y-6"
                         >
-                            {/* Honor Roll Analytics Highlights */}
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                                {[
-                                    { label: 'With Highest Honors', color: 'from-amber-400 to-amber-600', icon: Trophy, bg: 'bg-amber-50' },
-                                    { label: 'With High Honors', color: 'from-slate-300 to-slate-500', icon: Medal, bg: 'bg-slate-50' },
-                                    { label: 'With Honors', color: 'from-orange-400 to-orange-600', icon: Award, bg: 'bg-orange-50' },
-                                    { label: 'Total Awardees', color: 'from-green-800 to-green-950', icon: Sparkles, bg: 'bg-green-50' }
-                                ].map((type) => {
-                                    const count = type.label === 'Total Awardees' ? honorRoll.length : honorRoll.filter(h => h.honorType === type.label).length;
-                                    return (
-                                        <div key={type.label} className={`relative overflow-hidden group p-6 rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1 ${type.label === 'Total Awardees' ? 'bg-linear-to-br ' + type.color : 'bg-white'}`}>
-                                            <div className="relative z-10">
-                                                <div className={`p-2 rounded-xl w-fit mb-3 ${type.label === 'Total Awardees' ? 'bg-white/20' : type.bg}`}>
-                                                    <type.icon className={`w-5 h-5 ${type.label === 'Total Awardees' ? 'text-white' : 'text-' + type.color.split('-')[1] + '-600'}`} />
-                                                </div>
-                                                <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${type.label === 'Total Awardees' ? 'text-green-100' : 'text-gray-400'}`}>{type.label}</p>
-                                                <div className="flex items-baseline gap-2 mt-1">
-                                                    <p className={`text-4xl font-black ${type.label === 'Total Awardees' ? 'text-white' : 'text-gray-800'}`}>{count}</p>
-                                                    {count > 0 && <span className={`text-[10px] font-bold ${type.label === 'Total Awardees' ? 'text-green-300' : 'text-green-600'}`}>Active</span>}
-                                                </div>
-                                            </div>
-                                            <type.icon className={`absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] ${type.label === 'Total Awardees' ? 'text-white' : 'text-black'}`} />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="flex justify-end">
-                                <button onClick={handleExportHonorRoll} disabled={!canEditReport(user, 'honor-roll')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
-                                    <Download className="w-3 h-3" /> Export CSV
+                            {/* Segmented Tab Bar */}
+                            <div className="flex border-b border-gray-200 dark:border-white/5 mb-6">
+                                <button
+                                    onClick={() => setAwardsTab('academic')}
+                                    className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${awardsTab === 'academic' ? 'border-deped-blue text-deped-blue font-bold dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    Academic & Subject Excellence
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setAwardsTab('classroom');
+                                        const firstKs1 = sections.find(s => isKeyStage1(s.section_grade_level));
+                                        if (firstKs1 && !selectedSectionForAwards) {
+                                            setSelectedSectionForAwards(firstKs1.id);
+                                        }
+                                    }}
+                                    className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${awardsTab === 'classroom' ? 'border-deped-blue text-deped-blue font-bold dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    Classroom Awards (KS1)
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setAwardsTab('special');
+                                        const firstNonKs1 = sections.find(s => !isKeyStage1(s.section_grade_level));
+                                        if (firstNonKs1 && !selectedSectionForAwards) {
+                                            setSelectedSectionForAwards(firstNonKs1.id);
+                                        }
+                                    }}
+                                    className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${awardsTab === 'special' ? 'border-deped-blue text-deped-blue font-bold dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                >
+                                    Nominated & Special Awards
                                 </button>
                             </div>
 
-                            <div className="space-y-6">
-                                {groupedHonorData.map(group => {
-                                    const achievementRate = Math.min(100, (group.items.length / 5) * 100); 
-                                    
-                                    return (
-                                        <div key={group.groupName} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
-                                            {/* Modern Glass Header */}
-                                            <div className="bg-linear-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
-                                                <div className="absolute inset-0 bg-white/5 opacity-10"></div>
-                                                <div className="relative z-10">
-                                                    <div className="flex items-center gap-3">
-                                                        <h3 className="font-black text-white text-2xl tracking-tighter">{group.groupName}</h3>
-                                                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border border-white/10">Official Report</span>
-                                                    </div>
-                                                    <p className="text-green-100/60 text-[10px] font-bold uppercase tracking-widest mt-1">Academic Achievement Dashboard</p>
-                                                </div>
-                                                <div className="relative z-10 flex gap-4">
-                                                    <div className="text-right">
-                                                        <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.items.length}</p>
-                                                        <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Honors</p>
-                                                    </div>
-                                                    <div className="w-px h-8 bg-white/10 my-auto"></div>
-                                                    <div className="text-right">
-                                                        <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.awards.length}</p>
-                                                        <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Subjects</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            {/* Achievement Analytics Bar */}
-                                            <div className="bg-green-50/50 px-8 py-2 border-b border-green-100/50 flex items-center gap-4">
-                                                <TrendingUp className="w-3 h-3 text-green-600" />
-                                                <div className="flex-1 h-1.5 bg-green-200/50 rounded-full overflow-hidden">
-                                                    <motion.div 
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${achievementRate}%` }}
-                                                        className="h-full bg-green-600 rounded-full"
-                                                    />
-                                                </div>
-                                                <span className="text-[10px] font-black text-green-800">{Math.round(achievementRate)}% Achievement Intensity</span>
-                                            </div>
-
-                                            {group.items.length > 0 && (
-                                                <div className="px-2 pt-2">
-                                                    <table className="w-full">
-                                                        <thead>
-                                                            <tr className="text-gray-400 text-left underline-offset-4">
-                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest w-16">Rank</th>
-                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student Excellence</th>
-                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Award Category</th>
-                                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Gen. Avg</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-50">
-                                                            {group.items.map((item, idx) => (
-                                                                <tr key={`${item.student.lrn}-${idx}`} className="hover:bg-green-50/30 transition-colors group/row">
-                                                                    <td className="px-6 py-5">
-                                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${
-                                                                            idx === 0 ? 'bg-amber-100 text-amber-600' : 
-                                                                            idx === 1 ? 'bg-slate-100 text-slate-500' : 
-                                                                            idx === 2 ? 'bg-orange-100 text-orange-600' : 'text-gray-400'
-                                                                        }`}>
-                                                                            {idx < 3 ? <Trophy className="w-4 h-4" /> : idx + 1}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-6 py-5">
-                                                                        <p className="font-black text-gray-800 uppercase tracking-tight group-hover/row:text-green-900 transition-colors">
-                                                                            {item.student.last_name}, {item.student.first_name}
-                                                                        </p>
-                                                                        <p className="text-[10px] font-bold text-gray-400 uppercase">{item.student.lrn}</p>
-                                                                    </td>
-                                                                    <td className="px-6 py-5 text-center">
-                                                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border ${
-                                                                            item.honorType === 'With Highest Honors' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                                            item.honorType === 'With High Honors' ? 'bg-slate-50 text-slate-700 border-slate-200' :
-                                                                            'bg-orange-50 text-orange-700 border-orange-200'
-                                                                        }`}>
-                                                                            {item.honorType}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-5 text-right">
-                                                                        <p className="text-lg font-black text-gray-900 tracking-tighter">{item.generalAverage}</p>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-
-                                            {group.awards.length > 0 && (
-                                                <div className="p-8 bg-gray-50/30 border-t border-gray-100">
-                                                    <button 
-                                                        onClick={() => setExpandedSubjectAwards(prev => ({ ...prev, [group.groupName]: !prev[group.groupName] }))}
-                                                        className="w-full flex items-center justify-between group/btn"
-                                                    >
-                                                        <div className="flex items-center gap-3 text-xs font-black text-gray-400 uppercase tracking-[0.2em] group-hover/btn:text-green-800 transition-colors">
-                                                            <div className="p-2 bg-white rounded-lg shadow-sm">
-                                                                <Target className="w-4 h-4 text-green-600" />
-                                                            </div>
-                                                            Subject Excellence Matrix ({group.awards.length})
+                            {/* TAB 1: ACADEMIC & SUBJECT */}
+                            {awardsTab === 'academic' && (
+                                <div className="space-y-6 animate-in fade-in duration-300">
+                                    {/* Honor Roll Analytics Highlights */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {[
+                                            { label: 'Academic Excellence', color: 'from-blue-650 to-blue-900', icon: Sparkles, bg: 'bg-blue-50', count: honorRoll.length },
+                                            { label: 'Subject Excellence', color: 'from-green-800 to-green-950', icon: Trophy, bg: 'bg-green-50', count: subjectAwardees.length }
+                                        ].map((type) => {
+                                            return (
+                                                <div key={type.label} className="relative overflow-hidden group p-6 bg-white rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1">
+                                                    <div className="relative z-10">
+                                                        <div className={`p-2 rounded-xl w-fit mb-3 ${type.bg}`}>
+                                                            <type.icon className="w-5 h-5 text-deped-blue" />
                                                         </div>
-                                                        <div className={`p-2 rounded-full transition-all ${expandedSubjectAwards[group.groupName] ? 'bg-green-100 text-green-700 rotate-180' : 'bg-gray-100 text-gray-400'}`}>
-                                                            <ChevronDown className="w-4 h-4" />
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{type.label}</p>
+                                                        <div className="flex items-baseline gap-2 mt-1">
+                                                            <p className="text-4xl font-black text-gray-800">{type.count}</p>
+                                                            {type.count > 0 && <span className="text-[10px] font-bold text-green-600">Active</span>}
                                                         </div>
-                                                    </button>
-                                                    
-                                                    <AnimatePresence>
-                                                        {expandedSubjectAwards[group.groupName] && (
-                                                            <motion.div
-                                                                initial={{ height: 0, opacity: 0 }}
-                                                                animate={{ height: 'auto', opacity: 1 }}
-                                                                exit={{ height: 0, opacity: 0 }}
-                                                                className="overflow-hidden"
-                                                            >
-                                                                <div className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                                    {group.awards.map((award, idx) => (
-                                                                        <div key={`${award.subjectName}-${idx}`} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
-                                                                            <div className="absolute top-0 right-0 p-4">
-                                                                                <Medal className="w-10 h-10 text-green-500/10" />
-                                                                            </div>
-                                                                            <div>
-                                                                                <p className="text-[10px] font-black text-green-600 uppercase tracking-widest border-b border-green-50 pb-2 mb-3">{award.subjectName}</p>
-                                                                                <p className="text-md font-black text-gray-800 uppercase leading-snug tracking-tight">{award.studentName}</p>
-                                                                            </div>
-                                                                            <div className="mt-4 pt-4 flex items-center justify-between">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Performance</span>
-                                                                                </div>
-                                                                                <span className="text-xl font-black text-green-900 tracking-tighter">{award.grade}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
+                                                    </div>
+                                                    <type.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] text-black" />
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-
-                                {groupedHonorData.length === 0 && (
-                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-12 text-gray-400 italic">
-                                        <Award className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                        No honor students or subject awardees found for {selectedQuarter === 'overall' ? 'the entire year' : `Term ${selectedQuarter}`}
+                                            );
+                                        })}
                                     </div>
-                                )}
-                            </div>
+
+                                    <div className="flex justify-end">
+                                        <button onClick={handleExportHonorRoll} disabled={!canEditReport(user, 'honor-roll')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
+                                            <Download className="w-3 h-3" /> Export CSV
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        {groupedHonorData.map(group => {
+                                            const achievementRate = Math.min(100, (group.items.length / 5) * 100); 
+                                            
+                                            return (
+                                                <div key={group.groupName} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
+                                                    {/* Modern Glass Header */}
+                                                    <div className="bg-linear-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
+                                                        <div className="absolute inset-0 bg-white/5 opacity-10"></div>
+                                                        <div className="relative z-10">
+                                                            <div className="flex items-center gap-3">
+                                                                <h3 className="font-black text-white text-2xl tracking-tighter">{group.groupName}</h3>
+                                                                <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border border-white/10">Official Report</span>
+                                                            </div>
+                                                            <p className="text-green-100/60 text-[10px] font-bold uppercase tracking-widest mt-1">Academic Achievement Dashboard</p>
+                                                        </div>
+                                                        <div className="relative z-10 flex gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.items.length}</p>
+                                                                <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Awardees</p>
+                                                            </div>
+                                                            <div className="w-px h-8 bg-white/10 my-auto"></div>
+                                                            <div className="text-right">
+                                                                <p className="text-white text-2xl font-black tracking-tighter leading-none">{group.awards.length}</p>
+                                                                <p className="text-green-100/40 text-[9px] font-black uppercase mt-1">Subjects</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Achievement Analytics Bar */}
+                                                    <div className="bg-green-50/50 px-8 py-2 border-b border-green-100/50 flex items-center gap-4">
+                                                        <TrendingUp className="w-3 h-3 text-green-600" />
+                                                        <div className="flex-1 h-1.5 bg-green-200/50 rounded-full overflow-hidden">
+                                                            <motion.div 
+                                                                initial={{ width: 0 }}
+                                                                animate={{ width: `${achievementRate}%` }}
+                                                                className="h-full bg-green-600 rounded-full"
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-green-800">{Math.round(achievementRate)}% Achievement Intensity</span>
+                                                    </div>
+
+                                                    {group.items.length > 0 && (
+                                                        <div className="px-2 pt-2">
+                                                            <table className="w-full">
+                                                                <thead>
+                                                                    <tr className="text-gray-400 text-left underline-offset-4">
+                                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest w-16">No.</th>
+                                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student Excellence</th>
+                                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Award Category</th>
+                                                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Gen. Avg</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-50">
+                                                                    {group.items.map((item, idx) => (
+                                                                        <tr key={`${item.student.lrn}-${idx}`} className="hover:bg-green-50/30 transition-colors group/row">
+                                                                            <td className="px-6 py-5">
+                                                                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-gray-400 bg-gray-50 border border-gray-150">
+                                                                                    {idx + 1}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="px-6 py-5">
+                                                                                <p className="font-black text-gray-800 uppercase tracking-tight group-hover/row:text-green-900 transition-colors">
+                                                                                    {item.student.last_name}, {item.student.first_name}
+                                                                                </p>
+                                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">{item.student.lrn}</p>
+                                                                            </td>
+                                                                            <td className="px-6 py-5 text-center">
+                                                                                <span className="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border bg-blue-50 text-deped-blue border-blue-200">
+                                                                                    Academic Excellence Award
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-6 py-5 text-right">
+                                                                                <p className="text-lg font-black text-gray-900 tracking-tighter">{item.generalAverage}</p>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+
+                                                    {group.awards.length > 0 && (
+                                                        <div className="p-8 bg-gray-50/30 border-t border-gray-100">
+                                                            <button 
+                                                                onClick={() => setExpandedSubjectAwards(prev => ({ ...prev, [group.groupName]: !prev[group.groupName] }))}
+                                                                className="w-full flex items-center justify-between group/btn"
+                                                            >
+                                                                <div className="flex items-center gap-3 text-xs font-black text-gray-400 uppercase tracking-[0.2em] group-hover/btn:text-green-800 transition-colors">
+                                                                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                                        <Target className="w-4 h-4 text-green-600" />
+                                                                    </div>
+                                                                    Subject Excellence Matrix ({group.awards.length})
+                                                                </div>
+                                                                <div className={`p-2 rounded-full transition-all ${expandedSubjectAwards[group.groupName] ? 'bg-green-100 text-green-700 rotate-180' : 'bg-gray-100 text-gray-400'}`}>
+                                                                    <ChevronDown className="w-4 h-4" />
+                                                                </div>
+                                                            </button>
+                                                            
+                                                            <AnimatePresence>
+                                                                {expandedSubjectAwards[group.groupName] && (
+                                                                    <motion.div
+                                                                        initial={{ height: 0, opacity: 0 }}
+                                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                                        exit={{ height: 0, opacity: 0 }}
+                                                                        className="overflow-hidden"
+                                                                    >
+                                                                        <div className="pt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                            {group.awards.map((award, idx) => (
+                                                                                <div key={`${award.subjectName}-${idx}`} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+                                                                                    <div className="absolute top-0 right-0 p-4">
+                                                                                        <Medal className="w-10 h-10 text-green-500/10" />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <p className="text-[10px] font-black text-green-600 uppercase tracking-widest border-b border-green-50 pb-2 mb-3">{award.subjectName}</p>
+                                                                                        <p className="text-md font-black text-gray-800 uppercase leading-snug tracking-tight">{award.studentName}</p>
+                                                                                    </div>
+                                                                                    <div className="mt-4 pt-4 flex items-center justify-between">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                                                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Performance</span>
+                                                                                        </div>
+                                                                                        <span className="text-xl font-black text-green-900 tracking-tighter">{award.grade}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+
+                                        {groupedHonorData.length === 0 && (
+                                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-12 text-gray-400 italic">
+                                                <Award className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                                No honor students or subject awardees found for {selectedQuarter === 'overall' ? 'the entire year' : `Term ${selectedQuarter}`}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB 2: CLASSROOM AWARDS (KS1) */}
+                            {awardsTab === 'classroom' && (
+                                <div className="space-y-6 animate-in fade-in duration-300">
+                                    <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                        <span className="text-xs font-black uppercase text-gray-400 tracking-wider">Choose Section:</span>
+                                        <select
+                                            value={selectedSectionForAwards}
+                                            onChange={(e) => setSelectedSectionForAwards(e.target.value)}
+                                            className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+                                        >
+                                            <option value="">Select KS1 Section...</option>
+                                            {sections
+                                                .filter(s => isKeyStage1(s.section_grade_level))
+                                                .map(s => (
+                                                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                                                ))
+                                            }
+                                        </select>
+                                    </div>
+
+                                    {selectedSectionForAwards ? (() => {
+                                        const activeSection = sections.find(s => s.id === selectedSectionForAwards);
+                                        if (!activeSection) return null;
+                                        
+                                        const sectionStudents = students.filter(s => s.student_section === activeSection.section_name || s.student_section === activeSection.id);
+                                        const attendanceSheets = useAppStore.getState().sf2Sheets || [];
+                                        const attendanceRecords = useAppStore.getState().attendanceRecords || [];
+
+                                        const perfectAttendanceList = sectionStudents.filter(s => {
+                                            const absences = getStudentAbsences(
+                                                s.lrn, 
+                                                activeSection.id, 
+                                                activeSchoolYear, 
+                                                selectedQuarter === 'overall' ? 'EOSY' : (selectedQuarter as 1 | 2 | 3), 
+                                                attendanceRecords, 
+                                                attendanceSheets
+                                            );
+                                            
+                                            const manualCheck = s.awardEvaluations?.find(
+                                                e => e.awardType === 'PerfectAttendance' && 
+                                                     e.schoolYear === activeSchoolYear && 
+                                                     e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)
+                                            );
+
+                                            if (manualCheck) return true;
+                                            return absences === 0;
+                                        });
+
+                                        return (
+                                            <div className="grid grid-cols-1 gap-6">
+                                                {/* SECTION 1: PERFECT ATTENDANCE */}
+                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                        <div>
+                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <Clock3 className="w-5 h-5 text-deped-blue" /> Perfect Attendance Awardees
+                                                            </h4>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                Term {selectedQuarter} • Auto-detected: {perfectAttendanceList.length} Learners
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                        <table className="w-full text-xs">
+                                                            <thead>
+                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <th className="pb-2">Learner LRN</th>
+                                                                    <th className="pb-2">Name</th>
+                                                                    <th className="pb-2 text-center">Absences</th>
+                                                                    <th className="pb-2 text-center">Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-50">
+                                                                {sectionStudents.map(s => {
+                                                                    const abs = getStudentAbsences(
+                                                                        s.lrn, 
+                                                                        activeSection.id, 
+                                                                        activeSchoolYear, 
+                                                                        selectedQuarter === 'overall' ? 'EOSY' : (selectedQuarter as 1 | 2 | 3), 
+                                                                        attendanceRecords, 
+                                                                        attendanceSheets
+                                                                    );
+                                                                    const hasAward = perfectAttendanceList.some(p => p.lrn === s.lrn);
+
+                                                                    return (
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                            <td className="py-2.5 font-medium text-gray-400">{s.lrn}</td>
+                                                                            <td className="py-2.5 font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</td>
+                                                                            <td className="py-2.5 text-center font-bold text-gray-600">{abs}</td>
+                                                                            <td className="py-2.5 text-center">
+                                                                                <button 
+                                                                                    onClick={async () => {
+                                                                                        const isManual = s.awardEvaluations?.find(
+                                                                                            e => e.awardType === 'PerfectAttendance' && 
+                                                                                                 e.schoolYear === activeSchoolYear && 
+                                                                                                 e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)
+                                                                                        );
+                                                                                        if (isManual) {
+                                                                                            const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'PerfectAttendance' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
+                                                                                            await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                        } else {
+                                                                                            const evalObj = {
+                                                                                                id: `${s.lrn}_${activeSchoolYear}_${selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter}_PerfectAttendance`,
+                                                                                                student_lrn: s.lrn,
+                                                                                                schoolYear: activeSchoolYear,
+                                                                                                term: (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter) as 1 | 2 | 3 | 'EOSY',
+                                                                                                awardType: 'PerfectAttendance' as const
+                                                                                            };
+                                                                                            const currentEvals = s.awardEvaluations || [];
+                                                                                            await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: [...currentEvals, evalObj] });
+                                                                                        }
+                                                                                    }}
+                                                                                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${hasAward ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-gray-50 border border-gray-200 text-gray-400 hover:bg-gray-100'}`}
+                                                                                >
+                                                                                    {hasAward ? '✓ Qualified' : 'Not Qualified'}
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* SECTION 2: CHARACTER TRAITS AWARDS */}
+                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                        <div>
+                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <Heart className="w-5 h-5 text-pink-500" /> Character Traits Awards (Nomination)
+                                                            </h4>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                Kindergarten to Grade 3 • Limited to 5 core awards per term
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-xs">
+                                                            <thead>
+                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <th className="pb-2">Student</th>
+                                                                    <th className="pb-2">Core Award</th>
+                                                                    <th className="pb-2">Contextualized Title</th>
+                                                                    <th className="pb-2 text-right">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-50">
+                                                                {sectionStudents.map(s => {
+                                                                    const traitEval = s.awardEvaluations?.find(
+                                                                        e => e.awardType === 'CharacterTrait' && 
+                                                                             e.schoolYear === activeSchoolYear && 
+                                                                             e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)
+                                                                    );
+
+                                                                    return (
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 group">
+                                                                            <td className="py-3">
+                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                            </td>
+                                                                            <td className="py-3 font-semibold text-gray-700">
+                                                                                {traitEval?.characterTraitId ? (
+                                                                                    <span className="px-2.5 py-1 bg-pink-50 text-pink-600 rounded-full font-bold uppercase text-[9px]">
+                                                                                        {traitEval.characterTraitId}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-gray-300 italic">None</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="py-3 text-gray-600 font-medium max-w-[200px] truncate">
+                                                                                {traitEval?.characterTraitTitle || '-'}
+                                                                            </td>
+                                                                            <td className="py-3 text-right">
+                                                                                {traitEval ? (
+                                                                                    <div className="flex justify-end gap-2">
+                                                                                        <button 
+                                                                                            onClick={() => {
+                                                                                                setEvaluatingStudentLrn(s.lrn);
+                                                                                                setEvaluatingAwardType('CharacterTrait');
+                                                                                                setEvaluationForm({
+                                                                                                    characterTraitId: traitEval.characterTraitId || 'Maka-Diyos',
+                                                                                                    characterTraitTitle: traitEval.characterTraitTitle || '',
+                                                                                                    characterTraitDescription: traitEval.characterTraitDescription || ''
+                                                                                                });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Edit
+                                                                                        </button>
+                                                                                        <button 
+                                                                                            onClick={async () => {
+                                                                                                const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'CharacterTrait' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
+                                                                                                await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Remove
+                                                                                        </button>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <button 
+                                                                                        onClick={() => {
+                                                                                            setEvaluatingStudentLrn(s.lrn);
+                                                                                            setEvaluatingAwardType('CharacterTrait');
+                                                                                            setEvaluationForm({
+                                                                                                characterTraitId: 'Maka-Diyos',
+                                                                                                characterTraitTitle: 'Gawad sa Pagiging Maka-Diyos',
+                                                                                                characterTraitDescription: 'Ipinapahayag ang kanyang mataas na pagpapahalaga sa pananampalataya.'
+                                                                                            });
+                                                                                        }}
+                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-deped-blue hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                    >
+                                                                                        Nominate
+                                                                                    </button>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* SECTION 3: GMRC CERTIFICATE OF MERIT (EOSY Only) */}
+                                                {selectedQuarter === 'overall' && (
+                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                            <div>
+                                                                <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                    <Sparkles className="w-5 h-5 text-amber-500" /> Certificate of Merit (GMRC Core Competency)
+                                                                </h4>
+                                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                    End of School Year • Given to each learner reflecting GMRC competency
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-xs">
+                                                                <thead>
+                                                                    <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                        <th className="pb-2">Student</th>
+                                                                        <th className="pb-2">Excelled/Improved GMRC Competency</th>
+                                                                        <th className="pb-2 text-right">Actions</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-50">
+                                                                    {sectionStudents.map(s => {
+                                                                        const meritEval = s.awardEvaluations?.find(
+                                                                            e => e.awardType === 'GMRCMerit' && 
+                                                                                 e.schoolYear === activeSchoolYear && 
+                                                                                 e.term === 'EOSY'
+                                                                        );
+
+                                                                        return (
+                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                <td className="py-3">
+                                                                                    <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                    <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                </td>
+                                                                                <td className="py-3 text-gray-700 font-medium">
+                                                                                    {meritEval?.gmrcCompetency ? (
+                                                                                        <span className="font-bold text-amber-800">{meritEval.gmrcCompetency}</span>
+                                                                                    ) : (
+                                                                                        <span className="text-gray-300 italic">Not Yet Evaluated</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="py-3 text-right">
+                                                                                    {meritEval ? (
+                                                                                        <div className="flex justify-end gap-2">
+                                                                                            <button 
+                                                                                                onClick={() => {
+                                                                                                    setEvaluatingStudentLrn(s.lrn);
+                                                                                                    setEvaluatingAwardType('GMRCMerit');
+                                                                                                    setEvaluationForm({
+                                                                                                        gmrcCompetency: meritEval.gmrcCompetency || ''
+                                                                                                    });
+                                                                                                }}
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                            >
+                                                                                                Edit
+                                                                                            </button>
+                                                                                            <button 
+                                                                                                onClick={async () => {
+                                                                                                    const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'GMRCMerit' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
+                                                                                                    await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                                }}
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                            >
+                                                                                                Remove
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <button 
+                                                                                            onClick={() => {
+                                                                                                setEvaluatingStudentLrn(s.lrn);
+                                                                                                setEvaluatingAwardType('GMRCMerit');
+                                                                                                setEvaluationForm({
+                                                                                                    gmrcCompetency: 'Pagpapakita ng paggalang sa guro at kapwa mag-aaral'
+                                                                                                });
+                                                                                            }}
+                                                                                            className="px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                        >
+                                                                                            Assess Competency
+                                                                                        </button>
+                                                                                    )}
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })() : (
+                                        <div className="bg-white rounded-2xl p-12 border text-center text-gray-400 italic shadow-sm">
+                                            Please choose a Key Stage 1 (Kindergarten or Grade 1-3) Section above to manage classroom awards.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* TAB 3: NOMINATED & SPECIAL AWARDS */}
+                            {awardsTab === 'special' && (
+                                <div className="space-y-6 animate-in fade-in duration-300">
+                                    <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                        <span className="text-xs font-black uppercase text-gray-400 tracking-wider">Choose Section:</span>
+                                        <select
+                                            value={selectedSectionForAwards}
+                                            onChange={(e) => setSelectedSectionForAwards(e.target.value)}
+                                            className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+                                        >
+                                            <option value="">Select Section (Grades 2-12)...</option>
+                                            {sections
+                                                .filter(s => !isKeyStage1(s.section_grade_level) || s.section_grade_level.includes('2') || s.section_grade_level.includes('3'))
+                                                .map(s => (
+                                                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                                                ))
+                                            }
+                                        </select>
+                                    </div>
+
+                                    {selectedSectionForAwards ? (() => {
+                                        const activeSection = sections.find(s => s.id === selectedSectionForAwards);
+                                        if (!activeSection) return null;
+
+                                        const sectionStudents = students.filter(s => s.student_section === activeSection.section_name || s.student_section === activeSection.id);
+                                        const isG12 = (activeSection.section_grade_level || '').includes('12');
+                                        const isSHS = (activeSection.section_grade_level || '').includes('11') || isG12;
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {/* SECTION 1: LEADERSHIP EXCELLENCE */}
+                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                        <div>
+                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <Trophy className="w-5 h-5 text-indigo-500" /> Leadership Excellence Award
+                                                            </h4>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                KS2 to KS4 • GA ≥ 75, No Failures, No Disciplinary cases • Evaluated Score ≥ 90%
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-xs">
+                                                            <thead>
+                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <th className="pb-2">Student</th>
+                                                                    <th className="pb-2">Position</th>
+                                                                    <th className="pb-2 text-center">Score</th>
+                                                                    <th className="pb-2 text-right">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-50">
+                                                                {sectionStudents.map(s => {
+                                                                    const leadEval = s.awardEvaluations?.find(
+                                                                        e => e.awardType === 'Leadership' && 
+                                                                             e.schoolYear === activeSchoolYear && 
+                                                                             e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)
+                                                                    );
+
+                                                                    return (
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                            <td className="py-3">
+                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                            </td>
+                                                                            <td className="py-3 text-gray-700 font-medium">
+                                                                                {leadEval?.leadershipScores?.position || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                            </td>
+                                                                            <td className="py-3 text-center font-bold">
+                                                                                {leadEval?.leadershipScores ? (
+                                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${leadEval.leadershipScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                        {leadEval.leadershipScores.total}%
+                                                                                    </span>
+                                                                                ) : '-'}
+                                                                            </td>
+                                                                            <td className="py-3 text-right">
+                                                                                {leadEval ? (
+                                                                                    <div className="flex justify-end gap-2">
+                                                                                        <button 
+                                                                                            onClick={() => {
+                                                                                                setEvaluatingStudentLrn(s.lrn);
+                                                                                                setEvaluatingAwardType('Leadership');
+                                                                                                setEvaluationForm({
+                                                                                                    position: leadEval.leadershipScores?.position || '',
+                                                                                                    motivational: leadEval.leadershipScores?.motivational || 0,
+                                                                                                    planning: leadEval.leadershipScores?.planning || 0,
+                                                                                                    contribution: leadEval.leadershipScores?.contribution || 0,
+                                                                                                    noDerogatory: leadEval.leadershipScores?.noDerogatory ?? true
+                                                                                                });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Edit
+                                                                                        </button>
+                                                                                        <button 
+                                                                                            onClick={async () => {
+                                                                                                const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Leadership' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
+                                                                                                await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Remove
+                                                                                        </button>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <button 
+                                                                                        onClick={() => {
+                                                                                            setEvaluatingStudentLrn(s.lrn);
+                                                                                            setEvaluatingAwardType('Leadership');
+                                                                                            setEvaluationForm({
+                                                                                                position: 'Class President',
+                                                                                                motivational: 36,
+                                                                                                planning: 36,
+                                                                                                contribution: 18,
+                                                                                                noDerogatory: true
+                                                                                            });
+                                                                                        }}
+                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                    >
+                                                                                        Evaluate
+                                                                                    </button>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* SECTION 2: RESEARCH / INNOVATION EXCELLENCE (EOSY G12 Only) */}
+                                                {isG12 && selectedQuarter === 'overall' && (
+                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-6">
+                                                        <div>
+                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                                <div>
+                                                                    <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                        <Sparkles className="w-5 h-5 text-amber-500" /> Excellence in Research (Grade 12)
+                                                                    </h4>
+                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                        Research 1 & 2 • Max 4 members • Table 1 Rubric Score ≥ 90%
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="overflow-x-auto mt-4">
+                                                                <table className="w-full text-xs">
+                                                                    <thead>
+                                                                        <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                            <th className="pb-2">Student</th>
+                                                                            <th className="pb-2">Research Title</th>
+                                                                            <th className="pb-2 text-center">Score</th>
+                                                                            <th className="pb-2 text-right">Actions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-50">
+                                                                        {sectionStudents.map(s => {
+                                                                            const resEval = s.awardEvaluations?.find(
+                                                                                e => e.awardType === 'Research' && 
+                                                                                     e.schoolYear === activeSchoolYear && 
+                                                                                     e.term === 'EOSY'
+                                                                            );
+
+                                                                            return (
+                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                    <td className="py-3">
+                                                                                        <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                        <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                    </td>
+                                                                                    <td className="py-3 text-gray-700 font-medium max-w-[200px] truncate">
+                                                                                        {resEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                                    </td>
+                                                                                    <td className="py-3 text-center font-bold">
+                                                                                        {resEval?.researchScores ? (
+                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${resEval.researchScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                                {resEval.researchScores.total}%
+                                                                                            </span>
+                                                                                        ) : '-'}
+                                                                                    </td>
+                                                                                    <td className="py-3 text-right">
+                                                                                        {resEval ? (
+                                                                                            <div className="flex justify-end gap-2">
+                                                                                                <button 
+                                                                                                    onClick={() => {
+                                                                                                        setEvaluatingStudentLrn(s.lrn);
+                                                                                                        setEvaluatingAwardType('Research');
+                                                                                                        setEvaluationForm({
+                                                                                                            projectTitle: resEval.projectTitle || '',
+                                                                                                            finalGrade: resEval.researchScores?.finalGrade || 18,
+                                                                                                            significance: resEval.researchScores?.significance || 30,
+                                                                                                            rigor: resEval.researchScores?.rigor || 27,
+                                                                                                            presentation: resEval.researchScores?.presentation || 13,
+                                                                                                            projectMembers: resEval.projectMembers || []
+                                                                                                        });
+                                                                                                    }}
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                >
+                                                                                                    Edit
+                                                                                                </button>
+                                                                                                <button 
+                                                                                                    onClick={async () => {
+                                                                                                        const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Research' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
+                                                                                                        await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                                    }}
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                >
+                                                                                                    Remove
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <button 
+                                                                                                onClick={() => {
+                                                                                                    setEvaluatingStudentLrn(s.lrn);
+                                                                                                    setEvaluatingAwardType('Research');
+                                                                                                    setEvaluationForm({
+                                                                                                        projectTitle: 'Smart Hydroponics System',
+                                                                                                        finalGrade: 18,
+                                                                                                        significance: 31,
+                                                                                                        rigor: 27,
+                                                                                                        presentation: 14,
+                                                                                                        projectMembers: [s.lrn]
+                                                                                                    });
+                                                                                                }}
+                                                                                                className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                            >
+                                                                                                Evaluate
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                                <div>
+                                                                    <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                        <Target className="w-5 h-5 text-purple-500" /> Excellence in Design and Innovation
+                                                                    </h4>
+                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                        Design & Innovation 1 & 2 • Max 4 members • Table 2 Rubric Score ≥ 90%
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="overflow-x-auto mt-4">
+                                                                <table className="w-full text-xs">
+                                                                    <thead>
+                                                                        <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                            <th className="pb-2">Student</th>
+                                                                            <th className="pb-2">Innovation Title</th>
+                                                                            <th className="pb-2 text-center">Score</th>
+                                                                            <th className="pb-2 text-right">Actions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-gray-50">
+                                                                        {sectionStudents.map(s => {
+                                                                            const innEval = s.awardEvaluations?.find(
+                                                                                e => e.awardType === 'Innovation' && 
+                                                                                     e.schoolYear === activeSchoolYear && 
+                                                                                     e.term === 'EOSY'
+                                                                            );
+
+                                                                            return (
+                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                    <td className="py-3">
+                                                                                        <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                        <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                    </td>
+                                                                                    <td className="py-3 text-gray-700 font-medium max-w-[200px] truncate">
+                                                                                        {innEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                                    </td>
+                                                                                    <td className="py-3 text-center font-bold">
+                                                                                        {innEval?.researchScores ? (
+                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${innEval.researchScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                                {innEval.researchScores.total}%
+                                                                                            </span>
+                                                                                        ) : '-'}
+                                                                                    </td>
+                                                                                    <td className="py-3 text-right">
+                                                                                        {innEval ? (
+                                                                                            <div className="flex justify-end gap-2">
+                                                                                                <button 
+                                                                                                    onClick={() => {
+                                                                                                        setEvaluatingStudentLrn(s.lrn);
+                                                                                                        setEvaluatingAwardType('Innovation');
+                                                                                                        setEvaluationForm({
+                                                                                                            projectTitle: innEval.projectTitle || '',
+                                                                                                            finalGrade: innEval.researchScores?.finalGrade || 18,
+                                                                                                            significance: innEval.researchScores?.significance || 27,
+                                                                                                            originality: innEval.researchScores?.originality || 18,
+                                                                                                            feasibility: innEval.researchScores?.feasibility || 18,
+                                                                                                            presentation: innEval.researchScores?.presentation || 9,
+                                                                                                            projectMembers: innEval.projectMembers || []
+                                                                                                        });
+                                                                                                    }}
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                >
+                                                                                                    Edit
+                                                                                                </button>
+                                                                                                <button 
+                                                                                                    onClick={async () => {
+                                                                                                        const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Innovation' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
+                                                                                                        await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                                    }}
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                >
+                                                                                                    Remove
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <button 
+                                                                                                onClick={() => {
+                                                                                                    setEvaluatingStudentLrn(s.lrn);
+                                                                                                    setEvaluatingAwardType('Innovation');
+                                                                                                    setEvaluationForm({
+                                                                                                        projectTitle: 'Solar Powered Waste Segregator',
+                                                                                                        finalGrade: 18,
+                                                                                                        significance: 27,
+                                                                                                        originality: 18,
+                                                                                                        feasibility: 18,
+                                                                                                        presentation: 9,
+                                                                                                        projectMembers: [s.lrn]
+                                                                                                    });
+                                                                                                }}
+                                                                                                className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-purple-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                            >
+                                                                                                Evaluate
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* SECTION 3: WORK IMMERSION / FIELD EXPOSURE (SHS Only) */}
+                                                {isSHS && selectedQuarter === 'overall' && (
+                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                            <div>
+                                                                <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                    <Medal className="w-5 h-5 text-teal-600" /> Excellence in Work Immersion / Field Exposure
+                                                                </h4>
+                                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                    SHS Graduating • Highest grade in batch (≥ 90) + Supervisor Endorsement
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-xs">
+                                                                <thead>
+                                                                    <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                        <th className="pb-2">Student</th>
+                                                                        <th className="pb-2 text-center">Grade</th>
+                                                                        <th className="pb-2 text-center">Supervisor Rating</th>
+                                                                        <th className="pb-2 text-center">Endorsed</th>
+                                                                        <th className="pb-2 text-right">Actions</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-gray-50">
+                                                                    {sectionStudents.map(s => {
+                                                                        const immEval = s.awardEvaluations?.find(
+                                                                            e => e.awardType === 'WorkImmersion' && 
+                                                                                 e.schoolYear === activeSchoolYear && 
+                                                                                 e.term === 'EOSY'
+                                                                        );
+
+                                                                        return (
+                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                <td className="py-3">
+                                                                                    <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                    <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                </td>
+                                                                                <td className="py-3 text-center font-bold text-gray-700">
+                                                                                    {immEval?.workImmersionDetails?.grade || '-'}
+                                                                                </td>
+                                                                                <td className="py-3 text-center font-semibold text-gray-600">
+                                                                                    {immEval?.workImmersionDetails?.supervisorRating || '-'}
+                                                                                </td>
+                                                                                <td className="py-3 text-center">
+                                                                                    {immEval?.workImmersionDetails ? (
+                                                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black ${immEval.workImmersionDetails.isEndorsed ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                            {immEval.workImmersionDetails.isEndorsed ? 'YES' : 'NO'}
+                                                                                        </span>
+                                                                                    ) : '-'}
+                                                                                </td>
+                                                                                <td className="py-3 text-right">
+                                                                                    {immEval ? (
+                                                                                        <div className="flex justify-end gap-2">
+                                                                                            <button 
+                                                                                                onClick={() => {
+                                                                                                    setEvaluatingStudentLrn(s.lrn);
+                                                                                                    setEvaluatingAwardType('WorkImmersion');
+                                                                                                    setEvaluationForm({
+                                                                                                        grade: immEval.workImmersionDetails?.grade || 92,
+                                                                                                        supervisorRating: immEval.workImmersionDetails?.supervisorRating || 'Outstanding',
+                                                                                                        teacherRating: immEval.workImmersionDetails?.teacherRating || 'Outstanding',
+                                                                                                        isEndorsed: immEval.workImmersionDetails?.isEndorsed ?? true
+                                                                                                    });
+                                                                                                }}
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                            >
+                                                                                                Edit
+                                                                                            </button>
+                                                                                            <button 
+                                                                                                onClick={async () => {
+                                                                                                    const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'WorkImmersion' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
+                                                                                                    await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                                }}
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                            >
+                                                                                                Remove
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <button 
+                                                                                            onClick={() => {
+                                                                                                setEvaluatingStudentLrn(s.lrn);
+                                                                                                setEvaluatingAwardType('WorkImmersion');
+                                                                                                setEvaluationForm({
+                                                                                                    grade: 92,
+                                                                                                    supervisorRating: 'Outstanding',
+                                                                                                    teacherRating: 'Outstanding',
+                                                                                                    isEndorsed: true
+                                                                                                });
+                                                                                            }}
+                                                                                            className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-teal-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                        >
+                                                                                            Evaluate
+                                                                                        </button>
+                                                                                    )}
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* SECTION 4: SPECIAL RECOGNITION AWARDS */}
+                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                        <div>
+                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <Award className="w-5 h-5 text-orange-500" /> Special Recognition Awards (External Competitions)
+                                                            </h4>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                Distinctions in competitions/contests at regional, national, or international levels
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-xs">
+                                                            <thead>
+                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <th className="pb-2">Student</th>
+                                                                    <th className="pb-2">Award/Distinction</th>
+                                                                    <th className="pb-2 text-center">Level</th>
+                                                                    <th className="pb-2 text-right">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-50">
+                                                                {sectionStudents.map(s => {
+                                                                    const specEval = s.awardEvaluations?.find(
+                                                                        e => e.awardType === 'SpecialRecognition' && 
+                                                                             e.schoolYear === activeSchoolYear && 
+                                                                             e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)
+                                                                    );
+
+                                                                    return (
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                            <td className="py-3">
+                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                            </td>
+                                                                            <td className="py-3 text-gray-700 font-semibold">
+                                                                                {specEval?.specialRecognitionTitle || <span className="text-gray-300 italic">None</span>}
+                                                                            </td>
+                                                                            <td className="py-3 text-center">
+                                                                                {specEval?.specialRecognitionLevel ? (
+                                                                                    <span className="px-2 py-0.5 bg-orange-50 text-orange-600 rounded font-bold uppercase text-[9px]">
+                                                                                        {specEval.specialRecognitionLevel}
+                                                                                    </span>
+                                                                                ) : '-'}
+                                                                            </td>
+                                                                            <td className="py-3 text-right">
+                                                                                {specEval ? (
+                                                                                    <div className="flex justify-end gap-2">
+                                                                                        <button 
+                                                                                            onClick={() => {
+                                                                                                setEvaluatingStudentLrn(s.lrn);
+                                                                                                setEvaluatingAwardType('SpecialRecognition');
+                                                                                                setEvaluationForm({
+                                                                                                    specialRecognitionTitle: specEval.specialRecognitionTitle || '',
+                                                                                                    specialRecognitionLevel: specEval.specialRecognitionLevel || 'regional'
+                                                                                                });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Edit
+                                                                                        </button>
+                                                                                        <button 
+                                                                                            onClick={async () => {
+                                                                                                const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'SpecialRecognition' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
+                                                                                                await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
+                                                                                            }}
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                        >
+                                                                                            Remove
+                                                                                        </button>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <button 
+                                                                                        onClick={() => {
+                                                                                            setEvaluatingStudentLrn(s.lrn);
+                                                                                            setEvaluatingAwardType('SpecialRecognition');
+                                                                                            setEvaluationForm({
+                                                                                                specialRecognitionTitle: 'Champion, Regional Math Olympiad',
+                                                                                                specialRecognitionLevel: 'regional'
+                                                                                            });
+                                                                                        }}
+                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-orange-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                    >
+                                                                                        Record Award
+                                                                                    </button>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })() : (
+                                        <div className="bg-white rounded-2xl p-12 border text-center text-gray-400 italic shadow-sm">
+                                            Please choose a Grade 2–12 Section above to manage nominated and special awards.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* EVALUATION FORM MODAL DIALOG */}
+                            {evaluatingStudentLrn && evaluatingAwardType && (() => {
+                                const stud = students.find(s => s.lrn === evaluatingStudentLrn);
+                                if (!stud) return null;
+
+                                const isLeadership = evaluatingAwardType === 'Leadership';
+                                const isResearch = evaluatingAwardType === 'Research';
+                                const isInnovation = evaluatingAwardType === 'Innovation';
+                                const isWorkImmersion = evaluatingAwardType === 'WorkImmersion';
+                                const isCharacterTrait = evaluatingAwardType === 'CharacterTrait';
+                                const isGMRCMerit = evaluatingAwardType === 'GMRCMerit';
+                                const isSpecial = evaluatingAwardType === 'SpecialRecognition';
+
+                                const handleFormSave = async () => {
+                                    let newEval: any = {
+                                        id: `${evaluatingStudentLrn}_${activeSchoolYear}_${selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter}_${evaluatingAwardType}`,
+                                        student_lrn: evaluatingStudentLrn,
+                                        schoolYear: activeSchoolYear,
+                                        term: selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter,
+                                        awardType: evaluatingAwardType
+                                    };
+
+                                    if (isLeadership) {
+                                        const mot = Number(evaluationForm.motivational) || 0;
+                                        const plan = Number(evaluationForm.planning) || 0;
+                                        const contr = Number(evaluationForm.contribution) || 0;
+                                        newEval.leadershipScores = {
+                                            motivational: mot,
+                                            planning: plan,
+                                            contribution: contr,
+                                            total: mot + plan + contr,
+                                            position: evaluationForm.position || 'Class Officer',
+                                            noDerogatory: evaluationForm.noDerogatory ?? true
+                                        };
+                                    } else if (isResearch) {
+                                        const fg = Number(evaluationForm.finalGrade) || 0;
+                                        const sig = Number(evaluationForm.significance) || 0;
+                                        const rig = Number(evaluationForm.rigor) || 0;
+                                        const pres = Number(evaluationForm.presentation) || 0;
+                                        newEval.projectTitle = evaluationForm.projectTitle || '';
+                                        newEval.projectMembers = evaluationForm.projectMembers || [evaluatingStudentLrn];
+                                        newEval.researchScores = {
+                                            finalGrade: fg,
+                                            significance: sig,
+                                            rigor: rig,
+                                            presentation: pres,
+                                            total: fg + sig + rig + pres
+                                        };
+                                    } else if (isInnovation) {
+                                        const fg = Number(evaluationForm.finalGrade) || 0;
+                                        const sig = Number(evaluationForm.significance) || 0;
+                                        const orig = Number(evaluationForm.originality) || 0;
+                                        const feas = Number(evaluationForm.feasibility) || 0;
+                                        const pres = Number(evaluationForm.presentation) || 0;
+                                        newEval.projectTitle = evaluationForm.projectTitle || '';
+                                        newEval.projectMembers = evaluationForm.projectMembers || [evaluatingStudentLrn];
+                                        newEval.researchScores = {
+                                            finalGrade: fg,
+                                            significance: sig,
+                                            originality: orig,
+                                            feasibility: feas,
+                                            presentation: pres,
+                                            total: fg + sig + orig + feas + pres
+                                        };
+                                    } else if (isWorkImmersion) {
+                                        newEval.workImmersionDetails = {
+                                            grade: Number(evaluationForm.grade) || 0,
+                                            supervisorRating: evaluationForm.supervisorRating || 'Outstanding',
+                                            teacherRating: evaluationForm.teacherRating || 'Outstanding',
+                                            isEndorsed: evaluationForm.isEndorsed ?? true
+                                        };
+                                    } else if (isCharacterTrait) {
+                                        newEval.characterTraitId = evaluationForm.characterTraitId || 'Maka-Diyos';
+                                        newEval.characterTraitTitle = evaluationForm.characterTraitTitle || '';
+                                        newEval.characterTraitDescription = evaluationForm.characterTraitDescription || '';
+                                    } else if (isGMRCMerit) {
+                                        newEval.gmrcCompetency = evaluationForm.gmrcCompetency || '';
+                                    } else if (isSpecial) {
+                                        newEval.specialRecognitionTitle = evaluationForm.specialRecognitionTitle || '';
+                                        newEval.specialRecognitionLevel = evaluationForm.specialRecognitionLevel || 'regional';
+                                    }
+
+                                    const currentEvals = stud.awardEvaluations || [];
+                                    const filtered = currentEvals.filter(e => !(e.awardType === newEval.awardType && e.schoolYear === newEval.schoolYear && e.term === newEval.term));
+                                    await useAppStore.getState().updateStudent(evaluatingStudentLrn, { 
+                                        awardEvaluations: [...filtered, newEval] 
+                                    });
+
+                                    if ((isResearch || isInnovation) && evaluationForm.projectMembers?.length > 0) {
+                                        for (const lrn of evaluationForm.projectMembers) {
+                                            if (lrn === evaluatingStudentLrn) continue;
+                                            const member = students.find(s => s.lrn === lrn);
+                                            if (member) {
+                                                const memberEvals = member.awardEvaluations || [];
+                                                const mFiltered = memberEvals.filter(e => !(e.awardType === newEval.awardType && e.schoolYear === newEval.schoolYear && e.term === newEval.term));
+                                                const memberEval = { ...newEval, id: `${lrn}_${activeSchoolYear}_${selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter}_${evaluatingAwardType}`, student_lrn: lrn };
+                                                await useAppStore.getState().updateStudent(lrn, { 
+                                                    awardEvaluations: [...mFiltered, memberEval] 
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    setEvaluatingStudentLrn(null);
+                                    setEvaluatingAwardType(null);
+                                    setEvaluationForm({});
+                                };
+
+                                return (
+                                    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-deped-blue/30 backdrop-blur-sm">
+                                        <div className="bg-white rounded-3xl shadow-2xl border border-gray-150 w-full max-w-lg p-6 space-y-4">
+                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                <div>
+                                                    <h4 className="text-md font-extrabold text-deped-blue uppercase tracking-wider">
+                                                        Award Evaluation: {evaluatingAwardType.replace(/([A-Z])/g, ' $1').trim()}
+                                                    </h4>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                                                        {stud.first_name} {stud.last_name} ({stud.lrn})
+                                                    </p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        setEvaluatingStudentLrn(null);
+                                                        setEvaluatingAwardType(null);
+                                                        setEvaluationForm({});
+                                                    }}
+                                                    className="p-1 hover:bg-gray-100 rounded-full"
+                                                >
+                                                    <AlertCircle className="w-5 h-5 text-gray-400 rotate-45" />
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                                {/* LEADERSHIP FORM */}
+                                                {isLeadership && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Position / Office:</label>
+                                                            <input type="text" value={evaluationForm.position} onChange={e => setEvaluationForm({...evaluationForm, position: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-deped-blue" />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Communication (Max 40%):</label>
+                                                                <input type="number" min="0" max="40" value={evaluationForm.motivational} onChange={e => setEvaluationForm({...evaluationForm, motivational: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Planning (Max 40%):</label>
+                                                                <input type="number" min="0" max="40" value={evaluationForm.planning} onChange={e => setEvaluationForm({...evaluationForm, planning: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contribution (Max 20%):</label>
+                                                            <input type="number" min="0" max="20" value={evaluationForm.contribution} onChange={e => setEvaluationForm({...evaluationForm, contribution: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-indigo-700">
+                                                                {(Number(evaluationForm.motivational) || 0) + (Number(evaluationForm.planning) || 0) + (Number(evaluationForm.contribution) || 0)}%
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <input type="checkbox" checked={evaluationForm.noDerogatory} onChange={e => setEvaluationForm({...evaluationForm, noDerogatory: e.target.checked})} id="noDerogatory" className="rounded" />
+                                                            <label htmlFor="noDerogatory" className="text-xs font-bold text-gray-600">Student has no derogatory records or disciplinary cases</label>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* RESEARCH FORM */}
+                                                {isResearch && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Research Project Title:</label>
+                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">FG Research 2 (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Significance (Max 35%):</label>
+                                                                <input type="number" min="0" max="35" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(35, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Rigor/Design (Max 30%):</label>
+                                                                <input type="number" min="0" max="30" value={evaluationForm.rigor} onChange={e => setEvaluationForm({...evaluationForm, rigor: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Presentation/Defense (Max 15%):</label>
+                                                                <input type="number" min="0" max="15" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(15, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-amber-700">
+                                                                {(Number(evaluationForm.finalGrade) || 0) + (Number(evaluationForm.significance) || 0) + (Number(evaluationForm.rigor) || 0) + (Number(evaluationForm.presentation) || 0)}%
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Co-Authors / Group Members:</label>
+                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                                                                {students.filter(s => s.student_section === stud.student_section && s.lrn !== stud.lrn).map(s => {
+                                                                    const isSelected = evaluationForm.projectMembers?.includes(s.lrn);
+                                                                    return (
+                                                                        <button 
+                                                                            key={s.lrn}
+                                                                            onClick={() => {
+                                                                                const members = evaluationForm.projectMembers || [];
+                                                                                const newMembers = isSelected 
+                                                                                    ? members.filter((m: string) => m !== s.lrn) 
+                                                                                    : [...members.filter((m: string) => m !== stud.lrn), s.lrn];
+                                                                                setEvaluationForm({ ...evaluationForm, projectMembers: [stud.lrn, ...newMembers].slice(0, 4) });
+                                                                            }}
+                                                                            className={`px-2 py-1 rounded text-[10px] font-bold ${isSelected ? 'bg-amber-100 text-amber-800' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                                                                        >
+                                                                            {s.first_name} {s.last_name[0]}.
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <p className="text-[9px] text-gray-400 mt-1 font-medium">Select up to 3 co-authors (Max 4 members total per research project).</p>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* DESIGN & INNOVATION FORM */}
+                                                {isInnovation && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Innovation Title:</label>
+                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">FG Design & Innov (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Significance (Max 30%):</label>
+                                                                <input type="number" min="0" max="30" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            <div>
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Originality (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.originality} onChange={e => setEvaluationForm({...evaluationForm, originality: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Feasibility (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.feasibility} onChange={e => setEvaluationForm({...evaluationForm, feasibility: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Presentation (Max 10%):</label>
+                                                                <input type="number" min="0" max="10" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(10, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-purple-700">
+                                                                {(Number(evaluationForm.finalGrade) || 0) + (Number(evaluationForm.significance) || 0) + (Number(evaluationForm.originality) || 0) + (Number(evaluationForm.feasibility) || 0) + (Number(evaluationForm.presentation) || 0)}%
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Co-Innovators / Group Members:</label>
+                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                                                                {students.filter(s => s.student_section === stud.student_section && s.lrn !== stud.lrn).map(s => {
+                                                                    const isSelected = evaluationForm.projectMembers?.includes(s.lrn);
+                                                                    return (
+                                                                        <button 
+                                                                            key={s.lrn}
+                                                                            onClick={() => {
+                                                                                const members = evaluationForm.projectMembers || [];
+                                                                                const newMembers = isSelected 
+                                                                                    ? members.filter((m: string) => m !== s.lrn) 
+                                                                                    : [...members.filter((m: string) => m !== stud.lrn), s.lrn];
+                                                                                setEvaluationForm({ ...evaluationForm, projectMembers: [stud.lrn, ...newMembers].slice(0, 4) });
+                                                                            }}
+                                                                            className={`px-2 py-1 rounded text-[10px] font-bold ${isSelected ? 'bg-purple-100 text-purple-800' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                                                                        >
+                                                                            {s.first_name} {s.last_name[0]}.
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* WORK IMMERSION FORM */}
+                                                {isWorkImmersion && (
+                                                    <>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Final Grade (Min 90):</label>
+                                                                <input type="number" min="0" max="100" value={evaluationForm.grade} onChange={e => setEvaluationForm({...evaluationForm, grade: Number(e.target.value)})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Supervisor Endorsement:</label>
+                                                                <select value={evaluationForm.isEndorsed ? 'yes' : 'no'} onChange={e => setEvaluationForm({...evaluationForm, isEndorsed: e.target.value === 'yes'})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
+                                                                    <option value="yes">Endorsed</option>
+                                                                    <option value="no">Not Endorsed</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Supervisor Rating:</label>
+                                                                <select value={evaluationForm.supervisorRating} onChange={e => setEvaluationForm({...evaluationForm, supervisorRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
+                                                                    <option value="Outstanding">Outstanding</option>
+                                                                    <option value="Very Satisfactory">Very Satisfactory</option>
+                                                                    <option value="Satisfactory">Satisfactory</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Teacher Rating:</label>
+                                                                <select value={evaluationForm.teacherRating} onChange={e => setEvaluationForm({...evaluationForm, teacherRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
+                                                                    <option value="Outstanding">Outstanding</option>
+                                                                    <option value="Very Satisfactory">Very Satisfactory</option>
+                                                                    <option value="Satisfactory">Satisfactory</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* CHARACTER TRAIT FORM */}
+                                                {isCharacterTrait && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Core Values Category:</label>
+                                                            <select value={evaluationForm.characterTraitId} onChange={e => setEvaluationForm({...evaluationForm, characterTraitId: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
+                                                                <option value="Maka-Diyos">Maka-Diyos</option>
+                                                                <option value="Maka-tao">Maka-tao</option>
+                                                                <option value="Makakalikasan">Makakalikasan</option>
+                                                                <option value="Makabayan">Makabayan</option>
+                                                                <option value="Positive Learning Behavior / Growth">Positive Learning Behavior / Growth</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contextualized Award Title:</label>
+                                                            <input type="text" value={evaluationForm.characterTraitTitle} onChange={e => setEvaluationForm({...evaluationForm, characterTraitTitle: e.target.value})} placeholder="e.g. Gawad sa Pagiging Maka-Diyos" className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contextualized Description:</label>
+                                                            <textarea value={evaluationForm.characterTraitDescription} onChange={e => setEvaluationForm({...evaluationForm, characterTraitDescription: e.target.value})} placeholder="Describe why student deserves this trait award..." className="w-full text-xs font-semibold border border-gray-200 rounded-lg p-2 h-20" />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* GMRC MERIT FORM */}
+                                                {isGMRCMerit && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Improved or Excelled GMRC Core Competency:</label>
+                                                            <textarea value={evaluationForm.gmrcCompetency} onChange={e => setEvaluationForm({...evaluationForm, gmrcCompetency: e.target.value})} placeholder="e.g. Pagpapakita ng malasakit at pagtulong sa mga nangangailangan sa silid-aralan..." className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2 h-24" />
+                                                        </div>
+                                                    </>
+                                                )}
+
+                                                {/* SPECIAL RECOGNITION FORM */}
+                                                {isSpecial && (
+                                                    <>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Award / Distinction Title:</label>
+                                                            <input type="text" value={evaluationForm.specialRecognitionTitle} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionTitle: e.target.value})} placeholder="e.g. Champion, National Math Challenge" className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Level of Distinction:</label>
+                                                            <select value={evaluationForm.specialRecognitionLevel} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionLevel: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
+                                                                <option value="school">School Level</option>
+                                                                <option value="district">District Level</option>
+                                                                <option value="division">Division Level</option>
+                                                                <option value="regional">Regional Level</option>
+                                                                <option value="national">National Level</option>
+                                                                <option value="international">International Level</option>
+                                                            </select>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
+                                                <button 
+                                                    onClick={() => {
+                                                        setEvaluatingStudentLrn(null);
+                                                        setEvaluatingAwardType(null);
+                                                        setEvaluationForm({});
+                                                    }}
+                                                    className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 uppercase"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    onClick={handleFormSave}
+                                                    className="px-5 py-2 bg-deped-blue hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-md shadow-blue-500/20"
+                                                >
+                                                    Save Evaluation
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -1548,12 +2874,12 @@ export function ReportsPage() {
                         </div>
                         <span className="bg-green-100 text-green-900 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Honor Roll Report</h3>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Academic Excellence Awards</h3>
                     <p className="text-gray-600 mb-6 text-sm">
-                        View detailed list of students With Highest Honors, High Honors, and Honors per Term and EOSY calculations.
+                        View detailed list of students qualifying for the Academic Excellence Award per Term and EOSY calculations.
                     </p>
                     <button className="w-full py-3 rounded-lg border border-green-800 text-green-900 hover:bg-green-900 hover:text-white transition-all font-medium flex items-center justify-center gap-2">
-                        View Honor Roll <ArrowRight className="w-4 h-4" />
+                        View Awardees <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
                 )}

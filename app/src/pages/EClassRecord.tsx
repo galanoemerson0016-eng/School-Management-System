@@ -6,7 +6,7 @@ import { Printer, CloudUpload, Plus, Minus } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
-import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const WW_COUNT = 5;
@@ -528,7 +528,15 @@ export function EClassRecord() {
 
         const qaScore = qaScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const qaHPS = hps.qa.reduce<number>((a, b) => a + Number(b), 0);
-        const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
+        
+        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : 0;
+        const st1HPS = Number(hps.qa[0]) || 0;
+        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : 0;
+        const st2HPS = Number(hps.qa[1]) || 0;
+        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : 0;
+        const teHPS = Number(hps.qa[2]) || 0;
+
+        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
         const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
@@ -539,7 +547,7 @@ export function EClassRecord() {
             ptScores.some(isValidScore) ||
             qaScores.some(isValidScore);
 
-        const quarterlyGrade = hasScores ? transmuteGrade(initialGrade) : 0;
+        const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
             ww: wwScores,
@@ -552,12 +560,12 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
-        return getGradeDescriptorWithFilipino(grade, sectionGradeLevel);
-    }, [sectionGradeLevel]);
+        return getGradeDescriptorWithFilipino(grade, sectionGradeLevel, activeSchoolYear);
+    }, [sectionGradeLevel, activeSchoolYear]);
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
         const isMapeh = subjectName.toUpperCase() === 'MAPEH';
@@ -862,9 +870,14 @@ export function EClassRecord() {
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * currentWeights.performance_tasks;
 
-        const qaScore = qaScores.reduce<number>((a, b) => a + Number(b), 0);
-        const qaHPS = hps.qa.reduce((a, b) => a + Number(b), 0);
-        const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
+        const st1Score = Number(qaScores[0]) || 0;
+        const st1HPS = Number(hps.qa[0]) || 0;
+        const st2Score = Number(qaScores[1]) || 0;
+        const st2HPS = Number(hps.qa[1]) || 0;
+        const teScore = Number(qaScores[2]) || 0;
+        const teHPS = Number(hps.qa[2]) || 0;
+
+        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
         const initialGrade = wwWS + ptWS + qaWS;
@@ -882,7 +895,7 @@ export function EClassRecord() {
             const { deleteGradingSheetRecord } = useAppStore.getState();
             deleteGradingSheetRecord(`${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`);
         } else {
-            record.final_grade = transmuteGrade(initialGrade);
+            record.final_grade = transmuteGrade(initialGrade, record.school_year);
             updateClassRecord(record);
             
             // Live Sync to Grading Sheet (Official Records)
@@ -1442,9 +1455,9 @@ export function EClassRecord() {
                                         <th className="border border-black w-10 bg-gray-200">Total</th>
                                         <th className="border border-black w-14 bg-gray-200">PS</th>
                                         <th className="border border-black w-12 bg-gray-200">WS</th>
-                                        <th className="border border-black w-10 text-[9px] font-bold">ST1</th>
-                                        <th className="border border-black w-10 text-[9px] font-bold">ST2</th>
-                                        <th className="border border-black w-10 text-[9px] font-bold">TE</th>
+                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5">ST1<br/><span className="text-[7px] font-normal">(30%)</span></th>
+                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5">ST2<br/><span className="text-[7px] font-normal">(30%)</span></th>
+                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5">TE<br/><span className="text-[7px] font-normal">(40%)</span></th>
                                         <th className="border border-black w-10 bg-gray-200">Total</th>
                                         <th className="border border-black w-14 bg-gray-200">PS</th>
                                         <th className="border border-black w-12 bg-gray-200">WS</th>
@@ -1670,7 +1683,7 @@ export function EClassRecord() {
                                                                     <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
                                                                         <h4 className="text-xs font-bold text-gray-600 mb-2">Proficiency Level Distribution</h4>
                                                                         <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                                                 <BarChart data={[
                                                                                     { name: 'Advancing', count: proficiencyData.advancing?.total || 0 },
                                                                                     { name: 'Benchmarking', count: proficiencyData.benchmarking?.total || 0 },
@@ -1697,7 +1710,7 @@ export function EClassRecord() {
                                                                                                 'Emerging': '#EF4444'
                                                                                             };
                                                                                             return <Cell key={`cell-${index}`} fill={colorMap[entry.name] || '#999'} />;
-                                                                                        })})
+                                                                                        })}
                                                                                     </Bar>
                                                                                 </BarChart>
                                                                             </ResponsiveContainer>
@@ -1706,7 +1719,7 @@ export function EClassRecord() {
                                                                     <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
                                                                         <h4 className="text-xs font-bold text-gray-600 mb-2">MPS by Gender</h4>
                                                                         <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                                                 <BarChart layout="vertical" data={[
                                                                                     { name: 'Male', mps: Number(mpsData.maleMps.toFixed(2)) },
                                                                                     { name: 'Female', mps: Number(mpsData.femaleMps.toFixed(2)) },

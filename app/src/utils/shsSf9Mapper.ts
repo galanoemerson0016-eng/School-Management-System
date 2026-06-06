@@ -31,7 +31,7 @@ export function mapStudentToShsSf9Data({
   );
 
   // Compute grades per Term
-  const computeGradesForSubject = (subjId: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none') => {
+  const computeGradesForSubject = (subjId: string, subjectName: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none') => {
     const getGrade = (q: number) => {
       const rec = gradingSheetRecords.find(
         r => r.student_lrn === student.lrn && r.subject_id === subjId && r.school_year === schoolYear && r.quarter === q
@@ -44,17 +44,37 @@ export function mapStudentToShsSf9Data({
     const t3 = getGrade(3);
 
     let final = 0;
-    const numericTerm = subjectTerm ? Number(subjectTerm) : undefined;
-    if (numericTerm === 1) {
-      final = t1;
-    } else if (numericTerm === 2) {
-      final = t2;
-    } else if (numericTerm === 3) {
+    
+    // Check custom electives matching Academic Electives
+    const normName = subjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normName === 'academicelective1') {
+      if (t1 > 0 && t3 > 0) final = Math.round((t1 + t3) / 2);
+      else final = t1 || t3 || 0;
+    } else if (normName === 'academicelective2') {
+      if (t2 > 0 && t3 > 0) final = Math.round((t2 + t3) / 2);
+      else final = t2 || t3 || 0;
+    } else if (normName === 'academicelective3') {
       final = t3;
+    } else if (normName === 'techproelective1') {
+      let sum = 0;
+      let count = 0;
+      if (t1 > 0) { sum += t1; count++; }
+      if (t2 > 0) { sum += t2; count++; }
+      if (t3 > 0) { sum += t3; count++; }
+      final = count > 0 ? Math.round(sum / count) : 0;
     } else {
-      // Core subject (all terms) - average of all 3 terms
-      if (t1 > 0 && t2 > 0 && t3 > 0) {
-        final = Math.round((t1 + t2 + t3) / 3);
+      const numericTerm = subjectTerm ? Number(subjectTerm) : undefined;
+      if (numericTerm === 1) {
+        final = t1;
+      } else if (numericTerm === 2) {
+        final = t2;
+      } else if (numericTerm === 3) {
+        final = t3;
+      } else {
+        // Core subject (all terms) - average of all 3 terms
+        if (t1 > 0 && t2 > 0 && t3 > 0) {
+          final = Math.round((t1 + t2 + t3) / 3);
+        }
       }
     }
 
@@ -66,7 +86,7 @@ export function mapStudentToShsSf9Data({
     subjectName: s.subject_name,
     subjectCode: s.subject_code || '',
     term: s.term,
-    grades: computeGradesForSubject(s.id, s.term),
+    grades: computeGradesForSubject(s.id, s.subject_name, s.term),
   }));
 
   const STRAND_MAPPING: Record<string, string> = {

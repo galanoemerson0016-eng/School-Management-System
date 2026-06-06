@@ -6,7 +6,7 @@ import { Printer, CloudUpload, Plus, Minus } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
-import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay } from '../lib/grading';
+import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const WW_COUNT = 5;
@@ -395,6 +395,9 @@ export function ShsEClassRecord() {
 
     const optimalNameColumnWidth = 280;
 
+    const isFieldExposure = currentCluster === 'shs_field_exposure';
+    const teHeaderLabel = isFieldExposure ? 'TE' : 'TE (40%)';
+
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
@@ -438,7 +441,15 @@ export function ShsEClassRecord() {
 
         const qaScore = qaScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const qaHPS = hps.qa.reduce<number>((a, b) => a + Number(b), 0);
-        const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
+        
+        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : 0;
+        const st1HPS = Number(hps.qa[0]) || 0;
+        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : 0;
+        const st2HPS = Number(hps.qa[1]) || 0;
+        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : 0;
+        const teHPS = Number(hps.qa[2]) || 0;
+
+        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
         const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
@@ -449,7 +460,7 @@ export function ShsEClassRecord() {
             ptScores.some(isValidScore) ||
             qaScores.some(isValidScore);
 
-        const quarterlyGrade = hasScores ? transmuteGrade(initialGrade) : 0;
+        const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
             ww: wwScores,
@@ -462,12 +473,12 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
-        return getGradeDescriptorWithFilipino(grade, sectionGradeLevel);
-    }, [sectionGradeLevel]);
+        return getGradeDescriptorWithFilipino(grade, sectionGradeLevel, activeSchoolYear);
+    }, [sectionGradeLevel, activeSchoolYear]);
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
         let total = 0;
@@ -703,10 +714,14 @@ export function ShsEClassRecord() {
         const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * currentWeights.performance_tasks;
+        const st1Score = Number(qaScores[0]) || 0;
+        const st1HPS = Number(hps.qa[0]) || 0;
+        const st2Score = Number(qaScores[1]) || 0;
+        const st2HPS = Number(hps.qa[1]) || 0;
+        const teScore = Number(qaScores[2]) || 0;
+        const teHPS = Number(hps.qa[2]) || 0;
 
-        const qaScore = qaScores.reduce<number>((a, b) => a + Number(b), 0);
-        const qaHPS = hps.qa.reduce((a, b) => a + Number(b), 0);
-        const qaPS = qaHPS === 0 ? 0 : (qaScore / qaHPS) * 100;
+        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
         const initialGrade = wwWS + ptWS + qaWS;
@@ -722,7 +737,7 @@ export function ShsEClassRecord() {
             const { deleteGradingSheetRecord } = useAppStore.getState();
             deleteGradingSheetRecord(`${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`);
         } else {
-            record.final_grade = transmuteGrade(initialGrade);
+            record.final_grade = transmuteGrade(initialGrade, record.school_year);
             updateClassRecord(record);
 
             const { updateGradingSheetRecord } = useAppStore.getState();
@@ -1206,7 +1221,7 @@ export function ShsEClassRecord() {
                                             <span>PRODUCT / PERFORMANCE</span><br />
                                             <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
                                         </th>
-                                        <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-50/50 leading-tight">
+                                        <th colSpan={currentCluster === 'shs_field_exposure' ? 4 : 6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-50/50 leading-tight">
                                             <span>SUMMATIVE TESTS & TERM</span><br />
                                             <span>EXAMINATION ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
                                         </th>
@@ -1223,9 +1238,9 @@ export function ShsEClassRecord() {
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        <th className="border border-black w-10 font-bold">ST1</th>
-                                        <th className="border border-black w-10 font-bold">ST2</th>
-                                        <th className="border border-black w-10 font-bold">TE</th>
+                                        {!isFieldExposure && <th className="border border-black w-10 font-bold">ST1 (30%)</th>}
+                                        {!isFieldExposure && <th className="border border-black w-10 font-bold">ST2 (30%)</th>}
+                                        <th className="border border-black w-10 font-bold">{teHeaderLabel}</th>
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
@@ -1264,19 +1279,23 @@ export function ShsEClassRecord() {
                                         <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.performance_tasks * 100)}%</td>
-                                        {hps.qa.map((val, i) => (
-                                            <td key={`hps-qa-${i}`} className="border border-black p-0">
-                                                <input
-                                                    type="number"
-                                                    value={val === '' ? '' : val}
-                                                    onChange={(e) => updateHPS('qa', i, e.target.value)}
-                                                    onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
-                                                    data-row={0}
-                                                    data-col={8 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                />
-                                            </td>
-                                        ))}
+                                        {hps.qa
+                                            .map((val, i) => ({ val, i }))
+                                            .filter(({ i }) => !isFieldExposure || i === 2)
+                                            .map(({ val, i }) => (
+                                                <td key={`hps-qa-${i}`} className="border border-black p-0">
+                                                    <input
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(e) => updateHPS('qa', i, e.target.value)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
+                                                        data-row={0}
+                                                        data-col={8 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                </td>
+                                            ))
+                                        }
                                         <td className="border border-black bg-slate-200">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
@@ -1284,7 +1303,7 @@ export function ShsEClassRecord() {
                                 </thead>
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold text-left h-6">
-                                        <td colSpan={24} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
+                                        <td colSpan={isFieldExposure ? 22 : 24} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const summary = getStudentSummary(student);
@@ -1326,19 +1345,23 @@ export function ShsEClassRecord() {
                                                 <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
                                                 <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
                                                 <td className="border border-black bg-green-100/50 font-semibold">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
-                                                {summary.qa.map((score, i) => (
-                                                    <td key={`qa-${i}`} className="border border-black p-0">
-                                                        <input
-                                                            type="number"
-                                                            value={score === '' ? '' : score}
-                                                            onChange={(e) => updateGrade(student.lrn, 'qa', i, e.target.value)}
-                                                            onKeyDown={(e) => handleKeyDown(e, (sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx, 8 + i)}
-                                                            data-row={(sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx}
-                                                            data-col={8 + i}
-                                                            className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                        />
-                                                    </td>
-                                                ))}
+                                                {summary.qa
+                                                    .map((score, i) => ({ score, i }))
+                                                    .filter(({ i }) => !isFieldExposure || i === 2)
+                                                    .map(({ score, i }) => (
+                                                        <td key={`qa-${i}`} className="border border-black p-0">
+                                                            <input
+                                                                type="number"
+                                                                value={score === '' ? '' : score}
+                                                                onChange={(e) => updateGrade(student.lrn, 'qa', i, e.target.value)}
+                                                                onKeyDown={(e) => handleKeyDown(e, (sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx, 8 + i)}
+                                                                data-row={(sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx}
+                                                                data-col={8 + i}
+                                                                className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                            />
+                                                        </td>
+                                                    ))
+                                                }
                                                 <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaScore : ''}</td>
                                                 <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
                                                 <td className="border border-black bg-yellow-100/50 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
@@ -1355,7 +1378,7 @@ export function ShsEClassRecord() {
                                     {section.gender === 'FEMALE' && (
                                         <>
                                             <tr className="bg-gray-200 mt-4 border-t-4 border-black cursor-pointer hover:bg-gray-300 transition-colors no-print" onClick={() => setIsAnalyticsOpen(!isAnalyticsOpen)}>
-                                                <td colSpan={24} className="border border-black p-2 font-bold bg-yellow-100 uppercase text-center">
+                                                <td colSpan={isFieldExposure ? 22 : 24} className="border border-black p-2 font-bold bg-yellow-100 uppercase text-center">
                                                     <div className="flex items-center justify-between">
                                                         <span>TERM SUMMARY OF LEARNERS' GRADES & ANALYTICS</span>
                                                         <span className="text-xl">{isAnalyticsOpen ? '▼' : '▶'}</span>
@@ -1364,7 +1387,7 @@ export function ShsEClassRecord() {
                                             </tr>
                                             {isAnalyticsOpen && (
                                                 <tr className="bg-white no-print">
-                                                    <td colSpan={24} className="p-0 border border-black border-t-0">
+                                                    <td colSpan={isFieldExposure ? 22 : 24} className="p-0 border border-black border-t-0">
                                                         <div className="flex flex-col gap-4 p-4 text-black text-left">
                                                             <div className="flex flex-col lg:flex-row gap-6">
                                                                 <div className="flex-1 flex flex-col gap-4">
@@ -1451,7 +1474,7 @@ export function ShsEClassRecord() {
                                                                     <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
                                                                         <h4 className="text-xs font-bold text-gray-600 mb-2">Proficiency Level Distribution</h4>
                                                                         <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                                                 <BarChart data={[
                                                                                     { name: 'Advancing', count: proficiencyData.advancing?.total || 0 },
                                                                                     { name: 'Benchmarking', count: proficiencyData.benchmarking?.total || 0 },
@@ -1487,7 +1510,7 @@ export function ShsEClassRecord() {
                                                                     <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
                                                                         <h4 className="text-xs font-bold text-gray-600 mb-2">MPS by Gender</h4>
                                                                         <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                                                 <BarChart layout="vertical" data={[
                                                                                     { name: 'Male', mps: Number(mpsData.maleMps.toFixed(2)) },
                                                                                     { name: 'Female', mps: Number(mpsData.femaleMps.toFixed(2)) },

@@ -1,8 +1,23 @@
 import React, { useState, useMemo, useEffect, useRef, useTransition, useCallback } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font, usePDF } from '@react-pdf/renderer';
 Font.registerHyphenationCallback(word => [word]);
+
+const fontOrigin = window.location.origin;
+const base = import.meta.env.BASE_URL || '/';
+const fontPath = `${fontOrigin}${base.endsWith('/') ? base : base + '/'}fonts`;
+
+try {
+    Font.register({ family: 'BookmanOldStyle', src: `${fontPath}/BOOKOS.TTF` });
+    Font.register({ family: 'BookmanOldStyle-Bold', src: `${fontPath}/BOOKOSB.TTF` });
+    Font.register({ family: 'BookmanOldStyle-Italic', src: `${fontPath}/BOOKOSI.TTF` });
+    Font.register({ family: 'BookmanOldStyle-BoldItalic', src: `${fontPath}/BOOKOSBI.TTF` });
+} catch (e) {
+    console.error('Failed to register Bookman Old Style fonts:', e);
+}
+
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile } from '../types';
+import { db } from '../services/database';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
@@ -40,6 +55,151 @@ import { getSF9SubjectsForGrade, normalizeSubjectName, sortSubjects } from '../l
 // Print mode type for term-specific printing
 type SF9PrintMode = 'full' | 'term1' | 'term2' | 'term3';
 
+const SF2_MONTHS = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'] as const;
+
+const normalizeSectionToken = (value?: string | number) =>
+    (value ?? '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const normalizeMonthToken = (value?: string | number): string | null => {
+    const raw = (value ?? '').toString().trim().toUpperCase();
+    if (!raw) return null;
+
+    const numeric = Number.parseInt(raw, 10);
+    if (!Number.isNaN(numeric)) {
+        const byNumber: Record<number, string> = {
+            1: 'JANUARY',
+            2: 'FEBRUARY',
+            3: 'MARCH',
+            4: 'APRIL',
+            5: 'MAY',
+            6: 'JUNE',
+            7: 'JULY',
+            8: 'AUGUST',
+            9: 'SEPTEMBER',
+            10: 'OCTOBER',
+            11: 'NOVEMBER',
+            12: 'DECEMBER'
+        };
+        if (numeric >= 1 && numeric <= 12) return byNumber[numeric];
+        if (numeric >= 0 && numeric <= 11) return byNumber[numeric + 1];
+    }
+
+    const compact = raw.replace(/[^A-Z]/g, '');
+    for (const month of SF2_MONTHS) {
+        if (compact === month || compact === month.slice(0, 3) || month.startsWith(compact)) {
+            return month;
+        }
+    }
+
+    return null;
+};
+
+const extractMonthFromSf2Id = (id?: string): string | null => {
+    const normalizedId = (id ?? '').toString().trim().toUpperCase();
+    if (!normalizedId) return null;
+    const parts = normalizedId.split('_').filter(Boolean);
+    if (parts.length === 0) return null;
+    return normalizeMonthToken(parts[parts.length - 1]);
+};
+
+const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
+    JUNE: [8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
+    JULY: [1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31],
+    AUGUST: [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 24, 25, 26, 27, 28],
+    SEPTEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30],
+    OCTOBER: [1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30],
+    NOVEMBER: [3, 4, 5, 6, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 24, 25, 26, 27],
+    DECEMBER: [1, 2, 3, 4, 7, 9, 10, 11, 14, 15, 16, 17, 18],
+    JANUARY: [4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29],
+    FEBRUARY: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26],
+    MARCH: [1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 22, 23, 24, 29, 30, 31],
+    APRIL: [1, 2, 5, 6, 7, 8]
+};
+
+const SF2_TOTAL_COLUMNS = 25;
+const SF2_DAYS = Array.from({ length: SF2_TOTAL_COLUMNS }, (_, i) => i + 1);
+
+function buildDefaultSf2DateLabels(month: string, schoolYear: string): Record<number, string> {
+    const labels: Record<number, string> = {};
+
+    const monthMap: Record<string, number> = {
+        JANUARY: 0,
+        FEBRUARY: 1,
+        MARCH: 2,
+        APRIL: 3,
+        MAY: 4,
+        JUNE: 5,
+        JULY: 6,
+        AUGUST: 7,
+        SEPTEMBER: 8,
+        OCTOBER: 9,
+        NOVEMBER: 10,
+        DECEMBER: 11
+    };
+
+    const monthIndex = monthMap[month];
+    if (monthIndex == null) return labels;
+
+    const [startYearRaw, endYearRaw] = (schoolYear || '').split('-');
+    const startYear = Number.parseInt(startYearRaw, 10);
+    const endYear = Number.parseInt(endYearRaw, 10);
+    const year = monthIndex >= 5
+        ? (Number.isFinite(startYear) ? startYear : new Date().getFullYear())
+        : (Number.isFinite(endYear) ? endYear : Number.isFinite(startYear) ? startYear + 1 : new Date().getFullYear());
+
+    if (schoolYear === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
+        const calendarDays = SCHOOL_CALENDAR_2026_2027[month];
+        const firstDateOfMonth = new Date(year, monthIndex, 1);
+        const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+
+        calendarDays.forEach((d) => {
+            const dateObj = new Date(year, monthIndex, d);
+            const dow = dateObj.getDay();
+
+            if (dow >= 1 && dow <= 5) {
+                const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                const weekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                const colIndex = (weekIndex * 5) + (dow - 1);
+
+                if (colIndex >= 0 && colIndex < SF2_TOTAL_COLUMNS) {
+                    labels[SF2_DAYS[colIndex]] = d.toString();
+                }
+            }
+        });
+
+        return labels;
+    }
+
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    let firstSchoolDayDate = 0;
+    let firstSchoolDayDow = 0;
+
+    for (let d = 1; d <= 7; d++) {
+        const date = new Date(year, monthIndex, d);
+        const dow = date.getDay();
+        if (dow >= 1 && dow <= 5) {
+            firstSchoolDayDate = d;
+            firstSchoolDayDow = dow;
+            break;
+        }
+    }
+
+    if (firstSchoolDayDate === 0) return labels;
+
+    let currentIndex = firstSchoolDayDow - 1;
+    for (let d = firstSchoolDayDate; d <= daysInMonth; d++) {
+        const date = new Date(year, monthIndex, d);
+        const dow = date.getDay();
+
+        if (dow >= 1 && dow <= 5 && currentIndex < SF2_TOTAL_COLUMNS) {
+            labels[SF2_DAYS[currentIndex]] = d.toString();
+            currentIndex++;
+        }
+    }
+
+    return labels;
+}
+
 // Term-to-month mapping for attendance
 const TERM_MONTHS: Record<string, string[]> = {
     term1: ['JUN', 'JUL', 'AUG'],
@@ -49,7 +209,7 @@ const TERM_MONTHS: Record<string, string[]> = {
 
 // SF9-JHS Official Template - Landscape Format
 const styles = StyleSheet.create({
-    page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'Times-Roman' },
+    page: { paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, fontSize: 10, fontFamily: 'BookmanOldStyle' },
     // PAGE 1 STYLES
     page1Container: { flexDirection: 'row', height: '100%' },
     leftColumn: { width: '50%', paddingRight: 15 },
@@ -117,6 +277,79 @@ const styles = StyleSheet.create({
     legendRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
     legendItem: { fontSize: 9, flexDirection: 'row', alignItems: 'center' },
     legendTitle: { fontWeight: 'bold', fontSize: 10, marginBottom: 5 },
+
+    // SINGLE PAGE STYLES (for Grades 1-10)
+    singlePage: { paddingTop: 10, paddingBottom: 10, paddingHorizontal: 15, fontSize: 9.5, fontFamily: 'BookmanOldStyle' },
+    singleBorderWrapper: { borderWidth: 1, borderColor: '#000', paddingTop: 6, paddingBottom: 6, paddingHorizontal: 12, flex: 1, flexDirection: 'column' },
+    singleContainer: { flexDirection: 'row', flex: 1 },
+    singleLeftColumn: { width: '50%', paddingRight: 12, flexDirection: 'column', justifyContent: 'space-between' },
+    singleRightColumn: { width: '50%', paddingLeft: 12, flexDirection: 'column', justifyContent: 'space-between' },
+    
+    singleHeaderContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    singleLogo: { width: 40, height: 40, borderRadius: 20 },
+    singleHeaderCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
+    singleHeaderText: { fontSize: 8.5, textAlign: 'center', marginBottom: 1 },
+    singleReportTitle: { fontSize: 14, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
+    singleSchoolYear: { fontSize: 10, textAlign: 'center', marginBottom: 6 },
+    
+    singleStudentInfoGrid: { marginBottom: 4 },
+    singleInfoRow: { flexDirection: 'row', marginBottom: 1, alignItems: 'center', minHeight: 14 },
+    singleInfoLabel: { fontSize: 8 },
+    singleInfoValue: { borderBottomWidth: 1, borderBottomColor: '#000', fontSize: 8, paddingBottom: 1, paddingLeft: 4 },
+    
+    singleDearParents: { fontSize: 9, fontWeight: 'bold', marginBottom: 0, marginTop: 2 },
+    singleMessageText: { fontSize: 8.5, lineHeight: 1.3, marginBottom: 3, textAlign: 'justify' },
+    
+    singleLpTable: { borderWidth: 1, borderColor: '#000', width: '100%', marginBottom: 3 },
+    singleLpHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', backgroundColor: '#FFFFFF', minHeight: 18 },
+    singleLpRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', minHeight: 14.5 },
+    singleLpCell: { borderRightWidth: 1, borderColor: '#000', paddingHorizontal: 4, paddingVertical: 1, fontSize: 8.5, justifyContent: 'center' },
+    singleLpCellLast: { paddingHorizontal: 4, paddingVertical: 1, fontSize: 8.5, justifyContent: 'center' },
+    singleLpHeaderCell: { borderRightWidth: 1, borderColor: '#000', padding: 1, fontSize: 8.5, fontWeight: 'bold', textAlign: 'center', justifyContent: 'center' },
+    
+    singleLegendContainer: { flexDirection: 'column', marginTop: 2, paddingLeft: 0, width: '96%', alignSelf: 'center' },
+    singleLegendTitle: { fontWeight: 'bold', fontSize: 8.5, marginBottom: 2, textAlign: 'left' },
+
+    singleAttendanceTitle: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
+    singleAttendanceTable: { borderWidth: 1, borderColor: '#000', marginBottom: 3 },
+    singleAttHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#000', minHeight: 22 },
+    singleAttRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#000', minHeight: 22 },
+    singleAttRowLast: { flexDirection: 'row', minHeight: 22 },
+    singleAttMonthCell: { width: '7.1%', borderRightWidth: 1, borderRightColor: '#000', padding: 1, fontSize: 6.5, textAlign: 'center', justifyContent: 'center' },
+    singleAttLabelCell: { width: '14%', borderRightWidth: 1, borderRightColor: '#000', padding: 1, fontSize: 8, justifyContent: 'center' },
+    singleAttDataCell: { width: '7.1%', borderRightWidth: 1, borderRightColor: '#000', padding: 1, fontSize: 8.5, textAlign: 'center', justifyContent: 'center' },
+    singleAttDataCellLast: { width: '7.9%', padding: 1, fontSize: 8.5, textAlign: 'center', justifyContent: 'center' },
+
+    singleCommentsContainer: { marginBottom: 2 },
+    singleCommentsBox: { borderWidth: 1, borderColor: '#000', borderRadius: 2, flexDirection: 'column' },
+    singleCommentTermRow: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', minHeight: 36, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },
+    singleCommentTermRowLast: { flexDirection: 'row', minHeight: 36, alignItems: 'flex-start', paddingTop: 2, paddingHorizontal: 4 },
+    singleCommentLabel: { width: '15%', fontSize: 9, fontWeight: 'bold' },
+    singleCommentValue: { flex: 1, fontSize: 9 },
+
+    singleSignaturesContainer: { marginBottom: 2, paddingHorizontal: 30 },
+    singleSignatureRow: { flexDirection: 'row', marginBottom: 4, alignItems: 'center' },
+    singleSignatureLabel: { fontSize: 9, fontWeight: 'bold', width: 40 },
+    singleSignatureLine: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#000', height: 20 },
+
+    singleTransferSection: { paddingTop: 2, marginBottom: 2 },
+    singleTransferTitle: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
+    singleTransferText: { fontSize: 8.5, lineHeight: 1.3, marginBottom: 2, textAlign: 'justify' },
+    singleTransferRow: { flexDirection: 'row', marginBottom: 2, alignItems: 'center' },
+    singleTransferLabel: { fontSize: 8.5, width: 110 },
+    singleTransferLine: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#000', height: 10 },
+    
+    singleApprovedRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+    singleApprovedSignatory: { width: '45%', alignItems: 'center' },
+    singleApprovedLine: { borderBottomWidth: 1, borderBottomColor: '#000', width: '100%', height: 10 },
+    singleApprovedLabel: { fontSize: 8.5, marginTop: 1, textAlign: 'center', fontWeight: 'bold' },
+
+    singleCancellationSection: { paddingTop: 2 },
+    singleCancellationTitle: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 2 },
+    singleCancellationRow: { flexDirection: 'row', marginBottom: 2, alignItems: 'center' },
+    singleCancellationLabel: { fontSize: 8.5, width: 50 },
+    singleCancellationLine: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#000', height: 10 },
+    singleCancellationDateLabel: { fontSize: 8.5, width: 30, marginLeft: 15 },
 });
 
 const CORE_VALUES = [
@@ -362,7 +595,7 @@ function computeStudentGrades(
                 const effComm = commSubjs.find(s => normalizeSubjectName(s.name) === 'effectivecommunication');
                 const mabKom = commSubjs.find(s => normalizeSubjectName(s.name) === 'mabisangkomunikasyon');
                 
-                finalCores.push({ name: 'Effective Communication & Mabisang Komunikasyon' });
+                finalCores.push({ name: 'Effective Communication / Mabisang Komunikasyon' });
                 if (effComm) {
                     finalCores.push({ ...effComm, isComponent: true });
                 }
@@ -378,7 +611,7 @@ function computeStudentGrades(
             }
 
             if (sortedElectives.length > 0) {
-                currentSubjects.push({ name: 'Electives', isHeader: true });
+                currentSubjects.push({ name: 'Elective Subjects', isHeader: true });
                 sortedElectives.forEach(s => currentSubjects.push({ name: s.name, id: s.id }));
             }
 
@@ -552,6 +785,7 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
         if (
             subjItem?.name === 'Core Subjects' || 
             subjItem?.name === 'Electives' || 
+            subjItem?.name === 'Elective Subjects' || 
             subjItem?.name === 'Applied Subjects' || 
             subjItem?.name === 'Specialized Subjects'
         ) return;
@@ -567,7 +801,7 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
             const term = dbSubj?.term;
             if (term === 'none') return;
 
-            const finalGrade = calculateFinalGrade(gradeRow, term);
+            const finalGrade = calculateFinalGrade(gradeRow, term, key);
             if (finalGrade > 0) {
                 total += finalGrade;
                 count++;
@@ -597,46 +831,194 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     const daysPresent: number[] = [];
     const daysAbsent: number[] = [];
 
-    months.forEach(month => {
-        // Aggressive fuzzy match by section name/id, month (full or abbr), and school year
-        const sheet = sf2Sheets.find(s => {
-            const sId = s.section_id?.toString().toLowerCase().trim();
-            const targetId = sectionObj?.id?.toString().toLowerCase().trim();
-            const targetName = sectionObj?.section_name?.toString().toLowerCase().trim();
-            
-            const sectionMatch = (sId === targetId) || 
-                                 (sId === targetName) || 
-                                 (sId && targetName?.includes(sId)) || 
-                                 (targetName && sId?.includes(targetName));
-            
-            const sMonth = s.month?.toString().toUpperCase().trim();
-            const targetMonth = month.toUpperCase();
-            const targetMonthAbbr = month.substring(0, 3).toUpperCase();
-            
-            // Numeric month mapping (1=JAN, 6=JUNE, etc.) and 0-indexed month mapping
-            const MONTH_MAP: Record<string, string> = {
-                '1': 'JANUARY', '2': 'FEBRUARY', '3': 'MARCH', '4': 'APRIL', '5': 'MAY', '6': 'JUNE',
-                '7': 'JULY', '8': 'AUGUST', '9': 'SEPTEMBER', '10': 'OCTOBER', '11': 'NOVEMBER', '12': 'DECEMBER'
-            };
-            const mappedMonth = sMonth ? MONTH_MAP[sMonth] : null;
-            const monthIdx = months.indexOf(month);
-            
-            const monthMatch = sMonth === targetMonth || 
-                               sMonth === targetMonthAbbr || 
-                               (sMonth && targetMonth.startsWith(sMonth)) ||
-                               (mappedMonth === targetMonth) ||
-                               (sMonth === monthIdx.toString()) ||
-                               (sMonth === (monthIdx + 1).toString());
-            
-            // Lenient year match (e.g., "2026" should match "2026-2027")
-            const sYear = s.school_year?.toString().trim();
-            const targetYear = schoolYear?.toString().trim();
-            const yearMatch = sYear === targetYear || 
-                               (sYear && targetYear?.includes(sYear)) || 
-                               (targetYear && sYear?.includes(targetYear?.substring(0, 4)));
-            
-            return sectionMatch && monthMatch && yearMatch;
+    const SCHOOL_CALENDAR_2026_2027_COUNTS: Record<string, number> = {
+        JUNE: 16,
+        JULY: 23,
+        AUGUST: 19,
+        SEPTEMBER: 22,
+        OCTOBER: 22,
+        NOVEMBER: 19,
+        DECEMBER: 13,
+        JANUARY: 20,
+        FEBRUARY: 20,
+        MARCH: 21,
+        APRIL: 6
+    };
+
+    const getFallbackSchoolDays = (monthName: string) => {
+        if (schoolYear === '2026-2027' && SCHOOL_CALENDAR_2026_2027_COUNTS[monthName] != null) {
+            return SCHOOL_CALENDAR_2026_2027_COUNTS[monthName];
+        }
+
+        const monthIndexMap: Record<string, number> = {
+            JANUARY: 0,
+            FEBRUARY: 1,
+            MARCH: 2,
+            APRIL: 3,
+            MAY: 4,
+            JUNE: 5,
+            JULY: 6,
+            AUGUST: 7,
+            SEPTEMBER: 8,
+            OCTOBER: 9,
+            NOVEMBER: 10,
+            DECEMBER: 11
+        };
+
+        const monthIndex = monthIndexMap[monthName];
+        if (monthIndex == null) return 0;
+
+        const [startYearRaw, endYearRaw] = (schoolYear || '').split('-');
+        const startYear = Number.parseInt(startYearRaw, 10);
+        const endYear = Number.parseInt(endYearRaw, 10);
+        const resolvedYear = monthIndex >= 5
+            ? (Number.isFinite(startYear) ? startYear : new Date().getFullYear())
+            : (Number.isFinite(endYear) ? endYear : Number.isFinite(startYear) ? startYear + 1 : new Date().getFullYear());
+
+        const daysInMonth = new Date(resolvedYear, monthIndex + 1, 0).getDate();
+        let weekdays = 0;
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dow = new Date(resolvedYear, monthIndex, day).getDay();
+            if (dow >= 1 && dow <= 5) weekdays++;
+        }
+        return weekdays;
+    };
+
+    const normalizeText = (value?: string | number) => (value ?? '').toString().trim().toUpperCase();
+    const normalizeSectionToken = (value?: string | number) =>
+        (value ?? '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const monthByNumber: Record<number, string> = {
+        1: 'JANUARY',
+        2: 'FEBRUARY',
+        3: 'MARCH',
+        4: 'APRIL',
+        5: 'MAY',
+        6: 'JUNE',
+        7: 'JULY',
+        8: 'AUGUST',
+        9: 'SEPTEMBER',
+        10: 'OCTOBER',
+        11: 'NOVEMBER',
+        12: 'DECEMBER'
+    };
+
+    const normalizeMonthToken = (value?: string | number): string | null => {
+        const raw = normalizeText(value);
+        if (!raw) return null;
+
+        const asNumber = Number.parseInt(raw, 10);
+        if (!Number.isNaN(asNumber)) {
+            if (asNumber >= 1 && asNumber <= 12) return monthByNumber[asNumber];
+            if (asNumber >= 0 && asNumber <= 11) return monthByNumber[asNumber + 1];
+        }
+
+        const compact = raw.replace(/[^A-Z]/g, '');
+        if (!compact) return null;
+
+        for (const monthName of months) {
+            if (compact === monthName) return monthName;
+            if (compact === monthName.substring(0, 3)) return monthName;
+            if (monthName.startsWith(compact) || compact.startsWith(monthName.substring(0, 3))) {
+                return monthName;
+            }
+        }
+
+        return null;
+    };
+
+    const extractMonthFromId = (id?: string): string | null => {
+        const normalizedId = normalizeText(id);
+        if (!normalizedId) return null;
+
+        const parts = normalizedId.split('_').filter(Boolean);
+        if (parts.length === 0) return null;
+
+        return normalizeMonthToken(parts[parts.length - 1]);
+    };
+
+    const targetSectionTokens = new Set<string>([
+        normalizeSectionToken(sectionObj?.id),
+        normalizeSectionToken(sectionObj?.section_name)
+    ].filter(Boolean));
+
+    const targetSchoolYear = normalizeText(schoolYear);
+    const targetStartYear = targetSchoolYear.match(/\d{4}/)?.[0] || '';
+
+    const getSheetMonth = (sheet: SF2Sheet) => normalizeMonthToken(sheet.month) || extractMonthFromId(sheet.id);
+
+    const isSchoolYearMatch = (sheetYearRaw?: string) => {
+        const sheetYear = normalizeText(sheetYearRaw);
+        if (!sheetYear) return !targetSchoolYear;
+        if (sheetYear === targetSchoolYear) return true;
+        if (sheetYear.includes(targetSchoolYear) || targetSchoolYear.includes(sheetYear)) return true;
+
+        const sheetStartYear = sheetYear.match(/\d{4}/)?.[0] || '';
+        return !!(sheetStartYear && targetStartYear && sheetStartYear === targetStartYear);
+    };
+
+    const getSectionTokensForSheet = (sheet: SF2Sheet) => {
+        const baseTokens = [normalizeSectionToken(sheet.section_id)];
+        const fromId = sheet.id?.split('_').filter(Boolean) || [];
+        if (fromId.length >= 3) {
+            baseTokens.push(normalizeSectionToken(fromId.slice(0, fromId.length - 2).join('_')));
+        }
+        return baseTokens.filter(Boolean);
+    };
+
+    const isSectionMatch = (sheet: SF2Sheet) => {
+        if (!targetSectionTokens.size) return true;
+        const sheetTokens = getSectionTokensForSheet(sheet);
+        if (!sheetTokens.length) return false;
+
+        return sheetTokens.some(sheetToken => {
+            for (const targetToken of targetSectionTokens) {
+                if (!targetToken) continue;
+                if (sheetToken === targetToken) return true;
+                if (sheetToken.includes(targetToken) || targetToken.includes(sheetToken)) return true;
+            }
+            return false;
         });
+    };
+
+    const getSheetDataScore = (sheet: SF2Sheet) => {
+        const dateLabelCount = Object.values(sheet.date_labels || {}).filter(v => String(v || '').trim() !== '').length;
+        const attendanceCount = Object.keys(sheet.attendance || {}).length;
+        return dateLabelCount * 100 + attendanceCount;
+    };
+
+    const sf2MonthlySheetMap = new Map<string, SF2Sheet>();
+    sf2Sheets.forEach(sheet => {
+        const sheetMonth = getSheetMonth(sheet);
+        if (!sheetMonth) return;
+        if (!months.includes(sheetMonth)) return;
+        if (!isSectionMatch(sheet)) return;
+        if (!isSchoolYearMatch(sheet.school_year)) return;
+
+        const existing = sf2MonthlySheetMap.get(sheetMonth);
+        if (!existing) {
+            sf2MonthlySheetMap.set(sheetMonth, sheet);
+            return;
+        }
+
+        const existingScore = getSheetDataScore(existing);
+        const currentScore = getSheetDataScore(sheet);
+        if (currentScore > existingScore) {
+            sf2MonthlySheetMap.set(sheetMonth, sheet);
+            return;
+        }
+
+        if (currentScore === existingScore) {
+            const existingUpdatedAt = Date.parse(existing.updated_at || '') || 0;
+            const currentUpdatedAt = Date.parse(sheet.updated_at || '') || 0;
+            if (currentUpdatedAt >= existingUpdatedAt) {
+                sf2MonthlySheetMap.set(sheetMonth, sheet);
+            }
+        }
+    });
+
+    months.forEach(month => {
+        const sheet = sf2MonthlySheetMap.get(month);
 
         if (sheet) {
             const dateLabels = sheet.date_labels || {};
@@ -672,10 +1054,11 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
             daysAbsent.push(mAbsent);
             daysPresent.push(Math.max(0, mFilled - mAbsent));
         } else {
-            // Push -1 or null to signify "no data found" vs "zero data"
-            schoolDays.push(-1);
-            daysPresent.push(-1);
-            daysAbsent.push(-1);
+            // Auto-fill missing SF2 month with calendar defaults to avoid blank SF9 cells.
+            const fallbackDays = getFallbackSchoolDays(month);
+            schoolDays.push(fallbackDays);
+            daysPresent.push(fallbackDays);
+            daysAbsent.push(0);
         }
     });
 
@@ -694,8 +1077,40 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     };
 }
 
-function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none'): number {
+function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none', subjectName?: string): number {
     if (term === 'none') return 0;
+    
+    // Handle special Grade 11 electives final grade
+    if (subjectName) {
+        const normName = normalizeSubjectName(subjectName);
+        if (normName === 'academicelective1') {
+            const g1 = quarterGrades[0] || 0;
+            const g3 = quarterGrades[2] || 0;
+            if (g1 > 0 && g3 > 0) return Math.round((g1 + g3) / 2);
+            return g1 || g3 || 0;
+        }
+        if (normName === 'academicelective2') {
+            const g2 = quarterGrades[1] || 0;
+            const g3 = quarterGrades[2] || 0;
+            if (g2 > 0 && g3 > 0) return Math.round((g2 + g3) / 2);
+            return g2 || g3 || 0;
+        }
+        if (normName === 'academicelective3') {
+            return quarterGrades[2] || 0;
+        }
+        if (normName === 'techproelective1') {
+            const g1 = quarterGrades[0] || 0;
+            const g2 = quarterGrades[1] || 0;
+            const g3 = quarterGrades[2] || 0;
+            let sum = 0;
+            let count = 0;
+            if (g1 > 0) { sum += g1; count++; }
+            if (g2 > 0) { sum += g2; count++; }
+            if (g3 > 0) { sum += g3; count++; }
+            return count > 0 ? Math.round(sum / count) : 0;
+        }
+    }
+
     if (term === 1 || Number(term) === 1) return quarterGrades[0] || 0;
     if (term === 2 || Number(term) === 2) return quarterGrades[1] || 0;
     if (term === 3 || Number(term) === 3) return quarterGrades[2] || 0;
@@ -709,13 +1124,119 @@ function getRemarks(grade: number): string {
     return grade >= 75 ? 'Passed' : 'Failed';
 }
 
-function getGeneralAverageRemarks(genAvg: number): string[] {
+function getGeneralAverageRemarks(
+    genAvg: number, 
+    grades: Record<string, number[]> = {}, 
+    currentSubjectsList: SF9SubjectItem[] = [],
+    studentLrn?: string,
+    schoolYear?: string
+): string[] {
     if (genAvg <= 0) return [''];
     if (genAvg < 75) return ['Retained'];
-    if (genAvg <= 89) return ['Promoted'];
-    if (genAvg <= 94) return ['Promoted', 'With Honors'];
-    if (genAvg <= 97) return ['Promoted', 'With High Honors'];
-    return ['Promoted', 'With Highest Honors'];
+    
+    const remarks = ['Promoted'];
+    
+    // Check if qualifies for Academic Excellence Award
+    // Criteria: GA >= 90 AND no final grade below 80 in any of the averaged learning areas
+    if (genAvg >= 90) {
+        const dbSubjects = useAppStore.getState().subjects;
+        let hasGradeBelow80 = false;
+        let hasGrades = false;
+
+        Object.keys(grades).forEach(key => {
+            const norm = normalizeSubjectName(key);
+            const subjItem = currentSubjectsList.find(s => s.name === key);
+            
+            // Exclude components from the average count (they are part of MAPEH or parent subjects)
+            const isComponent = norm.includes('musicandarts') || norm.includes('musicarts') || 
+                               norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth') ||
+                               subjItem?.isComponent;
+                               
+            const isExcluded = key.startsWith('*') || 
+                              key.toLowerCase().includes('arabic language') || 
+                              key.toLowerCase().includes('islamic values');
+
+            // Exclude category headers from the average
+            if (
+                subjItem?.name === 'Core Subjects' || 
+                subjItem?.name === 'Electives' || 
+                subjItem?.name === 'Elective Subjects' || 
+                subjItem?.name === 'Applied Subjects' || 
+                subjItem?.name === 'Specialized Subjects'
+            ) return;
+
+            // Exclude reserved rows, components, and specific excluded subjects
+            if (!key.startsWith('reserved_extra') && !isComponent && !isExcluded) {
+                const gradeRow = grades[key] || [0, 0, 0];
+                
+                // Find subject term
+                const dbSubj = subjItem?.id 
+                    ? dbSubjects.find(s => s.id === subjItem.id) 
+                    : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
+                const term = dbSubj?.term;
+                if (term === 'none') return;
+
+                const finalGrade = calculateFinalGrade(gradeRow, term, key);
+                if (finalGrade > 0) {
+                    hasGrades = true;
+                    if (finalGrade < 80) {
+                        hasGradeBelow80 = true;
+                    }
+                }
+            }
+        });
+
+        if (hasGrades && !hasGradeBelow80) {
+            remarks.push('with Academic');
+            remarks.push('Excellence Award');
+        }
+    }
+
+    // Append custom/nominated awards
+    if (studentLrn) {
+        const student = useAppStore.getState().students.find(s => s.lrn === studentLrn);
+        if (student && student.awardEvaluations) {
+            // Find all matching evaluations for this school year and EOSY
+            const evals = student.awardEvaluations.filter(e => 
+                (!schoolYear || e.schoolYear === schoolYear) &&
+                (e.term === 'EOSY' || e.term === 3)
+            );
+            evals.forEach(e => {
+                let title = '';
+                switch (e.awardType) {
+                    case 'PerfectAttendance':
+                        title = 'Perfect Attendance Awardee';
+                        break;
+                    case 'CharacterTrait':
+                        title = `${e.characterTraitId || 'Core Value'} Trait: ${e.characterTraitTitle || 'Awardee'}`;
+                        break;
+                    case 'GMRCMerit':
+                        title = 'GMRC Certificate of Merit';
+                        break;
+                    case 'Leadership':
+                        title = 'Leadership Excellence Awardee';
+                        break;
+                    case 'Research':
+                        title = 'Excellence in Research Awardee';
+                        break;
+                    case 'Innovation':
+                        title = 'Excellence in Design & Innovation Awardee';
+                        break;
+                    case 'WorkImmersion':
+                        title = 'Excellence in Work Immersion Awardee';
+                        break;
+                    case 'SpecialRecognition':
+                        title = e.specialRecognitionTitle || 'Special Recognition Awardee';
+                        break;
+                }
+                if (title && !remarks.includes(title)) {
+                    remarks.push(title);
+                }
+            });
+        }
+    }
+    
+    return remarks;
 }
 
 interface SF9ExactDocumentProps {
@@ -746,7 +1267,8 @@ interface SF9ExactDocumentProps {
 
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
-    adviser, principal, principalTitle, grades, subjects: currentSubjects, observedValues, attendance, pageSize, logoUrl, printMode = 'full'
+    adviser, principal, principalTitle,
+    grades, subjects: currentSubjects, attendance, pageSize, logoUrl, printMode = 'full', schoolProfile
 }: SF9ExactDocumentProps) {
 
     const STRAND_MAPPING: Record<string, string> = {
@@ -767,10 +1289,7 @@ function SF9Pages({
 
     // Determine SF9 Label and Alignment
     const gradeNum = parseInt(student.grade_level?.replace(/\D/g, '') || '0');
-    const isES = gradeNum >= 1 && gradeNum <= 6;
     const isSHS = gradeNum === 11 || gradeNum === 12;
-    const sf9Identifier = isES ? 'SF9-ES' : isSHS ? 'SF9-SHS' : 'SF9-JHS';
-    const sf9TextAlign = isES ? 'left' : 'right';
 
     // Determine which term columns to show values for
     const showTermValue = (termIndex: number): boolean => {
@@ -795,340 +1314,434 @@ function SF9Pages({
         return termMonths.includes(monthAbbr) ? value : '';
     };
 
-    // Recalculate attendance total for current term
-    const getTermTotal = (dataArr: number[]) => {
-        // If we are in T1 or T2, the user wants the total column blank
+    const calculateTotal = (dataArr: number[]) => {
         if (printMode === 'term1' || printMode === 'term2') return '';
-
-        // For Full and Term 3, show the GRAND TOTAL (T1+T2+T3)
-        // We exclude the last element because it's the pre-calculated total
-        const monthsOnly = dataArr.slice(0, -1);
-        const total = monthsOnly.filter(v => v >= 0).reduce((a, b) => a + b, 0);
-        
-        // If no data at all, return blank instead of 0
-        const hasAnyData = monthsOnly.some(v => v >= 0);
-        return hasAnyData ? total : '';
+        const values = dataArr.slice(0, 10);
+        const sum = values.filter(v => v >= 0).reduce((a, b) => a + b, 0);
+        const hasAnyData = values.some(v => v >= 0);
+        return hasAnyData ? sum : '';
     };
 
-    return (
-        <>
-            <Page size={pageSize} orientation="landscape" style={styles.page}>
-                <View style={styles.page1Container}>
-                    <View style={styles.leftColumn}>
-                        <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON ATTENDANCE</Text>
-                        <View style={[styles.attendanceTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
-                            <View style={[styles.attHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}> </Text></View>
-                                {attendance.months.map((month, idx) => (
-                                    <View key={idx} style={[idx === attendance.months.length - 1 ? styles.attDataCellLast : styles.attMonthCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                        <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{month}</Text>
+
+
+
+        const cleanDivision = (division || '')
+            .replace(/schools division office of/i, '')
+            .replace(/schools division of/i, '')
+            .trim()
+            .toUpperCase();
+
+        return (
+            <Page size={pageSize} orientation="landscape" style={styles.singlePage}>
+                <View style={[styles.singleBorderWrapper, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                    <View style={styles.singleContainer}>
+                        <View style={styles.singleLeftColumn}>
+                            <View style={[styles.singleHeaderContainer, isValuesOnly ? { opacity: 0 } : {}]}>
+                                <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.singleLogo} />
+                                <View style={styles.singleHeaderCenter}>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Republic of the Philippines</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Department of Education</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{region || 'Region'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold' }]}>SCHOOLS DIVISION OFFICE OF {cleanDivision || '_________________'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{district || 'District'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>
+                                        {(() => {
+                                            const muniCity = schoolProfile?.municipality || schoolProfile?.city || '';
+                                            const prov = schoolProfile?.province || '';
+                                            if (muniCity && prov) {
+                                                return `${muniCity}, ${prov}`;
+                                            }
+                                            return muniCity || prov || 'Municipality/City, Province';
+                                        })()}
+                                    </Text>
+                                    <Text style={[styles.singleHeaderText, { marginTop: 4, fontFamily: 'BookmanOldStyle-Bold' }]}>{schoolName}</Text>
+                                </View>
+                                <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={styles.singleLogo} />
+                            </View>
+                            <Text style={{ textAlign: 'center', marginBottom: 6, marginTop: -15 }}>
+                                <Text style={[styles.singleReportTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 14 }]}>{"LEARNER'S PERFORMANCE REPORT\n"}</Text>
+                                <Text style={[styles.singleSchoolYear, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 9 }]}>{"School Year " + schoolYear}</Text>
+                            </Text>
+                            
+                            {(() => {
+                                const last = (student.last_name || '').toUpperCase();
+                                const first = (student.first_name || '').toUpperCase();
+                                const middle = student.middle_name ? ' ' + (student.middle_name || '').toUpperCase() : '';
+                                const fullName = `${last}, ${first}${middle}`;
+                                const nameFontSize = fullName.length > 52 ? 5.5 : (fullName.length > 45 ? 6.5 : (fullName.length > 35 ? 7.5 : 8));
+                                return (
+                                <View style={[styles.singleStudentInfoGrid, isValuesOnly ? { opacity: 0 } : {}, { marginTop: -15 }]}>
+                                    <View style={styles.singleInfoRow}>
+                                        {/* Name Cell — 65%, dynamic font */}
+                                        <View style={{ width: '65%', flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 30 }}>Name:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: nameFontSize }]}>
+                                                {fullName}
+                                            </Text>
+                                        </View>
+                                        {/* Age Cell — 11%, short underline */}
+                                        <View style={{ width: '11%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 22 }}>Age:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
+                                                {student.age || ' '}
+                                            </Text>
+                                        </View>
+                                        {/* Sex Cell — 24%, long underline */}
+                                        <View style={{ width: '24%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 22 }}>Sex:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
+                                                {(student.gender || ' ').toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.singleInfoRow}>
+                                        {/* LRN Cell — 45% */}
+                                        <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 30 }}>LRN:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
+                                                {student.lrn || ' '}
+                                            </Text>
+                                        </View>
+                                        {/* Grade Cell — 12%, short underline */}
+                                        <View style={{ width: '12%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 28 }}>Grade:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8, paddingLeft: 2 }]}>
+                                                {student.grade_level.replace('Grade ', '') || ' '}
+                                            </Text>
+                                        </View>
+                                        {/* Section Cell — 43%, long underline */}
+                                        <View style={{ width: '43%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 38 }}>Section:</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
+                                                {(section || ' ').toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.singleInfoRow}>
+                                        {/* Track Cell — 45% */}
+                                        <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
+                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>{isSHS ? `${trackDisplay}${strandDisplay ? ` - ${strandDisplay}` : ''}` : ' '}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                                );
+                            })()}
+
+                            <Text style={[styles.singleMessageText, isValuesOnly ? { color: transparentBorder } : {}, { marginTop: -20 }]}>
+                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 9 }}>{"Dear Parents,\n"}</Text>
+                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8.5 }}>{"\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0This Performance Report shows the ability and progress your child has made in the different learning areas as well as his/her core values.\n\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0The school welcomes you should you desire to know more about your child's progress."}</Text>
+                            </Text>
+
+                            <View style={{ flexDirection: 'column' }}>
+                                <Text style={[{ fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 10, marginTop: -15 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>
+                                <View style={[styles.singleLpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                                    <View style={[styles.singleLpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleLpHeaderCell, { width: '42%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Learning Areas</Text></View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '24%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 1, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>TERM</Text></View>
+                                            <View style={{ flexDirection: 'row', flex: 1 }}>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>1</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>2</Text></View>
+                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>3</Text></View>
+                                            </View>
+                                        </View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '14%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Final Grade</Text></View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '20%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Remarks</Text></View>
+                                    </View>
+                                    {currentSubjects.filter(subj => !subj.isReserved).map((subj, idx) => {
+                                        const gradeRow = grades[subj.name] || [0, 0, 0];
+                                        const dbSubjects = useAppStore.getState().subjects;
+                                        const dbSubj = subj.id 
+                                            ? dbSubjects.find(s => s.id === subj.id) 
+                                            : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subj.name.toLowerCase().trim());
+                                        const term = dbSubj?.term;
+                                        const finalGrade = calculateFinalGrade(gradeRow, term, subj.name);
+                                        const isReserved = subj.isReserved;
+                                        const isHeader = subj.isHeader;
+                                        const isCategoryHeader = isHeader && (
+                                            subj.name === 'Core Subjects' || 
+                                            subj.name === 'Electives' ||
+                                            subj.name === 'Elective Subjects' ||
+                                            subj.name === 'Applied Subjects' ||
+                                            subj.name === 'Specialized Subjects'
+                                        );
+                                        
+                                        const isOfferedInTerm = (tNum: number) => {
+                                            if (isCategoryHeader || isReserved) return false;
+                                            
+                                            // Handle special Grade 11 electives offered terms
+                                            const normName = normalizeSubjectName(subj.name);
+                                            if (normName === 'academicelective1') {
+                                                return tNum === 1 || tNum === 3;
+                                            }
+                                            if (normName === 'academicelective2') {
+                                                return tNum === 2 || tNum === 3;
+                                            }
+                                            if (normName === 'academicelective3') {
+                                                return tNum === 3;
+                                            }
+                                            if (normName === 'techproelective1') {
+                                                return true;
+                                            }
+
+                                            if (term === undefined || term === null || term === 'all') return true;
+                                            return Number(term) === tNum;
+                                        };
+
+                                        return (
+                                            <View key={idx} style={[styles.singleLpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}, isCategoryHeader ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                                <View style={[styles.singleLpCell, { width: '42%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
+                                                    <Text style={{ fontFamily: subj.isComponent ? 'BookmanOldStyle-Italic' : 'BookmanOldStyle-Bold', fontSize: (subj.name && subj.name.length > 35) ? 6.5 : 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
+                                                        {isReserved ? '' : isCategoryHeader ? subj.name.toUpperCase() : subj.name}
+                                                    </Text>
+                                                </View>
+                                                <View style={[styles.singleLpCell, { width: '24%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                    <View style={{ flexDirection: 'row', flex: 1 }}>
+                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                                {!isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                                {!isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: '#E5E7EB' } : {}]}>
+                                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                                {!isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                                <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                        {!isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}
+                                                    </Text>
+                                                </View>
+                                                <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center' }]}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.5 }}>
+                                                        {!isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                    <View style={[styles.singleLpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleLpCell, { width: '66%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
+                                        <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
+                                                {showFinalAndRemarks ? (formatGradeForDisplay(calculateGeneralAverage(grades, currentSubjects), student.grade_level) || '') : ''}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
+                                            {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects), grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                                <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
+                                            )) : <Text></Text>}
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.singleLegendContainer}>
+                                <Text style={[styles.singleLegendTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>PERFORMANCE DESCRIPTORS</Text>
+                                <View style={{ flexDirection: 'row', marginBottom: 2 }}>
+                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Grading Scale</Text></View>
+                                    <View style={{ width: '45%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Description</Text></View>
+                                    <View style={{ width: '25%', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>Remarks</Text></View>
+                                </View>
+                                {[
+                                    { scale: '90-100', desc: 'Advancing', rem: 'Passed' },
+                                    { scale: '80-89', desc: 'Benchmarking', rem: 'Passed' },
+                                    { scale: '75-79', desc: 'Connecting', rem: 'Passed' },
+                                    { scale: '65-74', desc: 'Developing', rem: 'Failed' },
+                                    { scale: '0-64', desc: 'Emerging', rem: 'Failed' },
+                                ].map((item, idx) => (
+                                    <View key={idx} style={{ flexDirection: 'row', marginBottom: 1 }}>
+                                        <View style={{ width: '30%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.scale}</Text></View>
+                                        <View style={{ width: '45%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.desc}</Text></View>
+                                        <View style={{ width: '25%', alignItems: 'center' }}><Text style={[isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 7 }]}>{item.rem}</Text></View>
                                     </View>
                                 ))}
                             </View>
-                            <View style={[styles.attRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of school{'\n'}days</Text></View>
-                                {attendance.schoolDays.map((days, idx) => {
-                                    const isTotal = idx === attendance.schoolDays.length - 1;
-                                    const val = isTotal ? getTermTotal(attendance.schoolDays) : getAttendanceValue(idx, days);
-                                    return (
-                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <Text>{val !== '' ? val : ''}</Text>
+                        </View>
+
+                        <View style={styles.singleRightColumn}>
+                            <Text style={[styles.singleAttendanceTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 11 }]}>ATTENDANCE RECORD</Text>
+                                <View style={[styles.singleAttendanceTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                                    {/* Header row — show actual months from SF2 */}
+                                    <View style={[styles.singleAttHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleAttLabelCell, { width: '20%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>Month</Text>
                                         </View>
-                                    );
-                                })}
-                            </View>
-                            <View style={[styles.attRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of days{'\n'}present</Text></View>
-                                {attendance.daysPresent.map((days, idx) => {
-                                    const isTotal = idx === attendance.daysPresent.length - 1;
-                                    const val = isTotal ? getTermTotal(attendance.daysPresent) : getAttendanceValue(idx, days);
-                                    return (
-                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <Text>{val !== '' ? val : ''}</Text>
+                                        {attendance.months.slice(0, 11).map((month, idx) => (
+                                            <View key={idx} style={[styles.singleAttMonthCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>{isValuesOnly ? '' : month}</Text>
+                                            </View>
+                                        ))}
+                                        {Array.from({ length: Math.max(0, 11 - attendance.months.slice(0, 11).length) }).map((_, idx) => (
+                                            <View key={`pad-${idx}`} style={[styles.singleAttMonthCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]} />
+                                        ))}
+                                        <View style={[styles.singleAttDataCellLast, { width: '14%', borderLeftWidth: 1, borderLeftColor: borderColor, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>Total</Text>
                                         </View>
-                                    );
-                                })}
-                            </View>
-                            <View style={[styles.attRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.attLabelCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>No. of days{'\n'}absent</Text></View>
-                                {attendance.daysAbsent.map((days, idx) => {
-                                    const isTotal = idx === attendance.daysAbsent.length - 1;
-                                    const val = isTotal ? getTermTotal(attendance.daysAbsent) : getAttendanceValue(idx, days);
-                                    return (
-                                        <View key={idx} style={[isTotal ? styles.attDataCellLast : styles.attDataCell, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <Text>{val !== '' ? val : ''}</Text>
+                                    </View>
+                                    {/* No. of Class Days */}
+                                    <View style={[styles.singleAttRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleAttLabelCell, { width: '20%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' } : { fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{"No. of Class\nDays"}</Text>
                                         </View>
-                                    );
-                                })}
-                            </View>
-                        </View>
-                        <View style={styles.parentSection}>
-                            <Text style={[styles.parentTitle, isValuesOnly ? { color: transparentBorder } : {}]}>PARENT/GUARDIAN'S SIGNATURE</Text>
-                            {[{ num: '1', suffix: 'st' }, { num: '2', suffix: 'nd' }, { num: '3', suffix: 'rd' }].map((quarter, idx) => (
-                                <View key={idx} style={[styles.signatureRow, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
-                                    <Text style={[styles.quarterLabel, isValuesOnly ? { color: transparentBorder } : {}]}>{quarter.num}<Text style={{ fontSize: 7, verticalAlign: 'super' }}>{quarter.suffix}</Text>{' Term'}</Text>
-                                    <View style={[styles.signatureLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                        {attendance.schoolDays.slice(0, 11).map((days, idx) => {
+                                            const val = getAttendanceValue(idx, days);
+                                            return (
+                                                <View key={idx} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{val !== '' ? val : ''}</Text>
+                                                </View>
+                                            );
+                                        })}
+                                        {Array.from({ length: Math.max(0, 11 - attendance.schoolDays.slice(0, 11).length) }).map((_, idx) => (
+                                            <View key={`pad-${idx}`} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]} />
+                                        ))}
+                                        <View style={[styles.singleAttDataCellLast, { width: '14%', borderLeftWidth: 1, borderLeftColor: borderColor, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>{calculateTotal(attendance.schoolDays)}</Text>
+                                        </View>
+                                    </View>
+                                    {/* No. of Days Present */}
+                                    <View style={[styles.singleAttRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleAttLabelCell, { width: '20%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' } : { fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{"No. of Days\nPresent"}</Text>
+                                        </View>
+                                        {attendance.daysPresent.slice(0, 11).map((days, idx) => {
+                                            const val = getAttendanceValue(idx, days);
+                                            return (
+                                                <View key={idx} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{val !== '' ? val : ''}</Text>
+                                                </View>
+                                            );
+                                        })}
+                                        {Array.from({ length: Math.max(0, 11 - attendance.daysPresent.slice(0, 11).length) }).map((_, idx) => (
+                                            <View key={`pad-${idx}`} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]} />
+                                        ))}
+                                        <View style={[styles.singleAttDataCellLast, { width: '14%', borderLeftWidth: 1, borderLeftColor: borderColor, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>{calculateTotal(attendance.daysPresent)}</Text>
+                                        </View>
+                                    </View>
+                                    {/* No. of Days Absent */}
+                                    <View style={[styles.singleAttRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <View style={[styles.singleAttLabelCell, { width: '20%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                            <Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' } : { fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{"No. of Days\nAbsent"}</Text>
+                                        </View>
+                                        {attendance.daysAbsent.slice(0, 11).map((days, idx) => {
+                                            const val = getAttendanceValue(idx, days);
+                                            return (
+                                                <View key={idx} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, textAlign: 'center' }}>{val !== '' ? val : ''}</Text>
+                                                </View>
+                                            );
+                                        })}
+                                        {Array.from({ length: Math.max(0, 11 - attendance.daysAbsent.slice(0, 11).length) }).map((_, idx) => (
+                                            <View key={`pad-${idx}`} style={[styles.singleAttDataCell, { width: '6%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]} />
+                                        ))}
+                                        <View style={[styles.singleAttDataCellLast, { width: '14%', borderLeftWidth: 1, borderLeftColor: borderColor, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5, textAlign: 'center' }}>{calculateTotal(attendance.daysAbsent)}</Text>
+                                        </View>
+                                    </View>
                                 </View>
-                            ))}
-                        </View>
-                    </View>
-                    <View style={styles.rightColumn}>
-                        <Text style={[styles.sf9Label, { textAlign: sf9TextAlign }, isValuesOnly ? { color: transparentBorder } : {}]}>{sf9Identifier}</Text>
-                        <View style={[styles.headerContainer, isValuesOnly ? { opacity: 0 } : {}]}>
-                            <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={styles.logo} />
-                            <View style={styles.headerCenter}>
-                                <Text style={styles.headerText}>Republic of the Philippines</Text>
-                                <Text style={styles.headerText}>DEPARTMENT OF EDUCATION</Text>
-                                <Text style={styles.headerText}>{region}</Text>
-                                <Text style={styles.headerText}>{division}</Text>
-                                <Text style={styles.headerText}>{district}</Text>
-                            </View>
-                            <Image src={logoUrl || `${import.meta.env.BASE_URL}deped_logo_right.png`} style={styles.logo} />
-                        </View>
-                        <Text style={[styles.schoolName, isValuesOnly ? { color: transparentBorder } : {}]}>{schoolName}</Text>
-                        <Text style={[styles.reportTitle, isValuesOnly ? { color: transparentBorder } : {}]}>LEARNER'S PROGRESS REPORT CARD</Text>
-                        <View style={[styles.studentInfoGrid, isValuesOnly ? { opacity: 0 } : {}]}>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Name:</Text>
-                                <Text style={styles.infoValue}>{student.last_name}, {student.first_name} {student.middle_name}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>LRN:</Text>
-                                <Text style={styles.infoValue}>{student.lrn}</Text>
-                                <Text style={styles.infoLabelRight}>Gender:</Text>
-                                <Text style={styles.infoValueShort}>{student.gender}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Grade:</Text>
-                                <Text style={styles.infoValue}>{student.grade_level.replace('Grade ', '')}</Text>
-                                <Text style={styles.infoLabelRight}>Section:</Text>
-                                <Text style={styles.infoValueShort}>{section}</Text>
-                            </View>
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>Age:</Text>
-                                <Text style={styles.infoValue}>{student.age || ''}</Text>
-                                <Text style={styles.infoLabelRight}>School Year:</Text>
-                                <Text style={styles.infoValueShort}>{schoolYear}</Text>
-                            </View>
-                            {isSHS && (
-                                <View style={[styles.infoRow, { alignItems: 'flex-end' }]}>
-                                    <Text style={[styles.infoLabel, { width: gradeNum === 12 ? 70 : 50, paddingBottom: 2 }]}>{gradeNum === 12 ? 'Track/Strand:' : 'Track:'}</Text>
-                                    <Text style={[styles.infoValue, { flexGrow: 1, fontSize: gradeNum === 12 ? 7 : 10, paddingBottom: 2 }]}>
-                                        {gradeNum === 12 
-                                            ? `${trackDisplay}${strandDisplay ? ` - ${strandDisplay}` : ''}` 
-                                            : trackDisplay}
-                                    </Text>
+                                                   <View style={styles.singleCommentsContainer}>
+                                <Text style={[styles.singleAttendanceTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 11 }]}>TEACHER'S COMMENTS/REMARKS</Text>
+                                <View style={[styles.singleCommentsBox, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                                    <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 1</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                    </View>
+                                    <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 2</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                    </View>
+                                    <View style={[styles.singleCommentTermRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
+                                        <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 3</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                    </View>
                                 </View>
-                            )}
-                        </View>
-                        <Text style={[{ marginTop: 20, textAlign: 'left', fontSize: 10, fontWeight: 'bold' }, isValuesOnly ? { color: transparentBorder } : {}]}>Dear Parents:</Text>
-                        <Text style={[{ marginTop: 10, textAlign: 'justify', lineHeight: 1.4, fontSize: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                            This report card shows the ability and progress your child has made in the different learning areas as well as his/her core values.
-                        </Text>
-                        <Text style={[{ marginTop: 5, textAlign: 'justify', fontSize: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                            The school welcomes you should you desire to know more about your child's progress.
-                        </Text>
-                        <View style={[{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 30 }, isValuesOnly ? { opacity: 0 } : {}]}>
-                            <View style={{ width: '45%', alignItems: 'center' }}>
-                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2, paddingBottom: 4 }}>{principal?.toUpperCase()}</Text>
-                                <Text style={{ fontSize: 9 }}>{principalTitle || 'Secondary School Principal I'}</Text>
                             </View>
-                            <View style={{ width: '45%', alignItems: 'center' }}>
-                                <Text style={{ borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center', fontWeight: 'bold', fontSize: 10, marginBottom: 2, paddingBottom: 4 }}>{adviser?.toUpperCase()}</Text>
-                                <Text style={{ fontSize: 9 }}>Teacher Adviser</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.transferSection, isValuesOnly ? { borderTopColor: transparentBorder } : {}]}>
-                            <Text style={[styles.transferTitle, isValuesOnly ? { color: transparentBorder } : {}]}>CERTIFICATE OF TRANSFER</Text>
-                            <View style={styles.transferRow}>
-                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Admitted to Grade:</Text>
-                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
-                                <Text style={[styles.transferLabel, { width: 60, marginLeft: 15 }, isValuesOnly ? { color: transparentBorder } : {}]}>Section:</Text>
-                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
-                            </View>
-                            <View style={styles.transferRow}>
-                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Eligible for Admission to Grade:</Text>
-                                <View style={[styles.transferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
-                            </View>
-                            <View style={[styles.transferRow, { marginTop: 15 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                <Text style={[styles.transferLabel, isValuesOnly ? { color: transparentBorder } : {}]}>Approved:</Text>
-                            </View>
-                            <View style={[styles.signatureLineBottom, { marginTop: 25 }, isValuesOnly ? { opacity: 0 } : {}]}>
-                                <View style={styles.signatureBlock}>
-                                    <Text style={styles.signatureName}></Text>
-                                    <Text style={styles.signatureTitle}>{principalTitle || 'Secondary School Principal I'}</Text>
+
+                            <View style={styles.singleSignaturesContainer}>
+                                <Text style={[styles.singleAttendanceTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 11 }]}>PARENTS/GUARDIAN'S SIGNATURE</Text>
+                                <View style={styles.singleSignatureRow}>
+                                    <Text style={[styles.singleSignatureLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5, width: 50 }]}>Term 1</Text>
+                                    <View style={[styles.singleSignatureLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
                                 </View>
-                                <View style={styles.signatureBlock}>
-                                    <Text style={styles.signatureName}></Text>
-                                    <Text style={styles.signatureTitle}>Teacher Adviser</Text>
+                                <View style={styles.singleSignatureRow}>
+                                    <Text style={[styles.singleSignatureLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5, width: 50 }]}>Term 2</Text>
+                                    <View style={[styles.singleSignatureLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                </View>
+                                <View style={styles.singleSignatureRow}>
+                                    <Text style={[styles.singleSignatureLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5, width: 50 }]}>Term 3</Text>
+                                    <View style={[styles.singleSignatureLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                </View>
+                            </View>
+
+                            <View style={styles.singleTransferSection}>
+                                <Text style={[styles.singleTransferTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 11 }]}>CERTIFICATE OF TRANSFER</Text>
+                                <Text style={[styles.singleTransferText, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle', fontSize: 8.5, lineHeight: 1.2 }]}>
+                                       This is to certify that the above-named learner has satisfactorily completed the requirements for the grade level indicated.
+                                </Text>
+                                <View style={[styles.singleTransferRow, { marginBottom: 7 }]}>
+                                    <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle' }, isValuesOnly ? { color: transparentBorder } : {}]}>Admitted to Grade:</Text>
+                                    <View style={[styles.singleTransferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                </View>
+                                <View style={[styles.singleTransferRow, { marginBottom: 2 }]}>
+                                    <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle' }, isValuesOnly ? { color: transparentBorder } : {}]}>Eligible for Admission to Grade:</Text>
+                                    <View style={[styles.singleTransferLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                </View>
+                                <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle', marginTop: 2 }, isValuesOnly ? { color: transparentBorder } : {}]}>Approved:</Text>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                        <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {(principal || '').toUpperCase()}
+                                        </Text>
+                                        <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
+                                        <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {(principalTitle || 'School Head').toUpperCase()}
+                                        </Text>
+                                    </View>
+                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                        <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {(adviser || '').toUpperCase()}
+                                        </Text>
+                                        <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
+                                        <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>CLASS ADVISER</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.singleCancellationSection}>
+                                <Text style={[styles.singleCancellationTitle, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 11 }]}>CANCELLATION OF ELIGIBILITY TO TRANSFER</Text>
+                                <View style={[styles.singleCancellationRow, { marginBottom: 2 }]}>
+                                    <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle' }, isValuesOnly ? { color: transparentBorder } : {}]}>Admitted in:</Text>
+                                    <View style={[styles.singleCancellationLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                    <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle', marginLeft: 15 }, isValuesOnly ? { color: transparentBorder } : {}]}>Date:</Text>
+                                    <View style={[styles.singleCancellationLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
+                                </View>
+                                <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                        <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {(principal || '').toUpperCase()}
+                                        </Text>
+                                        <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
+                                        <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
+                                            {(principalTitle || 'School Head').toUpperCase()}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flex: 1 }} />
                                 </View>
                             </View>
                         </View>
                     </View>
                 </View>
             </Page>
-
-            <Page size={pageSize} orientation="landscape" style={styles.page}>
-                <View style={styles.page2Container}>
-                    <View style={styles.page2Left}>
-                        <Text style={[styles.attendanceTitle, { fontSize: 11 }, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</Text>
-                        <View style={[styles.lpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
-                            <View style={[styles.lpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.lpHeaderCell, { width: '36%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>LEARNING AREAS</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                    <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 2, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>TERM</Text></View>
-                                    <View style={{ flexDirection: 'row', flex: 1 }}>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>1</Text></View>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>2</Text></View>
-                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>3</Text></View>
-                                    </View>
-                                </View>
-                                <View style={[styles.lpHeaderCell, { width: '11%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>FINAL GRADE</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '23%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>REMARKS</Text></View>
-                            </View>
-                             {currentSubjects.map((subj, idx) => {
-                                 const gradeRow = grades[subj.name] || [0, 0, 0];
-                                 const dbSubjects = useAppStore.getState().subjects;
-                                 const dbSubj = subj.id 
-                                     ? dbSubjects.find(s => s.id === subj.id) 
-                                     : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subj.name.toLowerCase().trim());
-                                 const term = dbSubj?.term;
-                                 const finalGrade = calculateFinalGrade(gradeRow, term);
-                                 const isReserved = subj.isReserved;
-                                 const isHeader = subj.isHeader;
-                                 const isCategoryHeader = isHeader && (
-                                     subj.name === 'Core Subjects' || 
-                                     subj.name === 'Electives' ||
-                                     subj.name === 'Applied Subjects' ||
-                                     subj.name === 'Specialized Subjects'
-                                 );
-                                 
-                                 const isOfferedInTerm = (tNum: number) => {
-                                     if (isCategoryHeader || isReserved) return false;
-                                     if (term === undefined || term === null || term === 'all') return true;
-                                     return Number(term) === tNum;
-                                 };
-
-                                 return (
-                                     <View key={idx} style={[styles.lpRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}, isCategoryHeader ? { backgroundColor: '#E5E7EB' } : {}]}>
-                                         <View style={[styles.lpCell, { width: '36%', paddingLeft: subj.isComponent ? 15 : 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}> 
-                                             <Text style={{ fontWeight: subj.isComponent ? 'normal' : 'bold', fontSize: (subj.name && subj.name.length > 35) ? 7 : 8.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>
-                                                 {isReserved ? '' : isCategoryHeader ? subj.name.toUpperCase() : subj.name}
-                                             </Text>
-                                         </View>
-                                         <View style={[styles.lpCell, { width: '30%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                             <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                 <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}</Text></View>
-                                                 <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}</Text></View>
-                                                 <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: '#E5E7EB' } : {}]}><Text>{!isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}</Text></View>
-                                             </View>
-                                         </View>
-                                         <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{!isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}</Text></View>
-                                         <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center' }]}><Text>{!isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}</Text></View>
-                                     </View>
-                                 );
-                             })}
-                             <View style={[styles.lpRow, { borderBottomWidth: 0 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                 <View style={[styles.lpCell, { width: '36%', alignItems: 'flex-end', paddingRight: 5 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontWeight: 'bold', ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
-                                 <View style={[styles.lpCell, { width: '30%' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text></Text></View>
-                                 <View style={[styles.lpCell, { width: '11%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text>{showFinalAndRemarks ? (formatGradeForDisplay(calculateGeneralAverage(grades, currentSubjects), student.grade_level) || '') : ''}</Text></View>
-                                 <View style={[styles.lpCellLast, { width: '23%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                     {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects)).map((line, i) => (
-                                         <Text key={i} style={{ fontSize: 7, lineHeight: 1.2 }}>{line}</Text>
-                                     )) : <Text></Text>}
-                                 </View>
-                             </View>
-                        </View>
-                        <View style={styles.legendContainer}>
-                            <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>Descriptors & Grading Scale</Text>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                <View style={{ width: '40%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Descriptors</Text></View>
-                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Grading Scale</Text></View>
-                                <View style={{ width: '30%', alignItems: 'center' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Remarks</Text></View>
-                            </View>
-                            {[
-                                { desc: 'Advancing (Namumukod-tangi)', scale: '90-100', rem: 'Passed' },
-                                { desc: 'Benchmarking (Napamamalas)', scale: '80-89', rem: 'Passed' },
-                                { desc: 'Connecting (Natutungo)', scale: '75-79', rem: 'Passed' },
-                                { desc: 'Developing (Napauunlad)', scale: '65-74', rem: 'Failed' },
-                                { desc: 'Emerging (Nasisimula)', scale: '0-64', rem: 'Failed' },
-                            ].map((item, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                    <View style={{ width: '40%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.desc}</Text></View>
-                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.scale}</Text></View>
-                                    <View style={{ width: '30%', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.rem}</Text></View>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                    <View style={styles.page2Right}>
-                        <Text style={[styles.attendanceTitle, { fontSize: 11 }, isValuesOnly ? { color: transparentBorder } : {}]}>REPORT ON LEARNER'S OBSERVED VALUES</Text>
-                        <View style={[styles.ovTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
-                            <View style={[styles.ovHeaderRow, { height: 30 }, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                <View style={[styles.lpHeaderCell, { width: '26%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'flex-start', paddingLeft: 4 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>CORE VALUES</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '40%', borderBottomWidth: 0, justifyContent: 'center', alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>BEHAVIOR STATEMENTS</Text></View>
-                                <View style={[styles.lpHeaderCell, { width: '34%', padding: 0, borderRightWidth: 0 }]}>
-                                    <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 2, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>TERM</Text></View>
-                                    <View style={{ flexDirection: 'row', flex: 1 }}>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>1</Text></View>
-                                        <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>2</Text></View>
-                                        <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>3</Text></View>
-                                    </View>
-                                </View>
-                            </View>
-                            {CORE_VALUES.map((cv, cvIdx) => {
-                                const grades = observedValues[cv.name] || [];
-                                return (
-                                    <View key={cvIdx} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: borderColor, flex: cv.behaviors.length * 0.5 }}>
-                                        <View style={[styles.ovCell, { width: '26%', borderRightWidth: 1, borderBottomWidth: 0, justifyContent: 'center', textAlign: 'left', paddingLeft: 4, padding: 2 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{cv.name}</Text>
-                                        </View>
-                                        <View style={{ width: '74%', flexDirection: 'column' }}>
-                                            {cv.behaviors.map((behavior, bIdx) => {
-                                                const isLastBehavior = bIdx === cv.behaviors.length - 1;
-                                                return (
-                                                    <View key={bIdx} style={{ flexDirection: 'row', borderBottomWidth: isLastBehavior ? 0 : 1, borderColor: borderColor, flex: 1 }}>
-                                                        <View style={{ width: '54%', padding: 2, fontSize: 9, borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center' }}>
-                                                            <Text style={isValuesOnly ? { color: transparentBorder } : {}}>{behavior}</Text>
-                                                        </View>
-                                                        <View style={{ width: '46%', padding: 0 }}>
-                                                            <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(0) ? (grades[bIdx * 3 + 0] || '') : ''}</Text></View>
-                                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(1) ? (grades[bIdx * 3 + 1] || '') : ''}</Text></View>
-                                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text>{showTermValue(2) ? (grades[bIdx * 3 + 2] || '') : ''}</Text></View>
-                                                            </View>
-                                                        </View>
-                                                    </View>
-                                                );
-                                            })}
-                                        </View>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                        <View style={[styles.legendContainer, { marginTop: -5 }]}>
-                            <Text style={[styles.attendanceTitle, isValuesOnly ? { color: transparentBorder } : {}]}>Non-numerical Rating</Text>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                <View style={{ width: '30%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Marking</Text></View>
-                                <View style={{ width: '70%' }}><Text style={{ fontWeight: 'bold', borderBottomWidth: 1, marginBottom: 2, ...(isValuesOnly ? { color: transparentBorder, borderBottomColor: transparentBorder } : {}) }}>Non-numerical Rating</Text></View>
-                            </View>
-                            {[
-                                { mark: 'AO', rating: 'Always Observed' },
-                                { mark: 'SO', rating: 'Sometimes Observed' },
-                                { mark: 'RO', rating: 'Rarely Observed' },
-                                { mark: 'NO', rating: 'Not Observed' },
-                            ].map((item, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', width: '90%' }}>
-                                    <View style={{ width: '30%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.mark}</Text></View>
-                                    <View style={{ width: '70%' }}><Text style={isValuesOnly ? { color: transparentBorder } : {}}>{item.rating}</Text></View>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </View>
-            </Page>
-        </>
-    );
+        );
 }
 
 function SF9ExactDocument(props: SF9ExactDocumentProps) {
@@ -1201,8 +1814,9 @@ export function SF9BatchDocument({
 
 export function SF9Page() {
 
-    const { students, sections, schoolProfile, activeSchoolYear, gradingSheetRecords, subjects, observedValues, sf2Sheets, updateObservedValue, setCurrentView, teachers } = useAppStore();
+    const { students, sections, schoolProfile, activeSchoolYear, gradingSheetRecords, subjects, observedValues, sf2Sheets: storeSf2Sheets, setSF2Sheets, updateObservedValue, setCurrentView, teachers } = useAppStore();
     const { user } = useAuthStore();
+    const [hydratedSf2Sheets, setHydratedSf2Sheets] = useState<SF2Sheet[]>([]);
 
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -1228,33 +1842,153 @@ export function SF9Page() {
     // Optimized PDF Generation Hook
     const [batchInstance, updateBatchInstance] = usePDF({ document: undefined });
 
+    useEffect(() => {
+        let isMounted = true;
+
+        const hydrateSf2Sheets = async () => {
+            try {
+                const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+                if (isMounted) {
+                    setHydratedSf2Sheets(allSf2Sheets);
+                }
+            } catch (error) {
+                console.error('Failed to hydrate SF2 sheets for SF9:', error);
+            }
+        };
+
+        hydrateSf2Sheets();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [activeSchoolYear]);
+
+    const sf2Sheets = useMemo(() => {
+        const byId = new Map<string, SF2Sheet>();
+        hydratedSf2Sheets.forEach((sheet) => byId.set(sheet.id, sheet));
+        storeSf2Sheets.forEach((sheet) => byId.set(sheet.id, sheet));
+        return Array.from(byId.values());
+    }, [hydratedSf2Sheets, storeSf2Sheets]);
+
+    const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
+    const isAdvisorySection = useCallback((section: Section) => {
+        const legacy = 'is_advisory_class' in section ? (section as Section & { is_advisory_class?: boolean }).is_advisory_class : false;
+        return !!section.is_advisory || !!legacy;
+    }, []);
+
+    useEffect(() => {
+        if (!selectedSectionObj) return;
+        if (!isAdvisorySection(selectedSectionObj)) return;
+
+        const sectionTokens = new Set<string>([
+            normalizeSectionToken(selectedSectionObj.id),
+            normalizeSectionToken(selectedSectionObj.section_name)
+        ].filter(Boolean));
+
+        const sectionSheets = sf2Sheets.filter((sheet) => {
+            const sheetTokens = [normalizeSectionToken(sheet.section_id)];
+            const idParts = (sheet.id || '').split('_').filter(Boolean);
+            if (idParts.length >= 3) {
+                sheetTokens.push(normalizeSectionToken(idParts.slice(0, idParts.length - 2).join('_')));
+            }
+
+            const sectionMatch = sheetTokens.some((token) => {
+                for (const target of sectionTokens) {
+                    if (!target) continue;
+                    if (token === target || token.includes(target) || target.includes(token)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+            if (!sectionMatch) return false;
+
+            const sheetYear = (sheet.school_year || '').trim();
+            return sheetYear === activeSchoolYear;
+        });
+
+        const existingMonths = new Set<string>();
+        sectionSheets.forEach((sheet) => {
+            const month = normalizeMonthToken(sheet.month) || extractMonthFromSf2Id(sheet.id);
+            if (month) existingMonths.add(month);
+        });
+
+        const missingMonths = SF2_MONTHS.filter((month) => !existingMonths.has(month));
+        if (missingMonths.length === 0) return;
+
+        let isMounted = true;
+
+        const createMissingSf2Sheets = async () => {
+            const sectionKey = selectedSectionObj.section_name || selectedSectionObj.id;
+            const now = new Date().toISOString();
+
+            const generatedSheets: SF2Sheet[] = missingMonths.map((month) => ({
+                id: `${sectionKey}_${activeSchoolYear}_${month}`,
+                section_id: sectionKey,
+                school_year: activeSchoolYear,
+                month,
+                date_labels: buildDefaultSf2DateLabels(month, activeSchoolYear),
+                attendance: {},
+                updated_at: now
+            }));
+
+            try {
+                await Promise.all(generatedSheets.map((sheet) => db.putRecord('sf2Sheets', sheet)));
+                if (!isMounted) return;
+
+                setHydratedSf2Sheets((prev) => {
+                    const merged = new Map<string, SF2Sheet>();
+                    prev.forEach((sheet) => merged.set(sheet.id, sheet));
+                    generatedSheets.forEach((sheet) => merged.set(sheet.id, sheet));
+                    return Array.from(merged.values());
+                });
+
+                const mergedStoreMap = new Map<string, SF2Sheet>();
+                storeSf2Sheets.forEach((sheet) => mergedStoreMap.set(sheet.id, sheet));
+                generatedSheets.forEach((sheet) => mergedStoreMap.set(sheet.id, sheet));
+                setSF2Sheets(Array.from(mergedStoreMap.values()));
+            } catch (error) {
+                console.error('Failed to create missing SF2 month sheets from SF9:', error);
+            }
+        };
+
+        createMissingSf2Sheets();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedSectionObj, activeSchoolYear, sf2Sheets, storeSf2Sheets, setSF2Sheets, isAdvisorySection]);
+
     const filteredSections = useMemo(() => {
-        return [...filterSF9Sections(user, sections)].sort((a, b) => {
+        return [...filterSF9Sections(user, sections)]
+            .filter(isAdvisorySection)
+            .sort((a, b) => {
             const getGN = (g: string) => parseInt(g.match(/\d+/)?.[0] || '999');
             const gA = getGN(a.section_grade_level);
             const gB = getGN(b.section_grade_level);
             return gA !== gB ? gA - gB : a.section_name.localeCompare(b.section_name);
         });
-    }, [sections, user]);
+    }, [sections, user, isAdvisorySection]);
 
-    // Auto-select advisory section first, then fallback to first available
+    // Auto-select advisory section only
     useEffect(() => {
         if (!selectedSection && filteredSections.length > 0) {
-            const advisory = filteredSections.find(s => {
-                const legacy = 'is_advisory_class' in s ? (s as { is_advisory_class?: boolean }).is_advisory_class : false;
-                return s.is_advisory || !!legacy;
-            });
             // Defer update to avoid direct setState-in-effect lint violation.
-            setTimeout(() => setSelectedSection(advisory ? advisory.id : filteredSections[0].id), 0);
+            setTimeout(() => setSelectedSection(filteredSections[0].id), 0);
         }
     }, [filteredSections, selectedSection]);
-
-    const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
     const isShsSf9Section = useMemo(() => {
-        const grade = (selectedSectionObj?.section_grade_level || '').toString();
-        const num = parseInt(grade.replace(/\D/g, '')) || 0;
-        return num === 11 || num === 12;
-    }, [selectedSectionObj?.section_grade_level]);
+        return false;
+    }, []);
+
+
+
+    const isGrade1to10 = useMemo(() => {
+        if (!selectedStudent) return false;
+        const gradeNum = parseInt(selectedStudent.grade_level?.replace(/\D/g, '') || '0');
+        return gradeNum >= 1 && gradeNum <= 12;
+    }, [selectedStudent]);
 
     useEffect(() => {
         if (isShsSf9Section) {
@@ -1564,7 +2298,7 @@ export function SF9Page() {
             if (subj.isReserved) return;
             
             const gradeRow = studentGrades.grades[subj.name] || [0, 0, 0];
-            const finalGrade = calculateFinalGrade(gradeRow);
+            const finalGrade = calculateFinalGrade(gradeRow, undefined, subj.name);
             
             // Custom Pronunciation for Subjects
             let displayName = subj.name;
@@ -1589,7 +2323,7 @@ export function SF9Page() {
         // 4. General Average + Remarks
         const genAvg = calculateGeneralAverage(studentGrades.grades);
         if (genAvg > 0) {
-            const remarksLines = getGeneralAverageRemarks(genAvg);
+            const remarksLines = getGeneralAverageRemarks(genAvg, studentGrades.grades, studentGrades.subjects, selectedStudent.lrn, activeSchoolYear);
             const remarksText = remarksLines.filter(l => l).join(', ');
             textToSpeak += `General Average: ${genAvg}. ${remarksText}.`;
         }
@@ -1714,7 +2448,7 @@ export function SF9Page() {
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         {/* Divider between Center and Right */}
                         <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
-                        {selectedStudent && !isBatchReady && !isShsSf9Section && (
+                        {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1to10 && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
                                 className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
@@ -2323,3 +3057,4 @@ function SF9LayoutModal({ onClose, currentSelections, subjects, onSave }: Layout
         </div>
     );
 }
+
