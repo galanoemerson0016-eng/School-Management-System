@@ -4,9 +4,8 @@ import { Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 // Register hyphenation if needed
 Font.registerHyphenationCallback(word => [word]);
 
-const fontOrigin = window.location.origin;
 const base = import.meta.env.BASE_URL || '/';
-const fontPath = `${fontOrigin}${base.endsWith('/') ? base : base + '/'}fonts`;
+const fontPath = `${base.endsWith('/') ? base : base + '/'}fonts`;
 
 try {
     Font.register({

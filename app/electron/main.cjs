@@ -51,7 +51,7 @@ if (!gotTheLock) {
       mainWindow.loadFile(indexPath);
     }
 
-    // Prevent opening DevTools via keyboard shortcuts
+    // Prevent opening DevTools or reloading via keyboard shortcuts
     mainWindow.webContents.on('before-input-event', (event, input) => {
       const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
       const key = input.key.toLowerCase();
@@ -59,7 +59,9 @@ if (!gotTheLock) {
       if ((isControlOrMeta && input.shift && key === 'i') || 
           input.key === 'F12' ||
           (isControlOrMeta && input.shift && key === 'j') ||
-          (isControlOrMeta && key === 'u')) {
+          (isControlOrMeta && key === 'u') ||
+          (isControlOrMeta && key === 'r') ||
+          (isControlOrMeta && input.shift && key === 'r')) {
         event.preventDefault();
       }
     });
