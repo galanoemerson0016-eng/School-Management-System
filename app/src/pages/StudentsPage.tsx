@@ -12,7 +12,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, X, RotateCcw, FileSpreadsheet, BookOpen, GraduationCap, School, Sparkles } from 'lucide-react';
+import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
@@ -463,11 +463,11 @@ export function StudentsPage() {
         return students.filter(s => officialSections.some(sec => sec.section_name === s.student_section));
     }, [students, officialSections]);
 
-    const totalStudents = validStudents.length;
-    const totalMale = validStudents.filter(s => s.gender === 'Male').length;
-    const totalFemale = validStudents.filter(s => s.gender === 'Female').length;
+    const _totalStudents = validStudents.length;
+    const _totalMale = validStudents.filter(s => s.gender === 'Male').length;
+    const _totalFemale = validStudents.filter(s => s.gender === 'Female').length;
 
-    const statsSectionsCount = officialSections.length;
+    const _statsSectionsCount = officialSections.length;
 
     const groupedSectionsByCategory = useMemo(() => {
         const groups: Record<string, typeof sections> = {
@@ -582,7 +582,7 @@ export function StudentsPage() {
                                     }
                                     setIsModalOpen(true);
                                 }}
-                                className="h-9 px-4 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-755 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
+                                className="h-9 px-4 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
                             >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 Add Learner
@@ -625,7 +625,7 @@ export function StudentsPage() {
                                     All Levels
                                 </button>
 
-                                {Object.entries(groupedSectionsByCategory).map(([group, groupSections]) => {
+                                {Object.entries(groupedSectionsByCategory).map(([group, _groupSections]) => {
                                     const isActive = activeCategory === group;
                                     const label = group === 'ELEMENTARY' ? 'Elementary' :
                                                   group === 'JUNIOR HIGH SCHOOL' ? 'Junior High' : 'Senior High';

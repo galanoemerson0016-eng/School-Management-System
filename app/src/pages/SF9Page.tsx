@@ -1322,8 +1322,7 @@ function SF9Pages({
         return hasAnyData ? sum : '';
     };
 
-
-
+    const generalAverage = calculateGeneralAverage(grades, currentSubjects);
 
         const cleanDivision = (division || '')
             .replace(/schools division office of/i, '')
@@ -1532,11 +1531,11 @@ function SF9Pages({
                                         <View style={[styles.singleLpCell, { width: '66%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
                                         <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                {showFinalAndRemarks ? (formatGradeForDisplay(calculateGeneralAverage(grades, currentSubjects), student.grade_level) || '') : ''}
+                                                {showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
                                             </Text>
                                         </View>
                                         <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                            {showFinalAndRemarks ? getGeneralAverageRemarks(calculateGeneralAverage(grades, currentSubjects), grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                            {showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
                                                 <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
                                             )) : <Text></Text>}
                                         </View>
