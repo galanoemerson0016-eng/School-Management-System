@@ -4,6 +4,7 @@ import { useAppStore } from '../stores';
 import type { Student } from '../types';
 
 import { formatLearnerName } from '../utils/student-name';
+import { getBMICategoryForAge, getHeightForAge as getHFAStatus, getRemarks as getHFARemarks } from '../utils/sf8ReferenceData';
 
 function formatMonthYear(schoolYear: string) {
     return schoolYear || '2026-2027';
@@ -54,29 +55,20 @@ function parseHealthValue(value: string) {
     return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function getBmiCategory(bmi: number) {
-    if (bmi < 14) return 'Severely Wasted';
-    if (bmi < 16) return 'Wasted';
-    if (bmi < 24) return 'Normal';
-    if (bmi < 27) return 'Overweight';
-    return 'Obese';
+function getBmiCategory(bmi: number, age: number, gender: string) {
+    return getBMICategoryForAge(bmi, age, gender as 'Male' | 'Female');
 }
 
 function getHeightForAge(student: HealthStudent, heightMeters: number) {
     const age = typeof student.age === 'number' && Number.isFinite(student.age) && student.age > 0 ? student.age : getAge(student.birthday);
     const ageValue = typeof age === 'number' ? age : 0;
-    const expectedCentimeters = (student.gender === 'Male' ? 50.5 : 49.5) + (ageValue * (student.gender === 'Male' ? 6.2 : 6.0));
-    const heightCentimeters = heightMeters * 100;
-
-    if (heightCentimeters <= expectedCentimeters - 10) return 'Severely Stunted';
-    if (heightCentimeters <= expectedCentimeters - 5) return 'Stunted';
-    if (heightCentimeters <= expectedCentimeters + 5) return 'Normal';
-    return 'Tall';
+    const heightCm = heightMeters * 100;
+    return getHFAStatus(heightCm, ageValue, student.gender as 'Male' | 'Female');
 }
 
 function getRemarks(bmiCategory: string, hfa: string) {
     if (bmiCategory === 'Severely Wasted' || hfa === 'Severely Stunted') return 'For Immediate Intervention';
-    if (bmiCategory === 'Wasted' || hfa === 'Stunted') return 'For Monitoring';
+    if (bmiCategory === 'Wasted' || hfa === 'Moderately Stunted' || hfa === 'Stunted') return 'For Monitoring';
     if (bmiCategory === 'Overweight' || bmiCategory === 'Obese') return 'Monitor Nutrition';
     return 'Normal';
 }
@@ -99,7 +91,8 @@ function calculateHealthFields(student?: HealthStudent) {
 
     const heightSquared = Math.round((height * height) * 100) / 100;
     const bmi = Math.round((weight / heightSquared) * 10) / 10;
-    const bmiCategory = getBmiCategory(bmi);
+    const age = typeof student.age === 'number' ? student.age : getAge(student.birthday);
+    const bmiCategory = getBmiCategory(bmi, age || 0, student.gender);
     const hfa = getHeightForAge(student, height);
 
     return {

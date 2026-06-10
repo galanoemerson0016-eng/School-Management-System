@@ -1,85 +1,133 @@
-// SF8 Reference Data - Age-based Height and Weight Standards
-// Based on WHO/DepEd standards for nutritional assessment
+// SF8 Reference Data - Age and Gender-specific BMI and Height Standards
+// Based on DepEd Health and Nutrition Assessment Standards
 
-export interface HeightWeightStandard {
-  ageMonths: number;
-  ageYears?: string;
-  heightMin: number;
-  heightMedian: number;
-  heightMax: number;
-  weightMin: number;
-  weightMedian: number;
-  weightMax: number;
-}
-
-export interface BMIStandard {
-  ageYears: string;
+export interface BMICategory {
+  age: number;
   gender: 'Male' | 'Female';
-  underweight: number; // BMI < this value
-  normal: number; // BMI < this value
-  overweight: number; // BMI < this value
-  obese: number; // BMI >= this value
+  severelyWasted: number; // BMI < this
+  wasted: number; // BMI < this
+  normal: number; // BMI < this
+  overweight: number; // BMI < this
+  obese: number; // BMI >= this
 }
 
-// Male Height and Weight Standards by Age (months)
-export const MALE_STANDARDS: HeightWeightStandard[] = [
-  { ageMonths: 6, ageYears: '0.5', heightMin: 0.62, heightMedian: 0.68, heightMax: 0.74, weightMin: 5.0, weightMedian: 7.3, weightMax: 9.6 },
-  { ageMonths: 12, ageYears: '1', heightMin: 0.70, heightMedian: 0.77, heightMax: 0.84, weightMin: 7.0, weightMedian: 9.6, weightMax: 12.2 },
-  { ageMonths: 24, ageYears: '2', heightMin: 0.80, heightMedian: 0.89, heightMax: 0.98, weightMin: 10.0, weightMedian: 13.5, weightMax: 17.0 },
-  { ageMonths: 36, ageYears: '3', heightMin: 0.88, heightMedian: 0.98, heightMax: 1.08, weightMin: 11.5, weightMedian: 15.8, weightMax: 20.1 },
-  { ageMonths: 48, ageYears: '4', heightMin: 0.96, heightMedian: 1.07, heightMax: 1.18, weightMin: 13.5, weightMedian: 18.4, weightMax: 23.3 },
-  { ageMonths: 60, ageYears: '5', heightMin: 1.04, heightMedian: 1.16, heightMax: 1.28, weightMin: 15.5, weightMedian: 21.3, weightMax: 27.1 },
-  { ageMonths: 72, ageYears: '6', heightMin: 1.12, heightMedian: 1.25, heightMax: 1.38, weightMin: 17.5, weightMedian: 24.5, weightMax: 31.5 },
-  { ageMonths: 84, ageYears: '7', heightMin: 1.19, heightMedian: 1.33, heightMax: 1.47, weightMin: 19.5, weightMedian: 27.8, weightMax: 36.1 },
-  { ageMonths: 96, ageYears: '8', heightMin: 1.26, heightMedian: 1.41, heightMax: 1.56, weightMin: 21.5, weightMedian: 31.3, weightMax: 41.1 },
-  { ageMonths: 108, ageYears: '9', heightMin: 1.33, heightMedian: 1.50, heightMax: 1.67, weightMin: 23.5, weightMedian: 35.3, weightMax: 47.1 },
-  { ageMonths: 120, ageYears: '10', heightMin: 1.40, heightMedian: 1.58, heightMax: 1.76, weightMin: 25.5, weightMedian: 39.5, weightMax: 53.5 },
-  { ageMonths: 132, ageYears: '11', heightMin: 1.47, heightMedian: 1.67, heightMax: 1.87, weightMin: 27.5, weightMedian: 44.1, weightMax: 60.7 },
-  { ageMonths: 144, ageYears: '12', heightMin: 1.54, heightMedian: 1.75, heightMax: 1.96, weightMin: 30.0, weightMedian: 49.3, weightMax: 68.6 },
+export interface HeightStandard {
+  age: number;
+  gender: 'Male' | 'Female';
+  heightMedian: number; // in cm
+}
+
+// Age and Gender-specific BMI Categories (cutoff points)
+// Based on CDC/WHO growth charts adapted for Philippine population
+export const BMI_CATEGORIES: BMICategory[] = [
+  // Age 5
+  { age: 5, gender: 'Male', severelyWasted: 12.0, wasted: 13.7, normal: 16.5, overweight: 18.4, obese: 20.5 },
+  { age: 5, gender: 'Female', severelyWasted: 12.0, wasted: 13.5, normal: 16.8, overweight: 18.9, obese: 20.9 },
+  // Age 6
+  { age: 6, gender: 'Male', severelyWasted: 12.0, wasted: 13.5, normal: 16.9, overweight: 19.3, obese: 21.2 },
+  { age: 6, gender: 'Female', severelyWasted: 12.0, wasted: 13.2, normal: 17.2, overweight: 19.8, obese: 21.6 },
+  // Age 7
+  { age: 7, gender: 'Male', severelyWasted: 12.0, wasted: 13.4, normal: 17.4, overweight: 20.1, obese: 21.8 },
+  { age: 7, gender: 'Female', severelyWasted: 12.0, wasted: 13.0, normal: 17.7, overweight: 20.6, obese: 22.3 },
+  // Age 8
+  { age: 8, gender: 'Male', severelyWasted: 12.0, wasted: 13.4, normal: 17.9, overweight: 21.0, obese: 22.5 },
+  { age: 8, gender: 'Female', severelyWasted: 12.0, wasted: 12.9, normal: 18.3, overweight: 21.5, obese: 23.2 },
+  // Age 9
+  { age: 9, gender: 'Male', severelyWasted: 12.0, wasted: 13.5, normal: 18.5, overweight: 22.0, obese: 23.6 },
+  { age: 9, gender: 'Female', severelyWasted: 12.0, wasted: 13.0, normal: 19.0, overweight: 22.6, obese: 24.3 },
+  // Age 10
+  { age: 10, gender: 'Male', severelyWasted: 12.0, wasted: 13.8, normal: 19.2, overweight: 23.0, obese: 24.6 },
+  { age: 10, gender: 'Female', severelyWasted: 12.0, wasted: 13.2, normal: 19.8, overweight: 23.6, obese: 25.3 },
+  // Age 11
+  { age: 11, gender: 'Male', severelyWasted: 12.0, wasted: 14.2, normal: 20.0, overweight: 24.1, obese: 25.7 },
+  { age: 11, gender: 'Female', severelyWasted: 12.0, wasted: 13.5, normal: 20.7, overweight: 24.8, obese: 26.5 },
+  // Age 12
+  { age: 12, gender: 'Male', severelyWasted: 12.0, wasted: 14.7, normal: 20.9, overweight: 25.2, obese: 26.8 },
+  { age: 12, gender: 'Female', severelyWasted: 12.0, wasted: 14.0, normal: 21.7, overweight: 26.0, obese: 27.8 },
+  // Age 13
+  { age: 13, gender: 'Male', severelyWasted: 12.5, wasted: 15.2, normal: 21.8, overweight: 26.2, obese: 27.9 },
+  { age: 13, gender: 'Female', severelyWasted: 12.5, wasted: 14.5, normal: 22.6, overweight: 27.2, obese: 28.9 },
+  // Age 14
+  { age: 14, gender: 'Male', severelyWasted: 13.0, wasted: 15.7, normal: 22.8, overweight: 27.2, obese: 28.9 },
+  { age: 14, gender: 'Female', severelyWasted: 13.0, wasted: 15.0, normal: 23.5, overweight: 28.2, obese: 30.0 },
+  // Age 15
+  { age: 15, gender: 'Male', severelyWasted: 13.0, wasted: 16.2, normal: 23.8, overweight: 28.2, obese: 29.9 },
+  { age: 15, gender: 'Female', severelyWasted: 13.0, wasted: 15.4, normal: 24.3, overweight: 29.1, obese: 31.0 },
+  // Age 16-18
+  { age: 16, gender: 'Male', severelyWasted: 13.0, wasted: 16.5, normal: 24.7, overweight: 29.2, obese: 31.0 },
+  { age: 16, gender: 'Female', severelyWasted: 13.0, wasted: 15.7, normal: 25.0, overweight: 29.9, obese: 31.9 },
+  { age: 17, gender: 'Male', severelyWasted: 13.0, wasted: 16.8, normal: 25.5, overweight: 30.1, obese: 32.0 },
+  { age: 17, gender: 'Female', severelyWasted: 13.0, wasted: 16.0, normal: 25.7, overweight: 30.6, obese: 32.6 },
+  { age: 18, gender: 'Male', severelyWasted: 13.0, wasted: 17.0, normal: 25.8, overweight: 30.5, obese: 32.5 },
+  { age: 18, gender: 'Female', severelyWasted: 13.0, wasted: 16.2, normal: 26.0, overweight: 31.0, obese: 33.0 },
 ];
 
-// Female Height and Weight Standards by Age (months)
-export const FEMALE_STANDARDS: HeightWeightStandard[] = [
-  { ageMonths: 6, ageYears: '0.5', heightMin: 0.60, heightMedian: 0.66, heightMax: 0.72, weightMin: 4.5, weightMedian: 6.8, weightMax: 8.9 },
-  { ageMonths: 12, ageYears: '1', heightMin: 0.68, heightMedian: 0.75, heightMax: 0.82, weightMin: 6.5, weightMedian: 8.9, weightMax: 11.3 },
-  { ageMonths: 24, ageYears: '2', heightMin: 0.78, heightMedian: 0.87, heightMax: 0.96, weightMin: 9.0, weightMedian: 12.5, weightMax: 16.0 },
-  { ageMonths: 36, ageYears: '3', heightMin: 0.86, heightMedian: 0.96, heightMax: 1.06, weightMin: 10.5, weightMedian: 14.6, weightMax: 18.7 },
-  { ageMonths: 48, ageYears: '4', heightMin: 0.94, heightMedian: 1.05, heightMax: 1.16, weightMin: 12.5, weightMedian: 17.0, weightMax: 21.5 },
-  { ageMonths: 60, ageYears: '5', heightMin: 1.02, heightMedian: 1.14, heightMax: 1.26, weightMin: 14.5, weightMedian: 19.8, weightMax: 25.1 },
-  { ageMonths: 72, ageYears: '6', heightMin: 1.10, heightMedian: 1.23, heightMax: 1.36, weightMin: 16.5, weightMedian: 22.9, weightMax: 29.3 },
-  { ageMonths: 84, ageYears: '7', heightMin: 1.17, heightMedian: 1.31, heightMax: 1.45, weightMin: 18.5, weightMedian: 26.3, weightMax: 34.1 },
-  { ageMonths: 96, ageYears: '8', heightMin: 1.24, heightMedian: 1.39, heightMax: 1.54, weightMin: 20.5, weightMedian: 29.9, weightMax: 39.3 },
-  { ageMonths: 108, ageYears: '9', heightMin: 1.31, heightMedian: 1.48, heightMax: 1.65, weightMin: 22.5, weightMedian: 33.9, weightMax: 45.3 },
-  { ageMonths: 120, ageYears: '10', heightMin: 1.38, heightMedian: 1.57, heightMax: 1.76, weightMin: 24.5, weightMedian: 38.4, weightMax: 52.3 },
-  { ageMonths: 132, ageYears: '11', heightMin: 1.45, heightMedian: 1.65, heightMax: 1.85, weightMin: 26.5, weightMedian: 43.3, weightMax: 60.1 },
-  { ageMonths: 144, ageYears: '12', heightMin: 1.52, heightMedian: 1.73, heightMax: 1.94, weightMin: 29.0, weightMedian: 48.6, weightMax: 68.2 },
+// Height Standards by Age and Gender (median height in cm)
+export const HEIGHT_STANDARDS: HeightStandard[] = [
+  { age: 5, gender: 'Male', heightMedian: 108.8 },
+  { age: 5, gender: 'Female', heightMedian: 107.8 },
+  { age: 6, gender: 'Male', heightMedian: 115.1 },
+  { age: 6, gender: 'Female', heightMedian: 114.2 },
+  { age: 7, gender: 'Male', heightMedian: 121.7 },
+  { age: 7, gender: 'Female', heightMedian: 120.8 },
+  { age: 8, gender: 'Male', heightMedian: 127.9 },
+  { age: 8, gender: 'Female', heightMedian: 127.0 },
+  { age: 9, gender: 'Male', heightMedian: 133.6 },
+  { age: 9, gender: 'Female', heightMedian: 132.8 },
+  { age: 10, gender: 'Male', heightMedian: 139.1 },
+  { age: 10, gender: 'Female', heightMedian: 138.4 },
+  { age: 11, gender: 'Male', heightMedian: 144.4 },
+  { age: 11, gender: 'Female', heightMedian: 144.0 },
+  { age: 12, gender: 'Male', heightMedian: 150.0 },
+  { age: 12, gender: 'Female', heightMedian: 150.5 },
+  { age: 13, gender: 'Male', heightMedian: 155.8 },
+  { age: 13, gender: 'Female', heightMedian: 155.4 },
+  { age: 14, gender: 'Male', heightMedian: 161.4 },
+  { age: 14, gender: 'Female', heightMedian: 157.8 },
+  { age: 15, gender: 'Male', heightMedian: 166.5 },
+  { age: 15, gender: 'Female', heightMedian: 159.2 },
+  { age: 16, gender: 'Male', heightMedian: 170.5 },
+  { age: 16, gender: 'Female', heightMedian: 160.1 },
+  { age: 17, gender: 'Male', heightMedian: 173.0 },
+  { age: 17, gender: 'Female', heightMedian: 160.5 },
+  { age: 18, gender: 'Male', heightMedian: 174.5 },
+  { age: 18, gender: 'Female', heightMedian: 160.8 },
 ];
 
-// BMI Standards by Age and Gender
-export const BMI_STANDARDS: BMIStandard[] = [
-  { ageYears: '5', gender: 'Male', underweight: 13.7, normal: 16.5, overweight: 18.4, obese: 18.4 },
-  { ageYears: '6', gender: 'Male', underweight: 13.5, normal: 16.9, overweight: 19.3, obese: 19.3 },
-  { ageYears: '7', gender: 'Male', underweight: 13.4, normal: 17.4, overweight: 20.1, obese: 20.1 },
-  { ageYears: '8', gender: 'Male', underweight: 13.4, normal: 17.9, overweight: 21.0, obese: 21.0 },
-  { ageYears: '9', gender: 'Male', underweight: 13.5, normal: 18.5, overweight: 22.0, obese: 22.0 },
-  { ageYears: '10', gender: 'Male', underweight: 13.8, normal: 19.2, overweight: 23.0, obese: 23.0 },
-  { ageYears: '11', gender: 'Male', underweight: 14.2, normal: 20.0, overweight: 24.1, obese: 24.1 },
-  { ageYears: '12', gender: 'Male', underweight: 14.7, normal: 20.9, overweight: 25.2, obese: 25.2 },
-  { ageYears: '5', gender: 'Female', underweight: 13.5, normal: 16.8, overweight: 18.9, obese: 18.9 },
-  { ageYears: '6', gender: 'Female', underweight: 13.2, normal: 17.2, overweight: 19.8, obese: 19.8 },
-  { ageYears: '7', gender: 'Female', underweight: 13.0, normal: 17.7, overweight: 20.6, obese: 20.6 },
-  { ageYears: '8', gender: 'Female', underweight: 12.9, normal: 18.3, overweight: 21.5, obese: 21.5 },
-  { ageYears: '9', gender: 'Female', underweight: 13.0, normal: 19.0, overweight: 22.6, obese: 22.6 },
-  { ageYears: '10', gender: 'Female', underweight: 13.2, normal: 19.8, overweight: 23.6, obese: 23.6 },
-  { ageYears: '11', gender: 'Female', underweight: 13.5, normal: 20.7, overweight: 24.8, obese: 24.8 },
-  { ageYears: '12', gender: 'Female', underweight: 14.0, normal: 21.7, overweight: 26.0, obese: 26.0 },
-];
+export const getBMICategoryForAge = (bmi: number, age: number, gender: 'Male' | 'Female'): string => {
+  const standard = BMI_CATEGORIES.find(b => b.age === age && b.gender === gender);
+  if (!standard) {
+    // Fallback for ages not in the table
+    if (bmi < 13) return 'Severely Wasted';
+    if (bmi < 15) return 'Wasted';
+    if (bmi < 20) return 'Normal';
+    if (bmi < 25) return 'Overweight';
+    return 'Obese';
+  }
 
-export const getHeightForAgeStandard = (ageMonths: number, gender: 'Male' | 'Female'): HeightWeightStandard | null => {
-  const standards = gender === 'Male' ? MALE_STANDARDS : FEMALE_STANDARDS;
-  return standards.find(s => s.ageMonths === ageMonths) || null;
+  if (bmi < standard.severelyWasted) return 'Severely Wasted';
+  if (bmi < standard.wasted) return 'Wasted';
+  if (bmi < standard.normal) return 'Normal';
+  if (bmi < standard.overweight) return 'Overweight';
+  return 'Obese';
 };
 
-export const getBMIStandard = (ageYears: string, gender: 'Male' | 'Female'): BMIStandard | null => {
-  return BMI_STANDARDS.find(s => s.ageYears === ageYears && s.gender === gender) || null;
+export const getHeightForAge = (heightCm: number, age: number, gender: 'Male' | 'Female'): string => {
+  const standard = HEIGHT_STANDARDS.find(h => h.age === age && h.gender === gender);
+  if (!standard) return 'Normal';
+
+  const medianHeight = standard.heightMedian;
+  const percentageOfMedian = (heightCm / medianHeight) * 100;
+
+  if (percentageOfMedian >= 95) return 'Normal';
+  if (percentageOfMedian >= 90) return 'Moderately Stunted';
+  if (percentageOfMedian >= 80) return 'Stunted';
+  return 'Severely Stunted';
+};
+
+export const getRemarks = (bmiCategory: string, hfa: string): string => {
+  if (bmiCategory === 'Severely Wasted' || hfa === 'Severely Stunted') return 'For Immediate Intervention';
+  if (bmiCategory === 'Wasted' || hfa === 'Moderately Stunted' || hfa === 'Stunted') return 'For Monitoring';
+  if (bmiCategory === 'Overweight' || bmiCategory === 'Obese') return 'Monitor Nutrition';
+  return 'Normal';
 };
