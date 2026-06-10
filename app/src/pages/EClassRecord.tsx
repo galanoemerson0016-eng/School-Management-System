@@ -1631,7 +1631,7 @@ export function EClassRecord() {
                                         <th className="border border-black w-12 bg-gray-200">WS</th>
                                     </tr>
                                     <tr className="font-bold h-9">
-                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[9px] bg-blue-50" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-blue-50" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                         {hps.ww.map((val, i) => (
                                             <td key={`hps-ww-${i}`} className="border border-black p-0 bg-blue-50">
                                                 <input
@@ -1645,9 +1645,9 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-gray-100">100.00</td>
-                                        <td className="border border-black bg-gray-100">{currentWeights.written_works * 100}%</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.written_works * 100}%</td>
                                         {hps.pt.map((val, i) => (
                                             <td key={`hps-pt-${i}`} className="border border-black p-0 bg-blue-50">
                                                 <input
@@ -1661,9 +1661,9 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-gray-100">100.00</td>
-                                        <td className="border border-black bg-gray-100">{currentWeights.performance_tasks * 100}%</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.performance_tasks * 100}%</td>
                                         {hps.qa.map((val, i) => (
                                             <td key={`hps-qa-${i}`} className="border border-black p-0 bg-blue-50">
                                                 <input
@@ -1677,9 +1677,9 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-gray-100">100.00</td>
-                                        <td className="border border-black bg-gray-100">{currentWeights.quarterly_exam * 100}%</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.quarterly_exam * 100}%</td>
                                     </tr>
                                 </thead>
                                 <tbody>
