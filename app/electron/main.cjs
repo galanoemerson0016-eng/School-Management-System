@@ -15,7 +15,12 @@ if (!isDev) {
 }
 
 // Single instance lock
-const gotTheLock = app.requestSingleInstanceLock();
+let gotTheLock = true;
+try {
+  gotTheLock = app.requestSingleInstanceLock();
+} catch (e) {
+  console.log('Single instance lock not available:', e.message);
+}
 
 if (!gotTheLock) {
   app.quit();
