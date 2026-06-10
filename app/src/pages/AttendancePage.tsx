@@ -40,8 +40,6 @@ const getDynamicFontSizeClass = (text: string, baseClass: string = "text-[12.5px
 
 export function AttendancePage() {
 
-    const SF2_BASE_WIDTH = 1350;
-
     const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
@@ -145,14 +143,9 @@ export function AttendancePage() {
         };
     }, [selectedSection, saveSF2Sheet, activeSchoolYear]);
 
-    const isAdvisorySection = useCallback((section: Section) => {
-        const legacy = 'is_advisory_class' in section ? (section as Section & { is_advisory_class?: boolean }).is_advisory_class : false;
-        return !!section.is_advisory || !!legacy;
-    }, []);
 
     const sortedSections = useMemo(() => {
         return [...filterAttendanceSections(user, sections)]
-            .filter(isAdvisorySection)
             .sort((a: Section, b: Section) => {
             // Extract numeric grade level (e.g. "Grade 7" -> 7)
             const gradeA = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
@@ -161,7 +154,7 @@ export function AttendancePage() {
             if (gradeA !== gradeB) return gradeA - gradeB;
             return a.section_name.localeCompare(b.section_name);
         });
-    }, [sections, user, isAdvisorySection]);
+    }, [sections, user]);
 
     const groupedSections = useMemo(() => {
         const groups: Record<string, Section[]> = {
@@ -484,22 +477,110 @@ export function AttendancePage() {
         return () => window.removeEventListener('resize', updatePreviewWidth);
     }, []);
 
+    const paperDimensions = useMemo(() => ({
+        a4: { width: '297mm', height: '210mm', pixelWidth: 1122.5 },
+        letter: { width: '279.4mm', height: '215.9mm', pixelWidth: 1056 },
+        folio: { width: '330.2mm', height: '215.9mm', pixelWidth: 1248 }
+    }), []);
+
+    const layoutConfig = useMemo(() => {
+        const configs = {
+            letter: {
+                padding: 'p-3 print:p-1.5',
+                headerText: 'text-[18px]',
+                subHeaderText: 'text-[10px]',
+                labelSize: 'text-[11px]',
+                inputValSize: 'text-[13px]',
+                schoolIdWidth: 'w-28',
+                schoolYearWidth: 'w-28',
+                monthWidth: 'w-44',
+                schoolNameWidth: 'w-96 lg:w-[450px]',
+                gradeWidth: 'w-12',
+                sectionWidth: 'w-44',
+                headerMarginRight: 'mr-2',
+                colNameWidth: '190px',
+                colDayWidth: '18px',
+                colAbsentWidth: '38px',
+                colPresentWidth: '38px',
+                colRemarksWidth: '100px',
+                tableTextSize: 'text-[10px]',
+                studentNameSize: 'text-[10.5px]',
+                absentPresentHeaderSize: 'text-[7px] tracking-tighter',
+                guidelinesTextSize: 'text-[8.5px]',
+                summaryTableWidths: { col1: '40%', col2: '28%', col3: '10%', col4: '10%', col5: '12%' },
+                summaryTextSize: 'text-[9.5px]',
+                certTextSize: 'text-[9.5px]',
+                adviserWidth: 'w-56',
+                bottomMargin: 'mb-12'
+            },
+            a4: {
+                padding: 'p-4 print:p-2',
+                headerText: 'text-[20px]',
+                subHeaderText: 'text-[11px]',
+                labelSize: 'text-[11.5px]',
+                inputValSize: 'text-[14px]',
+                schoolIdWidth: 'w-32',
+                schoolYearWidth: 'w-32',
+                monthWidth: 'w-48',
+                schoolNameWidth: 'w-[480px]',
+                gradeWidth: 'w-14',
+                sectionWidth: 'w-48',
+                headerMarginRight: 'mr-6',
+                colNameWidth: '220px',
+                colDayWidth: '19px',
+                colAbsentWidth: '40px',
+                colPresentWidth: '40px',
+                colRemarksWidth: '110px',
+                tableTextSize: 'text-[10.5px]',
+                studentNameSize: 'text-[11.5px]',
+                absentPresentHeaderSize: 'text-[7.5px] tracking-tighter',
+                guidelinesTextSize: 'text-[9px]',
+                summaryTableWidths: { col1: '41%', col2: '28%', col3: '9%', col4: '9%', col5: '13%' },
+                summaryTextSize: 'text-[10px]',
+                certTextSize: 'text-[10px]',
+                adviserWidth: 'w-64',
+                bottomMargin: 'mb-16'
+            },
+            folio: {
+                padding: 'p-4 md:p-5 print:p-2',
+                headerText: 'text-[22px]',
+                subHeaderText: 'text-[12px]',
+                labelSize: 'text-[12px]',
+                inputValSize: 'text-[15px]',
+                schoolIdWidth: 'w-37.5',
+                schoolYearWidth: 'w-37.5',
+                monthWidth: 'w-55',
+                schoolNameWidth: 'w-150',
+                gradeWidth: 'w-16',
+                sectionWidth: 'w-55',
+                headerMarginRight: 'mr-15',
+                colNameWidth: '260px',
+                colDayWidth: '23px',
+                colAbsentWidth: '42px',
+                colPresentWidth: '42px',
+                colRemarksWidth: '120px',
+                tableTextSize: 'text-[11px]',
+                studentNameSize: 'text-[12px]',
+                absentPresentHeaderSize: 'text-[8.5px] tracking-tighter',
+                guidelinesTextSize: 'text-[10px]',
+                summaryTableWidths: { col1: '42%', col2: '28%', col3: '8%', col4: '8%', col5: '14%' },
+                summaryTextSize: 'text-[11px]',
+                certTextSize: 'text-[10.5px]',
+                adviserWidth: 'w-70',
+                bottomMargin: 'mb-20'
+            }
+        };
+        return configs[paperSize] || configs.folio;
+    }, [paperSize]);
+
     const fitZoom = useMemo(() => {
         if (!previewViewportWidth) return 1;
         const availableWidth = Math.max(previewViewportWidth - 24, 320);
-        return Math.min(1, availableWidth / SF2_BASE_WIDTH);
-    }, [previewViewportWidth, SF2_BASE_WIDTH]);
+        const currentPaperWidth = paperDimensions[paperSize]?.pixelWidth || 1248;
+        return Math.min(1, availableWidth / currentPaperWidth);
+    }, [previewViewportWidth, paperSize, paperDimensions]);
 
-    const paperSizeZoom = useMemo(() => {
-        switch (paperSize) {
-            case 'a4': return 0.80;
-            case 'letter': return 0.74;
-            case 'folio': return 0.88;
-            default: return 1;
-        }
-    }, [paperSize]);
-
-    const effectiveZoom = zoom * fitZoom * paperSizeZoom;
+    const effectiveZoom = zoom * fitZoom;
 
     const adviserName = useMemo(() => {
         const sec = sections.find(s => s.section_name === selectedSection);
@@ -675,7 +756,13 @@ export function AttendancePage() {
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{ transform: `scale(${effectiveZoom})` }}
                         >
-                            <div className="sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 p-4 md:p-5 print:p-2 print:m-0 rounded-sm" style={{ width: `${SF2_BASE_WIDTH}px` }}>
+                            <div 
+                                className={`sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 print:p-2 print:m-0 rounded-sm ${layoutConfig.padding}`} 
+                                style={{ 
+                                    width: paperDimensions[paperSize]?.width || '330.2mm',
+                                    minHeight: paperDimensions[paperSize]?.height || '215.9mm',
+                                }}
+                            >
 
                 {/* === HEADER === */}
                 <div className="flex items-center mb-2">
@@ -683,8 +770,8 @@ export function AttendancePage() {
                         <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
                     </div>
                     <div className="flex-1 text-center">
-                        <p className="text-[22px] font-black leading-tight text-black" style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
-                        <p className="italic text-[12px] text-gray-800 font-semibold">(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
+                        <p className={`font-black leading-tight text-black uppercase ${layoutConfig.headerText}`} style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
+                        <p className={`italic text-gray-800 font-semibold ${layoutConfig.subHeaderText}`}>(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
                     </div>
                     <div className="w-25 shrink-0 flex justify-end">
                         <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -692,67 +779,68 @@ export function AttendancePage() {
                 </div>
 
                 {/* Row 1: School ID | School Year | Report for the Month of */}
-                <div className="flex items-center mb-2.5 text-[12px] font-black text-black">
+                <div className={`flex items-center mb-2.5 font-black text-black ${layoutConfig.labelSize}`}>
                     <div className="flex items-center gap-2">
                         <span className="mr-1 whitespace-nowrap">School ID</span>
-                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-37.5 text-center font-black text-[15px] text-black">{schoolProfile?.school_id}</div>
+                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolIdWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.school_id}</div>
                         <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
-                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-37.5 text-center font-black text-[15px] text-black">{activeSchoolYear}</div>
+                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolYearWidth} ${layoutConfig.inputValSize}`}>{activeSchoolYear}</div>
                     </div>
-                    <div className="flex items-center gap-2 ml-auto mr-15">
+                    <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
                         <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
-                        <div className="border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center w-55 text-center font-black text-[15px] text-black uppercase">{selectedMonth}</div>
+                        <div className={`border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.monthWidth} ${layoutConfig.inputValSize}`}>{selectedMonth}</div>
                     </div>
                 </div>
 
                 {/* Row 2: Name of School | Grade Level | Section */}
-                <div className="flex items-center mb-3 text-[12px] font-black text-black">
+                <div className={`flex items-center mb-3 font-black text-black ${layoutConfig.labelSize}`}>
                     <div className="flex-1 flex items-center gap-2">
                         <span className="mr-1 whitespace-nowrap">Name of School</span>
-                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-150 text-center font-black text-[15px] text-black uppercase">{schoolProfile?.name}</div>
+                        <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.schoolNameWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.name}</div>
                     </div>
-                    <div className="flex items-center gap-2 ml-auto mr-15">
+                    <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
                         <span className="mr-1 whitespace-nowrap">Grade Level</span>
-                        <div className="border-2 border-black px-2 h-9 flex items-center justify-center w-16 text-center font-black text-[15px] text-black whitespace-nowrap">
+                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black whitespace-nowrap ${layoutConfig.gradeWidth} ${layoutConfig.inputValSize}`}>
                             {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
                         </div>
                         <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
-                        <div className="border-2 border-black px-3 h-9 flex items-center justify-center w-55 text-center font-black text-[15px] text-black uppercase">{selectedSection}</div>
+                        <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${layoutConfig.inputValSize}`}>{selectedSection}</div>
                     </div>
                 </div>
 
                 {/* === MAIN TABLE === */}
-                <table className="w-full border-collapse border-[2.5px] border-black text-[11px] mb-0" style={{ tableLayout: 'fixed' }}>
+                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
                     <colgroup>
                         <col style={{ width: '22px' }} />
-                        <col style={{ width: '260px' }} />
-                        {days.map(d => <col key={d} style={{ width: '23px' }} />)}
-                        <col style={{ width: '42px' }} />
-                        <col style={{ width: '42px' }} />
-                        <col style={{ width: '120px' }} />
+                        <col style={{ width: layoutConfig.colNameWidth }} />
+                        {days.map(d => <col key={d} style={{ width: layoutConfig.colDayWidth }} />)}
+                        <col style={{ width: layoutConfig.colAbsentWidth }} />
+                        <col style={{ width: layoutConfig.colPresentWidth }} />
+                        <col style={{ width: layoutConfig.colRemarksWidth }} />
                     </colgroup>
                     <thead>
                         {/* Row 1: Labels */}
                         <tr>
                             <th rowSpan={4} className="border-2 border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
                             <th rowSpan={4} className="border-2 border-black bg-white p-1 text-center align-middle leading-tight">
-                                <div className="font-black text-[13px] text-black uppercase tracking-tight">Learner's Name</div>
-                                <div className="font-extrabold text-[10px] text-black">(Last Name, First Name, Middle Name)</div>
+                                <div className={`font-black text-black uppercase tracking-tight ${layoutConfig.studentNameSize}`}>Learner's Name</div>
+                                <div className={`font-extrabold text-black ${layoutConfig.guidelinesTextSize}`}>(Last Name, First Name, Middle Name)</div>
                             </th>
-                            <th colSpan={totalColumns} className="border-2 border-black bg-white text-center text-[11px] font-black text-black py-1">
+                            <th colSpan={totalColumns} className={`border-2 border-black bg-white text-center font-black text-black py-1 ${layoutConfig.tableTextSize}`}>
                                 (1st row for date, 2nd row for Day: M,T,W,TH,F)
                             </th>
-                            <th colSpan={2} rowSpan={3} className="border-2 border-black bg-white text-center text-[11.5px] font-black text-black p-1 leading-tight align-middle">
+                            <th colSpan={2} rowSpan={3} className={`border-2 border-black bg-white text-center font-black text-black p-1 leading-tight align-middle ${layoutConfig.tableTextSize}`}>
                                 Total for the<br />Month
                             </th>
-                            <th rowSpan={4} className="border-2 border-black bg-white p-1.5 text-[10.5px] leading-tight text-left align-top font-bold text-black">
-                                <span className="font-black text-black">REMARK/S</span> (If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)
+                            <th rowSpan={4} className={`border-2 border-black bg-white p-1.5 leading-tight text-center align-middle font-bold text-black ${layoutConfig.guidelinesTextSize}`}>
+                                <span className="font-black text-black block mb-1">REMARK/S</span>
+                                <span>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</span>
                             </th>
                         </tr>
                         {/* Row 2: Date numbers (blue background, editable) */}
                         <tr className="bg-[#BDD7EE]">
                             {days.map((d, i) => (
-                                <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center text-[11.5px] font-black h-6${getBorderClass(i)}`}>
+                                <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
                                     <input
                                         type="text"
                                         maxLength={2}
@@ -770,7 +858,7 @@ export function AttendancePage() {
                                                 return newLabels;
                                             });
                                         }}
-                                        className="w-full h-full text-center text-[11.5px] font-black text-black bg-transparent border-none outline-none p-0"
+                                        className={`w-full h-full text-center font-black text-black bg-transparent border-none outline-none p-0 ${layoutConfig.tableTextSize}`}
                                     />
                                 </th>
                             ))}
@@ -778,7 +866,7 @@ export function AttendancePage() {
                         {/* Row 3: Day letters M T W TH F (white background) */}
                         <tr>
                             {days.map((d, i) => (
-                                <th key={d} className={`border-2 border-black bg-white p-0 text-center text-[11.5px] font-black h-5${getBorderClass(i)}`}>
+                                <th key={d} className={`border-2 border-black bg-white p-0 text-center font-black h-5${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
                                     {dayLetters[i % 5]}
                                 </th>
                             ))}
@@ -788,26 +876,26 @@ export function AttendancePage() {
                             {days.map((d, i) => (
                                 <th key={d} className={`border-2 border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
                             ))}
-                            <th className="border-2 border-black bg-white text-[10px] font-black text-black p-0.5">ABSENT</th>
-                            <th className="border-2 border-black bg-white text-[10px] font-black text-black p-0.5">PRESENT</th>
+                            <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
+                            <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
                         </tr>
                     </thead>
                     <tbody>
                         {/* Male students FIRST */}
                         {displayStudents.males.map((student, idx) => (
                             <tr key={student.lrn} className="h-5.5">
-                                <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
-                                <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
+                                <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{idx + 1}</td>
+                                <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
                                     {formatLearnerName(student)}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                    <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
                                         onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
-                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{countStats(student.lrn, 'absent')}</td>
-                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
+                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
                                 <td className="border-2 border-black"></td>
                             </tr>
                         ))}
@@ -817,16 +905,16 @@ export function AttendancePage() {
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
+                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                                 MALE | TOTAL Per Day
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                     {calculateDailyAbsent(d, 'Male') || ''}
                                 </td>
                             ))}
-                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalMaleAbsent}</td>
-                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalMalePresent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMalePresent}</td>
                             <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
@@ -835,18 +923,18 @@ export function AttendancePage() {
                         {/* Female students FIRST */}
                         {displayStudents.females.map((student, idx) => (
                             <tr key={student.lrn} className="h-5.5">
-                                <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
-                                <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
+                                <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{idx + 1}</td>
+                                <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
                                     {formatLearnerName(student)}
                                 </td>
                                 {days.map((d, i) => (
-                                    <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
+                                    <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
                                         onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                                         {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                                     </td>
                                 ))}
-                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{countStats(student.lrn, 'absent')}</td>
-                                <td className="border-2 border-black text-center font-black text-black text-[12px] bg-slate-50">{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
+                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
                                 <td className="border-2 border-black"></td>
                             </tr>
                         ))}
@@ -856,16 +944,16 @@ export function AttendancePage() {
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
+                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                                 FEMALE | TOTAL Per Day
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                     {calculateDailyAbsent(d, 'Female') || ''}
                                 </td>
                             ))}
-                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalFemaleAbsent}</td>
-                            <td className="border-2 border-black text-center font-black text-black text-[12.5px] bg-slate-100">{totalFemalePresent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemalePresent}</td>
                             <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
@@ -876,16 +964,16 @@ export function AttendancePage() {
                             <td className="border-2 border-black text-center p-0">
                                 <ArrowLeft size={10} className="inline text-blue-700" />
                             </td>
-                            <td className="border-2 border-black px-1.5 font-black text-[12.5px] text-black text-right uppercase">
+                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                                 Combined TOTAL PER DAY
                             </td>
                             {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 text-[11.5px] font-black text-black${getBorderClass(i)} bg-slate-50`}>
+                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                     {calculateDailyAbsent(d, 'Total') || ''}
                                 </td>
                             ))}
-                            <td className="border-2 border-black text-center font-black text-black text-[13px] bg-slate-200">{totalMaleAbsent + totalFemaleAbsent}</td>
-                            <td className="border-2 border-black text-center font-black text-black text-[13px] bg-slate-200">{totalMalePresent + totalFemalePresent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
+                            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMalePresent + totalFemalePresent}</td>
                             <td className="border-2 border-black">
                                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
                             </td>
@@ -894,61 +982,61 @@ export function AttendancePage() {
                 </table>
 
                 {/* === FOOTER === */}
-                <div className="flex border-l-[2.5px] border-r-[2.5px] border-b-[2.5px] border-black" style={{ fontSize: '11px' }}>
+                <div className="flex border-l-[2.5px] border-r-[2.5px] border-b-[2.5px] border-black" style={{ fontSize: layoutConfig.guidelinesTextSize }}>
 
                     {/* Col 1: GUIDELINES */}
                     <div className="w-[38%] p-2.5 border-r-2 border-black leading-tight text-black">
-                        <p className="font-black text-black text-[12px] mb-1.5">GUIDELINES:</p>
-                        <p className="mb-1 font-bold text-black text-[10px]">1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
-                        <p className="mb-1 font-bold text-black text-[10px]">2 Dates shall be written in the preceding columns beside Learner's Name.</p>
-                        <p className="mb-1 font-bold text-black text-[10px]">3 To compute the following:</p>
+                        <p className={`font-black text-black mb-1.5 ${layoutConfig.studentNameSize}`}>GUIDELINES:</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>2 Dates shall be written in the preceding columns beside Learner's Name.</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>3 To compute the following:</p>
                         <div className="pl-3 mb-1.5">
-                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>a. Percentage of Enrolment =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Registered Learner as of End of the Month</span>
-                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Enrolment as of 1st Friday of the school year</span>
+                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the Month</span>
+                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Enrolment as of 1st Friday of the school year</span>
                                 </span>
                                 <span>&nbsp;x 100</span>
                             </div>
-                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>b. Average Daily Attendance =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Total Daily Attendance</span>
-                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Number of School Days in reporting month</span>
+                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Total Daily Attendance</span>
+                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Number of School Days in reporting month</span>
                                 </span>
                             </div>
-                            <div className="mb-2.5 font-bold text-black text-[10px] flex items-center flex-wrap leading-none">
+                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>c. Percentage of Attendance for the month =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className="border-b-2 border-black px-1 font-black text-[10px] pb-0.5">Average daily attendance</span>
-                                    <span className="text-[9.5px] font-bold text-black pt-0.5">Registered Learner as of End of the month</span>
+                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Average daily attendance</span>
+                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the month</span>
                                 </span>
                                 <span>&nbsp;x 100</span>
                             </div>
                         </div>
-                        <p className="mb-1 font-bold text-black text-[10px]">4. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
-                        <p className="mb-1 font-bold text-black text-[10px]">5. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
-                        <p className="font-bold text-black text-[10px]">6. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>4. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>5. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
+                        <p className={`font-bold text-black ${layoutConfig.guidelinesTextSize}`}>6. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
                     </div>
 
                     {/* Col 2: CODES */}
                     <div className="w-[28%] border-r-2 border-black flex flex-col text-black">
                         <div className="p-2 border-b-2 border-black">
-                            <p className="font-black text-black text-[11px] uppercase tracking-wide">1. CODES FOR CHECKING ATTENDANCE</p>
+                            <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>1. CODES FOR CHECKING ATTENDANCE</p>
                         </div>
-                        <div className="p-2.5 flex-1 flex flex-col leading-normal text-black font-bold text-[10px]">
+                        <div className={`p-2.5 flex-1 flex flex-col leading-normal text-black font-bold ${layoutConfig.guidelinesTextSize}`}>
                             <p className="mb-3 leading-normal">
                                 blank- Present;&nbsp;&nbsp;(x)- Absent;&nbsp;&nbsp;Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)
                             </p>
-                            <p className="font-black text-black text-[11.5px] mb-1.5 uppercase tracking-wide">2. REASONS/CAUSES OF NLS</p>
-                            <div className="text-[10px] leading-[1.3] font-bold text-black space-y-0.5">
-                                <p className="font-black text-[10.5px]">a. Domestic-Related Factors</p>
+                            <p className={`font-black text-black mb-1.5 uppercase tracking-wide ${layoutConfig.tableTextSize}`}>2. REASONS/CAUSES OF NLS</p>
+                            <div className={`leading-[1.3] font-bold text-black space-y-0.5 ${layoutConfig.guidelinesTextSize}`}>
+                                <p className="font-black">a. Domestic-Related Factors</p>
                                 <p className="pl-2">a.1. Had to take care of siblings</p>
                                 <p className="pl-2">a.2. Early marriage/pregnancy</p>
                                 <p className="pl-2">a.3. Parents' attitude toward schooling</p>
                                 <p className="pl-2">a.4. Family problems</p>
-                                <p className="font-black text-[10.5px] mt-1">b. Individual-Related Factors</p>
+                                <p className="font-black mt-1">b. Individual-Related Factors</p>
                                 <p className="pl-2">b.1. Illness</p>
                                 <p className="pl-2">b.2. Overage</p>
                                 <p className="pl-2">b.3. Death</p>
@@ -956,17 +1044,17 @@ export function AttendancePage() {
                                 <p className="pl-2">b.5. Poor academic performance</p>
                                 <p className="pl-2">b.6. Lack of interest/Distractions</p>
                                 <p className="pl-2">b.7. Hunger/Malnutrition</p>
-                                <p className="font-black text-[10.5px] mt-1">c. School-Related Factors</p>
+                                <p className="font-black mt-1">c. School-Related Factors</p>
                                 <p className="pl-2">c.1. Teacher Factor</p>
                                 <p className="pl-2">c.2. Physical condition of classroom</p>
                                 <p className="pl-2">c.3. Peer influence</p>
-                                <p className="font-black text-[10.5px] mt-1">d. Geographic/Environmental</p>
+                                <p className="font-black mt-1">d. Geographic/Environmental</p>
                                 <p className="pl-2">d.1. Distance between home and school</p>
                                 <p className="pl-2">d.2. Armed conflict (incl. Tribal wars &amp; clanfeuds)</p>
                                 <p className="pl-2">d.3. Calamities/Disasters</p>
-                                <p className="font-black text-[10.5px] mt-1">e. Financial-Related</p>
+                                <p className="font-black mt-1">e. Financial-Related</p>
                                 <p className="pl-2">e.1. Child labor, work</p>
-                                <p className="font-black text-[10.5px] mt-1">f. Others</p>
+                                <p className="font-black mt-1">f. Others</p>
                             </div>
                         </div>
                     </div>
@@ -974,42 +1062,42 @@ export function AttendancePage() {
                     {/* Col 3: Summary + Certification */}
                     <div className="w-[34%] flex flex-col text-black">
                         {/* Summary Table */}
-                        <table className="w-full border-collapse border-b-2 border-black text-[11px]" style={{ tableLayout: 'fixed' }}>
+                        <table className={`w-full border-collapse border-b-2 border-black ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
                             <colgroup>
-                                <col style={{ width: '42%' }} />
-                                <col style={{ width: '28%' }} />
-                                <col style={{ width: '8%' }} />
-                                <col style={{ width: '8%' }} />
-                                <col style={{ width: '14%' }} />
+                                <col style={{ width: layoutConfig.summaryTableWidths.col1 }} />
+                                <col style={{ width: layoutConfig.summaryTableWidths.col2 }} />
+                                <col style={{ width: layoutConfig.summaryTableWidths.col3 }} />
+                                <col style={{ width: layoutConfig.summaryTableWidths.col4 }} />
+                                <col style={{ width: layoutConfig.summaryTableWidths.col5 }} />
                             </colgroup>
                             <thead>
                                 {/* Row 1 of Header */}
                                 <tr className="h-5.5 border-b-2 border-black">
-                                    <th className="border-r-2 border-black p-1 text-center font-black text-[11px] text-black">
+                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         Month:
                                     </th>
-                                    <th className="border-r-2 border-black p-1 text-center font-black text-[11px] text-black">
+                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         No. of Days of Classes:
                                     </th>
-                                    <th colSpan={3} className="p-1 text-center font-black text-[11px] text-black bg-slate-50">
+                                    <th colSpan={3} className={`p-1 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                         Summary for the Month
                                     </th>
                                 </tr>
                                 {/* Row 2 of Header */}
                                 <tr className="h-6 border-b-2 border-black">
-                                    <th className="border-r-2 border-black p-1 text-center font-black text-[13px] text-black uppercase">
+                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black uppercase ${layoutConfig.inputValSize}`}>
                                         {selectedMonth}
                                     </th>
-                                    <th className="border-r-2 border-black p-1 text-center font-black text-[13px] text-black">
+                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.inputValSize}`}>
                                         {filledDaysCount}
                                     </th>
-                                    <th className="border-r-2 border-black p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                    <th className={`border-r-2 border-black p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                         M
                                     </th>
-                                    <th className="border-r-2 border-black p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                    <th className={`border-r-2 border-black p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                         F
                                     </th>
-                                    <th className="p-0.5 text-center font-black text-[10.5px] text-black bg-slate-50">
+                                    <th className={`p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                         TOTAL
                                     </th>
                                 </tr>
@@ -1029,16 +1117,16 @@ export function AttendancePage() {
                                     { label: 'Transferred in', m: 0, f: 0, t: 0 }
                                 ].map((row, i) => (
                                     <tr key={i} className="h-5.5 border-b-2 border-black">
-                                        <td colSpan={2} className={`border-r-2 border-black p-1 text-[10px] font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''}`}>
+                                        <td colSpan={2} className={`border-r-2 border-black p-1 font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''} ${layoutConfig.summaryTextSize}`}>
                                             {row.label}
                                         </td>
-                                        <td className="border-r-2 border-black p-1 text-center text-[11px] font-extrabold text-black">
+                                        <td className={`border-r-2 border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
                                             {row.m}
                                         </td>
-                                        <td className="border-r-2 border-black p-1 text-center text-[11px] font-extrabold text-black">
+                                        <td className={`border-r-2 border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
                                             {row.f}
                                         </td>
-                                        <td className="p-1 text-center text-[11.5px] font-black text-black bg-slate-50">
+                                        <td className={`p-1 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
                                             {row.t}
                                         </td>
                                     </tr>
@@ -1048,25 +1136,25 @@ export function AttendancePage() {
 
                         {/* Certification */}
                         <div className="p-2.5 mt-auto bg-slate-50/50">
-                            <p className="font-bold text-black text-[10.5px] mb-3">I certify that this is a true and correct report.</p>
+                            <p className={`font-bold text-black mb-3 ${layoutConfig.certTextSize}`}>I certify that this is a true and correct report.</p>
                             <div className="text-center mb-3">
-                                <div className={`font-black border-b-2 border-black w-70 mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(adviserName, "text-[12.5px]")}`}>
+                                <div className={`font-black border-b-2 border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} ${getDynamicFontSizeClass(adviserName, layoutConfig.inputValSize)}`}>
                                     {adviserName}
                                 </div>
-                                <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of Teacher over Printed Name)</div>
+                                <div className={`font-bold text-slate-800 mt-1 ${layoutConfig.guidelinesTextSize}`}>(Signature of Teacher over Printed Name)</div>
                             </div>
-                            <div className="text-[10.5px] font-bold text-black mb-1">Attested by:</div>
+                            <div className={`font-bold text-black mb-1 ${layoutConfig.certTextSize}`}>Attested by:</div>
                             <div className="text-center">
-                                <div className={`font-black border-b-2 border-black w-70 mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${getDynamicFontSizeClass(schoolProfile?.head_name || '', "text-[12.5px]")}`}>
+                                <div className={`font-black border-b-2 border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} ${getDynamicFontSizeClass(schoolProfile?.head_name || '', layoutConfig.inputValSize)}`}>
                                     {schoolProfile?.head_name}
                                 </div>
-                                <div className="text-[10px] font-bold text-slate-800 mt-1">(Signature of School Head over Printed Name)</div>
+                                <div className={`font-bold text-slate-800 mt-1 ${layoutConfig.guidelinesTextSize}`}>(Signature of School Head over Printed Name)</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="text-center text-[9px] mt-1 text-gray-700 font-extrabold italic mb-20 print:mb-0">Generated thru LIS</div>
+                <div className={`text-center mt-1 text-gray-700 font-extrabold italic print:mb-0 ${layoutConfig.guidelinesTextSize} ${layoutConfig.bottomMargin}`}>Generated thru LIS</div>
             </div>
         </div>
     </div>
@@ -1095,8 +1183,8 @@ export function AttendancePage() {
             overflow: visible !important;
         }
         .sf2-print-container {
-            zoom: ${paperSize === 'a4' ? '0.80' : paperSize === 'letter' ? '0.74' : '0.88'} !important;
-            width: 1350px !important;
+            width: ${paperSize === 'a4' ? '297mm' : paperSize === 'letter' ? '11in' : '13in'} !important;
+            min-height: ${paperSize === 'a4' ? '210mm' : '8.5in'} !important;
             max-width: none !important;
             margin: 0 auto !important;
             border: none !important;

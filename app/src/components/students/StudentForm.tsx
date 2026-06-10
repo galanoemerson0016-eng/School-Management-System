@@ -20,29 +20,76 @@ const GRADE_LEVELS = [
 const TRACKS = ['Academic', 'TVL', 'Sports', 'Arts and Design'];
 
 const STRAND_MAPPING: Record<string, string> = {
-    'STEM': 'Science, Technology, Engineering, and Mathematics',
-    'ABM': 'Accountancy, Business, and Management',
-    'HUMSS': 'Humanities and Social Sciences',
-    'GAS': 'General Academic Strand',
-    'ICT': 'Information and Communications Technology'
+    'Science, Technology, Engineering, and Mathematics': 'STEM',
+    'Accountancy, Business, and Management': 'ABM',
+    'Humanities and Social Sciences': 'HUMSS',
+    'General Academic Strand': 'GAS',
+    'Home Economics': 'Home Economics (HE)',
+    'Information and Communications Technology': 'Information and Communications Technology (ICT)',
+    'Agri-Fishery Arts': 'Agri-Fishery Arts (AFA)',
+    'Industrial Arts': 'Industrial Arts (IA)',
+    'STEM': 'STEM',
+    'ABM': 'ABM',
+    'HUMSS': 'HUMSS',
+    'GAS': 'GAS',
+    'HE': 'Home Economics (HE)',
+    'ICT': 'Information and Communications Technology (ICT)',
+    'IA': 'Industrial Arts (IA)',
+    'AFA': 'Agri-Fishery Arts (AFA)'
 };
 
 const STRANDS: Record<string, string[]> = {
     Academic: [
-        'Science, Technology, Engineering, and Mathematics',
-        'Accountancy, Business, and Management',
-        'Humanities and Social Sciences',
-        'General Academic Strand'
+        'STEM',
+        'ABM',
+        'HUMSS',
+        'GAS'
     ],
     TVL: [
-        'Home Economics',
-        'Agri-Fishery Arts',
-        'Industrial Arts',
-        'Information and Communications Technology'
+        'Home Economics (HE)',
+        'Information and Communications Technology (ICT)',
+        'Industrial Arts (IA)',
+        'Agri-Fishery Arts (AFA)'
+    ],
+    TechPro: [
+        'Home Economics (HE)',
+        'Information and Communications Technology (ICT)',
+        'Industrial Arts (IA)',
+        'Agri-Fishery Arts (AFA)'
     ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],
 };
+
+const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | undefined): string[] => {
+    if (!trackName || !gradeLevel) return [];
+    const normalizedTrack = trackName.trim().toLowerCase();
+    const isG11 = gradeLevel.includes('11');
+
+    if (isG11) {
+        if (normalizedTrack === 'academic') {
+            return ['SSHS'];
+        }
+        if (normalizedTrack === 'techpro' || normalizedTrack === 'tvl') {
+            return STRANDS.TVL;
+        }
+    } else {
+        if (normalizedTrack === 'academic') {
+            return STRANDS.Academic;
+        }
+        if (normalizedTrack === 'tvl' || normalizedTrack === 'techpro') {
+            return STRANDS.TVL;
+        }
+        if (normalizedTrack === 'sports') {
+            return STRANDS.Sports;
+        }
+        if (normalizedTrack === 'arts and design' || normalizedTrack.includes('arts')) {
+            return STRANDS['Arts and Design'];
+        }
+    }
+    return [];
+};
+
 
 export function StudentForm({ student, onClose, initialData, isSimplified = false }: StudentFormProps) {
     const { addStudent, updateStudent, sections } = useAppStore();
@@ -186,6 +233,27 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         }
     }, [formData.student_section, sections, formData.grade_level]);
 
+    // Keep student's track and strand in sync with selected section's track and strand if configured
+    useEffect(() => {
+        if (formData.student_section) {
+            const sectionObj = sections.find(s => s.section_name === formData.student_section || s.id === formData.student_section);
+            if (sectionObj) {
+                setFormData(prev => {
+                    const nextTrack = sectionObj.track || '';
+                    const nextStrand = sectionObj.strand || '';
+                    if (prev.track !== nextTrack || prev.strand !== nextStrand) {
+                        return {
+                            ...prev,
+                            track: nextTrack,
+                            strand: nextStrand
+                        };
+                    }
+                    return prev;
+                });
+            }
+        }
+    }, [formData.student_section, sections]);
+
     useEffect(() => {
         if (saveStatus !== 'saved') return;
 
@@ -215,14 +283,16 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             return;
         }
 
-        // Auto-sync Grade Level when Section changes
+        // Auto-sync Grade Level, Track and Strand when Section changes
         if (name === 'student_section' && value) {
             const sectionObj = sections.find(s => s.section_name === value || s.id === value);
             if (sectionObj) {
                 setFormData(prev => ({ 
                     ...prev, 
                     student_section: value, 
-                    grade_level: sectionObj.section_grade_level 
+                    grade_level: sectionObj.section_grade_level,
+                    track: sectionObj.track || '',
+                    strand: sectionObj.strand || ''
                 }));
                 return;
             }
@@ -284,8 +354,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         setIsLoading(true);
         setSaveStatus('saving');
 
+        let finalLrn = formData.lrn || '';
+        if (isSimplified && !finalLrn) {
+            finalLrn = '99' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        }
+
         // Validate LRN
-        if (!formData.lrn || !/^\d{12}$/.test(formData.lrn)) {
+        if (!finalLrn || !/^\d{12}$/.test(finalLrn)) {
             alert('LRN must be exactly 12 digits');
             setIsLoading(false);
             setSaveStatus('idle');
@@ -293,7 +368,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         }
 
         const studentData: Student = {
-            lrn: formData.lrn!,
+            lrn: finalLrn,
             first_name: formData.first_name!,
             last_name: formData.last_name!,
             middle_name: formData.middle_name || '',
@@ -307,8 +382,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             height: formData.height ?? '',
             grade_level: formData.grade_level!,
             student_section: formData.student_section || '',
-            track: formData.track || '',
-            strand: formData.strand || '',
+            track: (formData.grade_level?.includes('11') || formData.grade_level?.includes('12')) ? formData.track || '' : '',
+            strand: formData.grade_level?.includes('12') ? formData.strand || '' : '',
             enrollment_date: student?.enrollment_date || new Date().toISOString(),
             // SF10 Fields
             elementary_school: formData.elementary_school || '',
@@ -385,6 +460,12 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const isGrade11 = gradeInt === 11;
     const isGrade12 = gradeInt === 12;
 
+    const selectedSectionObj = formData.student_section
+        ? sections.find(s => s.section_name === formData.student_section || s.id === formData.student_section)
+        : null;
+    const isTrackLocked = !!(selectedSectionObj && selectedSectionObj.track);
+    const isStrandLocked = !!(selectedSectionObj && selectedSectionObj.strand);
+
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -398,23 +479,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                     <div>
                         <h4 className="text-lg font-bold text-deped-blue mb-4">Personal Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">LRN (12 digits) *</label>
-                                <input
-                                    type="text"
-                                    name="lrn"
-                                    value={formData.lrn}
-                                    onChange={handleChange}
-                                    onBlur={() => {
-                                        void tryHydrateFromHistory();
-                                    }}
-                                    pattern="[0-9]{12}"
-                                    maxLength={12}
-                                    required
-                                    placeholder="123456789012"
-                                    className="form-input"
-                                />
-                            </div>
+                            {!isSimplified && (
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">LRN (12 digits) *</label>
+                                    <input
+                                        type="text"
+                                        name="lrn"
+                                        value={formData.lrn}
+                                        onChange={handleChange}
+                                        onBlur={() => {
+                                            void tryHydrateFromHistory();
+                                        }}
+                                        pattern="[0-9]{12}"
+                                        maxLength={12}
+                                        required
+                                        placeholder="123456789012"
+                                        className="form-input"
+                                    />
+                                </div>
+                            )}
 
                             {pendingProfile && (
                                 <ConfirmationModal
@@ -460,19 +543,17 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     className="form-input"
                                 />
                             </div>
-                            {!isSimplified && (
-                                <div>
-                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">Name Extension (Jr, I, II)</label>
-                                    <input
-                                        type="text"
-                                        name="name_extension"
-                                        value={formData.name_extension || ''}
-                                        onChange={handleChange}
-                                        placeholder="Jr, I, II"
-                                        className="form-input text-center"
-                                    />
-                                </div>
-                            )}
+                            <div>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Name Extension (Jr, I, II)</label>
+                                <input
+                                    type="text"
+                                    name="name_extension"
+                                    value={formData.name_extension || ''}
+                                    onChange={handleChange}
+                                    placeholder="Jr, I, II"
+                                    className="form-input text-center"
+                                />
+                            </div>
                             <div>
                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Gender *</label>
                                 <select name="gender" value={formData.gender || ''} onChange={handleChange} required className="form-input">
@@ -588,7 +669,14 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         <>
                                             <div className={isGrade11 ? "md:col-span-2" : ""}>
                                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Track *</label>
-                                                <select name="track" value={formData.track || ''} onChange={handleChange} required className="form-input">
+                                                <select 
+                                                    name="track" 
+                                                    value={formData.track || ''} 
+                                                    onChange={handleChange} 
+                                                    required 
+                                                    disabled={isTrackLocked}
+                                                    className={`form-input ${isTrackLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                                >
                                                     <option value="">Select Track</option>
                                                     {(isGrade11 ? ['Academic', 'TechPro'] : TRACKS).map((t) => (
                                                         <option key={t} value={t}>{t}</option>
@@ -598,9 +686,16 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             {isGrade12 && (
                                                 <div>
                                                     <label className="block text-sm font-semibold mb-2 text-deped-blue">Strand *</label>
-                                                    <select name="strand" value={formData.strand || ''} onChange={handleChange} required className="form-input">
+                                                    <select 
+                                                        name="strand" 
+                                                        value={formData.strand || ''} 
+                                                        onChange={handleChange} 
+                                                        required 
+                                                        disabled={isStrandLocked}
+                                                        className={`form-input ${isStrandLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                                    >
                                                         <option value="">Select Strand</option>
-                                                        {formData.track && STRANDS[formData.track]?.map((s) => (
+                                                        {getStrandsForTrack(formData.track, formData.grade_level).map((s) => (
                                                             <option key={s} value={s}>{s}</option>
                                                         ))}
                                                     </select>

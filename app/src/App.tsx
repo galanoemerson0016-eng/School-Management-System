@@ -31,6 +31,7 @@ import {
   LIRPage,
   TemporaryGradeSlipPage,
   AnecdotalRecordPage,
+  GamesAndToolsPage,
 } from './pages';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
@@ -236,6 +237,8 @@ function App() {
         return <TemporaryGradeSlipPage />;
       case 'anecdotal-record':
         return <AnecdotalRecordPage />;
+      case 'games-tools':
+        return <GamesAndToolsPage />;
       default:
         return <Dashboard />;
     }

@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
+import { formatLearnerName } from '../utils/student-name';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
     if (gl.includes('grade')) {
@@ -936,9 +937,15 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
         return normalizeMonthToken(parts[parts.length - 1]);
     };
 
+    const dbSections = useAppStore.getState().sections;
+    const advisorySection = dbSections.find(s => 
+        (s.id === student.student_section || s.section_name === student.student_section) &&
+        (s.is_advisory || !s.is_teaching_load)
+    ) || sectionObj;
+
     const targetSectionTokens = new Set<string>([
-        normalizeSectionToken(sectionObj?.id),
-        normalizeSectionToken(sectionObj?.section_name)
+        normalizeSectionToken(advisorySection?.id),
+        normalizeSectionToken(advisorySection?.section_name)
     ].filter(Boolean));
 
     const targetSchoolYear = normalizeText(schoolYear);
@@ -1362,12 +1369,11 @@ function SF9Pages({
                             </Text>
                             
                             {(() => {
-                                const last = (student.last_name || '').toUpperCase();
-                                const first = (student.first_name || '').toUpperCase();
-                                const middle = student.middle_name ? ' ' + (student.middle_name || '').toUpperCase() : '';
-                                const fullName = `${last}, ${first}${middle}`;
-                                const nameFontSize = fullName.length > 52 ? 5.5 : (fullName.length > 45 ? 6.5 : (fullName.length > 35 ? 7.5 : 8));
-                                return (
+                                  const fullName = formatLearnerName(student).toUpperCase();
+                                  const nameFontSize = fullName.length > 52 ? 5.5 : (fullName.length > 45 ? 6.5 : (fullName.length > 35 ? 7.5 : 8));
+                                  const trackFontSize = trackDisplay.length > 25 ? 6 : (trackDisplay.length > 15 ? 7 : 8);
+                                  const strandFontSize = strandDisplay.length > 45 ? 5.5 : (strandDisplay.length > 35 ? 6.5 : (strandDisplay.length > 25 ? 7.5 : 8));
+                                  return (
                                 <View style={[styles.singleStudentInfoGrid, isValuesOnly ? { opacity: 0 } : {}, { marginTop: -15 }]}>
                                     <View style={styles.singleInfoRow}>
                                         {/* Name Cell — 65%, dynamic font */}
@@ -1416,11 +1422,32 @@ function SF9Pages({
                                         </View>
                                     </View>
                                     <View style={styles.singleInfoRow}>
-                                        {/* Track Cell — 45% */}
-                                        <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
-                                            <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>{isSHS ? `${trackDisplay}${strandDisplay ? ` - ${strandDisplay}` : ''}` : ' '}</Text>
-                                        </View>
+                                        {gradeNum === 12 ? (
+                                            <>
+                                                {/* Track Cell — 38% */}
+                                                <View style={{ width: '38%', flexDirection: 'row', alignItems: 'center' }}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
+                                                    <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
+                                                        {trackDisplay || ' '}
+                                                    </Text>
+                                                </View>
+                                                {/* Strand Cell — 62% */}
+                                                <View style={{ width: '62%', flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Strand:</Text>
+                                                    <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
+                                                        {strandDisplay || ' '}
+                                                    </Text>
+                                                </View>
+                                            </>
+                                        ) : (
+                                            /* Grade 11 or other grade levels */
+                                            <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
+                                                <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize, paddingLeft: 4 }]}>
+                                                    {isSHS ? trackDisplay : ' '}
+                                                </Text>
+                                            </View>
+                                        )}
                                     </View>
                                 </View>
                                 );
@@ -2283,7 +2310,7 @@ export function SF9Page() {
         const utterance = new SpeechSynthesisUtterance();
         
         // 1. Name: LAST NAME, FIRST NAME MIDDLE NAME
-        const fullName = `${selectedStudent.last_name.toUpperCase()}, ${selectedStudent.first_name.toUpperCase()} ${selectedStudent.middle_name?.toUpperCase() || ''}`.trim();
+        const fullName = formatLearnerName(selectedStudent).toUpperCase();
         
         // 2. LRN: Dashed format for digit-by-digit reading
         const dashedLRN = selectedStudent.lrn.split('').join('-');
@@ -2762,7 +2789,7 @@ export function SF9Page() {
                                         <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">Evaluate Values</h2>
                                         <div className="flex items-center gap-3 mt-2.5">
                                             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-indigo-100">{selectedStudent.lrn}</span>
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{selectedStudent.last_name}, {selectedStudent.first_name}</span>
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{formatLearnerName(selectedStudent)}</span>
                                         </div>
                                     </div>
                                 </div>

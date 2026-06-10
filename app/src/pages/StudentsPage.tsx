@@ -125,34 +125,104 @@ export function StudentsPage() {
 
 
     const handleExportStudents = () => {
-        exportToCSV(displayedStudents.map(s => ({
-            'LRN': s.lrn,
-            'Last Name': s.last_name,
-            'First Name': s.first_name,
-            'Middle Name': s.middle_name || '',
-            'Name Extension': s.name_extension || '',
-            'Gender': s.gender,
-            'Birthday': s.birthday,
-            'Age': s.age,
-            'Contact Number': s.contact_number || '',
-            'Address': s.address,
-            'Grade Level': s.grade_level,
-            'Section': s.student_section || '',
-            'Track': s.track || '',
-            'Strand': s.strand || '',
-            'Weight (kg)': s.weight ?? '',
-            'Height (m)': s.height ?? '',
-            'Elementary School': s.elementary_school || '',
-            'Elementary School ID': s.elementary_school_id || '',
-            'Elementary School Address': s.elementary_school_address || '',
-            'General Average': s.average_grade || '',
-            'Citation': s.citation || '',
-            'PEPT Rating': s.pept_rating || '',
-            'PEPT Date': s.pept_date || '',
-            'ALS Rating': s.als_rating || '',
-            'Testing Center': s.testing_center || '',
-            'Other Credentials': s.other_credentials || '',
-        })), `Students_${selectedSectionObj?.section_name || 'All'}`);
+        const gl = (selectedSectionObj?.section_grade_level || '').toLowerCase();
+        const num = parseInt(gl.replace(/\D/g, '')) || 0;
+        
+        const isElem = gl.includes('kinder') || (num >= 1 && num <= 6);
+        const isSHS = num >= 11 && num <= 12;
+        const isJHS = num >= 7 && num <= 10;
+
+        exportToCSV(displayedStudents.map(s => {
+            const rowData: Record<string, string | number | boolean> = {
+                'LRN': s.lrn,
+                'Last Name': s.last_name,
+                'First Name': s.first_name,
+                'Middle Name': s.middle_name || '',
+                'Name Extension': s.name_extension || '',
+                'Gender': s.gender,
+                'Birthday': s.birthday,
+                'Age': s.age,
+                'Contact Number': s.contact_number || '',
+                'Address': s.address,
+                'Grade Level': s.grade_level,
+                'Section': s.student_section || '',
+                
+                // Health/Nutritional
+                'Weight (kg)': s.weight ?? '',
+                'Height (m)': s.height ?? '',
+                'Height Squared': s.heightSquared ?? '',
+                'BMI': s.bmi ?? '',
+                'BMI Category': s.bmi_category || '',
+                'HFA': s.hfa || '',
+                
+                // General
+                'Remarks': s.remarks || '',
+                'Enrollment Date': s.enrollment_date || '',
+            };
+
+            if (isElem) {
+                // Elementary Specific
+                rowData['Kinder Progress Report'] = s.kinder_progress_report ? 'Yes' : 'No';
+                rowData['ECCD Checklist'] = s.eccd_checklist ? 'Yes' : 'No';
+                rowData['Kinder Completion Cert'] = s.kinder_completion_cert ? 'Yes' : 'No';
+                rowData['PEPT Checked'] = s.pept_checked ? 'Yes' : 'No';
+                rowData['Other Checked'] = s.other_checked ? 'Yes' : 'No';
+                rowData['Elementary School'] = s.elementary_school || '';
+                rowData['Elementary School ID'] = s.elementary_school_id || '';
+                rowData['Elementary School Address'] = s.elementary_school_address || '';
+            } else if (isJHS) {
+                // JHS Specific
+                rowData['Elementary School'] = s.elementary_school || '';
+                rowData['Elementary School ID'] = s.elementary_school_id || '';
+                rowData['Elementary School Address'] = s.elementary_school_address || '';
+                rowData['SY Last Attended'] = s.sy_last_attended || '';
+                rowData['General Average'] = s.average_grade || '';
+                rowData['Citation'] = s.citation || '';
+                rowData['PEPT Rating'] = s.pept_rating || '';
+                rowData['PEPT Date'] = s.pept_date || '';
+                rowData['ALS Rating'] = s.als_rating || '';
+                rowData['Testing Center'] = s.testing_center || '';
+                rowData['Other Credentials'] = s.other_credentials || '';
+                rowData['Eligibility Type'] = s.eligibility_type || '';
+                rowData['Is Elem Completer'] = s.is_elem_completer ? 'Yes' : 'No';
+                rowData['Is PEPT Passer'] = s.is_pept_passer ? 'Yes' : 'No';
+                rowData['Is ALS Passer'] = s.is_als_passer ? 'Yes' : 'No';
+                rowData['Is Other Eligibility'] = s.is_other_eligibility ? 'Yes' : 'No';
+            } else if (isSHS) {
+                // SHS Specific
+                rowData['Track'] = s.track || '';
+                rowData['Strand'] = s.strand || '';
+                rowData['SHS Admission Date'] = s.shs_admission_date || '';
+                rowData['Is HS Completer'] = s.is_hs_completer ? 'Yes' : 'No';
+                rowData['HS Gen Ave'] = s.hs_gen_ave || '';
+                rowData['HS Graduation Date'] = s.hs_graduation_date || '';
+                rowData['Is JHS Completer'] = s.is_jhs_completer ? 'Yes' : 'No';
+                rowData['JHS Gen Ave'] = s.jhs_gen_ave || '';
+                rowData['JHS School Name'] = s.jhs_school_name || '';
+                rowData['JHS School Address'] = s.jhs_school_address || '';
+                rowData['JHS Graduation Date'] = s.jhs_graduation_date || '';
+                rowData['SHS PEPT Rating'] = s.shs_pept_rating || '';
+                rowData['SHS PEPT Date'] = s.shs_pept_date || '';
+                rowData['SHS ALS Rating'] = s.shs_als_rating || '';
+                rowData['SHS ALS CLC Name Address'] = s.shs_als_clc_name_address || '';
+                rowData['SHS Other Credentials'] = s.shs_other_credentials || '';
+            }
+
+            // Parent/Guardian details
+            rowData['Parent Name'] = s.parent_name || '';
+            rowData['Parent Contact'] = s.parent_contact || '';
+            rowData['Parent Email'] = s.parent_email || '';
+            rowData['Mother Tongue'] = s.mother_tongue || '';
+            rowData['Is IP'] = s.is_ip ? 'Yes' : 'No';
+            rowData['Ethnic Group'] = s.ethnic_group || '';
+            rowData['Religion'] = s.religion || '';
+            rowData['Father Name'] = s.father_name || '';
+            rowData['Mother Name'] = s.mother_name || '';
+            rowData['Guardian Name'] = s.guardian_name || '';
+            rowData['Guardian Relationship'] = s.guardian_relationship || '';
+
+            return rowData;
+        }), `Students_${selectedSectionObj?.section_name || 'All'}`);
     };
 
     const handleSF1Import = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,11 +418,11 @@ export function StudentsPage() {
     const columns = useMemo<ColumnDef<Student>[]>(
         () => {
             const baseColumns: ColumnDef<Student>[] = [
-                {
+                ...(isCurrentSectionAdvisory ? [{
                     accessorKey: 'lrn',
                     header: 'LRN',
-                    cell: (info) => <span className="font-mono text-xs text-gray-500">{info.getValue() as string}</span>,
-                },
+                    cell: (info: { getValue: () => unknown }) => <span className="font-mono text-xs text-gray-500">{info.getValue() as string}</span>,
+                }] : []),
                 {
                     id: 'name',
                     header: 'Name',
@@ -365,7 +435,7 @@ export function StudentsPage() {
                     cell: (info) => {
                         const gender = info.getValue() as string;
                         return (
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
                                 {gender}
                             </span>
                         );
@@ -392,7 +462,7 @@ export function StudentsPage() {
                     id: 'actions',
                     header: '',
                     cell: ({ row }) => (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 transition-opacity">
                             <button onClick={() => handleEdit(row.original)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
                                 <Edit3 className="w-4 h-4" />
                             </button>

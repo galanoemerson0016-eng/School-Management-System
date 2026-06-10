@@ -206,6 +206,8 @@ export interface Section {
     taught_subjects?: string[]; // List of subjects taught in this section
     is_teaching_load?: boolean; // Keep for legacy
     is_advisory?: boolean; // Flag for advisory class
+    track?: string; // Track for SHS (Academic or TechPro)
+    strand?: string; // Strand for SHS (STEM, ABM, HUMSS, GAS, etc.)
     section_metadata?: {
         sf9SubjectSelections?: Record<number, string>;
     };

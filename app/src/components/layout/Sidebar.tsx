@@ -16,7 +16,9 @@ import {
     X,
     ChevronLeft,
     ClipboardList,
-    Layers
+    Layers,
+    Gamepad2,
+    Activity
 } from 'lucide-react';
 import { canAccessView, type AppView } from '../../lib/rbac';
 
@@ -85,9 +87,11 @@ export function Sidebar() {
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
         { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
         { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
+        { id: 'sf8', label: 'Health & Nutrition Report', icon: Activity },
         { id: 'calendar', label: 'School Calendar', icon: Calendar },
         { id: 'announcements', label: 'Announcements', icon: Megaphone },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
+        { id: 'games-tools', label: 'Games & Tools', icon: Gamepad2 },
     ];
 
     const handleNavClick = (id: string) => {

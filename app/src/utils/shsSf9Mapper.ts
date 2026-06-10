@@ -1,4 +1,5 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject } from '../types';
+import { formatLearnerName } from './student-name';
 
 interface ShsSf9MapperParams {
   student: Student;
@@ -103,7 +104,7 @@ export function mapStudentToShsSf9Data({
   return {
     student: {
       lrn: student.lrn,
-      fullName: `${student.last_name}, ${student.first_name} ${student.middle_name || ''}`.trim().toUpperCase(),
+      fullName: formatLearnerName(student).toUpperCase(),
       gender: student.gender,
       age: student.age,
       track: student.track || '',

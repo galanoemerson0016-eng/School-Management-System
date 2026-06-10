@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Printer, ChevronDown, Plus, Minus, HeartPulse } from 'lucide-react';
+import { ArrowLeft, Printer, ChevronDown, Plus, Minus, HeartPulse, Download } from 'lucide-react';
 import { useAppStore } from '../stores';
 import type { Student } from '../types';
+
+import { formatLearnerName } from '../utils/student-name';
 
 function formatMonthYear(schoolYear: string) {
     return schoolYear || '2026-2027';
@@ -11,9 +13,13 @@ function getAge(studentBirthday?: string) {
     if (!studentBirthday) return '';
     const birthday = new Date(studentBirthday);
     if (Number.isNaN(birthday.getTime())) return '';
-    const ageDifMs = Date.now() - birthday.getTime();
-    const ageDate = new Date(ageDifMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
+    const today = new Date();
+    let age = today.getFullYear() - birthday.getFullYear();
+    const m = today.getMonth() - birthday.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthday.getDate())) {
+        age--;
+    }
+    return age;
 }
 
 type PaperSize = 'a4' | 'folio';
@@ -40,9 +46,7 @@ type HfaKey = 'Severely Stunted' | 'Stunted' | 'Normal' | 'Tall';
 const nutritionalStatusKeys: NutritionalStatusKey[] = ['Severely Wasted', 'Wasted', 'Normal', 'Overweight', 'Obese'];
 const hfaKeys: HfaKey[] = ['Severely Stunted', 'Stunted', 'Normal', 'Tall'];
 
-function formatNumber(value: number, digits = 1) {
-    return Number.isFinite(value) ? value.toFixed(digits).replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1') : '';
-}
+
 
 function parseHealthValue(value: string) {
     if (!value.trim()) return undefined;
@@ -93,8 +97,8 @@ function calculateHealthFields(student?: HealthStudent) {
         };
     }
 
-    const heightSquared = height * height;
-    const bmi = weight / heightSquared;
+    const heightSquared = Math.round((height * height) * 100) / 100;
+    const bmi = Math.round((weight / heightSquared) * 10) / 10;
     const bmiCategory = getBmiCategory(bmi);
     const hfa = getHeightForAge(student, height);
 
@@ -209,6 +213,18 @@ export function SF8Page() {
         document.title = originalTitle;
     };
 
+    const handleDownload = async () => {
+        const sectionName = selectedSectionObj?.section_name || 'Record';
+        const filename = `SF8_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
+        try {
+            if (window.electronAPI?.printToPDF) {
+                await window.electronAPI.printToPDF({ defaultFilename: filename, autoSave: true });
+            }
+        } catch (error) {
+            console.error('Failed to download PDF:', error);
+        }
+    };
+
     const handleHealthFieldChange = async (student: HealthStudent, field: 'weight' | 'height', value: string) => {
         const parsedValue = parseHealthValue(value);
         const nextStudent = {
@@ -238,7 +254,7 @@ export function SF8Page() {
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{index + 1}</td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] tracking-tighter">{student?.lrn || ''}</td>
                     <td className="border-r border-black text-[10px] py-1.5 w-[28%] leading-none px-2 whitespace-nowrap overflow-hidden font-black">
-                        {student ? `${student.last_name}, ${student.first_name} ${student.middle_name || ''} ${student.name_extension || ''}`.trim().toUpperCase() : ''}
+                        {student ? formatLearnerName(student).toUpperCase() : ''}
                     </td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%]">{student?.birthday || ''}</td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{student ? getAge(student.birthday) : ''}</td>
@@ -253,7 +269,7 @@ export function SF8Page() {
                                 className="w-full bg-blue-50/50 rounded px-1 text-center outline-none focus:bg-blue-100 transition-colors print:hidden font-bold"
                             />
                         ) : ''}
-                        <span className="hidden print:inline">{healthFields.weight !== '' ? formatNumber(Number(healthFields.weight), 1) : ''}</span>
+                        <span className="hidden print:inline">{healthFields.weight !== '' ? Number(healthFields.weight).toFixed(1) : ''}</span>
                     </td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
                         {student ? (
@@ -266,10 +282,10 @@ export function SF8Page() {
                                 className="w-full bg-blue-50/50 rounded px-1 text-center outline-none focus:bg-blue-100 transition-colors print:hidden font-bold"
                             />
                         ) : ''}
-                        <span className="hidden print:inline">{healthFields.height !== '' ? formatNumber(Number(healthFields.height), 2) : ''}</span>
+                        <span className="hidden print:inline">{healthFields.height !== '' ? Number(healthFields.height).toFixed(2) : ''}</span>
                     </td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">{healthFields.heightSquared !== '' ? formatNumber(Number(healthFields.heightSquared), 2) : ''}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%] font-bold">{healthFields.bmi !== '' ? formatNumber(Number(healthFields.bmi), 1) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">{healthFields.heightSquared !== '' ? Number(healthFields.heightSquared).toFixed(2) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%] font-bold">{healthFields.bmi !== '' ? Number(healthFields.bmi).toFixed(1) : ''}</td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] font-black text-blue-600 uppercase tracking-tighter">{healthFields.bmi_category}</td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%] font-black text-amber-600 uppercase tracking-tighter">{healthFields.hfa}</td>
                     <td className="text-center text-[10px] py-1.5 w-[10%] font-bold italic opacity-70">{healthFields.remarks}</td>
@@ -369,6 +385,16 @@ export function SF8Page() {
                         >
                             <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                             Print Official SF8
+                        </button>
+
+                        {/* Download Button */}
+                        <button
+                            onClick={handleDownload}
+                            disabled={!effectiveSelectedSection}
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-green-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-green-500/20 hover:bg-green-700 hover:shadow-green-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                        >
+                            <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                            Download PDF
                         </button>
                     </div>
                 </div>

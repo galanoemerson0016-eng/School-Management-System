@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { ArrowLeft, FileText, Plus, Minus, Printer } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
+import { formatLearnerName } from '../utils/student-name';
 
 export function SF5Page() {
     const students = useAppStore(s => s.students);
@@ -584,7 +585,7 @@ export function SF5Page() {
                                                                 return (
                                                                     <tr key={student.lrn}>
                                                                         <td className="border border-black py-[0.5px] px-1 font-sans text-[12px] font-bold leading-tight whitespace-nowrap">{student.lrn}</td>
-                                                                        <td className="border border-black py-[0.5px] px-2 text-left uppercase font-sans font-bold text-[11px] leading-tight whitespace-nowrap">{student.last_name}, {student.first_name} {student.middle_name ? student.middle_name[0] + '.' : ''}</td>
+                                                                        <td className="border border-black py-[0.5px] px-2 text-left uppercase font-sans font-bold text-[11px] leading-tight whitespace-nowrap">{formatLearnerName(student)}</td>
                                                                         <td className="border border-black py-[0.5px] px-1 font-sans text-[12px] font-bold leading-tight">{student.genAve > 0 ? student.genAve : ''}</td>
                                                                         <td className="border border-black py-[0.5px] px-1 font-sans text-[12px] leading-tight">{student.actionTaken}</td>
                                                                         <td className="border border-black py-[0.5px] px-1 text-[12px] leading-tight"></td>

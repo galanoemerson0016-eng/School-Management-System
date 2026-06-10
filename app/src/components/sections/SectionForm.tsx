@@ -16,6 +16,53 @@ const GRADE_LEVELS = [
     'Grade 11', 'Grade 12'
 ];
 
+const STRANDS: Record<string, string[]> = {
+    Academic: ['STEM', 'ABM', 'HUMSS', 'GAS'],
+    TVL: [
+        'Home Economics (HE)',
+        'Information and Communications Technology (ICT)',
+        'Industrial Arts (IA)',
+        'Agri-Fishery Arts (AFA)'
+    ],
+    TechPro: [
+        'Home Economics (HE)',
+        'Information and Communications Technology (ICT)',
+        'Industrial Arts (IA)',
+        'Agri-Fishery Arts (AFA)'
+    ],
+    Sports: ['Sports Track'],
+    'Arts and Design': ['Arts and Design Track'],
+};
+
+const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | undefined): string[] => {
+    if (!trackName || !gradeLevel) return [];
+    const normalizedTrack = trackName.trim().toLowerCase();
+    const isG11 = gradeLevel.includes('11');
+
+    if (isG11) {
+        if (normalizedTrack === 'academic') {
+            return ['SSHS'];
+        }
+        if (normalizedTrack === 'techpro' || normalizedTrack === 'tvl') {
+            return STRANDS.TVL;
+        }
+    } else {
+        if (normalizedTrack === 'academic') {
+            return STRANDS.Academic;
+        }
+        if (normalizedTrack === 'tvl' || normalizedTrack === 'techpro') {
+            return STRANDS.TVL;
+        }
+        if (normalizedTrack === 'sports') {
+            return STRANDS.Sports;
+        }
+        if (normalizedTrack === 'arts and design' || normalizedTrack.includes('arts')) {
+            return STRANDS['Arts and Design'];
+        }
+    }
+    return [];
+};
+
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
 
@@ -206,7 +253,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         subject_name: '',
         taught_subjects: [],
         is_teaching_load: false,
-        is_advisory: false // Default to false, will be set in useEffect
+        is_advisory: false, // Default to false, will be set in useEffect
+        track: '',
+        strand: ''
     });
 
     // Handle initial role defaults for NEW sections
@@ -406,7 +455,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     ? ((!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''))
                     : '',
                 is_advisory: isAdvisory,
-                taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : [])
+                taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : []),
+                track: section.track || '',
+                strand: section.strand || ''
             });
         }
     }, [section, schoolProfile?.adviser_name]);
@@ -444,7 +495,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     ? (formData.taught_subjects || []).filter(s => validSubjectNames.has(s))
                     : [],
                 is_teaching_load: !!formData.is_teaching_load,
-                is_advisory: !!formData.is_advisory
+                is_advisory: !!formData.is_advisory,
+                track: (formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12'))
+                    ? formData.track || ''
+                    : undefined,
+                strand: formData.section_grade_level?.includes('Grade 12')
+                    ? formData.strand || ''
+                    : undefined
             };
 
             if (section) {
@@ -539,6 +596,52 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 onChange={(e) => setFormData({ ...formData, section_name: e.target.value })}
                             />
                         </div>
+
+                        {/* Track Selection (SHS only: Grade 11 or Grade 12) */}
+                        {(formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12')) && (
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">SHS Track *</label>
+                                <select 
+                                    required
+                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    value={formData.track || ''}
+                                    onChange={(e) => setFormData({ ...formData, track: e.target.value, strand: '' })}
+                                >
+                                    <option value="">Select SHS Track</option>
+                                    {formData.section_grade_level?.includes('Grade 11') ? (
+                                        <>
+                                            <option value="Academic">Academic</option>
+                                            <option value="TechPro">TechPro</option>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <option value="Academic">Academic</option>
+                                            <option value="TVL">TVL</option>
+                                            <option value="Sports">Sports</option>
+                                            <option value="Arts and Design">Arts and Design</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Strand Selection (SHS only: Grade 12 and Track selected) */}
+                        {formData.section_grade_level?.includes('Grade 12') && formData.track && (
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">SHS Strand *</label>
+                                <select 
+                                    required
+                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    value={formData.strand || ''}
+                                    onChange={(e) => setFormData({ ...formData, strand: e.target.value })}
+                                >
+                                    <option value="">Select SHS Strand</option>
+                                    {getStrandsForTrack(formData.track, formData.section_grade_level).map((s) => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         {/* ROLE CONFIGURATION */}
                         <div className="col-span-2 bg-slate-50/50 rounded-2.5xl p-5 border border-slate-100">

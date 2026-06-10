@@ -395,11 +395,61 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   updateSection: async (section) => {
+    const oldSection = get().sections.find((s) => s.id === section.id);
+    const oldName = oldSection?.section_name;
+    const newName = section.section_name;
+    const nameChanged = oldName && oldName !== newName;
+
     try {
       set((state) => ({
         sections: state.sections.map((s) => (s.id === section.id ? section : s)),
       }));
       await db.putRecord('sections', section);
+
+      if (nameChanged) {
+        // Cascade changes to students list
+        const updatedStudents = get().students.map((student) => {
+          if (student.student_section === oldName || student.student_section === section.id) {
+            return { ...student, student_section: newName };
+          }
+          return student;
+        });
+
+        for (const s of updatedStudents) {
+          if (s.student_section === newName) {
+            await db.putRecord('students', s);
+          }
+        }
+
+        // Cascade changes to studentProfiles list
+        const updatedStudentProfiles = get().studentProfiles.map((student) => {
+          if (student.student_section === oldName || student.student_section === section.id) {
+            return { ...student, student_section: newName };
+          }
+          return student;
+        });
+
+        // Cascade changes to enrollments list
+        const updatedEnrollments = get().enrollments.map((e) => {
+          if (e.student_section === oldName || e.student_section === section.id) {
+            return { ...e, student_section: newName };
+          }
+          return e;
+        });
+
+        for (const e of updatedEnrollments) {
+          if (e.student_section === newName) {
+            await db.putRecord('enrollments', e);
+          }
+        }
+
+        set({
+          students: updatedStudents,
+          studentProfiles: updatedStudentProfiles,
+          enrollments: updatedEnrollments,
+        });
+      }
+
       get().showNotification('Section updated', 'success');
     } catch (error) {
       console.error('Error updating section:', error);

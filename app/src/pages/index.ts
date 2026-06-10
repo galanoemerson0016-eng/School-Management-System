@@ -26,3 +26,5 @@ export { LIRPage } from './LIRPage';
 export { TemporaryGradeSlipPage } from './TemporaryGradeSlipPage';
 export { ShsEClassRecord } from './ShsEClassRecord';
 export { AnecdotalRecordPage } from './AnecdotalRecordPage';
+export { GamesAndToolsPage } from './GamesAndToolsPage';
+

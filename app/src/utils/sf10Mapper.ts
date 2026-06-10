@@ -1,5 +1,6 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
 import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
+import { formatLearnerName } from './student-name';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
@@ -553,7 +554,7 @@ export function mapStudentToSpecData({
     const hasAls = student.is_als_passer === true;
     const hasOther = student.is_other_eligibility === true;
 
-    const fullName = `${student.last_name || ''}, ${student.first_name || ''} ${student.middle_name || ''}`.trim().toUpperCase();
+    const fullName = formatLearnerName(student).toUpperCase();
     const nextGrade = String(currentGradeNum + 1);
     const todayDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     const certBase = {

@@ -26,7 +26,8 @@ export type AppView =
     | 'about'
     | 'lir'
     | 'tgs'
-    | 'anecdotal-record';
+    | 'anecdotal-record'
+    | 'games-tools';
 
 export type SubjectArea =
     | 'English'
@@ -153,12 +154,11 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
     
     // Only show subjects that are registered in the section configuration
-    if (section.is_teaching_load) {
-        const registeredNames = new Set(section.taught_subjects || []);
-        if (section.subject_name) {
-            section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
-        }
-        
+    const registeredNames = new Set(section.taught_subjects || []);
+    if (section.subject_name) {
+        section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
+    }
+    if (section.is_teaching_load || registeredNames.size > 0) {
         // Find subjects (regardless of section_id) that match the grade level and are selected as taught
         const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 
@@ -181,8 +181,12 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return unique.filter(s => registeredNames.has(s.subject_name));
     }
     
-    // If not a teaching load, usually no subjects should show up in E-Class Record 
-    // unless they were manually added before
+    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
+    const gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    if (gradeLevelSubjects.length > 0) {
+        return gradeLevelSubjects;
+    }
+    
     return directlyLinked;
 }
 
@@ -196,19 +200,17 @@ export function filterSF9Sections(user: User | null | undefined, sections: Secti
     return sections.filter((section) => section.is_advisory || !section.is_teaching_load);
 }
 
-export function canAccessAttendanceSection(user: User | null | undefined, section: Section): boolean {
-    if (!user) return false;
-    return section.is_advisory || !section.is_teaching_load;
+export function canAccessAttendanceSection(user: User | null | undefined, _section: Section): boolean {
+    return !!user;
 }
 
-export function canEditAttendanceSection(user: User | null | undefined, section: Section): boolean {
-    if (!user) return false;
-    return section.is_advisory || !section.is_teaching_load;
+export function canEditAttendanceSection(user: User | null | undefined, _section: Section): boolean {
+    return !!user;
 }
 
 export function filterAttendanceSections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections.filter((section) => section.is_advisory || !section.is_teaching_load);
+    return sections;
 }
 
 export function filterOfficialSectionsForUser(user: User | null | undefined, sections: Section[]): Section[] {
