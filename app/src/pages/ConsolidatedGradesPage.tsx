@@ -1448,32 +1448,48 @@ const groupedSections = useMemo(() => {
         document.title = originalTitle;
     };
 
-    const handleDownloadConsolidated = async () => {
+    const handleDownloadConsolidated = () => {
         const sectionName = sectionObj?.section_name || 'Record';
         const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}`;
-        try {
-            const element = document.getElementById('printable-consolidated-grades');
-            if (!element) {
-                console.error('Printable element not found');
-                return;
-            }
 
-            const opt = {
-                margin: 6,
-                filename: `${filename}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: {
-                    orientation: selectedTerm === 'all' ? 'landscape' : 'landscape',
-                    unit: 'mm',
-                    format: selectedTerm === 'all' ? [330, 210] : [280, 210]
+        // Use setTimeout to prevent UI blocking
+        setTimeout(() => {
+            try {
+                const element = document.getElementById('printable-consolidated-grades');
+                if (!element) {
+                    console.error('Printable element not found');
+                    return;
                 }
-            };
 
-            await html2pdf().set(opt).from(element).save();
-        } catch (error) {
-            console.error('Failed to download PDF:', error);
-        }
+                const clonedElement = element.cloneNode(true) as HTMLElement;
+                clonedElement.style.position = 'fixed';
+                clonedElement.style.left = '-9999px';
+                clonedElement.style.top = '-9999px';
+                document.body.appendChild(clonedElement);
+
+                const opt = {
+                    margin: 6,
+                    filename: `${filename}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 1.5, useCORS: true, allowTaint: true },
+                    jsPDF: {
+                        orientation: 'landscape',
+                        unit: 'mm',
+                        format: selectedTerm === 'all' ? [330, 210] : [280, 210]
+                    }
+                };
+
+                html2pdf()
+                    .set(opt)
+                    .from(clonedElement)
+                    .save()
+                    .finally(() => {
+                        document.body.removeChild(clonedElement);
+                    });
+            } catch (error) {
+                console.error('Failed to download PDF:', error);
+            }
+        }, 100);
     };
 
     return (
