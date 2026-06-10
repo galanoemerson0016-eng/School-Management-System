@@ -1,22 +1,4 @@
-let app, BrowserWindow, ipcMain, screen, Menu;
-
-try {
-  const electron = require('electron');
-  app = electron.app;
-  BrowserWindow = electron.BrowserWindow;
-  ipcMain = electron.ipcMain;
-  screen = electron.screen;
-  Menu = electron.Menu;
-
-  if (!app) {
-    console.error('Electron app object is undefined. Electron module did not load correctly.');
-    process.exit(1);
-  }
-} catch (e) {
-  console.error('Failed to load electron module:', e);
-  process.exit(1);
-}
-
+const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('path');
 const { machineIdSync } = require('node-machine-id');
 const fs = require('fs');
@@ -26,28 +8,19 @@ const isDev = process.env.NODE_ENV === 'development';
 let autoUpdater;
 if (!isDev) {
   try {
-    autoUpdater = require('electron-updater').autoUpdater;
+    const { autoUpdater: au } = require('electron-updater');
+    autoUpdater = au;
   } catch (e) {
     console.log('electron-updater not available');
   }
 }
 
-// Single instance lock - only check after app is ready
-let gotTheLock = false;
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
 
-function initializeAppLock() {
-  try {
-    gotTheLock = app.requestSingleInstanceLock();
-  } catch (e) {
-    console.log('Single instance lock not available:', e.message);
-    gotTheLock = true;
-  }
-
-  if (!gotTheLock) {
-    app.quit();
-    return false;
-  }
-
+if (!gotTheLock) {
+  app.quit();
+} else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window.
     const windows = BrowserWindow.getAllWindows();
@@ -57,78 +30,71 @@ function initializeAppLock() {
     }
   });
 
-  return true;
-}
+  function createWindow() {
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
-function createWindow() {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const mainWindow = new BrowserWindow({
+      width: width,
+      height: height,
+      minWidth: 1024,
+      minHeight: 768,
+      fullscreen: true,
+      icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.cjs'),
+      },
+      title: "FormEase Pro",
+      autoHideMenuBar: true
+    });
 
-  const mainWindow = new BrowserWindow({
-    width: width,
-    height: height,
-    minWidth: 1024,
-    minHeight: 768,
-    fullscreen: true,
-    icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs'),
-    },
-    title: "FormEase Pro",
-    autoHideMenuBar: true
-  });
+    // Hide the menu bar completely
+    mainWindow.setMenuBarVisibility(false);
 
-  // Hide the menu bar completely
-  mainWindow.setMenuBarVisibility(false);
-
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3001');
-  } else {
-    // In production, load the built index.html
-    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-    mainWindow.loadFile(indexPath);
-  }
-
-  // Prevent opening DevTools or reloading via keyboard shortcuts
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
-    const key = input.key.toLowerCase();
-
-    if ((isControlOrMeta && input.shift && key === 'i') ||
-        input.key === 'F12' ||
-        (isControlOrMeta && input.shift && key === 'j') ||
-        (isControlOrMeta && key === 'u') ||
-        (isControlOrMeta && key === 'r') ||
-        (isControlOrMeta && input.shift && key === 'r')) {
-      event.preventDefault();
+    if (isDev) {
+      mainWindow.loadURL('http://localhost:3001');
+    } else {
+      // In production, load the built index.html
+      const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+      mainWindow.loadFile(indexPath);
     }
+
+    // Prevent opening DevTools or reloading via keyboard shortcuts
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
+      const key = input.key.toLowerCase();
+
+      if ((isControlOrMeta && input.shift && key === 'i') || 
+          input.key === 'F12' ||
+          (isControlOrMeta && input.shift && key === 'j') ||
+          (isControlOrMeta && key === 'u') ||
+          (isControlOrMeta && key === 'r') ||
+          (isControlOrMeta && input.shift && key === 'r')) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  app.whenReady().then(() => {
+    createWindow();
+
+    // Check for updates after the app is ready (only in production)
+    if (!isDev) {
+      setTimeout(() => {
+        autoUpdater.checkForUpdatesAndNotify();
+      }, 3000);
+    }
+
+    app.on('activate', function () {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', function () {
+    if (process.platform !== 'darwin') app.quit();
   });
 }
-
-app.whenReady().then(() => {
-  // Initialize single instance lock now that app is ready
-  if (!initializeAppLock()) {
-    return;
-  }
-
-  createWindow();
-
-  // Check for updates after the app is ready (only in production)
-  if (!isDev) {
-    setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
-    }, 3000);
-  }
-
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
-});
 
 // --- IPC Handlers ---
 
@@ -254,52 +220,4 @@ if (autoUpdater) {
 
 ipcMain.on('close-app', () => {
   app.quit();
-});
-
-ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false }) => {
-  const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-  if (!focusedWindow) {
-    return { success: false, error: 'No active window found' };
-  }
-
-  try {
-    let filePath;
-
-    if (autoSave) {
-      // Auto-save to Downloads folder without showing dialog
-      filePath = path.join(app.getPath('downloads'), defaultFilename || 'document.pdf');
-    } else {
-      // Show save dialog
-      const { dialog } = require('electron');
-      const { filePath: selectedPath, canceled } = await dialog.showSaveDialog(focusedWindow, {
-        title: 'Save PDF File',
-        defaultPath: path.join(focusedWindow.webContents.isDevToolsOpened() ? __dirname : app.getPath('downloads'), defaultFilename || 'document.pdf'),
-        filters: [
-          { name: 'PDF Files', extensions: ['pdf'] }
-        ]
-      });
-
-      if (canceled || !selectedPath) {
-        return { success: false, error: 'Save canceled by user' };
-      }
-
-      filePath = selectedPath;
-    }
-
-    const options = {
-      margins: {
-        marginType: 'default'
-      },
-      printBackground: true,
-      preferCSSPageSize: true
-    };
-
-    const data = await focusedWindow.webContents.printToPDF(options);
-    fs.writeFileSync(filePath, data);
-
-    return { success: true, filePath };
-  } catch (error) {
-    console.error('printToPDF failed:', error);
-    return { success: false, error: error.message };
-  }
 });
