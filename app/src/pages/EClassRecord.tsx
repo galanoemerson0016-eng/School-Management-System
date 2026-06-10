@@ -651,7 +651,9 @@ export function EClassRecord() {
                 const targetTerm = quarter === 'summary_t2' ? 2 : quarter === 'summary_t3' ? 3 : 1;
                 const ma = getGrade(maSubj?.id, targetTerm);
                 const pe = getGrade(peSubj?.id, targetTerm);
-                const final = (ma > 0 && pe > 0) ? Math.round((ma + pe) / 2) : (ma || pe || '');
+                const maNum = typeof ma === 'number' ? ma : 0;
+                const peNum = typeof pe === 'number' ? pe : 0;
+                const final = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (ma || pe || '');
                 const descriptor = final !== '' ? getGradeDescriptor(Number(final), true) : '';
                 return { ma, pe, final, descriptor, isMapeh: true, mapehMode: 'component' };
             }
@@ -666,7 +668,9 @@ export function EClassRecord() {
                     
                     const ma = getGrade(maSubj?.id, q);
                     const pe = getGrade(peSubj?.id, q);
-                    const avg = (ma > 0 && pe > 0) ? Math.round((ma + pe) / 2) : (ma || pe || 0);
+                    const maNum = typeof ma === 'number' ? ma : 0;
+                    const peNum = typeof pe === 'number' ? pe : 0;
+                    const avg = (maNum > 0 && peNum > 0) ? Math.round((maNum + peNum) / 2) : (maNum || peNum || 0);
                     if (avg > 0) {
                         total += Number(avg);
                         count++;

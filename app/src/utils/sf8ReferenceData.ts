@@ -1,146 +1,144 @@
-// SF8 Reference Data - WHO Growth Reference 5-19 Years (2007)
-// Exact age-specific BMI and Height-for-Age classification ranges
-// Source: WHO Growth Reference 5–19 years - used for DepEd SF8 Health & Nutrition Report
-// Data extracted from: https://www.who.int/tools/growth-reference-data-for-5to19-years/
+// SF8 Reference Data - WHO Growth Reference for School-Aged Children and Adolescents (5-19 Years), 2007
+// Exact age-specific BMI-for-Age and Height-for-Age classification cutoffs
+// Source: WHO 2007 LMS reference tables (bfawho2007 / hfawho2007), used for DepEd SF8 Health & Nutrition Report
+// https://www.who.int/tools/growth-reference-data-for-5to19-years/
 
 export interface BMIRange {
   age: number;
   gender: 'Male' | 'Female';
-  severelyWastedMax: number;     // < this value
-  wastedMax: number;              // < this value
-  normalMax: number;              // < this value
-  overweightMax: number;          // < this value
-  obeseMin: number;               // >= this value
+  wastedMax: number;              // < this value => Severely Wasted (WHO -3SD)
+  normalMax: number;              // < this value => Wasted (WHO -2SD)
+  overweightMax: number;          // < this value => Normal (WHO +1SD)
+  obeseMin: number;                // >= this value => Obese (WHO +2SD); below => Overweight
 }
 
 export interface HeightRange {
   age: number;
   gender: 'Male' | 'Female';
-  severelyStuntedMax: number;     // < this value (cm)
-  stuntedMax: number;             // < this value (cm)
-  normalMax: number;              // < this value (cm)
+  severelyStuntedMax: number;     // < this value (cm) -- WHO -3SD
+  stuntedMax: number;             // < this value (cm) -- WHO -2SD
+  normalMax: number;              // < this value (cm) -- WHO +2SD (Tall boundary)
   tallMin: number;                // >= this value (cm)
 }
 
-// WHO BMI-for-Age Reference (5-19 years)
-// Exact cutoff values for each age and gender
-// Based on WHO percentile curves: -2SD (wasted), median, +1SD (overweight), +2SD (obese)
+// WHO BMI-for-Age Reference (5-18 years)
+// Cutoffs derived from the WHO 2007 LMS parameters: -3SD, -2SD, +1SD, +2SD
 export const BMI_RANGES: BMIRange[] = [
   // Age 5
-  { age: 5, gender: 'Male', severelyWastedMax: 11.03, wastedMax: 12.27, normalMax: 16.61, overweightMax: 18.41, obeseMin: 19.81 },
-  { age: 5, gender: 'Female', severelyWastedMax: 10.83, wastedMax: 12.12, normalMax: 16.54, overweightMax: 18.54, obeseMin: 20.24 },
+  { age: 5, gender: 'Male', wastedMax: 12.12, normalMax: 13.04, overweightMax: 16.64, obeseMin: 18.25 },
+  { age: 5, gender: 'Female', wastedMax: 11.78, normalMax: 12.76, overweightMax: 16.86, obeseMin: 18.83 },
 
   // Age 6
-  { age: 6, gender: 'Male', severelyWastedMax: 10.87, wastedMax: 12.19, normalMax: 16.72, overweightMax: 18.93, obeseMin: 20.28 },
-  { age: 6, gender: 'Female', severelyWastedMax: 10.63, wastedMax: 11.95, normalMax: 16.68, overweightMax: 18.97, obeseMin: 20.63 },
+  { age: 6, gender: 'Male', wastedMax: 12.14, normalMax: 13.04, overweightMax: 16.76, obeseMin: 18.52 },
+  { age: 6, gender: 'Female', wastedMax: 11.72, normalMax: 12.70, overweightMax: 17.01, obeseMin: 19.22 },
 
   // Age 7
-  { age: 7, gender: 'Male', severelyWastedMax: 10.78, wastedMax: 12.13, normalMax: 16.89, overweightMax: 19.17, obeseMin: 20.84 },
-  { age: 7, gender: 'Female', severelyWastedMax: 10.51, wastedMax: 11.83, normalMax: 16.79, overweightMax: 19.19, obeseMin: 21.09 },
+  { age: 7, gender: 'Male', wastedMax: 12.25, normalMax: 13.15, overweightMax: 17.05, obeseMin: 19.02 },
+  { age: 7, gender: 'Female', wastedMax: 11.75, normalMax: 12.73, overweightMax: 17.29, obeseMin: 19.79 },
 
   // Age 8
-  { age: 8, gender: 'Male', severelyWastedMax: 10.77, wastedMax: 12.15, normalMax: 17.12, overweightMax: 19.63, obeseMin: 21.50 },
-  { age: 8, gender: 'Female', severelyWastedMax: 10.47, wastedMax: 11.79, normalMax: 16.97, overweightMax: 19.52, obeseMin: 21.61 },
+  { age: 8, gender: 'Male', wastedMax: 12.39, normalMax: 13.30, overweightMax: 17.44, obeseMin: 19.67 },
+  { age: 8, gender: 'Female', wastedMax: 11.88, normalMax: 12.88, overweightMax: 17.73, obeseMin: 20.56 },
 
   // Age 9
-  { age: 9, gender: 'Male', severelyWastedMax: 10.82, wastedMax: 12.23, normalMax: 17.41, overweightMax: 20.17, obeseMin: 22.28 },
-  { age: 9, gender: 'Female', severelyWastedMax: 10.51, wastedMax: 11.85, normalMax: 17.20, overweightMax: 19.94, obeseMin: 22.25 },
+  { age: 9, gender: 'Male', wastedMax: 12.56, normalMax: 13.49, overweightMax: 17.91, obeseMin: 20.47 },
+  { age: 9, gender: 'Female', wastedMax: 12.10, normalMax: 13.14, overweightMax: 18.33, obeseMin: 21.51 },
 
   // Age 10
-  { age: 10, gender: 'Male', severelyWastedMax: 10.94, wastedMax: 12.39, normalMax: 17.77, overweightMax: 20.78, obeseMin: 23.17 },
-  { age: 10, gender: 'Female', severelyWastedMax: 10.61, wastedMax: 11.99, normalMax: 17.50, overweightMax: 20.43, obeseMin: 22.99 },
+  { age: 10, gender: 'Male', wastedMax: 12.78, normalMax: 13.74, overweightMax: 18.48, obeseMin: 21.40 },
+  { age: 10, gender: 'Female', wastedMax: 12.38, normalMax: 13.47, overweightMax: 19.03, obeseMin: 22.57 },
 
   // Age 11
-  { age: 11, gender: 'Male', severelyWastedMax: 11.10, wastedMax: 12.59, normalMax: 18.20, overweightMax: 21.48, obeseMin: 24.20 },
-  { age: 11, gender: 'Female', severelyWastedMax: 10.78, wastedMax: 12.21, normalMax: 17.88, overweightMax: 20.99, obeseMin: 23.87 },
+  { age: 11, gender: 'Male', wastedMax: 13.05, normalMax: 14.06, overweightMax: 19.16, obeseMin: 22.45 },
+  { age: 11, gender: 'Female', wastedMax: 12.73, normalMax: 13.89, overweightMax: 19.86, obeseMin: 23.72 },
 
   // Age 12
-  { age: 12, gender: 'Male', severelyWastedMax: 11.33, wastedMax: 12.84, normalMax: 18.70, overweightMax: 22.23, obeseMin: 25.30 },
-  { age: 12, gender: 'Female', severelyWastedMax: 11.00, wastedMax: 12.48, normalMax: 18.33, overweightMax: 21.65, obeseMin: 24.72 },
+  { age: 12, gender: 'Male', wastedMax: 13.39, normalMax: 14.45, overweightMax: 19.95, obeseMin: 23.58 },
+  { age: 12, gender: 'Female', wastedMax: 13.15, normalMax: 14.39, overweightMax: 20.81, obeseMin: 24.97 },
 
-  // Age 13 ★ VERIFIED AGAINST USER DATA
-  { age: 13, gender: 'Male', severelyWastedMax: 11.60, wastedMax: 13.13, normalMax: 19.26, overweightMax: 24.80, obeseMin: 31.80 },
-  { age: 13, gender: 'Female', severelyWastedMax: 11.27, wastedMax: 12.80, normalMax: 18.81, overweightMax: 22.41, obeseMin: 25.69 },
+  // Age 13
+  { age: 13, gender: 'Male', wastedMax: 13.80, normalMax: 14.93, overweightMax: 20.83, obeseMin: 24.76 },
+  { age: 13, gender: 'Female', wastedMax: 13.61, normalMax: 14.94, overweightMax: 21.80, obeseMin: 26.21 },
 
   // Age 14
-  { age: 14, gender: 'Male', severelyWastedMax: 11.88, wastedMax: 13.45, normalMax: 19.86, overweightMax: 25.88, obeseMin: 32.26 },
-  { age: 14, gender: 'Female', severelyWastedMax: 11.56, wastedMax: 13.12, normalMax: 19.33, overweightMax: 23.17, obeseMin: 26.65 },
+  { age: 14, gender: 'Male', wastedMax: 14.26, normalMax: 15.48, overweightMax: 21.77, obeseMin: 25.92 },
+  { age: 14, gender: 'Female', wastedMax: 14.03, normalMax: 15.45, overweightMax: 22.73, obeseMin: 27.32 },
 
   // Age 15
-  { age: 15, gender: 'Male', severelyWastedMax: 12.17, wastedMax: 13.78, normalMax: 20.49, overweightMax: 26.71, obeseMin: 33.25 },
-  { age: 15, gender: 'Female', severelyWastedMax: 11.85, wastedMax: 13.44, normalMax: 19.86, overweightMax: 23.90, obeseMin: 27.56 },
+  { age: 15, gender: 'Male', wastedMax: 14.71, normalMax: 16.01, overweightMax: 22.68, obeseMin: 26.97 },
+  { age: 15, gender: 'Female', wastedMax: 14.36, normalMax: 15.87, overweightMax: 23.51, obeseMin: 28.22 },
 
   // Age 16
-  { age: 16, gender: 'Male', severelyWastedMax: 12.48, wastedMax: 14.11, normalMax: 21.12, overweightMax: 27.51, obeseMin: 34.20 },
-  { age: 16, gender: 'Female', severelyWastedMax: 12.14, wastedMax: 13.74, normalMax: 20.38, overweightMax: 24.61, obeseMin: 28.42 },
+  { age: 16, gender: 'Male', wastedMax: 15.11, normalMax: 16.50, overweightMax: 23.53, obeseMin: 27.87 },
+  { age: 16, gender: 'Female', wastedMax: 14.59, normalMax: 16.17, overweightMax: 24.10, obeseMin: 28.87 },
 
   // Age 17
-  { age: 17, gender: 'Male', severelyWastedMax: 12.78, wastedMax: 14.43, normalMax: 21.73, overweightMax: 28.27, obeseMin: 35.11 },
-  { age: 17, gender: 'Female', severelyWastedMax: 12.42, wastedMax: 14.02, normalMax: 20.88, overweightMax: 25.30, obeseMin: 29.26 },
+  { age: 17, gender: 'Male', wastedMax: 15.44, normalMax: 16.93, overweightMax: 24.27, obeseMin: 28.63 },
+  { age: 17, gender: 'Female', wastedMax: 14.70, normalMax: 16.35, overweightMax: 24.50, obeseMin: 29.28 },
 
   // Age 18
-  { age: 18, gender: 'Male', severelyWastedMax: 13.08, wastedMax: 14.73, normalMax: 22.26, overweightMax: 28.99, obeseMin: 35.97 },
-  { age: 18, gender: 'Female', severelyWastedMax: 12.70, wastedMax: 14.30, normalMax: 21.36, overweightMax: 25.96, obeseMin: 30.07 },
+  { age: 18, gender: 'Male', wastedMax: 15.69, normalMax: 17.28, overweightMax: 24.91, obeseMin: 29.24 },
+  { age: 18, gender: 'Female', wastedMax: 14.73, normalMax: 16.45, overweightMax: 24.77, obeseMin: 29.52 },
 ];
 
-// WHO Height-for-Age Reference (5-19 years) - in CENTIMETERS
-// Based on WHO growth curves: -2SD, median, +2SD
+// WHO Height-for-Age Reference (5-18 years) - in CENTIMETERS
+// Cutoffs derived from the WHO 2007 LMS parameters: -3SD, -2SD, +2SD
 export const HEIGHT_RANGES: HeightRange[] = [
   // Age 5
-  { age: 5, gender: 'Male', severelyStuntedMax: 102.2, stuntedMax: 105.3, normalMax: 119.3, tallMin: 132.3 },
-  { age: 5, gender: 'Female', severelyStuntedMax: 101.2, stuntedMax: 104.2, normalMax: 117.8, tallMin: 131.4 },
+  { age: 5, gender: 'Male', severelyStuntedMax: 96.0, stuntedMax: 100.6, normalMax: 118.8, tallMin: 118.8 },
+  { age: 5, gender: 'Female', severelyStuntedMax: 94.9, stuntedMax: 99.6, normalMax: 118.6, tallMin: 118.6 },
 
   // Age 6
-  { age: 6, gender: 'Male', severelyStuntedMax: 108.5, stuntedMax: 111.7, normalMax: 126.3, tallMin: 141.1 },
-  { age: 6, gender: 'Female', severelyStuntedMax: 107.4, stuntedMax: 110.5, normalMax: 124.3, tallMin: 138.2 },
+  { age: 6, gender: 'Male', severelyStuntedMax: 101.2, stuntedMax: 106.1, normalMax: 125.8, tallMin: 125.8 },
+  { age: 6, gender: 'Female', severelyStuntedMax: 99.8, stuntedMax: 104.9, normalMax: 125.4, tallMin: 125.4 },
 
   // Age 7
-  { age: 7, gender: 'Male', severelyStuntedMax: 114.8, stuntedMax: 118.2, normalMax: 133.1, tallMin: 148.0 },
-  { age: 7, gender: 'Female', severelyStuntedMax: 113.6, stuntedMax: 116.9, normalMax: 131.3, tallMin: 145.7 },
+  { age: 7, gender: 'Male', severelyStuntedMax: 105.9, stuntedMax: 111.2, normalMax: 132.3, tallMin: 132.3 },
+  { age: 7, gender: 'Female', severelyStuntedMax: 104.4, stuntedMax: 109.9, normalMax: 131.7, tallMin: 131.7 },
 
   // Age 8
-  { age: 8, gender: 'Male', severelyStuntedMax: 121.0, stuntedMax: 124.6, normalMax: 140.2, tallMin: 155.8 },
-  { age: 8, gender: 'Female', severelyStuntedMax: 119.7, stuntedMax: 123.2, normalMax: 138.5, tallMin: 153.8 },
+  { age: 8, gender: 'Male', severelyStuntedMax: 110.3, stuntedMax: 116.0, normalMax: 138.6, tallMin: 138.6 },
+  { age: 8, gender: 'Female', severelyStuntedMax: 109.2, stuntedMax: 115.0, normalMax: 138.2, tallMin: 138.2 },
 
   // Age 9
-  { age: 9, gender: 'Male', severelyStuntedMax: 127.1, stuntedMax: 130.8, normalMax: 147.4, tallMin: 164.0 },
-  { age: 9, gender: 'Female', severelyStuntedMax: 125.6, stuntedMax: 129.2, normalMax: 145.8, tallMin: 162.4 },
+  { age: 9, gender: 'Male', severelyStuntedMax: 114.5, stuntedMax: 120.5, normalMax: 144.6, tallMin: 144.6 },
+  { age: 9, gender: 'Female', severelyStuntedMax: 114.2, stuntedMax: 120.3, normalMax: 144.7, tallMin: 144.7 },
 
   // Age 10
-  { age: 10, gender: 'Male', severelyStuntedMax: 132.9, stuntedMax: 136.8, normalMax: 154.7, tallMin: 172.6 },
-  { age: 10, gender: 'Female', severelyStuntedMax: 131.2, stuntedMax: 135.0, normalMax: 152.6, tallMin: 170.2 },
+  { age: 10, gender: 'Male', severelyStuntedMax: 118.7, stuntedMax: 125.0, normalMax: 150.5, tallMin: 150.5 },
+  { age: 10, gender: 'Female', severelyStuntedMax: 119.4, stuntedMax: 125.8, normalMax: 151.4, tallMin: 151.4 },
 
   // Age 11
-  { age: 11, gender: 'Male', severelyStuntedMax: 138.4, stuntedMax: 142.6, normalMax: 161.0, tallMin: 179.4 },
-  { age: 11, gender: 'Female', severelyStuntedMax: 136.6, stuntedMax: 140.6, normalMax: 159.2, tallMin: 177.8 },
+  { age: 11, gender: 'Male', severelyStuntedMax: 122.9, stuntedMax: 129.7, normalMax: 156.6, tallMin: 156.6 },
+  { age: 11, gender: 'Female', severelyStuntedMax: 125.1, stuntedMax: 131.7, normalMax: 158.3, tallMin: 158.3 },
 
   // Age 12
-  { age: 12, gender: 'Male', severelyStuntedMax: 143.3, stuntedMax: 147.8, normalMax: 167.8, tallMin: 187.8 },
-  { age: 12, gender: 'Female', severelyStuntedMax: 141.8, stuntedMax: 146.0, normalMax: 165.6, tallMin: 185.4 },
+  { age: 12, gender: 'Male', severelyStuntedMax: 127.8, stuntedMax: 134.9, normalMax: 163.3, tallMin: 163.3 },
+  { age: 12, gender: 'Female', severelyStuntedMax: 130.7, stuntedMax: 137.6, normalMax: 164.9, tallMin: 164.9 },
 
-  // Age 13 ★ VERIFIED AGAINST USER DATA
-  { age: 13, gender: 'Male', severelyStuntedMax: 148.1, stuntedMax: 153.0, normalMax: 173.7, tallMin: 194.4 },
-  { age: 13, gender: 'Female', severelyStuntedMax: 146.2, stuntedMax: 150.5, normalMax: 170.5, tallMin: 190.5 },
+  // Age 13
+  { age: 13, gender: 'Male', severelyStuntedMax: 133.8, stuntedMax: 141.2, normalMax: 170.9, tallMin: 170.9 },
+  { age: 13, gender: 'Female', severelyStuntedMax: 135.6, stuntedMax: 142.5, normalMax: 170.3, tallMin: 170.3 },
 
   // Age 14
-  { age: 14, gender: 'Male', severelyStuntedMax: 152.3, stuntedMax: 157.5, normalMax: 179.3, tallMin: 201.3 },
-  { age: 14, gender: 'Female', severelyStuntedMax: 149.2, stuntedMax: 153.7, normalMax: 173.9, tallMin: 194.1 },
+  { age: 14, gender: 'Male', severelyStuntedMax: 140.1, stuntedMax: 147.8, normalMax: 178.6, tallMin: 178.6 },
+  { age: 14, gender: 'Female', severelyStuntedMax: 139.0, stuntedMax: 145.9, normalMax: 173.7, tallMin: 173.7 },
 
   // Age 15
-  { age: 15, gender: 'Male', severelyStuntedMax: 156.2, stuntedMax: 161.6, normalMax: 184.9, tallMin: 208.4 },
-  { age: 15, gender: 'Female', severelyStuntedMax: 151.2, stuntedMax: 155.8, normalMax: 176.6, tallMin: 197.4 },
+  { age: 15, gender: 'Male', severelyStuntedMax: 145.5, stuntedMax: 153.3, normalMax: 184.6, tallMin: 184.6 },
+  { age: 15, gender: 'Female', severelyStuntedMax: 141.0, stuntedMax: 147.9, normalMax: 175.4, tallMin: 175.4 },
 
   // Age 16
-  { age: 16, gender: 'Male', severelyStuntedMax: 159.5, stuntedMax: 165.1, normalMax: 189.9, tallMin: 214.7 },
-  { age: 16, gender: 'Female', severelyStuntedMax: 152.8, stuntedMax: 157.4, normalMax: 178.0, tallMin: 198.6 },
+  { age: 16, gender: 'Male', severelyStuntedMax: 149.6, stuntedMax: 157.4, normalMax: 188.4, tallMin: 188.4 },
+  { age: 16, gender: 'Female', severelyStuntedMax: 142.2, stuntedMax: 148.9, normalMax: 176.1, tallMin: 176.1 },
 
   // Age 17
-  { age: 17, gender: 'Male', severelyStuntedMax: 162.3, stuntedMax: 167.9, normalMax: 194.9, tallMin: 221.9 },
-  { age: 17, gender: 'Female', severelyStuntedMax: 153.9, stuntedMax: 158.5, normalMax: 179.2, tallMin: 199.9 },
+  { age: 17, gender: 'Male', severelyStuntedMax: 152.2, stuntedMax: 159.9, normalMax: 190.4, tallMin: 190.4 },
+  { age: 17, gender: 'Female', severelyStuntedMax: 142.8, stuntedMax: 149.5, normalMax: 176.2, tallMin: 176.2 },
 
   // Age 18
-  { age: 18, gender: 'Male', severelyStuntedMax: 164.5, stuntedMax: 170.1, normalMax: 198.3, tallMin: 226.5 },
-  { age: 18, gender: 'Female', severelyStuntedMax: 154.7, stuntedMax: 159.3, normalMax: 180.3, tallMin: 201.3 },
+  { age: 18, gender: 'Male', severelyStuntedMax: 153.7, stuntedMax: 161.2, normalMax: 191.1, tallMin: 191.1 },
+  { age: 18, gender: 'Female', severelyStuntedMax: 143.2, stuntedMax: 149.8, normalMax: 176.3, tallMin: 176.3 },
 ];
 
 export const getBMICategoryForAge = (bmi: number, age: number, gender: 'Male' | 'Female'): string => {

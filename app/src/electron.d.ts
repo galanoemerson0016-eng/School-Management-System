@@ -10,6 +10,7 @@ declare global {
       onUpdateMessage: (callback: (message: string) => void) => void;
       saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
       closeApp: () => void;
+      printToPDF: (options: { defaultFilename?: string; autoSave?: boolean }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
     };
   }
   const __APP_VERSION__: string;

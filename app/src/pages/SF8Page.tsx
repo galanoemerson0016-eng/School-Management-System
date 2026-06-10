@@ -4,7 +4,7 @@ import { useAppStore } from '../stores';
 import type { Student } from '../types';
 
 import { formatLearnerName } from '../utils/student-name';
-import { getBMICategoryForAge, getHeightForAge as getHFAStatus, getRemarks as getHFARemarks } from '../utils/sf8ReferenceData';
+import { getBMICategoryForAge, getHeightForAge as getHFAStatus } from '../utils/sf8ReferenceData';
 
 function formatMonthYear(schoolYear: string) {
     return schoolYear || '2026-2027';
@@ -21,6 +21,24 @@ function getAge(studentBirthday?: string) {
         age--;
     }
     return age;
+}
+
+// SF8 displays age as years.months (e.g. 13 years 8 months = "13.08"), not a decimal fraction of a year.
+function getAgeDisplay(studentBirthday?: string) {
+    if (!studentBirthday) return '';
+    const birthday = new Date(studentBirthday);
+    if (Number.isNaN(birthday.getTime())) return '';
+    const today = new Date();
+    let years = today.getFullYear() - birthday.getFullYear();
+    let months = today.getMonth() - birthday.getMonth();
+    if (today.getDate() < birthday.getDate()) {
+        months--;
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    return `${years}.${months.toString().padStart(2, '0')}`;
 }
 
 type PaperSize = 'a4' | 'folio';
@@ -91,7 +109,7 @@ function calculateHealthFields(student?: HealthStudent) {
 
     const heightSquared = Math.round((height * height) * 100) / 100;
     const bmi = Math.round((weight / heightSquared) * 10) / 10;
-    const age = typeof student.age === 'number' ? Math.round(student.age) : Math.round(getAge(student.birthday));
+    const age = typeof student.age === 'number' ? student.age : getAge(student.birthday);
     const bmiCategory = getBmiCategory(bmi, age || 0, student.gender);
     const hfa = getHeightForAge(student, height);
 
@@ -111,6 +129,19 @@ function createCountMap<T extends string>(keys: T[]) {
         counts[key] = 0;
         return counts;
     }, {} as Record<T, number>);
+}
+
+const SF8_SIGNATORIES_KEY_PREFIX = 'formease_sf8_signatories_';
+
+interface SF8Signatories {
+    dateOfAssessment: string;
+    conductedBy: string;
+    certifiedBy: string;
+    reviewedBy: string;
+}
+
+function getEmptySignatories(): SF8Signatories {
+    return { dateOfAssessment: '', conductedBy: '', certifiedBy: '', reviewedBy: '' };
 }
 
 function getEmptySummary() {
@@ -152,6 +183,42 @@ export function SF8Page() {
     const selectedSectionObj = useMemo(() => {
         return sections.find(section => section.section_name === effectiveSelectedSection || section.id === effectiveSelectedSection) || null;
     }, [sections, effectiveSelectedSection]);
+
+    const [signatories, setSignatories] = useState<SF8Signatories>(getEmptySignatories());
+    const [loadedSignatoriesKey, setLoadedSignatoriesKey] = useState('');
+
+    const signatoriesKey = useMemo(() => {
+        const sectionKey = selectedSectionObj?.id || selectedSectionObj?.section_name || effectiveSelectedSection;
+        return sectionKey ? `${SF8_SIGNATORIES_KEY_PREFIX}${activeSchoolYear}_${sectionKey}` : '';
+    }, [selectedSectionObj, effectiveSelectedSection, activeSchoolYear]);
+
+    if (signatoriesKey !== loadedSignatoriesKey) {
+        setLoadedSignatoriesKey(signatoriesKey);
+        if (!signatoriesKey) {
+            setSignatories(getEmptySignatories());
+        } else {
+            try {
+                const raw = localStorage.getItem(signatoriesKey);
+                setSignatories(raw ? JSON.parse(raw) : getEmptySignatories());
+            } catch {
+                setSignatories(getEmptySignatories());
+            }
+        }
+    }
+
+    const handleSignatoryChange = (field: keyof SF8Signatories, value: string) => {
+        setSignatories(prev => {
+            const next = { ...prev, [field]: value };
+            if (signatoriesKey) {
+                try {
+                    localStorage.setItem(signatoriesKey, JSON.stringify(next));
+                } catch {
+                    // ignore storage errors
+                }
+            }
+            return next;
+        });
+    };
 
     const selectedStudents = useMemo(() => {
         if (!selectedSectionObj && !effectiveSelectedSection) return [];
@@ -242,6 +309,7 @@ export function SF8Page() {
         return rows.map((_, index) => {
             const student = items[index] as HealthStudent | undefined;
             const healthFields = calculateHealthFields(student);
+            const ageDisplay = student ? getAgeDisplay(student.birthday) : '';
             return (
                 <tr key={student?.lrn || `blank-${index}`} className="border-b border-black hover:bg-slate-50/50 transition-colors">
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{index + 1}</td>
@@ -250,7 +318,7 @@ export function SF8Page() {
                         {student ? formatLearnerName(student).toUpperCase() : ''}
                     </td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%]">{student?.birthday || ''}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{student ? getAge(student.birthday) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{ageDisplay}</td>
                     <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
                         {student ? (
                             <input
@@ -545,20 +613,40 @@ export function SF8Page() {
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 text-[12px] sm:text-[13px] print:break-inside-avoid">
                             <div>
-                                <p className="mb-8">Date of Assessment:</p>
-                                <div className="border-b border-black h-5"></div>
+                                <p className="mb-2">Date of Assessment:</p>
+                                <input
+                                    type="text"
+                                    value={signatories.dateOfAssessment}
+                                    onChange={(e) => handleSignatoryChange('dateOfAssessment', e.target.value)}
+                                    className="w-full bg-transparent border-b border-black h-7 px-1 text-center font-bold outline-none focus:bg-blue-50 print:bg-transparent"
+                                />
                             </div>
                             <div>
-                                <p className="mb-8">Conducted/Assessed By:</p>
-                                <div className="border-b border-black h-5"></div>
+                                <p className="mb-2">Conducted/Assessed By:</p>
+                                <input
+                                    type="text"
+                                    value={signatories.conductedBy}
+                                    onChange={(e) => handleSignatoryChange('conductedBy', e.target.value)}
+                                    className="w-full bg-transparent border-b border-black h-7 px-1 text-center font-bold outline-none focus:bg-blue-50 print:bg-transparent"
+                                />
                             </div>
                             <div>
-                                <p className="mb-8">Certified Correct By:</p>
-                                <div className="border-b border-black h-5"></div>
+                                <p className="mb-2">Certified Correct By:</p>
+                                <input
+                                    type="text"
+                                    value={signatories.certifiedBy}
+                                    onChange={(e) => handleSignatoryChange('certifiedBy', e.target.value)}
+                                    className="w-full bg-transparent border-b border-black h-7 px-1 text-center font-bold outline-none focus:bg-blue-50 print:bg-transparent"
+                                />
                             </div>
                             <div>
-                                <p className="mb-8">Reviewed By:</p>
-                                <div className="border-b border-black h-5"></div>
+                                <p className="mb-2">Reviewed By:</p>
+                                <input
+                                    type="text"
+                                    value={signatories.reviewedBy}
+                                    onChange={(e) => handleSignatoryChange('reviewedBy', e.target.value)}
+                                    className="w-full bg-transparent border-b border-black h-7 px-1 text-center font-bold outline-none focus:bg-blue-50 print:bg-transparent"
+                                />
                             </div>
                         </div>
 
