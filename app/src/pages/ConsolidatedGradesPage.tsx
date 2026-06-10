@@ -3,7 +3,6 @@ import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import html2pdf from 'html2pdf.js';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
@@ -1448,48 +1447,19 @@ const groupedSections = useMemo(() => {
         document.title = originalTitle;
     };
 
-    const handleDownloadConsolidated = () => {
+    const handleDownloadConsolidated = async () => {
         const sectionName = sectionObj?.section_name || 'Record';
-        const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}`;
+        const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
 
-        // Use setTimeout to prevent UI blocking
-        setTimeout(() => {
-            try {
-                const element = document.getElementById('printable-consolidated-grades');
-                if (!element) {
-                    console.error('Printable element not found');
-                    return;
-                }
-
-                const clonedElement = element.cloneNode(true) as HTMLElement;
-                clonedElement.style.position = 'fixed';
-                clonedElement.style.left = '-9999px';
-                clonedElement.style.top = '-9999px';
-                document.body.appendChild(clonedElement);
-
-                const opt = {
-                    margin: 6,
-                    filename: `${filename}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 1.5, useCORS: true, allowTaint: true },
-                    jsPDF: {
-                        orientation: 'landscape',
-                        unit: 'mm',
-                        format: selectedTerm === 'all' ? [330, 210] : [280, 210]
-                    }
-                };
-
-                html2pdf()
-                    .set(opt)
-                    .from(clonedElement)
-                    .save()
-                    .finally(() => {
-                        document.body.removeChild(clonedElement);
-                    });
-            } catch (error) {
-                console.error('Failed to download PDF:', error);
+        try {
+            if (window.electronAPI?.printToPDF) {
+                await window.electronAPI.printToPDF({ defaultFilename: filename, autoSave: true });
+            } else {
+                console.warn('PDF download not available in this environment');
             }
-        }, 100);
+        } catch (error) {
+            console.error('Failed to download PDF:', error);
+        }
     };
 
     return (

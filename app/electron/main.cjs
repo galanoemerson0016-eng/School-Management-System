@@ -180,7 +180,7 @@ autoUpdater.on('download-progress', (progressObj) => {
   const percent = Math.round(progressObj.percent);
   const transferredMB = (progressObj.transferred / (1024 * 1024)).toFixed(1);
   const totalMB = (progressObj.total / (1024 * 1024)).toFixed(1);
-  
+
   const message = `Downloading: ${percent}% (${transferredMB}MB / ${totalMB}MB) @ ${speedMB} MB/s`;
   sendStatusToWindow(message, 'progress');
 });
@@ -209,4 +209,52 @@ ipcMain.on('check-for-updates', () => {
 
 ipcMain.on('close-app', () => {
   app.quit();
+});
+
+ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false }) => {
+  const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (!focusedWindow) {
+    return { success: false, error: 'No active window found' };
+  }
+
+  try {
+    let filePath;
+
+    if (autoSave) {
+      // Auto-save to Downloads folder without showing dialog
+      filePath = path.join(app.getPath('downloads'), defaultFilename || 'document.pdf');
+    } else {
+      // Show save dialog
+      const { dialog } = require('electron');
+      const { filePath: selectedPath, canceled } = await dialog.showSaveDialog(focusedWindow, {
+        title: 'Save PDF File',
+        defaultPath: path.join(focusedWindow.webContents.isDevToolsOpened() ? __dirname : app.getPath('downloads'), defaultFilename || 'document.pdf'),
+        filters: [
+          { name: 'PDF Files', extensions: ['pdf'] }
+        ]
+      });
+
+      if (canceled || !selectedPath) {
+        return { success: false, error: 'Save canceled by user' };
+      }
+
+      filePath = selectedPath;
+    }
+
+    const options = {
+      margins: {
+        marginType: 'default'
+      },
+      printBackground: true,
+      preferCSSPageSize: true
+    };
+
+    const data = await focusedWindow.webContents.printToPDF(options);
+    fs.writeFileSync(filePath, data);
+
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('printToPDF failed:', error);
+    return { success: false, error: error.message };
+  }
 });
