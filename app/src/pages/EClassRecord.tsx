@@ -627,23 +627,23 @@ export function EClassRecord() {
             });
 
             const getGrade = (subjId?: string, q: number = 1) => {
-                if (!subjId) return 0;
+                if (!subjId) return '';
                 const subj = subjects.find(s => s.id === subjId);
-                if (!isTermOffered(subj, q)) return 0;
-                
-                const record = classRecords.find(r => 
-                    r.student_lrn === student.lrn && 
-                    r.subject_id === subjId && 
+                if (!isTermOffered(subj, q)) return '';
+
+                const record = classRecords.find(r =>
+                    r.student_lrn === student.lrn &&
+                    r.subject_id === subjId &&
                     (r.quarter === q || Number(r.quarter) === q) &&
                     r.school_year === activeSchoolYear
                 );
-                
+
                 // Only return if final_grade is a valid number > 0
                 if (record && record.final_grade) {
                     const g = Number(record.final_grade);
-                    return isNaN(g) ? 0 : g;
+                    return isNaN(g) ? '' : g;
                 }
-                return 0;
+                return '';
             };
 
             // Handling specific summary modes
