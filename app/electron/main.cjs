@@ -14,17 +14,22 @@ if (!isDev) {
   }
 }
 
-// Single instance lock
-let gotTheLock = true;
-try {
-  gotTheLock = app.requestSingleInstanceLock();
-} catch (e) {
-  console.log('Single instance lock not available:', e.message);
-}
+// Single instance lock - only check after app is ready
+let gotTheLock = false;
 
-if (!gotTheLock) {
-  app.quit();
-} else {
+function initializeAppLock() {
+  try {
+    gotTheLock = app.requestSingleInstanceLock();
+  } catch (e) {
+    console.log('Single instance lock not available:', e.message);
+    gotTheLock = true;
+  }
+
+  if (!gotTheLock) {
+    app.quit();
+    return false;
+  }
+
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window.
     const windows = BrowserWindow.getAllWindows();
@@ -34,71 +39,78 @@ if (!gotTheLock) {
     }
   });
 
-  function createWindow() {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  return true;
+}
 
-    const mainWindow = new BrowserWindow({
-      width: width,
-      height: height,
-      minWidth: 1024,
-      minHeight: 768,
-      fullscreen: true,
-      icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.cjs'),
-      },
-      title: "FormEase Pro",
-      autoHideMenuBar: true
-    });
+function createWindow() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
-    // Hide the menu bar completely
-    mainWindow.setMenuBarVisibility(false);
+  const mainWindow = new BrowserWindow({
+    width: width,
+    height: height,
+    minWidth: 1024,
+    minHeight: 768,
+    fullscreen: true,
+    icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+    title: "FormEase Pro",
+    autoHideMenuBar: true
+  });
 
-    if (isDev) {
-      mainWindow.loadURL('http://localhost:3001');
-    } else {
-      // In production, load the built index.html
-      const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-      mainWindow.loadFile(indexPath);
-    }
+  // Hide the menu bar completely
+  mainWindow.setMenuBarVisibility(false);
 
-    // Prevent opening DevTools or reloading via keyboard shortcuts
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
-      const key = input.key.toLowerCase();
-
-      if ((isControlOrMeta && input.shift && key === 'i') || 
-          input.key === 'F12' ||
-          (isControlOrMeta && input.shift && key === 'j') ||
-          (isControlOrMeta && key === 'u') ||
-          (isControlOrMeta && key === 'r') ||
-          (isControlOrMeta && input.shift && key === 'r')) {
-        event.preventDefault();
-      }
-    });
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:3001');
+  } else {
+    // In production, load the built index.html
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    mainWindow.loadFile(indexPath);
   }
 
-  app.whenReady().then(() => {
-    createWindow();
+  // Prevent opening DevTools or reloading via keyboard shortcuts
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
+    const key = input.key.toLowerCase();
 
-    // Check for updates after the app is ready (only in production)
-    if (!isDev) {
-      setTimeout(() => {
-        autoUpdater.checkForUpdatesAndNotify();
-      }, 3000);
+    if ((isControlOrMeta && input.shift && key === 'i') ||
+        input.key === 'F12' ||
+        (isControlOrMeta && input.shift && key === 'j') ||
+        (isControlOrMeta && key === 'u') ||
+        (isControlOrMeta && key === 'r') ||
+        (isControlOrMeta && input.shift && key === 'r')) {
+      event.preventDefault();
     }
-
-    app.on('activate', function () {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
-  });
-
-  app.on('window-all-closed', function () {
-    if (process.platform !== 'darwin') app.quit();
   });
 }
+
+app.whenReady().then(() => {
+  // Initialize single instance lock now that app is ready
+  if (!initializeAppLock()) {
+    return;
+  }
+
+  createWindow();
+
+  // Check for updates after the app is ready (only in production)
+  if (!isDev) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify();
+    }, 3000);
+  }
+
+  app.on('activate', function () {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', function () {
+  if (process.platform !== 'darwin') app.quit();
+});
 
 // --- IPC Handlers ---
 
