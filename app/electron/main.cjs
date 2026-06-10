@@ -1,10 +1,18 @@
 const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('path');
-const { autoUpdater } = require('electron-updater');
 const { machineIdSync } = require('node-machine-id');
 const fs = require('fs');
 
 const isDev = process.env.NODE_ENV === 'development';
+
+let autoUpdater;
+if (!isDev) {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater;
+  } catch (e) {
+    console.log('electron-updater not available');
+  }
+}
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -133,9 +141,6 @@ ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
 });
 
 // --- Auto Updater Logic ---
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = false;
-
 function sendStatusToWindow(text, status = 'info') {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
@@ -143,69 +148,74 @@ function sendStatusToWindow(text, status = 'info') {
   }
 }
 
-autoUpdater.on('checking-for-update', () => {
-  sendStatusToWindow('Checking for update...');
-});
+if (autoUpdater) {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
 
-autoUpdater.on('update-available', (info) => {
-  const { dialog } = require('electron');
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Available',
-    message: `A new version (${info.version}) of FormEase Pro is available. Would you like to download it now?`,
-    buttons: ['Download Now', 'Later'],
-    defaultId: 0,
-    cancelId: 1
-  }).then(result => {
-    if (result.response === 0) {
-      autoUpdater.downloadUpdate();
-      sendStatusToWindow('Downloading update...', 'downloading');
-    } else {
-      sendStatusToWindow('Update postponed.');
-    }
+  autoUpdater.on('checking-for-update', () => {
+    sendStatusToWindow('Checking for update...');
   });
-});
 
-autoUpdater.on('update-not-available', (info) => {
-  sendStatusToWindow('App is up to date.');
-});
-
-autoUpdater.on('error', (err) => {
-  console.error('Auto-updater error:', err);
-  sendStatusToWindow('App is up to date.');
-});
-
-autoUpdater.on('download-progress', (progressObj) => {
-  const speedMB = (progressObj.bytesPerSecond / (1024 * 1024)).toFixed(2);
-  const percent = Math.round(progressObj.percent);
-  const transferredMB = (progressObj.transferred / (1024 * 1024)).toFixed(1);
-  const totalMB = (progressObj.total / (1024 * 1024)).toFixed(1);
-
-  const message = `Downloading: ${percent}% (${transferredMB}MB / ${totalMB}MB) @ ${speedMB} MB/s`;
-  sendStatusToWindow(message, 'progress');
-});
-
-autoUpdater.on('update-downloaded', (info) => {
-  const { dialog } = require('electron');
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update Ready',
-    message: 'The update has been downloaded and is ready to install. The app will restart now.',
-    buttons: ['Install and Restart', 'Later'],
-    defaultId: 0,
-    cancelId: 1
-  }).then(result => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    } else {
-      sendStatusToWindow('Update ready to install on next launch.');
-    }
+  autoUpdater.on('update-available', (info) => {
+    const { dialog } = require('electron');
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Available',
+      message: `A new version (${info.version}) of FormEase Pro is available. Would you like to download it now?`,
+      buttons: ['Download Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(result => {
+      if (result.response === 0) {
+        autoUpdater.downloadUpdate();
+        sendStatusToWindow('Downloading update...', 'downloading');
+      } else {
+        sendStatusToWindow('Update postponed.');
+      }
+    });
   });
-});
 
-ipcMain.on('check-for-updates', () => {
-  autoUpdater.checkForUpdatesAndNotify();
-});
+  autoUpdater.on('update-not-available', (info) => {
+    sendStatusToWindow('App is up to date.');
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Auto-updater error:', err);
+    sendStatusToWindow('App is up to date.');
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    const speedMB = (progressObj.bytesPerSecond / (1024 * 1024)).toFixed(2);
+    const percent = Math.round(progressObj.percent);
+    const transferredMB = (progressObj.transferred / (1024 * 1024)).toFixed(1);
+    const totalMB = (progressObj.total / (1024 * 1024)).toFixed(1);
+
+    const message = `Downloading: ${percent}% (${transferredMB}MB / ${totalMB}MB) @ ${speedMB} MB/s`;
+    sendStatusToWindow(message, 'progress');
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    const { dialog } = require('electron');
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'The update has been downloaded and is ready to install. The app will restart now.',
+      buttons: ['Install and Restart', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(result => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      } else {
+        sendStatusToWindow('Update ready to install on next launch.');
+      }
+    });
+  });
+
+  ipcMain.on('check-for-updates', () => {
+    autoUpdater.checkForUpdatesAndNotify();
+  });
+}
 
 ipcMain.on('close-app', () => {
   app.quit();
