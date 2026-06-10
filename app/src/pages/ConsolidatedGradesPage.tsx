@@ -3,6 +3,7 @@ import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import html2pdf from 'html2pdf.js';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
@@ -1449,13 +1450,27 @@ const groupedSections = useMemo(() => {
 
     const handleDownloadConsolidated = async () => {
         const sectionName = sectionObj?.section_name || 'Record';
-        const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
+        const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}`;
         try {
-            if (window.electronAPI?.printToPDF) {
-                await window.electronAPI.printToPDF({ defaultFilename: filename });
-            } else {
-                console.warn('PDF download not available in this environment');
+            const element = document.getElementById('printable-consolidated-grades');
+            if (!element) {
+                console.error('Printable element not found');
+                return;
             }
+
+            const opt = {
+                margin: 6,
+                filename: `${filename}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: {
+                    orientation: selectedTerm === 'all' ? 'landscape' : 'landscape',
+                    unit: 'mm',
+                    format: selectedTerm === 'all' ? [330, 210] : [280, 210]
+                }
+            };
+
+            await html2pdf().set(opt).from(element).save();
         } catch (error) {
             console.error('Failed to download PDF:', error);
         }
