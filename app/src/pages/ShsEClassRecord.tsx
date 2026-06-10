@@ -1240,6 +1240,7 @@ export function ShsEClassRecord() {
                                 <tbody>
                                     <tr>
                                         <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">MALE</td>
+                                        <td className="bg-gray-200 border border-black"></td>
                                     </tr>
                                     {maleStudents.map((student, i) => {
                                         const summary = getSummaryGrades(student);
@@ -1260,6 +1261,7 @@ export function ShsEClassRecord() {
                                     })}
                                     <tr>
                                         <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">FEMALE</td>
+                                        <td className="bg-gray-200 border border-black"></td>
                                     </tr>
                                     {femaleStudents.map((student, i) => {
                                         const summary = getSummaryGrades(student);
