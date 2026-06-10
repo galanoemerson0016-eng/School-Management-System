@@ -3,6 +3,8 @@ import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
+import { formatLearnerName } from '../utils/student-name';
+
 import type { Section } from '../types';
 
 
@@ -64,19 +66,31 @@ export function AttendancePage() {
         }
     }, [selectedSection, selectedMonth, fetchSF2Sheet]);
 
+    const lastLoadedIdRef = useRef<string | null>(null);
+
+    // Reset ref when section/month changes to force reload the new sheet from database
+    useEffect(() => {
+        lastLoadedIdRef.current = null;
+    }, [selectedSection, selectedMonth, activeSchoolYear]);
+
     // Persistence: Sync store to local
     useEffect(() => {
         if (activeSF2Sheet && activeSF2Sheet.month === selectedMonth && activeSF2Sheet.section_id === selectedSection && activeSF2Sheet.school_year === activeSchoolYear) {
-            setAttendanceData(prev => ({
-                ...prev,
-                [selectedMonth]: activeSF2Sheet.attendance || {}
-            }));
-            setMonthDateLabels(prev => ({
-                ...prev,
-                [selectedMonth]: activeSF2Sheet.date_labels || {}
-            }));
+            const sheetId = `${selectedSection}_${activeSchoolYear}_${selectedMonth}`;
+            if (lastLoadedIdRef.current !== sheetId) {
+                lastLoadedIdRef.current = sheetId;
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [selectedMonth]: activeSF2Sheet.attendance || {}
+                }));
+                setMonthDateLabels(prev => ({
+                    ...prev,
+                    [selectedMonth]: activeSF2Sheet.date_labels || {}
+                }));
+            }
         }
     }, [activeSF2Sheet, selectedMonth, selectedSection, activeSchoolYear]);
+
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -476,7 +490,16 @@ export function AttendancePage() {
         return Math.min(1, availableWidth / SF2_BASE_WIDTH);
     }, [previewViewportWidth, SF2_BASE_WIDTH]);
 
-    const effectiveZoom = zoom * fitZoom;
+    const paperSizeZoom = useMemo(() => {
+        switch (paperSize) {
+            case 'a4': return 0.80;
+            case 'letter': return 0.74;
+            case 'folio': return 0.88;
+            default: return 1;
+        }
+    }, [paperSize]);
+
+    const effectiveZoom = zoom * fitZoom * paperSizeZoom;
 
     const adviserName = useMemo(() => {
         const sec = sections.find(s => s.section_name === selectedSection);
@@ -702,11 +725,11 @@ export function AttendancePage() {
                 <table className="w-full border-collapse border-[2.5px] border-black text-[11px] mb-0" style={{ tableLayout: 'fixed' }}>
                     <colgroup>
                         <col style={{ width: '22px' }} />
-                        <col style={{ width: '210px' }} />
+                        <col style={{ width: '260px' }} />
                         {days.map(d => <col key={d} style={{ width: '23px' }} />)}
                         <col style={{ width: '42px' }} />
                         <col style={{ width: '42px' }} />
-                        <col style={{ width: '170px' }} />
+                        <col style={{ width: '120px' }} />
                     </colgroup>
                     <thead>
                         {/* Row 1: Labels */}
@@ -775,7 +798,7 @@ export function AttendancePage() {
                             <tr key={student.lrn} className="h-5.5">
                                 <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
                                 <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
-                                    {student.last_name}, {student.first_name}
+                                    {formatLearnerName(student)}
                                 </td>
                                 {days.map((d, i) => (
                                     <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
@@ -814,7 +837,7 @@ export function AttendancePage() {
                             <tr key={student.lrn} className="h-5.5">
                                 <td className="border-2 border-black text-center font-black text-[11px] text-black p-0">{idx + 1}</td>
                                 <td className="border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black text-[12px]">
-                                    {student.last_name}, {student.first_name}
+                                    {formatLearnerName(student)}
                                 </td>
                                 {days.map((d, i) => (
                                     <td key={d} className={`border-2 border-black text-center text-[12px] font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''}`}
