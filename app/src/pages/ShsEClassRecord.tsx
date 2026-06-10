@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 
@@ -12,6 +12,41 @@ import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 const WW_COUNT = 5;
 const PT_COUNT = 3;
 const ST_COUNT = 3;
+
+type PaperSize = 'folio' | 'a4' | 'letter';
+
+const PAPER_SIZES: Record<PaperSize, { label: string; landscape: string; portrait: string; margins: string; summaryMargins: string; jspdfFormat: string | [number, number]; previewWidthLandscape: string; previewWidthPortrait: string }> = {
+    folio: {
+        label: 'Folio',
+        landscape: '13in 8.5in',
+        portrait: '8.5in 13in',
+        margins: '0.12in 0.18in',
+        summaryMargins: '0.5in 0.25in',
+        jspdfFormat: 'legal',
+        previewWidthLandscape: '1248px',
+        previewWidthPortrait: '816px',
+    },
+    a4: {
+        label: 'A4',
+        landscape: '297mm 210mm',
+        portrait: '210mm 297mm',
+        margins: '0.1in 0.15in',
+        summaryMargins: '0.4in 0.2in',
+        jspdfFormat: 'a4',
+        previewWidthLandscape: '1122px',
+        previewWidthPortrait: '794px',
+    },
+    letter: {
+        label: 'Letter',
+        landscape: '11in 8.5in',
+        portrait: '8.5in 11in',
+        margins: '0.1in 0.15in',
+        summaryMargins: '0.4in 0.2in',
+        jspdfFormat: 'letter',
+        previewWidthLandscape: '1056px',
+        previewWidthPortrait: '816px',
+    },
+};
 
 const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
     const src = Array.isArray(scores) ? scores : [];
@@ -168,7 +203,8 @@ export function ShsEClassRecord() {
     const [selectedSubject, setSelectedSubject] = useState(globalSubject || '');
     const [quarter, setQuarter] = useState<1 | 2 | 3 | 'summary' | 'summary_t1' | 'summary_t2' | 'summary_t3' | 'summary_final'>(1);
     const [zoom, setZoom] = useState(0.95);
-    const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+    const [paperSize, setPaperSize] = useState<PaperSize>('folio');
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const formatStudentFullName = (student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
@@ -197,6 +233,15 @@ export function ShsEClassRecord() {
     const selectedSubjectObj = useMemo(() => {
         return subjects.find(s => s.id === selectedSubject);
     }, [subjects, selectedSubject]);
+
+    // Compute which terms the selected subject is offered in
+    const offeredTerms = useMemo(() => {
+        if (!selectedSubjectObj) return [1, 2, 3];
+        const termVal = selectedSubjectObj.term;
+        if (termVal === undefined || termVal === null || termVal === 'all') return [1, 2, 3];
+        if (termVal === 'none') return [];
+        return [Number(termVal)];
+    }, [selectedSubjectObj]);
 
     // Sort Sections
     const sortedSections = useMemo(() => {
@@ -481,9 +526,21 @@ export function ShsEClassRecord() {
     }, [sectionGradeLevel, activeSchoolYear]);
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
+        const targetSubjectObj = subjects.find(s => s.id === selectedSubject);
+        const isTermOffered = (subj: typeof targetSubjectObj | undefined, q: number) => {
+            if (!subj) return true;
+            const termVal = subj.term;
+            if (termVal === undefined || termVal === null || termVal === 'all') return true;
+            if (termVal === 'none') return false;
+            return Number(termVal) === q;
+        };
+
         let total = 0;
         let count = 0;
         const terms = [1, 2, 3].map(q => {
+            if (!isTermOffered(targetSubjectObj, q)) {
+                return '';
+            }
             const record = classRecords.find(r =>
                 r.student_lrn === student.lrn &&
                 r.subject_id === selectedSubject &&
@@ -507,7 +564,7 @@ export function ShsEClassRecord() {
             final,
             descriptor
         };
-    }, [classRecords, selectedSubject, getGradeDescriptor]);
+    }, [classRecords, selectedSubject, getGradeDescriptor, subjects]);
 
     const proficiencyData = useMemo(() => {
         const levels = [
@@ -787,14 +844,95 @@ export function ShsEClassRecord() {
         }, 500);
     };
 
+    const handleDownload = async () => {
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        const elementId = isSummaryMode ? 'printable-summary-record' : 'printable-class-record';
+        const el = document.getElementById(elementId);
+        if (!el) {
+            showNotification('Nothing to download. Please select a section and subject first.', 'error');
+            return;
+        }
+
+        setIsDownloading(true);
+        try {
+            const html2canvas = (await import('html2canvas-pro')).default;
+            const { jsPDF } = await import('jspdf');
+
+            // Temporarily reset zoom for clean capture
+            const zoomShell = el.closest('.eclass-zoom-shell') as HTMLElement | null;
+            const prevTransform = zoomShell?.style.transform || '';
+            if (zoomShell) zoomShell.style.transform = 'none';
+
+            // Find all page containers inside the printable element (for summary, it's just the element itself)
+            const pages = isSummaryMode 
+                ? [el] 
+                : Array.from(el.querySelectorAll('.class-record-page')) as HTMLElement[];
+
+            if (pages.length === 0) {
+                pages.push(el);
+            }
+
+            const orientation = isSummaryMode ? 'portrait' : 'landscape';
+            const pSize = PAPER_SIZES[paperSize];
+            const pdf = new jsPDF({ orientation, unit: 'mm', format: pSize.jspdfFormat as any });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 4;
+            const usableW = pageW - margin * 2;
+            const usableH = pageH - margin * 2;
+
+            for (let i = 0; i < pages.length; i++) {
+                if (i > 0) {
+                    pdf.addPage(pSize.jspdfFormat as any, orientation);
+                }
+
+                const pageEl = pages[i];
+                const canvas = await html2canvas(pageEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgW = canvas.width;
+                const imgH = canvas.height;
+                const ratio = Math.min(usableW / imgW, usableH / imgH);
+                const drawW = imgW * ratio;
+                const drawH = imgH * ratio;
+                const offsetX = margin + (usableW - drawW) / 2;
+                const offsetY = margin;
+
+                pdf.addImage(imgData, 'PNG', offsetX, offsetY, drawW, drawH);
+            }
+
+            // Restore zoom
+            if (zoomShell) zoomShell.style.transform = prevTransform;
+
+            const sectionName = selectedSectionObj ? `${selectedSectionObj.section_grade_level}-${selectedSectionObj.section_name}` : 'Record';
+            const subjName = selectedSubjectObj?.subject_name || '';
+            const termLabel = isSummaryMode ? 'Summary' : `T${quarter}`;
+            pdf.save(`SHS_Class_Record_${sectionName}_${subjName}_${termLabel}.pdf`);
+
+            showNotification('Class record downloaded successfully!', 'success');
+        } catch (err) {
+            console.error('Download failed:', err);
+            showNotification('Failed to download class record. Please try again.', 'error');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
 
     return (
         <div className="h-full min-h-0 flex flex-col gap-3">
             <style>{`
                 @media print {
                     @page {
-                        size: ${quarter === 'summary' ? '8.5in 13in' : '13in 8.5in'};
-                        margin: ${quarter === 'summary' ? '0.5in 0.25in' : '0.12in 0.18in'};
+                        size: ${typeof quarter === 'string' && quarter.startsWith('summary') ? PAPER_SIZES[paperSize].portrait : PAPER_SIZES[paperSize].landscape};
+                        margin: ${typeof quarter === 'string' && quarter.startsWith('summary') ? PAPER_SIZES[paperSize].summaryMargins : PAPER_SIZES[paperSize].margins};
                     }
                     body {
                         visibility: hidden;
@@ -825,16 +963,16 @@ export function ShsEClassRecord() {
                 }
             `}</style>
 
-            <div className="bg-white rounded-lg shadow-md p-3 no-print">
-                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-3 lg:gap-2.5">
-                    <div className="w-full lg:w-[210px] shrink-0">
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label className="block text-[13px] font-semibold text-deped-blue">Section</label>
+            <div className="bg-white rounded-lg shadow-md p-2.5 no-print">
+                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-2 lg:gap-2">
+                    <div className="w-full lg:w-[160px] shrink-0">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">Section</label>
                         </div>
                         <select
                             value={selectedSection}
                             onChange={(e) => onSectionChange(e.target.value)}
-                            className="form-input"
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
                         >
                             <option value="">Select Section</option>
                             {sortedSections.map((s) => (
@@ -842,16 +980,16 @@ export function ShsEClassRecord() {
                             ))}
                         </select>
                     </div>
-                    <div className="w-full lg:flex-1 lg:min-w-0">
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label className="block text-[13px] font-semibold text-deped-blue">
+                    <div className="w-full lg:flex-1 lg:min-w-[140px]">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
                             </label>
                         </div>
                         <select
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
-                            className="form-input"
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
                             disabled={!selectedSection}
                         >
                             <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
@@ -874,8 +1012,8 @@ export function ShsEClassRecord() {
                         </select>
                     </div>
 
-                    <div className="w-full lg:w-[150px] shrink-0">
-                        <label className="block text-[13px] font-semibold mb-1.5 text-deped-blue">Term</label>
+                    <div className="w-full lg:w-[110px] shrink-0">
+                        <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
                         <select value={quarter} onChange={(e) => {
                             const val = e.target.value;
                             if (val.startsWith('summary')) {
@@ -883,35 +1021,66 @@ export function ShsEClassRecord() {
                             } else {
                                 setQuarter(Number(val) as any);
                             }
-                        }} className="form-input">
+                        }} className="form-input h-8 py-1 px-2 text-[11px] rounded-xl">
                             <option value={1}>Term 1</option>
                             <option value={2}>Term 2</option>
                             <option value={3}>Term 3</option>
                             <option value="summary_final">Final Summary</option>
                         </select>
                     </div>
-                    <div className="flex items-center gap-2.5 shrink-0">
-                        <div className="flex items-center gap-1.5 h-9 px-1 rounded-xl bg-slate-100 border border-slate-200">
+                    <div className="w-full lg:w-[110px] shrink-0">
+                        <label className="text-[11px] font-semibold mb-1 text-deped-blue flex items-center gap-1 whitespace-nowrap">
+                            <FileText className="w-3.5 h-3.5" /> Paper Size
+                        </label>
+                        <select
+                            value={paperSize}
+                            onChange={(e) => setPaperSize(e.target.value as PaperSize)}
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                        >
+                            {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
+                                <option key={key} value={key}>{label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-10 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
                                 title="Zoom In"
                             >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-3 h-3" />
                             </button>
                         </div>
-                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-2 h-9 px-4 whitespace-nowrap">
-                            <Printer className="w-4 h-4" /> Print Record
+                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
+                            <Printer className="w-3.5 h-3.5" /> Print Record
+                        </button>
+                        <button 
+                            onClick={handleDownload}
+                            disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
+                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
+                        >
+                            {isDownloading ? (
+                                <>
+                                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                    </svg>
+                                    Downloading…
+                                </>
+                            ) : (
+                                <><Download className="w-3.5 h-3.5" /> Download</>  
+                            )}
                         </button>
                         <button
                             onClick={async () => {
@@ -949,9 +1118,9 @@ export function ShsEClassRecord() {
                                 }
                             }}
                             disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-9 px-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-2 group disabled:opacity-30 disabled:grayscale"
+                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
                         >
-                            <CloudUpload className="w-4 h-4" /> Publish
+                            <CloudUpload className="w-3.5 h-3.5" /> Publish
                         </button>
                     </div>
                 </div>
@@ -965,14 +1134,14 @@ export function ShsEClassRecord() {
                         style={{ transform: `scale(${zoom})` }}
                     >
                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
-                        <div id="printable-summary-record" className="w-[816px] max-w-full bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none">
+                        <div id="printable-summary-record" className="bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
                             <div className="flex flex-col mb-4">
                                 <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
                                     <div className="w-14 h-14 shrink-0">
                                         <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                     </div>
                                     <div className="text-center flex-1 mx-4 text-black">
-                                        <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Strengthened Senior High School Class Record</h1>
+                                        <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
                                         <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
                                             (Pursuant to DepEd Order 8 series of 2015)
                                         </p>
@@ -1061,47 +1230,49 @@ export function ShsEClassRecord() {
                                     <tr className="text-center text-[10px] font-bold bg-gray-100 h-10">
                                         <th className="border border-black w-8"></th>
                                         <th className="border border-black p-2 align-middle w-[250px] text-center tracking-wider">LEARNERS' NAMES</th>
-                                        <th className="border border-black p-1 w-[80px]">TERM 1</th>
-                                        <th className="border border-black p-1 w-[80px]">TERM 2</th>
-                                        <th className="border border-black p-1 w-[80px]">TERM 3</th>
+                                        {offeredTerms.map(t => (
+                                            <th key={t} className="border border-black p-1 w-[80px]">TERM {t}</th>
+                                        ))}
                                         <th className="border border-black p-1 w-[90px]">FINAL GRADE</th>
                                         <th className="border border-black p-1 w-[100px]">DESCRIPTOR</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr className="bg-gray-200 font-bold">
-                                        <td colSpan={7} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">MALE</td>
+                                    <tr>
+                                        <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">MALE</td>
                                     </tr>
                                     {maleStudents.map((student, i) => {
                                         const summary = getSummaryGrades(student);
+                                        const termGrades = [summary.t1, summary.t2, summary.t3];
                                         return (
                                             <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
                                                 <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
                                                 <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
                                                     {formatStudentFullName(student)}
                                                 </td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
+                                                {offeredTerms.map(t => (
+                                                    <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
+                                                ))}
                                                 <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                 <td className="border border-black text-center font-bold bg-gray-50 text-[9px] text-deped-blue px-1 whitespace-normal wrap-break-word">{summary.descriptor}</td>
                                             </tr>
                                         );
                                     })}
-                                    <tr className="bg-gray-200 font-bold">
-                                        <td colSpan={7} className="border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase">FEMALE</td>
+                                    <tr>
+                                        <td colSpan={3 + offeredTerms.length} className="bg-gray-200 border border-black text-left px-2 py-0.5 text-[10px] tracking-widest uppercase font-bold">FEMALE</td>
                                     </tr>
                                     {femaleStudents.map((student, i) => {
                                         const summary = getSummaryGrades(student);
+                                        const termGrades = [summary.t1, summary.t2, summary.t3];
                                         return (
                                             <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
                                                 <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
                                                 <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
                                                     {formatStudentFullName(student)}
                                                 </td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t1, sectionGradeLevel)}</td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t2, sectionGradeLevel)}</td>
-                                                <td className="border border-black text-center font-semibold">{formatGradeForDisplay(summary.t3, sectionGradeLevel)}</td>
+                                                {offeredTerms.map(t => (
+                                                    <td key={t} className="border border-black text-center font-semibold">{formatGradeForDisplay(termGrades[t - 1], sectionGradeLevel)}</td>
+                                                ))}
                                                 <td className="border border-black text-center font-bold bg-gray-50">{formatGradeForDisplay(summary.final, sectionGradeLevel)}</td>
                                                 <td className="border border-black text-center font-bold bg-gray-50 text-[9px] text-deped-blue px-1 whitespace-normal wrap-break-word">{summary.descriptor}</td>
                                             </tr>
@@ -1112,19 +1283,19 @@ export function ShsEClassRecord() {
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 p-3 md:p-4 text-black">
-                        <div id="printable-class-record" className="min-w-[1200px] bg-white p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto">
+                        <div id="printable-class-record" className="bg-white p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
                             ].map((section, sectionIdx) => (
-                            <div key={section.gender} className={`p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
+                            <div key={section.gender} className={`class-record-page bg-white p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
                              <div className="flex flex-col mb-4">
                                  <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
                                      <div className="w-14 h-14 shrink-0">
                                          <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                      </div>
                                      <div className="text-center flex-1 mx-4 text-black">
-                                         <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Strengthened Senior High School Class Record</h1>
+                                         <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
                                          <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
                                              (Pursuant to DepEd Order 8 series of 2015)
                                          </p>
@@ -1375,377 +1546,344 @@ export function ShsEClassRecord() {
                                             </tr>
                                         );
                                     })}
-                                    {section.gender === 'FEMALE' && (
-                                        <>
-                                            <tr className="bg-gray-200 mt-4 border-t-4 border-black cursor-pointer hover:bg-gray-300 transition-colors no-print" onClick={() => setIsAnalyticsOpen(!isAnalyticsOpen)}>
-                                                <td colSpan={isFieldExposure ? 22 : 24} className="border border-black p-2 font-bold bg-yellow-100 uppercase text-center">
-                                                    <div className="flex items-center justify-between">
-                                                        <span>TERM SUMMARY OF LEARNERS' GRADES & ANALYTICS</span>
-                                                        <span className="text-xl">{isAnalyticsOpen ? '▼' : '▶'}</span>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {isAnalyticsOpen && (
-                                                <tr className="bg-white no-print">
-                                                    <td colSpan={isFieldExposure ? 22 : 24} className="p-0 border border-black border-t-0">
-                                                        <div className="flex flex-col gap-4 p-4 text-black text-left">
-                                                            <div className="flex flex-col lg:flex-row gap-6">
-                                                                <div className="flex-1 flex flex-col gap-4">
-                                                                    <div className="border border-black overflow-hidden rounded">
-                                                                        <div className="bg-gray-100 p-2 font-bold text-xs border-b border-black text-center uppercase">Learning Progress and Achievement</div>
-                                                                        <table className="w-full text-center text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-gray-50 border-b border-black text-[9px]">
-                                                                                    <th className="p-1 border-r border-black w-32 uppercase">Descriptors & Grading Scale</th>
-                                                                                    <th className="p-1 border-r border-black w-24 uppercase">REMARKS</th>
-                                                                                    <th className="p-1 border-r border-black uppercase">MALE</th>
-                                                                                    <th className="p-1 border-r border-black uppercase">FEMALE</th>
-                                                                                    <th className="p-1 uppercase">TOTAL</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {[
-                                                                                    { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100, dataKey: 'advancing' },
-                                                                                    { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89, dataKey: 'benchmarking' },
-                                                                                    { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79, dataKey: 'connecting' },
-                                                                                    { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74, dataKey: 'developing' },
-                                                                                    { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64, dataKey: 'emerging' }
-                                                                                ].map((level, idx) => {
-                                                                                    const m = proficiencyData[level.dataKey]?.male || 0;
-                                                                                    const f = proficiencyData[level.dataKey]?.female || 0;
-                                                                                    return (
-                                                                                        <tr key={idx} className="border-b border-gray-200">
-                                                                                            <td className="p-1 border-r border-black text-left pl-2">{level.desc}</td>
-                                                                                            <td className={`p-1 border-r border-black ${level.min < 75 ? 'text-red-600 font-bold' : 'text-green-700'}`}>{level.remark}</td>
-                                                                                            <td className="p-1 border-r border-black">{m}</td>
-                                                                                            <td className="p-1 border-r border-black">{f}</td>
-                                                                                            <td className="p-1 font-bold">{m + f}</td>
-                                                                                        </tr>
-                                                                                    );
-                                                                                })}
-                                                                                <tr className="bg-gray-100 font-bold border-t border-black">
-                                                                                    <td className="p-1 border-r border-black" colSpan={2}>TOTAL</td>
-                                                                                    <td className="p-1 border-r border-black">{maleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
-                                                                                    <td className="p-1 border-r border-black">{femaleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
-                                                                                    <td className="p-1 font-bold">{maleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length + femaleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
-                                                                                </tr>
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                    <div className="border border-black overflow-hidden rounded">
-                                                                        <div className="bg-gray-100 p-2 font-bold text-xs border-b border-black text-center">STATISTICS</div>
-                                                                        <table className="w-full text-center text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-gray-50 border-b border-black">
-                                                                                    <th className="p-1 border-r border-black">METRIC</th>
-                                                                                    <th className="p-1 border-r border-black">MALE</th>
-                                                                                    <th className="p-1 border-r border-black">FEMALE</th>
-                                                                                    <th className="p-1">TOTAL</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {[
-                                                                                    { label: 'Mean Percentage Score (MPS)', key: 'mps' },
-                                                                                    { label: 'Highest Score', key: 'high' },
-                                                                                    { label: 'Lowest Score', key: 'low' },
-                                                                                ].map((stat, idx) => {
-                                                                                    const getStats = (studentsList: typeof maleStudents) => {
-                                                                                        const grades = studentsList.map(s => getStudentSummary(s).quarterlyGrade).filter(g => g > 0);
-                                                                                        if (grades.length === 0) return 0;
-                                                                                        if (stat.key === 'mps') return (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2);
-                                                                                        if (stat.key === 'high') return Math.max(...grades);
-                                                                                        if (stat.key === 'low') return Math.min(...grades);
-                                                                                        return 0;
-                                                                                    };
-                                                                                    return (
-                                                                                        <tr key={idx} className="border-b border-gray-200">
-                                                                                            <td className="p-1 border-r border-black text-left pl-2 font-bold">{stat.label}</td>
-                                                                                            <td className="p-1 border-r border-black">{getStats(maleStudents)}</td>
-                                                                                            <td className="p-1 border-r border-black">{getStats(femaleStudents)}</td>
-                                                                                            <td className="p-1 font-bold">{getStats([...maleStudents, ...femaleStudents])}</td>
-                                                                                        </tr>
-                                                                                    );
-                                                                                })}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex-1 flex flex-col gap-4">
-                                                                    <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
-                                                                        <h4 className="text-xs font-bold text-gray-600 mb-2">Proficiency Level Distribution</h4>
-                                                                        <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
-                                                                                <BarChart data={[
-                                                                                    { name: 'Advancing', count: proficiencyData.advancing?.total || 0 },
-                                                                                    { name: 'Benchmarking', count: proficiencyData.benchmarking?.total || 0 },
-                                                                                    { name: 'Connecting', count: proficiencyData.connecting?.total || 0 },
-                                                                                    { name: 'Developing', count: proficiencyData.developing?.total || 0 },
-                                                                                    { name: 'Emerging', count: proficiencyData.emerging?.total || 0 },
-                                                                                ]}>
-                                                                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                                                                    <YAxis tick={{ fontSize: 10 }} />
-                                                                                    <Tooltip />
-                                                                                    <Bar dataKey="count" fill="#8884d8">
-                                                                                        {[
-                                                                                            { name: 'Advancing', color: '#10B981' },
-                                                                                            { name: 'Benchmarking', color: '#34D399' },
-                                                                                            { name: 'Connecting', color: '#60A5FA' },
-                                                                                            { name: 'Developing', color: '#FBBF24' },
-                                                                                            { name: 'Emerging', color: '#EF4444' }
-                                                                                        ].map((entry, index) => {
-                                                                                            const colorMap: Record<string, string> = {
-                                                                                                'Advancing': '#10B981',
-                                                                                                'Benchmarking': '#34D399',
-                                                                                                'Connecting': '#60A5FA',
-                                                                                                'Developing': '#FBBF24',
-                                                                                                'Emerging': '#EF4444'
-                                                                                            };
-                                                                                            return <Cell key={`cell-${index}`} fill={colorMap[entry.name] || '#999'} />;
-                                                                                        })}
-                                                                                    </Bar>
-                                                                                </BarChart>
-                                                                            </ResponsiveContainer>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="border border-gray-300 rounded p-2 bg-white flex flex-col items-center justify-center shadow-sm">
-                                                                        <h4 className="text-xs font-bold text-gray-600 mb-2">MPS by Gender</h4>
-                                                                        <div className="w-full h-40">
-                                                                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
-                                                                                <BarChart layout="vertical" data={[
-                                                                                    { name: 'Male', mps: Number(mpsData.maleMps.toFixed(2)) },
-                                                                                    { name: 'Female', mps: Number(mpsData.femaleMps.toFixed(2)) },
-                                                                                ]}>
-                                                                                    <XAxis type="number" domain={[0, 100]} hide />
-                                                                                    <YAxis dataKey="name" type="category" width={50} tick={{ fontSize: 10 }} />
-                                                                                    <Tooltip />
-                                                                                    <Bar dataKey="mps" fill="#3B82F6" barSize={20} label={{ position: 'right', fill: '#666', fontSize: 10 }}>
-                                                                                        <Cell fill="#60A5FA" />
-                                                                                        <Cell fill="#F472B6" />
-                                                                                    </Bar>
-                                                                                </BarChart>
-                                                                            </ResponsiveContainer>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex-1 flex flex-col gap-6">
-                                                                <div className="border border-black overflow-hidden rounded bg-white shadow-sm">
-                                                                    <div className="bg-slate-800 text-white p-2 font-black text-[11px] border-b border-black text-center uppercase tracking-widest">
-                                                                        Test / Exam Result Analysis
-                                                                    </div>
-                                                                    <div className="p-4 space-y-4">
-                                                                        {/* General Info */}
-                                                                        <table className="w-full text-center border-collapse border border-black text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-slate-50 border-b border-black">
-                                                                                    <th className="p-1 border-r border-black w-1/3 text-left pl-3">METRIC</th>
-                                                                                    <th className="p-1 border-r border-black">ST1</th>
-                                                                                    <th className="p-1 border-r border-black">ST2</th>
-                                                                                    <th className="p-1">TE</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                <tr className="border-b border-black">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3 font-medium">Number of Examinees:</td>
-                                                                                    <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st1.count}</td>
-                                                                                    <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st2.count}</td>
-                                                                                    <td className="p-1 font-bold">{summativeAnalysis.te.count}</td>
-                                                                                </tr>
-                                                                                <tr className="bg-slate-50">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3 font-medium">Highest Possible Score:</td>
-                                                                                    <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st1.hps}</td>
-                                                                                    <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st2.hps}</td>
-                                                                                    <td className="p-1 font-bold">{summativeAnalysis.te.hps}</td>
-                                                                                </tr>
-                                                                            </tbody>
-                                                                        </table>
-
-                                                                        {/* Criterion-Referenced */}
-                                                                        <table className="w-full text-center border-collapse border border-black text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-blue-900 text-white border-b border-black">
-                                                                                    <th className="p-1 border-r border-black w-1/3 text-left pl-3 font-black">CRITERION-REFERENCED</th>
-                                                                                    <th className="p-1 border-r border-black">ST1</th>
-                                                                                    <th className="p-1 border-r border-black">ST2</th>
-                                                                                    <th className="p-1">TE</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                <tr className="border-b border-black">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3">Got 75% & above</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.above75}</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.above75}</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.criterion.above75}</td>
-                                                                                </tr>
-                                                                                <tr className="border-b border-black bg-slate-50">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3 font-medium">Percentage</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.above75Pct.toFixed(2)}%</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.above75Pct.toFixed(2)}%</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.criterion.above75Pct.toFixed(2)}%</td>
-                                                                                </tr>
-                                                                                <tr className="border-b border-black">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3">Got below 75%</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.below75}</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.below75}</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.criterion.below75}</td>
-                                                                                </tr>
-                                                                                <tr className="bg-slate-50">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3 font-medium">Percentage</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.below75Pct.toFixed(2)}%</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.below75Pct.toFixed(2)}%</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.criterion.below75Pct.toFixed(2)}%</td>
-                                                                                </tr>
-                                                                            </tbody>
-                                                                        </table>
-
-                                                                        {/* Norm-Referenced */}
-                                                                        <table className="w-full text-center border-collapse border border-black text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-emerald-800 text-white border-b border-black">
-                                                                                    <th className="p-1 border-r border-black w-1/3 text-left pl-3 font-black">NORM-REFERENCED</th>
-                                                                                    <th className="p-1 border-r border-black">ST1</th>
-                                                                                    <th className="p-1 border-r border-black">ST2</th>
-                                                                                    <th className="p-1">TE</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {['Mean', 'Median', 'SD', 'MPS/PL'].map((metric, i) => (
-                                                                                    <tr key={metric} className={`border-b border-black ${i % 2 === 1 ? 'bg-slate-50' : ''}`}>
-                                                                                        <td className="p-1 border-r border-black text-left pl-3">{metric}</td>
-                                                                                        <td className="p-1 border-r border-black">
-                                                                                            {metric === 'Mean' ? summativeAnalysis.st1.norm.mean.toFixed(2) :
-                                                                                             metric === 'Median' ? summativeAnalysis.st1.norm.median.toFixed(2) :
-                                                                                             metric === 'SD' ? summativeAnalysis.st1.norm.sd.toFixed(2) :
-                                                                                             summativeAnalysis.st1.norm.mps.toFixed(2) + '%'}
-                                                                                        </td>
-                                                                                        <td className="p-1 border-r border-black">
-                                                                                            {metric === 'Mean' ? summativeAnalysis.st2.norm.mean.toFixed(2) :
-                                                                                             metric === 'Median' ? summativeAnalysis.st2.norm.median.toFixed(2) :
-                                                                                             metric === 'SD' ? summativeAnalysis.st2.norm.sd.toFixed(2) :
-                                                                                             summativeAnalysis.st2.norm.mps.toFixed(2) + '%'}
-                                                                                        </td>
-                                                                                        <td className="p-1">
-                                                                                            {metric === 'Mean' ? summativeAnalysis.te.norm.mean.toFixed(2) :
-                                                                                             metric === 'Median' ? summativeAnalysis.te.norm.median.toFixed(2) :
-                                                                                             metric === 'SD' ? summativeAnalysis.te.norm.sd.toFixed(2) :
-                                                                                             summativeAnalysis.te.norm.mps.toFixed(2) + '%'}
-                                                                                        </td>
-                                                                                    </tr>
-                                                                                ))}
-                                                                            </tbody>
-                                                                        </table>
-
-                                                                        {/* Other Info */}
-                                                                        <table className="w-full text-center border-collapse border border-black text-[10px]">
-                                                                            <thead>
-                                                                                <tr className="bg-slate-700 text-white border-b border-black">
-                                                                                    <th className="p-1 border-r border-black w-1/3 text-left pl-3 font-black">OTHER INFO</th>
-                                                                                    <th className="p-1 border-r border-black">ST1</th>
-                                                                                    <th className="p-1 border-r border-black">ST2</th>
-                                                                                    <th className="p-1">TE</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                <tr className="border-b border-black">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3">Highest Score</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.other.high}</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.other.high}</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.other.high}</td>
-                                                                                </tr>
-                                                                                <tr className="border-b border-black bg-slate-50">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3">Lowest Score</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.other.low}</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.other.low}</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.other.low}</td>
-                                                                                </tr>
-                                                                                <tr className="font-bold">
-                                                                                    <td className="p-1 border-r border-black text-left pl-3">Total Score</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st1.other.total}</td>
-                                                                                    <td className="p-1 border-r border-black">{summativeAnalysis.st2.other.total}</td>
-                                                                                    <td className="p-1">{summativeAnalysis.te.other.total}</td>
-                                                                                </tr>
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex flex-col md:flex-row gap-4">
-                                                                <div className="flex-1 border border-red-200 rounded overflow-hidden">
-                                                                    <div className="bg-red-50 p-2 font-bold text-xs border-b border-red-200 text-red-700 uppercase flex items-center gap-2">
-                                                                        <span>🚨 At-Risk Learners (Below 75)</span>
-                                                                    </div>
-                                                                    <div className="max-h-60 overflow-y-auto">
-                                                                        <table className="w-full text-center text-[10px]">
-                                                                            <thead className="sticky top-0 bg-red-50 shadow-sm">
-                                                                                <tr className="text-red-800">
-                                                                                    <th className="p-2 text-left w-2/3">NAME</th>
-                                                                                    <th className="p-2">GRADE</th>
-                                                                                    <th className="p-2">REMARKS</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {[...maleStudents, ...femaleStudents]
-                                                                                    .map(s => ({ ...s, grade: getStudentSummary(s).quarterlyGrade }))
-                                                                                    .filter(s => s.grade > 0 && s.grade < 75)
-                                                                                    .sort((a, b) => a.grade - b.grade)
-                                                                                    .map((s, idx) => (
-                                                                                        <tr key={s.lrn} className="border-b border-red-50 hover:bg-red-50 transition-colors">
-                                                                                            <td className="p-2 text-left truncate font-medium text-gray-700">{idx + 1}. {s.last_name}, {s.first_name}</td>
-                                                                                            <td className="p-2 font-bold text-red-600">{s.grade}</td>
-                                                                                            <td className="p-2 text-red-600 font-bold text-[9px] uppercase tracking-wider">Failed</td>
-                                                                                        </tr>
-                                                                                    ))}
-                                                                                {[...maleStudents, ...femaleStudents].filter(s => getStudentSummary(s).quarterlyGrade > 0 && getStudentSummary(s).quarterlyGrade < 75).length === 0 && (
-                                                                                    <tr><td colSpan={3} className="p-4 text-gray-400 italic text-center">No learners at risk. Great job! 🎉</td></tr>
-                                                                                )}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex-1 border border-green-200 rounded overflow-hidden">
-                                                                    <div className="bg-green-50 p-2 font-bold text-xs border-b border-green-200 text-green-700 uppercase flex items-center gap-2">
-                                                                        <span>🏆 Top Performers (Outstanding)</span>
-                                                                    </div>
-                                                                    <div className="max-h-60 overflow-y-auto">
-                                                                        <table className="w-full text-center text-[10px]">
-                                                                            <thead className="sticky top-0 bg-green-50 shadow-sm">
-                                                                                <tr className="text-green-800">
-                                                                                    <th className="p-2 text-left w-2/3">NAME</th>
-                                                                                    <th className="p-2">GRADE</th>
-                                                                                    <th className="p-2">RANK</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {[...maleStudents, ...femaleStudents]
-                                                                                    .map(s => ({ ...s, grade: getStudentSummary(s).quarterlyGrade }))
-                                                                                    .filter(s => s.grade >= 90)
-                                                                                    .sort((a, b) => b.grade - a.grade)
-                                                                                    .slice(0, 10)
-                                                                                    .map((s, idx) => (
-                                                                                        <tr key={s.lrn} className="border-b border-green-50 hover:bg-green-50 transition-colors">
-                                                                                            <td className="p-2 text-left truncate font-medium text-gray-700">{idx + 1}. {s.last_name}, {s.first_name}</td>
-                                                                                            <td className="p-2 font-bold text-green-700">{s.grade}</td>
-                                                                                            <td className="p-2 font-bold text-green-800 bg-green-100 rounded-full w-6 h-6 flex items-center justify-center mx-auto text-[9px]">#{idx + 1}</td>
-                                                                                        </tr>
-                                                                                    ))}
-                                                                                {[...maleStudents, ...femaleStudents].filter(s => getStudentSummary(s).quarterlyGrade >= 90).length === 0 && (
-                                                                                    <tr><td colSpan={3} className="p-4 text-gray-400 italic text-center">No outstanding learners yet. Keep encouraging them! 💪</td></tr>
-                                                                                )}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </>
-                                    )}
                                 </tbody>
                             </table>
                             </div>
                             ))}
+
+                            {/* Page 3: Analytics Dashboard */}
+                            <div className="class-record-page bg-white p-6 print:p-0 print:break-before-page mt-8">
+                                {/* Header Section */}
+                                <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2 px-4 print:px-1">
+                                    <div className="w-16 h-16 flex items-center justify-center shrink-0">
+                                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
+                                    </div>
+                                    <div className="text-center flex-1 mx-4">
+                                        <h1 className="text-2xl font-bold font-serif tracking-wide text-black mb-2 uppercase">
+                                            TERM SUMMARY OF LEARNERS' GRADES & ANALYTICS
+                                        </h1>
+                                        <div className="grid gap-x-4 gap-y-3 text-[10px] font-bold uppercase mb-2 justify-center w-full px-2" style={{ gridTemplateColumns: '42% 33% 25%' }}>
+                                            {/* Row 1, Col 1: Region */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">REGION</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[100px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>
+                                                    {schoolProfile.region}
+                                                </div>
+                                            </div>
+                                            {/* Row 1, Col 2: Division */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DIVISION</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>
+                                                    {schoolProfile.division}
+                                                </div>
+                                            </div>
+                                            {/* Row 1, Col 3: District */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DISTRICT</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.district || '', "text-[10px]")}`}>
+                                                    {schoolProfile.district || ''}
+                                                </div>
+                                            </div>
+
+                                            {/* Row 2, Col 1: School Name */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL NAME</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[140px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>
+                                                    {schoolProfile.name}
+                                                </div>
+                                            </div>
+                                            {/* Row 2, Col 2: School ID */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL ID</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>
+                                                    {schoolProfile.school_id}
+                                                </div>
+                                            </div>
+                                            {/* Row 2, Col 3: School Year */}
+                                            <div className="flex items-center min-h-[26px]">
+                                                <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR</span>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[10px]")}`}>
+                                                    {activeSchoolYear}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="w-28 h-16 flex items-center justify-center shrink-0">
+                                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-auto object-contain" />
+                                    </div>
+                                </div>
+
+                                {/* Main Dashboard Grid (3 columns) */}
+                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                    {/* Column 1: Learning Progress and Achievement & Statistics */}
+                                    <div className="space-y-3">
+                                        <div className="border border-black rounded overflow-hidden">
+                                            <div className="bg-slate-100 p-1.5 font-bold text-[9px] border-b border-black text-center uppercase tracking-wider">Learning Progress and Achievement</div>
+                                            <table className="w-full text-center text-[8px] leading-tight">
+                                                <thead>
+                                                    <tr className="bg-gray-50 border-b border-black text-[8px] font-bold">
+                                                        <th className="p-1 border-r border-black w-28 uppercase text-left pl-2">Descriptors</th>
+                                                        <th className="p-1 border-r border-black w-14 uppercase">Remarks</th>
+                                                        <th className="p-1 border-r border-black w-10 uppercase">Male</th>
+                                                        <th className="p-1 border-r border-black w-10 uppercase">Female</th>
+                                                        <th className="p-1 w-10 uppercase">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {[
+                                                        { desc: 'Advancing (90-100)', remark: 'Passed', dataKey: 'advancing' },
+                                                        { desc: 'Benchmarking (80-89)', remark: 'Passed', dataKey: 'benchmarking' },
+                                                        { desc: 'Connecting (75-79)', remark: 'Passed', dataKey: 'connecting' },
+                                                        { desc: 'Developing (65-74)', remark: 'Failed', dataKey: 'developing' },
+                                                        { desc: 'Emerging (0-64)', remark: 'Failed', dataKey: 'emerging' }
+                                                    ].map((level, idx) => {
+                                                        const m = proficiencyData[level.dataKey]?.male || 0;
+                                                        const f = proficiencyData[level.dataKey]?.female || 0;
+                                                        return (
+                                                            <tr key={idx} className="border-b border-gray-200">
+                                                                <td className="p-1 border-r border-black text-left pl-2 font-medium">{level.desc}</td>
+                                                                <td className={`p-1 border-r border-black font-bold ${level.remark === 'Failed' ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
+                                                                <td className="p-1 border-r border-black">{m}</td>
+                                                                <td className="p-1 border-r border-black">{f}</td>
+                                                                <td className="p-1 font-bold">{m + f}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    <tr className="bg-gray-100 font-bold border-t border-black">
+                                                        <td className="p-1 border-r border-black text-left pl-2" colSpan={2}>TOTAL</td>
+                                                        <td className="p-1 border-r border-black">{maleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
+                                                        <td className="p-1 border-r border-black">{femaleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
+                                                        <td className="p-1 font-bold">{maleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length + femaleStudents.filter(s => getStudentSummary(s).quarterlyGrade > 0).length}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <div className="border border-black rounded overflow-hidden">
+                                            <div className="bg-slate-100 p-1.5 font-bold text-[9px] border-b border-black text-center uppercase tracking-wider">Statistics Summary</div>
+                                            <table className="w-full text-center text-[8px] leading-tight">
+                                                <thead>
+                                                    <tr className="bg-gray-50 border-b border-black font-bold">
+                                                        <th className="p-1 border-r border-black text-left pl-2">Metric</th>
+                                                        <th className="p-1 border-r border-black w-14">Male</th>
+                                                        <th className="p-1 border-r border-black w-14">Female</th>
+                                                        <th className="p-1 w-14">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {[
+                                                        { label: 'Mean Score (MPS)', key: 'mps' },
+                                                        { label: 'Highest Score', key: 'high' },
+                                                        { label: 'Lowest Score', key: 'low' },
+                                                    ].map((stat, idx) => {
+                                                        const getStats = (studentsList: typeof maleStudents) => {
+                                                            const grades = studentsList.map(s => getStudentSummary(s).quarterlyGrade).filter(g => g > 0);
+                                                            if (grades.length === 0) return 0;
+                                                            if (stat.key === 'mps') return (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2);
+                                                            if (stat.key === 'high') return Math.max(...grades);
+                                                            if (stat.key === 'low') return Math.min(...grades);
+                                                            return 0;
+                                                        };
+                                                        return (
+                                                            <tr key={idx} className="border-b border-gray-200">
+                                                                <td className="p-1 border-r border-black text-left pl-2 font-semibold">{stat.label}</td>
+                                                                <td className="p-1 border-r border-black">{getStats(maleStudents)}</td>
+                                                                <td className="p-1 border-r border-black">{getStats(femaleStudents)}</td>
+                                                                <td className="p-1 font-bold">{getStats([...maleStudents, ...femaleStudents])}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Column 2: Recharts Visualizations */}
+                                    <div className="space-y-3">
+                                        <div className="border border-black rounded p-2 bg-white flex flex-col items-center justify-center">
+                                            <h4 className="text-[9px] font-bold text-gray-700 mb-1">Proficiency Level Distribution</h4>
+                                            <div className="w-full h-[110px]">
+                                                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
+                                                    <BarChart data={[
+                                                        { name: 'Advancing', count: proficiencyData.advancing?.total || 0 },
+                                                        { name: 'Benchmarking', count: proficiencyData.benchmarking?.total || 0 },
+                                                        { name: 'Connecting', count: proficiencyData.connecting?.total || 0 },
+                                                        { name: 'Developing', count: proficiencyData.developing?.total || 0 },
+                                                        { name: 'Emerging', count: proficiencyData.emerging?.total || 0 },
+                                                    ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+                                                        <XAxis dataKey="name" tick={{ fontSize: 7 }} />
+                                                        <YAxis tick={{ fontSize: 7 }} />
+                                                        <Tooltip />
+                                                        <Bar dataKey="count" fill="#8884d8">
+                                                            {[
+                                                                { name: 'Advancing', color: '#10B981' },
+                                                                { name: 'Benchmarking', color: '#34D399' },
+                                                                { name: 'Connecting', color: '#60A5FA' },
+                                                                { name: 'Developing', color: '#FBBF24' },
+                                                                { name: 'Emerging', color: '#EF4444' }
+                                                            ].map((entry, index) => {
+                                                                const colorMap: Record<string, string> = {
+                                                                    'Advancing': '#10B981',
+                                                                    'Benchmarking': '#34D399',
+                                                                    'Connecting': '#60A5FA',
+                                                                    'Developing': '#FBBF24',
+                                                                    'Emerging': '#EF4444'
+                                                                };
+                                                                return <Cell key={`cell-${index}`} fill={colorMap[entry.name] || '#999'} />;
+                                                            })}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+
+                                        <div className="border border-black rounded p-2 bg-white flex flex-col items-center justify-center">
+                                            <h4 className="text-[9px] font-bold text-gray-700 mb-1">MPS by Gender</h4>
+                                            <div className="w-full h-[70px]">
+                                                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
+                                                    <BarChart layout="vertical" data={[
+                                                        { name: 'Male', mps: Number(mpsData.maleMps.toFixed(2)) },
+                                                        { name: 'Female', mps: Number(mpsData.femaleMps.toFixed(2)) },
+                                                    ]} margin={{ top: 5, right: 20, left: -15, bottom: 5 }}>
+                                                        <XAxis type="number" domain={[0, 100]} hide />
+                                                        <YAxis dataKey="name" type="category" width={40} tick={{ fontSize: 8 }} />
+                                                        <Tooltip />
+                                                        <Bar dataKey="mps" fill="#3B82F6" barSize={12} label={{ position: 'right', fill: '#444', fontSize: 8 }}>
+                                                            <Cell fill="#60A5FA" />
+                                                            <Cell fill="#F472B6" />
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Column 3: Test / Exam Result Analysis */}
+                                    <div className="border border-black overflow-hidden rounded bg-white">
+                                        <div className="bg-slate-800 text-white p-1.5 font-bold text-[9px] border-b border-black text-center uppercase tracking-wider">
+                                            Test / Exam Result Analysis
+                                        </div>
+                                        <div className="p-2 space-y-2 text-[8px] leading-tight">
+                                            <table className="w-full text-center border-collapse border border-black">
+                                                <thead>
+                                                    <tr className="bg-slate-50 border-b border-black font-bold">
+                                                        <th className="p-1 border-r border-black text-left pl-2">Metric</th>
+                                                        <th className="p-1 border-r border-black w-8">ST1</th>
+                                                        <th className="p-1 border-r border-black w-8">ST2</th>
+                                                        <th className="p-1 w-8">TE</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="border-b border-black">
+                                                        <td className="p-1 border-r border-black text-left pl-2">Examinees</td>
+                                                        <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st1.count}</td>
+                                                        <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st2.count}</td>
+                                                        <td className="p-1 font-bold">{summativeAnalysis.te.count}</td>
+                                                    </tr>
+                                                    <tr className="bg-slate-50 border-b border-black">
+                                                        <td className="p-1 border-r border-black text-left pl-2">HPS</td>
+                                                        <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st1.hps}</td>
+                                                        <td className="p-1 border-r border-black font-bold">{summativeAnalysis.st2.hps}</td>
+                                                        <td className="p-1 font-bold">{summativeAnalysis.te.hps}</td>
+                                                    </tr>
+                                                    <tr className="border-b border-black">
+                                                        <td className="p-1 border-r border-black text-left pl-2">Passed (≥75%)</td>
+                                                        <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.above75} ({summativeAnalysis.st1.criterion.above75Pct.toFixed(0)}%)</td>
+                                                        <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.above75} ({summativeAnalysis.st2.criterion.above75Pct.toFixed(0)}%)</td>
+                                                        <td className="p-1">{summativeAnalysis.te.criterion.above75} ({summativeAnalysis.te.criterion.above75Pct.toFixed(0)}%)</td>
+                                                    </tr>
+                                                    <tr className="bg-slate-50 border-b border-black">
+                                                        <td className="p-1 border-r border-black text-left pl-2">Failed (&lt;75%)</td>
+                                                        <td className="p-1 border-r border-black">{summativeAnalysis.st1.criterion.below75} ({summativeAnalysis.st1.criterion.below75Pct.toFixed(0)}%)</td>
+                                                        <td className="p-1 border-r border-black">{summativeAnalysis.st2.criterion.below75} ({summativeAnalysis.st2.criterion.below75Pct.toFixed(0)}%)</td>
+                                                        <td className="p-1">{summativeAnalysis.te.criterion.below75} ({summativeAnalysis.te.criterion.below75Pct.toFixed(0)}%)</td>
+                                                    </tr>
+                                                    {[
+                                                        { label: 'Mean', key: 'mean' },
+                                                        { label: 'Median', key: 'median' },
+                                                        { label: 'SD', key: 'sd' },
+                                                        { label: 'MPS/PL', key: 'mps' }
+                                                    ].map((item, idx) => (
+                                                        <tr key={idx} className={`border-b border-black ${idx % 2 === 0 ? '' : 'bg-slate-50'}`}>
+                                                            <td className="p-1 border-r border-black text-left pl-2">{item.label}</td>
+                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st1.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st1.norm as any)[item.key].toFixed(1)}</td>
+                                                            <td className="p-1 border-r border-black">{item.key === 'mps' ? summativeAnalysis.st2.norm.mps.toFixed(1) + '%' : (summativeAnalysis.st2.norm as any)[item.key].toFixed(1)}</td>
+                                                            <td className="p-1">{item.key === 'mps' ? summativeAnalysis.te.norm.mps.toFixed(1) + '%' : (summativeAnalysis.te.norm as any)[item.key].toFixed(1)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bottom Row: At-Risk & Top Performers side by side */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="border border-red-200 rounded overflow-hidden bg-white">
+                                        <div className="bg-red-50 p-1.5 font-bold text-[9px] border-b border-red-200 text-red-700 uppercase flex items-center gap-2">
+                                            <span>🚨 Learners At Risk (Below 75)</span>
+                                        </div>
+                                        <table className="w-full text-center text-[8px] leading-tight">
+                                            <thead className="bg-red-50">
+                                                <tr className="text-red-800 font-bold border-b border-red-100">
+                                                    <th className="p-1 text-left pl-2 w-2/3">Name</th>
+                                                    <th className="p-1 w-16">Grade</th>
+                                                    <th className="p-1 w-16">Remarks</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[...maleStudents, ...femaleStudents]
+                                                    .map(s => ({ ...s, grade: getStudentSummary(s).quarterlyGrade }))
+                                                    .filter(s => s.grade > 0 && s.grade < 75)
+                                                    .sort((a, b) => a.grade - b.grade)
+                                                    .slice(0, 5)
+                                                    .map((s, idx) => (
+                                                        <tr key={s.lrn} className="border-b border-red-50 hover:bg-red-50 transition-colors">
+                                                            <td className="p-1 text-left pl-2 truncate font-medium text-gray-700">{idx + 1}. {s.last_name}, {s.first_name}</td>
+                                                            <td className="p-1 font-bold text-red-600">{s.grade}</td>
+                                                            <td className="p-1 text-red-600 font-bold uppercase tracking-wider">Failed</td>
+                                                        </tr>
+                                                    ))}
+                                                {[...maleStudents, ...femaleStudents].filter(s => getStudentSummary(s).quarterlyGrade > 0 && getStudentSummary(s).quarterlyGrade < 75).length === 0 && (
+                                                    <tr><td colSpan={3} className="p-3 text-gray-400 italic text-center">No learners at risk. Great job! 🎉</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="border border-green-200 rounded overflow-hidden bg-white">
+                                        <div className="bg-green-50 p-1.5 font-bold text-[9px] border-b border-green-200 text-green-700 uppercase flex items-center gap-2">
+                                            <span>🏆 Top Performers (Grade ≥ 90)</span>
+                                        </div>
+                                        <table className="w-full text-center text-[8px] leading-tight">
+                                            <thead className="bg-green-50">
+                                                <tr className="text-green-800 font-bold border-b border-green-100">
+                                                    <th className="p-1 text-left pl-2 w-2/3">Name</th>
+                                                    <th className="p-1 w-16">Grade</th>
+                                                    <th className="p-1 w-16">Rank</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {[...maleStudents, ...femaleStudents]
+                                                    .map(s => ({ ...s, grade: getStudentSummary(s).quarterlyGrade }))
+                                                    .filter(s => s.grade >= 90)
+                                                    .sort((a, b) => b.grade - a.grade)
+                                                    .slice(0, 5)
+                                                    .map((s, idx) => (
+                                                        <tr key={s.lrn} className="border-b border-green-50 hover:bg-green-50 transition-colors">
+                                                            <td className="p-1 text-left pl-2 truncate font-medium text-gray-700">{idx + 1}. {s.last_name}, {s.first_name}</td>
+                                                            <td className="p-1 font-bold text-green-700">{s.grade}</td>
+                                                            <td className="p-1"><span className="px-1 py-0.5 bg-green-100 text-green-800 font-bold rounded">#{idx + 1}</span></td>
+                                                        </tr>
+                                                    ))}
+                                                {[...maleStudents, ...femaleStudents].filter(s => getStudentSummary(s).quarterlyGrade >= 90).length === 0 && (
+                                                    <tr><td colSpan={3} className="p-3 text-gray-400 italic text-center">No outstanding learners yet.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     )}
