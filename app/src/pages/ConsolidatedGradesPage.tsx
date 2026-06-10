@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
@@ -1447,6 +1447,20 @@ const groupedSections = useMemo(() => {
         document.title = originalTitle;
     };
 
+    const handleDownloadConsolidated = async () => {
+        const sectionName = sectionObj?.section_name || 'Record';
+        const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
+        try {
+            if (window.electronAPI?.printToPDF) {
+                await window.electronAPI.printToPDF({ defaultFilename: filename });
+            } else {
+                console.warn('PDF download not available in this environment');
+            }
+        } catch (error) {
+            console.error('Failed to download PDF:', error);
+        }
+    };
+
     return (
         <div className="h-full flex flex-col space-y-4">
             <style>{`
@@ -1618,6 +1632,14 @@ const groupedSections = useMemo(() => {
                             >
                                 <Printer className="w-3 h-3" />
                                 <span className="hidden sm:inline">Print</span>
+                            </button>
+
+                            <button
+                                onClick={handleDownloadConsolidated}
+                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-green-600 dark:bg-green-500 text-white dark:text-white hover:bg-green-700 dark:hover:bg-green-600 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0"
+                            >
+                                <Download className="w-3 h-3" />
+                                <span className="hidden sm:inline">Download</span>
                             </button>
                         </>
                     )}
