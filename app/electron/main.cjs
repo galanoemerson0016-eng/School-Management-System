@@ -1,4 +1,22 @@
-const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
+let app, BrowserWindow, ipcMain, screen, Menu;
+
+try {
+  const electron = require('electron');
+  app = electron.app;
+  BrowserWindow = electron.BrowserWindow;
+  ipcMain = electron.ipcMain;
+  screen = electron.screen;
+  Menu = electron.Menu;
+
+  if (!app) {
+    console.error('Electron app object is undefined. Electron module did not load correctly.');
+    process.exit(1);
+  }
+} catch (e) {
+  console.error('Failed to load electron module:', e);
+  process.exit(1);
+}
+
 const path = require('path');
 const { machineIdSync } = require('node-machine-id');
 const fs = require('fs');
