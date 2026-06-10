@@ -91,7 +91,7 @@ function calculateHealthFields(student?: HealthStudent) {
 
     const heightSquared = Math.round((height * height) * 100) / 100;
     const bmi = Math.round((weight / heightSquared) * 10) / 10;
-    const age = typeof student.age === 'number' ? student.age : getAge(student.birthday);
+    const age = typeof student.age === 'number' ? Math.round(student.age) : Math.round(getAge(student.birthday));
     const bmiCategory = getBmiCategory(bmi, age || 0, student.gender);
     const hfa = getHeightForAge(student, height);
 
