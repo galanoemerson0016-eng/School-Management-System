@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -10,6 +10,8 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3001 && cross-env NODE_ENV=development electron .\"",
@@ -87,6 +89,7 @@
     "@tanstack/react-table": "^8.21.3",
     "buffer": "^6.0.3",
     "dom-to-image-more": "^3.7.2",
+    "electron-log": "^5.4.4",
     "electron-updater": "^6.8.3",
     "express": "^4.21.2",
     "firebase": "^12.12.1",
@@ -126,6 +129,7 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "vite-plugin-javascript-obfuscator": "^3.1.0",
+    "vitest": "^4.1.8",
     "wait-on": "^9.0.5"
   }
 }

@@ -156,11 +156,50 @@ export function ActivationPage() {
 
     try {
       const serial = key.trim().toUpperCase();
+
+      if (window.electronAPI?.licenseActivate) {
+        // Desktop: the main process verifies the serial against the licensing
+        // service, binds this machine, and stores the tamper-evident license
+        // record. The renderer only receives the result.
+        const result = await window.electronAPI.licenseActivate({
+          serial,
+          fullName: fullName.trim(),
+          platform: currentPlatform,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Verification failed.');
+        }
+
+        // Profile fields are display/metadata only — the activation verdict
+        // itself comes from the main process.
+        await updateSchoolProfile({
+          ...schoolProfile,
+          is_activated: true,
+          is_trial: false,
+          activation_key: serial,
+          activated_at: result.activatedAt || new Date().toISOString(),
+          subscription_end_date: result.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          adviser_name: fullName.trim()
+        });
+
+        setStatus('success');
+        showNotification('Activation Successful!', 'success');
+
+        redirectTimerRef.current = window.setTimeout(async () => {
+          await useAuthStore.getState().logout();
+          // Tell App to re-query the main-process license verdict
+          window.dispatchEvent(new Event('formease-license-changed'));
+        }, 2500);
+        return;
+      }
+
+      // --- Web build fallback: renderer-side verification ---
       const projectId = 'formease-licensing';
       const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
 
       const response = await fetch(baseUrl);
-      
+
       if (response.status === 404) {
         throw new Error(`Serial Key "${serial}" was not found.`);
       }
@@ -202,24 +241,23 @@ export function ActivationPage() {
           })
         });
       }
-      
-      localStorage.setItem('formease-activation-redirect-pending', 'true');
 
-      await updateSchoolProfile({
-        ...schoolProfile,
-        is_activated: true,
-        is_trial: false, // Reset trial flag on full activation
-        activation_key: serial,
-        activated_at: new Date().toISOString(),
-        subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-        adviser_name: fullName.trim()
-      });
-      
       setStatus('success');
       showNotification('Activation Successful!', 'success');
 
+      // Persist the profile after the success animation so the activation
+      // gate doesn't switch screens mid-animation (the gate reacts to
+      // is_activated in the web build).
       redirectTimerRef.current = window.setTimeout(async () => {
-        localStorage.removeItem('formease-activation-redirect-pending');
+        await updateSchoolProfile({
+          ...schoolProfile,
+          is_activated: true,
+          is_trial: false, // Reset trial flag on full activation
+          activation_key: serial,
+          activated_at: new Date().toISOString(),
+          subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          adviser_name: fullName.trim()
+        });
         await useAuthStore.getState().logout();
       }, 2500);
 

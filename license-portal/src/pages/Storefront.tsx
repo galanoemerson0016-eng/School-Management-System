@@ -219,7 +219,7 @@ export default function Storefront() {
       <nav className="relative z-50 border-b border-white/5 backdrop-blur-md bg-black/20">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-900/20">
+            <div className="p-2 bg-linear-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-900/20">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <span className="text-xl font-black tracking-tight text-white">FormEase <span className="text-blue-500">Shop</span></span>
@@ -246,7 +246,7 @@ export default function Storefront() {
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-6xl md:text-7xl font-black text-white mb-6 leading-tight">
             Simplify Your <br />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">Teaching Career.</span>
+            <span className="bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-indigo-500">Teaching Career.</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-slate-400 text-lg max-w-2xl mx-auto font-medium">
             The most powerful school management system for DepEd Teachers. Generate SF9, SF2, and more with just one click. Secure, Offline, and Fast.
@@ -275,7 +275,7 @@ export default function Storefront() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="p-10 bg-gradient-to-br from-blue-600/20 to-transparent border border-blue-500/30 rounded-[3rem] relative overflow-hidden group">
+            <div className="p-10 bg-linear-to-br from-blue-600/20 to-transparent border border-blue-500/30 rounded-[3rem] relative overflow-hidden group">
               <div className="absolute top-8 right-8 px-4 py-1 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-600/20">Recommended</div>
               <Monitor className="w-12 h-12 text-blue-500 mb-8" />
               <h3 className="text-3xl font-black text-white mb-4">Windows Edition</h3>
@@ -305,7 +305,7 @@ export default function Storefront() {
               </button>
             </div>
 
-            <div className="p-10 bg-gradient-to-br from-indigo-600/20 to-transparent border border-indigo-500/30 rounded-[3rem] relative overflow-hidden group">
+            <div className="p-10 bg-linear-to-br from-indigo-600/20 to-transparent border border-indigo-500/30 rounded-[3rem] relative overflow-hidden group">
               <div className="absolute top-8 right-8 px-4 py-1 bg-indigo-500 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-600/20">Recommended</div>
               <Apple className="w-12 h-12 text-indigo-500 mb-8" />
               <h3 className="text-3xl font-black text-white mb-4">macOS Edition</h3>
@@ -359,7 +359,7 @@ export default function Storefront() {
                     {/* === ONLINE PAYMENT (Primary) === */}
                     {paymentType === 'online' && (
                       <motion.div key="online-flow" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
-                        <form onSubmit={handlePurchase} className="p-8 bg-gradient-to-br from-slate-900 to-slate-800 border border-blue-500/20 rounded-[3rem] shadow-2xl space-y-6">
+                        <form onSubmit={handlePurchase} className="p-8 bg-linear-to-br from-slate-900 to-slate-800 border border-blue-500/20 rounded-[3rem] shadow-2xl space-y-6">
                           {/* Header */}
                           <div className="flex items-center gap-4 pb-6 border-b border-white/5">
                             <div className="w-14 h-14 rounded-2xl bg-blue-600/20 flex items-center justify-center shadow-lg shadow-blue-500/10">
@@ -408,7 +408,7 @@ export default function Storefront() {
                           <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-2xl font-black text-white shadow-xl shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-3 text-lg transition-all"
+                            className="w-full py-5 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-2xl font-black text-white shadow-xl shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-3 text-lg transition-all"
                           >
                             {isSubmitting
                               ? <><Loader2 className="w-5 h-5 animate-spin" /> Redirecting to Xendit...</>
@@ -666,7 +666,7 @@ export default function Storefront() {
         {/* QR Preview Modal */}
         <AnimatePresence>
           {previewQr && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-2xl bg-black/80" onClick={() => setPreviewQr(null)}>
+            <div className="fixed inset-0 z-200 flex items-center justify-center p-6 backdrop-blur-2xl bg-black/80" onClick={() => setPreviewQr(null)}>
                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative max-w-md w-full bg-[#0A192F] p-8 rounded-[3rem] border border-white/10 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="text-center mb-6">
                      <h3 className="text-2xl font-black text-white">{previewQr.name} Payment</h3>

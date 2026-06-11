@@ -138,16 +138,19 @@ export const LoginPage = () => {
     const [isCardHovered, setIsCardHovered] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
-    const { login, isLoading, error, getSecurityQuestion, recoverCredentials } = useAuthStore();
+    const { login, isLoading, error, getSecurityQuestion, resetPasswordWithSecurityAnswer } = useAuthStore();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
     const { schoolProfile } = useAppStore();
     const [shake, setShake] = useState(false);
 
-    // Recovery Modal State
+    // Recovery Modal State (password reset — the old password is never revealed)
     const [showRecoveryModal, setShowRecoveryModal] = useState(false);
     const [recoveryAnswer, setRecoveryAnswer] = useState('');
-    const [recoveryResult, setRecoveryResult] = useState<{ u: string, p: string } | null>(null);
+    const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
+    const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
+    const [recoveryDoneUsername, setRecoveryDoneUsername] = useState<string | null>(null);
     const [recoveryError, setRecoveryError] = useState('');
+    const [recoveryBusy, setRecoveryBusy] = useState(false);
 
     const passwordStrength = getPasswordStrength(credentials.password);
 
@@ -193,19 +196,35 @@ export const LoginPage = () => {
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
         setRecoveryAnswer('');
-        setRecoveryResult(null);
+        setRecoveryNewPassword('');
+        setRecoveryConfirmPassword('');
+        setRecoveryDoneUsername(null);
         setRecoveryError('');
         setShowRecoveryModal(true);
     };
 
-    const handleRecover = () => {
-        const result = recoverCredentials(recoveryAnswer);
-        if (result) {
-            setRecoveryResult({ u: result.username, p: result.password });
-            setRecoveryError('');
-        } else {
-            setRecoveryError('Incorrect answer. Please try again.');
-            setRecoveryResult(null);
+    const handleResetPassword = async () => {
+        setRecoveryError('');
+        if (!recoveryAnswer.trim()) {
+            setRecoveryError('Please answer the security question.');
+            return;
+        }
+        if (recoveryNewPassword.length < 8) {
+            setRecoveryError('New password must be at least 8 characters.');
+            return;
+        }
+        if (recoveryNewPassword !== recoveryConfirmPassword) {
+            setRecoveryError('Passwords do not match.');
+            return;
+        }
+        setRecoveryBusy(true);
+        try {
+            const { username } = await resetPasswordWithSecurityAnswer(recoveryAnswer, recoveryNewPassword);
+            setRecoveryDoneUsername(username);
+        } catch (err) {
+            setRecoveryError(err instanceof Error ? err.message : 'Password reset failed.');
+        } finally {
+            setRecoveryBusy(false);
         }
     };
 
@@ -711,14 +730,28 @@ export const LoginPage = () => {
                                 }`}
                             >
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>Account Recovery</h3>
+                                    <h3 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>Reset Password</h3>
                                     <button onClick={() => setShowRecoveryModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                                         <XCircle className="w-6 h-6 text-gray-500" />
                                     </button>
                                 </div>
 
-                                {!recoveryResult ? (
+                                {!getSecurityQuestion() ? (
                                     <div className="space-y-6">
+                                        <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-amber-50 border-amber-100'}`}>
+                                            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-amber-800'}`}>
+                                                Password recovery was not set up for this account. To regain access, reinstall and reactivate the application with your license key, then create a new account.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowRecoveryModal(false)}
+                                            className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
+                                        >
+                                            CLOSE
+                                        </button>
+                                    </div>
+                                ) : !recoveryDoneUsername ? (
+                                    <div className="space-y-5">
                                         <div className={`p-4 rounded-2xl ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
                                             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Security Question</p>
                                             <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{getSecurityQuestion()}</p>
@@ -726,55 +759,80 @@ export const LoginPage = () => {
 
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Your Answer</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={recoveryAnswer}
                                                 onChange={(e) => setRecoveryAnswer(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleRecover()}
                                                 autoFocus
                                                 placeholder="Type your answer here..."
                                                 className={`w-full p-4 rounded-2xl outline-none border transition-all ${
-                                                    darkMode 
-                                                    ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50' 
+                                                    darkMode
+                                                    ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50'
                                                     : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500'
                                                 }`}
                                             />
-                                            {recoveryError && <p className="text-[10px] font-bold text-red-500 ml-1">{recoveryError}</p>}
                                         </div>
 
-                                        <button 
-                                            onClick={handleRecover}
-                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all"
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
+                                            <input
+                                                type="password"
+                                                value={recoveryNewPassword}
+                                                onChange={(e) => setRecoveryNewPassword(e.target.value)}
+                                                autoComplete="new-password"
+                                                placeholder="At least 8 characters"
+                                                className={`w-full p-4 rounded-2xl outline-none border transition-all ${
+                                                    darkMode
+                                                    ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50'
+                                                    : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500'
+                                                }`}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm New Password</label>
+                                            <input
+                                                type="password"
+                                                value={recoveryConfirmPassword}
+                                                onChange={(e) => setRecoveryConfirmPassword(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && void handleResetPassword()}
+                                                autoComplete="new-password"
+                                                placeholder="Re-enter new password"
+                                                className={`w-full p-4 rounded-2xl outline-none border transition-all ${
+                                                    darkMode
+                                                    ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50'
+                                                    : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500'
+                                                }`}
+                                            />
+                                            {recoveryError && <p className="text-xs font-bold text-red-500 ml-1">{recoveryError}</p>}
+                                        </div>
+
+                                        <button
+                                            onClick={() => void handleResetPassword()}
+                                            disabled={recoveryBusy}
+                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all"
                                         >
-                                            REVEAL CREDENTIALS
+                                            {recoveryBusy ? 'RESETTING…' : 'RESET PASSWORD'}
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="space-y-6">
                                         <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-[24px] text-center">
                                             <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                                            <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Recovery Successful</h4>
+                                            <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Password Reset Successful</h4>
+                                            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                Sign in as <span className="font-mono font-bold">{recoveryDoneUsername}</span> with your new password.
+                                            </p>
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Username</p>
-                                                <p className={`text-lg font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{recoveryResult.u}</p>
-                                            </div>
-                                            <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-                                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Password</p>
-                                                <p className={`text-lg font-mono font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{recoveryResult.p}</p>
-                                            </div>
-                                        </div>
-
-                                        <button 
+                                        <button
                                             onClick={() => {
-                                                setCredentials({ id: recoveryResult.u, password: recoveryResult.p });
+                                                setCredentials({ id: recoveryDoneUsername, password: '' });
                                                 setShowRecoveryModal(false);
                                             }}
                                             className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
                                         >
-                                            USE THESE CREDENTIALS
+                                            BACK TO SIGN IN
                                         </button>
                                     </div>
                                 )}

@@ -5,12 +5,11 @@ import {
   setDoc, 
   getDocs, 
   getDoc,
-  query, 
-  orderBy, 
+  query,
+  orderBy,
   deleteDoc,
   writeBatch,
-  addDoc,
-  where
+  addDoc
 } from 'firebase/firestore';
 
 const COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
@@ -229,17 +228,18 @@ export const licenseService = {
 
   async checkRequestStatus(email: string, proofId: string) {
     try {
-      const targetEmail = email.toLowerCase().trim();
-      const targetProofId = proofId.toLowerCase().trim();
-
-      const q = query(
-        collection(db, REQUESTS_PATH),
-        where('email', '==', targetEmail),
-        where('proof_id', '==', targetProofId)
-      );
-      
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      // Looked up via a Cloud Function (admin privileges) instead of a
+      // direct Firestore query — purchase_requests holds customer PII and
+      // live license keys, so it is no longer publicly listable.
+      const checkUrl = import.meta.env.VITE_CHECK_STATUS_URL || 'https://us-central1-formease-licensing.cloudfunctions.net/checkOrderStatus';
+      const res = await fetch(checkUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, proofId })
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.results || []) as any[];
     } catch (e) {
       console.error("Failed to check status:", e);
       return [];

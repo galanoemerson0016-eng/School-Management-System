@@ -41,12 +41,12 @@ export function Toast() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 24, scale: 0.96 }}
                     transition={{ type: 'spring', damping: 24, stiffness: 320 }}
-                    className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-[92vw] max-w-md"
+                    className="fixed top-4 left-1/2 -translate-x-1/2 z-9999 w-[92vw] max-w-md"
                 >
                     <div className={`relative overflow-hidden rounded-[1.75rem] border shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-2xl ${colors[notification.type]}`}>
-                        <div className={`h-1.5 bg-gradient-to-r ${accents[notification.type]}`} />
+                        <div className={`h-1.5 bg-linear-to-r ${accents[notification.type]}`} />
                         <div className="p-4 flex items-start gap-4">
-                            <div className="flex-shrink-0 rounded-2xl p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm">
+                            <div className="shrink-0 rounded-2xl p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm">
                                 {notification.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
                                 {notification.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-500" />}
                                 {notification.type === 'info' && <Info className="w-5 h-5 text-sky-500" />}
@@ -59,14 +59,14 @@ export function Toast() {
                                 </div>
                                 <div className="text-sm font-semibold leading-relaxed text-slate-700 dark:text-slate-200">
                                     {typeof notification.message === 'object' 
-                                        ? (notification.message as any).text || JSON.stringify(notification.message) 
+                                        ? (notification.message as unknown as { text?: string }).text || JSON.stringify(notification.message) 
                                         : notification.message}
                                 </div>
                             </div>
 
                             <button
                                 onClick={hideNotification}
-                                className="flex-shrink-0 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                className="shrink-0 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-400 hover:text-slate-700 dark:hover:text-white"
                                 aria-label="Dismiss notification"
                             >
                                 <X className="w-4 h-4" />

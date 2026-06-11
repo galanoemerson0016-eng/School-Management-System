@@ -17,7 +17,8 @@ import {
     ChevronLeft,
     ClipboardList,
     Layers,
-    Gamepad2
+    Gamepad2,
+    UserPlus
 } from 'lucide-react';
 import { canAccessView, type AppView } from '../../lib/rbac';
 
@@ -82,6 +83,7 @@ export function Sidebar() {
         { id: 'subjects', label: 'Subjects', icon: GraduationCap },
         { id: 'sections', label: 'Classes & Sections', icon: Layers },
         { id: 'students', label: 'Student Information', icon: Users },
+        { id: 'enrollment', label: 'Enrollment Center', icon: UserPlus },
         { id: 'institute', label: 'Institute Profile', icon: School },
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
         { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },

@@ -3,6 +3,7 @@ import type { Section, Subject, User, UserRole } from '../types';
 export type AppView =
     | 'dashboard'
     | 'students'
+    | 'enrollment'
     | 'institute'
     | 'subjects'
     | 'sections'

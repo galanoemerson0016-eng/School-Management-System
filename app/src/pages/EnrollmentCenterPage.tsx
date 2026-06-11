@@ -41,11 +41,15 @@ export function EnrollmentCenterPage() {
     }, [schoolYears, enrollments, activeSchoolYear]);
 
     const eligibleCount = useMemo(() => {
-        return enrollments.filter((entry) => (
+        const fromEnrollments = enrollments.filter((entry) => (
             entry.school_year === sourceSchoolYear &&
             entry.grade_level === sourceGradeLevel
         )).length;
-    }, [enrollments, sourceSchoolYear, sourceGradeLevel]);
+        if (fromEnrollments > 0) return fromEnrollments;
+        // Fallback for installs without enrollment history: learners currently
+        // sitting on the source grade level (mirrors promoteStudentsFromYear).
+        return studentProfiles.filter((s) => s.grade_level === sourceGradeLevel).length;
+    }, [enrollments, studentProfiles, sourceSchoolYear, sourceGradeLevel]);
 
     const expectedNextGrade = useMemo(() => {
         const match = sourceGradeLevel.match(/(\d+)/);

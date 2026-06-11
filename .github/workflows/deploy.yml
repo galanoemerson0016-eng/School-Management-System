@@ -24,6 +24,10 @@ jobs:
         working-directory: ./app
         run: npm install
 
+      - name: Run tests
+        working-directory: ./app
+        run: npm test
+
       - name: Build
         working-directory: ./app
         run: npm run build

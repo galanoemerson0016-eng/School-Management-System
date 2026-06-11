@@ -2,13 +2,34 @@ export {};
 
 declare global {
   interface Window {
-    electronAPI: {
+    // Present only in the Electron desktop build; undefined in the web build
+    electronAPI?: {
       platform: string;
       version: string;
       getMachineId: () => Promise<string>;
       checkForUpdates: () => void;
       onUpdateMessage: (callback: (message: string) => void) => void;
       saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+      logError: (payload: { kind: string; message: string; stack?: string }) => void;
+      licenseStatus: () => Promise<{
+        activated: boolean;
+        reason?: 'none' | 'expired';
+        serial?: string;
+        registeredTo?: string;
+        activatedAt?: string;
+        expiresAt?: string;
+      }>;
+      licenseActivate: (payload: { serial: string; fullName?: string; platform?: 'windows' | 'mac' }) => Promise<{
+        success: boolean;
+        error?: string;
+        offline?: boolean;
+        activated?: boolean;
+        serial?: string;
+        registeredTo?: string;
+        activatedAt?: string;
+        expiresAt?: string;
+      }>;
+      onLicenseRevoked: (callback: () => void) => void;
       closeApp: (force?: boolean) => void;
       onCloseRequested: (callback: () => void) => void;
       minimizeApp: () => void;

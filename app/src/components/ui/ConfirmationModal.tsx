@@ -57,9 +57,9 @@ export function ConfirmationModal({
                         animate={{ scale: 1, y: 0, opacity: 1 }}
                         exit={{ scale: 0.95, y: 16, opacity: 0 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] border border-slate-200"
+                        className="w-full max-w-md overflow-hidden rounded-4xl bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] border border-slate-200"
                     >
-                        <div className={`bg-gradient-to-r ${intentStyles.accent} px-6 py-5 text-white relative overflow-hidden`}>
+                        <div className={`bg-linear-to-r ${intentStyles.accent} px-6 py-5 text-white relative overflow-hidden`}>
                             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,white,transparent_45%)]" />
                             <div className="relative z-10 flex items-start gap-3">
                                 <div className="mt-0.5 rounded-2xl bg-white/15 p-2.5">

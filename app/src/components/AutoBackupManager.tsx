@@ -34,8 +34,9 @@ export function AutoBackupManager() {
     }, 5000);
 
     // B. Backup on Window Close (Exit)
-    if (window.electronAPI && window.electronAPI.onCloseRequested) {
-      window.electronAPI.onCloseRequested(async () => {
+    const electronAPI = window.electronAPI;
+    if (electronAPI && electronAPI.onCloseRequested) {
+      electronAPI.onCloseRequested(async () => {
         try {
           const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000));
           await Promise.race([
@@ -45,7 +46,7 @@ export function AutoBackupManager() {
         } catch (error) {
           console.error('Error in close-intercept auto-backup:', error);
         } finally {
-          window.electronAPI.closeApp(true);
+          electronAPI.closeApp(true);
         }
       });
     }

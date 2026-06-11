@@ -4,7 +4,8 @@ const path = require('path');
 
 const filesToObfuscate = [
   { src: 'electron/main.cjs', dest: 'dist-electron/main.cjs' },
-  { src: 'electron/preload.cjs', dest: 'dist-electron/preload.cjs' }
+  { src: 'electron/preload.cjs', dest: 'dist-electron/preload.cjs' },
+  { src: 'electron/license.cjs', dest: 'dist-electron/license.cjs' }
 ];
 
 console.log('🛡️ Starting Electron Core Obfuscation...');

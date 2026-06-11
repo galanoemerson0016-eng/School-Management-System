@@ -1,67 +1,107 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // Any authenticated session, INCLUDING the anonymous identity that every
+    // FormEase Pro desktop install signs in with (see auth-store.ts) so the
+    // shared_announcements feature satisfies these rules.
     function signedIn() {
       return request.auth != null;
     }
 
+    // True only for the License Admin Portal (email/password sign-in).
+    // This project's Firestore is shared with every customer's desktop app,
+    // and that app calls signInAnonymously() on every login — so
+    // `request.auth != null` alone does NOT mean "is the admin". Anonymous
+    // sessions must never pass this check.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     // Commercial License Rules (G7 Special)
     match /artifacts/g7-special/public/data/licenses/{licenseId} {
-      // Allow the desktop app to verify a specific key if it knows the ID
+      // The desktop app verifies a specific key by ID. Serials are
+      // high-entropy (36^16 keyspace) so this is not practically enumerable.
       allow get: if true;
-      
-      // Prevent listing all keys (browsing) unless signed into the Admin Portal
-      allow list: if signedIn();
-      
-      // Allow the desktop app to bind the device ID to the key (activation)
-      // Strict check: only if it's currently empty
-      allow update: if (resource.data.machine_id == "" && request.resource.data.machine_id != "" && request.resource.data.status == "activated") || 
-                     signedIn();
-      
-      // Only admins can create or delete keys
-      allow create, delete: if signedIn();
+
+      // Browsing/creating/deleting the license catalog is admin-only.
+      allow list, create, delete: if isAdmin();
+
+      // First-activation "claim" from the desktop app (unauthenticated):
+      // only while the license is unclaimed (machine_id == ""), and only
+      // the activation-related fields may change. Every other field
+      // (serial, platform, duration_months, batch_id, created_at) must be
+      // unchanged, and the new expires_at must be a sane near-future date —
+      // this prevents a claim request from also rewriting plan/expiry/
+      // platform on someone else's license.
+      allow update: if isAdmin() || (
+        resource.data.machine_id == ""
+        && request.resource.data.machine_id is string
+        && request.resource.data.machine_id != ""
+        && request.resource.data.status == 'activated'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['machine_id', 'status', 'activated_at', 'expires_at', 'registered_to'])
+        && request.resource.data.get('serial', null) == resource.data.get('serial', null)
+        && request.resource.data.get('platform', null) == resource.data.get('platform', null)
+        && request.resource.data.get('duration_months', null) == resource.data.get('duration_months', null)
+        && request.resource.data.get('batch_id', null) == resource.data.get('batch_id', null)
+        && request.resource.data.get('created_at', null) == resource.data.get('created_at', null)
+        && request.resource.data.expires_at is timestamp
+        && request.resource.data.expires_at > request.time
+        && request.resource.data.expires_at <= request.time + duration.value(400, 'd')
+      );
     }
 
     // Trial Devices
     match /artifacts/g7-special/public/data/trials/{trialId} {
-      // Anyone can check if their device has a trial
+      // Anyone can check if their device has already claimed a trial.
       allow get: if true;
-      
-      // Anyone can register a new trial
-      allow create: if true;
-      
-      // Only admins can list or delete trial devices
-      allow list, delete: if signedIn();
+
+      // A device may register exactly one trial for itself. The document id
+      // must match the claimed machine id and only these fields are allowed
+      // — this is a `create` only, so a device cannot later edit/delete its
+      // own record to reset the "already claimed" flag.
+      allow create: if request.resource.data.machine_id == trialId
+        && request.resource.data.machine_id is string
+        && request.resource.data.started_at is timestamp
+        && request.resource.data.platform in ['windows', 'mac']
+        && request.resource.data.keys().hasOnly(['machine_id', 'started_at', 'platform']);
+
+      // Browsing/removing trial records (e.g. to manually reset a device's
+      // trial) is admin-only.
+      allow list, delete: if isAdmin();
     }
 
     // Purchase Requests
     match /artifacts/g7-special/admin/data/purchase_requests/{requestId} {
-      // Anyone can submit a purchase request
+      // Anyone can submit a purchase request.
       allow create: if true;
-      
-      // Users need to check their request status (query by email and proof_id)
-      allow list: if true; 
-      
-      // Only admins can read all, update, and delete
-      allow get, update, delete: if signedIn();
+
+      // Every record holds customer PII (name, email, payment proof image)
+      // and, once approved, a live unredeemed license_key. Reading,
+      // listing, updating or deleting these is admin-only — order status
+      // is checked via the checkOrderStatus Cloud Function instead, which
+      // returns only {status, license_key, decline_reason}.
+      allow list, get, update, delete: if isAdmin();
     }
 
     // Downloads and Installer Links
     match /artifacts/g7-special/public/data/downloads_info/{infoId} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isAdmin();
     }
 
     // School-Wide Interconnected Announcements
     match /shared_announcements/{announcementId} {
       // Anyone can see announcements
       allow read: if true;
-      
-      // Anyone signed in can create announcements
+
+      // Any signed-in identity (including each desktop install's anonymous
+      // session) can post.
       allow create: if signedIn();
-      
-      // ONLY the author of the post can delete or update it from the cloud
+
+      // ONLY the author's own session can delete or update it.
       allow delete, update: if signedIn() && (resource.data.author_id == request.auth.uid);
     }
   }

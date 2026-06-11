@@ -1,6 +1,8 @@
 export { LoginPage } from './LoginPage';
+export { AccountSetupPage } from './AccountSetupPage';
 export { Dashboard } from './Dashboard';
 export { StudentsPage } from './StudentsPage';
+export { EnrollmentCenterPage } from './EnrollmentCenterPage';
 export { SubjectsPage } from './SubjectsPage';
 export { EClassRecord } from './EClassRecord';
 export { SF9Page } from './SF9Page';

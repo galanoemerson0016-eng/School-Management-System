@@ -5,8 +5,10 @@ import { OnboardingWizard } from './components/OnboardingWizard';
 import { Sidebar, Header } from './components/layout';
 import {
   LoginPage,
+  AccountSetupPage,
   Dashboard,
   StudentsPage,
+  EnrollmentCenterPage,
   SubjectsPage,
   SectionsPage,
   EClassRecord,
@@ -88,10 +90,45 @@ function LoadingSplash() {
   );
 }
 
+// 'pending'    — waiting for the main process verdict (Electron only)
+// 'licensed'   — main process confirmed a valid license
+// 'unlicensed' — main process says no/expired license (trial may still apply)
+// 'legacy'     — no main-process licensing available (web build / IPC failure):
+//                fall back to the old profile-based gate
+type LicenseVerdict = 'pending' | 'licensed' | 'unlicensed' | 'legacy';
+
 function App() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, needsAccountSetup } = useAuthStore();
   const { currentView, schoolProfile, isSyncReady, selectedSection, sections } = useAppStore();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [licenseVerdict, setLicenseVerdict] = useState<LicenseVerdict>(
+    window.electronAPI?.licenseStatus ? 'pending' : 'legacy'
+  );
+
+  // React to license changes: re-activation from the ActivationPage, or a
+  // revocation pushed by the main process's background verification.
+  useEffect(() => {
+    const electronAPI = window.electronAPI;
+    if (!electronAPI?.licenseStatus) return;
+
+    const refresh = async () => {
+      try {
+        const status = await electronAPI.licenseStatus();
+        setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
+      } catch {
+        setLicenseVerdict('legacy');
+      }
+    };
+
+    window.addEventListener('formease-license-changed', refresh);
+    electronAPI.onLicenseRevoked?.(() => {
+      try {
+        localStorage.setItem('formease-license-reset-detected', 'true');
+      } catch { /* ignore */ }
+      setLicenseVerdict('unlicensed');
+    });
+    return () => window.removeEventListener('formease-license-changed', refresh);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && isSyncReady) {
@@ -118,17 +155,9 @@ function App() {
     ? (selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12'))
     : false;
 
-  const isExpired = schoolProfile?.subscription_end_date 
-    ? new Date(schoolProfile.subscription_end_date) < new Date() 
+  const isExpired = schoolProfile?.subscription_end_date
+    ? new Date(schoolProfile.subscription_end_date) < new Date()
     : false;
-
-  const isActivationRedirectPending = (() => {
-    try {
-      return localStorage.getItem('formease-activation-redirect-pending') === 'true';
-    } catch {
-      return false;
-    }
-  })();
 
   // Use school name for page title
   useEffect(() => {
@@ -142,48 +171,76 @@ function App() {
         await initializeAppStore();
         await initializeAuthStore();
         console.log('✅ Application initialization complete');
-        
-        // --- BACKGROUND LICENSE VERIFICATION ---
+
         const state = useAppStore.getState();
         const profile = state.schoolProfile;
-        
-        if (profile.is_activated && profile.activation_key && !profile.is_trial) {
-           if (!navigator.onLine) {
-              console.log('📡 License verification skipped (offline mode detected)');
-           } else {
-              console.log('🛡️ Verifying license binding...');
-              try {
-                 const machineId = await getMachineId();
-                 const serial = profile.activation_key.trim().toUpperCase();
-                 const projectId = 'formease-licensing';
-                 const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
 
-                 const response = await fetch(baseUrl);
-                 if (response.ok) {
-                    const docData = await response.json();
-                    const fields = docData.fields || {};
-                    const remoteMachineId = fields.machine_id?.stringValue || '';
-                    const remoteStatus = fields.status?.stringValue || 'pending';
+        if (window.electronAPI?.licenseStatus) {
+          // --- MAIN-PROCESS LICENSE VERDICT (Electron) ---
+          // The verdict is computed and stored by the main process; the
+          // renderer cannot forge it via localStorage/IndexedDB edits.
+          try {
+            let status = await window.electronAPI.licenseStatus();
 
-                    if (remoteStatus !== 'activated' || (remoteMachineId && remoteMachineId !== machineId)) {
-                       console.warn('⚠️ License mismatch or reset detected. Reverting to activation state.');
-                       localStorage.setItem('formease-license-reset-detected', 'true');
-                       await state.updateSchoolProfile({
-                          ...profile,
-                          is_activated: false,
-                          activated_at: undefined,
-                          subscription_end_date: undefined
-                       });
-                    } else {
-                       console.log('✅ License binding verified.');
-                    }
-                 }
-              } catch {
-                 console.warn('📡 License verification skipped (offline or network error)');
+            // Legacy migration: installs activated before v2.2.0 kept their
+            // activation only in renderer state. Re-verify the stored serial
+            // once and bind it in the main process.
+            if (!status.activated && status.reason === 'none' &&
+                profile.is_activated && !profile.is_trial && profile.activation_key) {
+              console.log('🛡️ Migrating legacy activation to main process...');
+              const migrated = await window.electronAPI.licenseActivate({
+                serial: profile.activation_key,
+                fullName: profile.adviser_name,
+                platform: navigator.userAgent.toLowerCase().includes('mac') ? 'mac' : 'windows',
+              });
+              if (migrated.success) {
+                status = await window.electronAPI.licenseStatus();
+              } else if (migrated.offline) {
+                // Offline grace: keep the legacy profile-based verdict until
+                // the licensing server is reachable again.
+                console.log('📡 License migration deferred (offline)');
+                setLicenseVerdict('legacy');
+                return;
               }
-           }
-        }
+              // Explicit rejection (invalid serial / bound elsewhere) falls
+              // through to an 'unlicensed' verdict below.
+            }
 
+            setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
+          } catch (licenseErr) {
+            console.warn('License status check failed, using legacy gate:', licenseErr);
+            setLicenseVerdict('legacy');
+          }
+        } else if (profile.is_activated && profile.activation_key && !profile.is_trial && navigator.onLine) {
+          // --- BACKGROUND LICENSE VERIFICATION (web build fallback) ---
+          try {
+            const machineId = await getMachineId();
+            const serial = profile.activation_key.trim().toUpperCase();
+            const projectId = 'formease-licensing';
+            const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/licenses/${serial}`;
+
+            const response = await fetch(baseUrl);
+            if (response.ok) {
+              const docData = await response.json();
+              const fields = docData.fields || {};
+              const remoteMachineId = fields.machine_id?.stringValue || '';
+              const remoteStatus = fields.status?.stringValue || 'pending';
+
+              if (remoteStatus !== 'activated' || (remoteMachineId && remoteMachineId !== machineId)) {
+                console.warn('⚠️ License mismatch or reset detected. Reverting to activation state.');
+                localStorage.setItem('formease-license-reset-detected', 'true');
+                await state.updateSchoolProfile({
+                  ...profile,
+                  is_activated: false,
+                  activated_at: undefined,
+                  subscription_end_date: undefined
+                });
+              }
+            }
+          } catch {
+            console.warn('📡 License verification skipped (offline or network error)');
+          }
+        }
       } catch (error) {
         console.error('❌ Application initialization failed:', error);
       }
@@ -193,15 +250,30 @@ function App() {
 
 
   // Use a synchronized loading state to prevent race conditions during reload
-  if (isLoading || !isSyncReady) {
+  if (isLoading || !isSyncReady || licenseVerdict === 'pending') {
     return <LoadingSplash />;
   }
 
-  if (!schoolProfile || !schoolProfile.is_activated || isExpired || isActivationRedirectPending) {
+  // Activation gate. In Electron the verdict comes from the main process and
+  // cannot be forged from the renderer; trials remain profile-based (they are
+  // strictly time-boxed). The 'legacy' verdict covers the web build and
+  // offline-grace migration, using the old profile-based checks.
+  const trialActive = !!(schoolProfile?.is_activated && schoolProfile.is_trial && !isExpired);
+  const activationOk =
+    licenseVerdict === 'licensed' ||
+    (licenseVerdict === 'legacy' && !!schoolProfile?.is_activated && !isExpired) ||
+    (licenseVerdict === 'unlicensed' && trialActive);
+
+  if (!activationOk) {
     return <ActivationPage />;
   }
 
-  // 3. Show login page if not authenticated
+  // 3. First run: no local account exists yet — force account creation
+  if (!isAuthenticated && needsAccountSetup) {
+    return <AccountSetupPage />;
+  }
+
+  // 4. Show login page if not authenticated
   if (!isAuthenticated) {
     return <LoginPage />;
   }
@@ -212,6 +284,8 @@ function App() {
         return <Dashboard />;
       case 'students':
         return <StudentsPage />;
+      case 'enrollment':
+        return <EnrollmentCenterPage />;
       case 'institute':
         return <InstitutePage />;
       case 'subjects':

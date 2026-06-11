@@ -28,6 +28,10 @@ jobs:
         working-directory: app
         run: npm ci
 
+      - name: Run tests
+        working-directory: app
+        run: npm test
+
       - name: Build macOS installers
         working-directory: app
         run: npm run electron:build:mac
@@ -59,6 +63,10 @@ jobs:
       - name: Install dependencies
         working-directory: app
         run: npm ci
+
+      - name: Run tests
+        working-directory: app
+        run: npm test
 
       - name: Build Windows installers
         working-directory: app

@@ -2,8 +2,23 @@ const { app, BrowserWindow, ipcMain, screen, Menu } = require('electron');
 const path = require('path');
 const { machineIdSync } = require('node-machine-id');
 const fs = require('fs');
+const licenseManager = require('./license.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
+
+// --- Persistent logging (userData/logs/main.log) ---
+// The renderer console is stripped in production builds, so this file is the
+// only place failures from the field can be diagnosed.
+let log = console;
+try {
+  log = require('electron-log');
+  log.initialize();
+  log.transports.file.maxSize = 5 * 1024 * 1024; // rotate at 5MB
+  log.errorHandler.startCatching(); // uncaughtException / unhandledRejection in main
+  log.info(`FormEase Pro starting (v${app.getVersion()}, electron ${process.versions.electron}, ${process.platform})`);
+} catch (e) {
+  console.warn('electron-log unavailable, falling back to console:', e);
+}
 
 let autoUpdater;
 let isQuitting = false;
@@ -94,6 +109,20 @@ if (!gotTheLock) {
       }, 3000);
     }
 
+    // Background license re-verification: if the licensing service reports
+    // this serial as revoked or rebound to another machine, drop the local
+    // license and notify the renderer so it returns to the activation screen.
+    setTimeout(() => {
+      licenseManager.verifyOnline().then((result) => {
+        if (result.revoked) {
+          const windows = BrowserWindow.getAllWindows();
+          if (windows.length > 0) {
+            windows[0].webContents.send('license-revoked');
+          }
+        }
+      }).catch(() => { /* offline or transient — keep local verdict */ });
+    }, 5000);
+
     app.on('activate', function () {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
@@ -112,6 +141,33 @@ if (!gotTheLock) {
 }
 
 // --- IPC Handlers ---
+
+// --- Renderer error logging ---
+// Global error/unhandledrejection handlers in the renderer forward here so
+// failures persist to the log file even though prod builds strip console.
+ipcMain.on('log-renderer-error', (event, payload = {}) => {
+  try {
+    const { kind, message, stack } = payload;
+    log.error(`[renderer:${kind || 'error'}] ${String(message).slice(0, 2000)}`);
+    if (stack) log.error(String(stack).slice(0, 4000));
+  } catch {
+    // never let logging take the app down
+  }
+});
+
+// --- License IPC (verdict is computed in the main process only) ---
+
+ipcMain.handle('license:status', () => {
+  return licenseManager.getStatus();
+});
+
+ipcMain.handle('license:activate', async (event, { serial, fullName, platform } = {}) => {
+  try {
+    return await licenseManager.activate(serial, fullName, platform);
+  } catch (error) {
+    return { success: false, error: error.message || 'Activation failed.' };
+  }
+});
 
 ipcMain.handle('get-machine-id', () => {
   try {

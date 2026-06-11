@@ -106,34 +106,33 @@ export function SettingsPage() {
     // Account Settings
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
-    
-    // Get current credentials for pre-filling
-    const rawCreds = localStorage.getItem('formease-credentials');
-    const savedCreds = rawCreds ? JSON.parse(rawCreds) : { username: 'admin', email: 'admin@school.local', securityQuestion: '', securityAnswer: '' };
 
-    const [newUsername, setNewUsername] = useState(savedCreds.username || '');
-    const [newEmail, setNewEmail] = useState(savedCreds.email || '');
+    const { changeCredentials, getAccountInfo } = useAuthStore();
+
+    // Non-secret account info for pre-filling (password/answer hashes are never readable)
+    const accountInfo = getAccountInfo();
+
+    const [newUsername, setNewUsername] = useState(accountInfo?.username || '');
+    const [newEmail, setNewEmail] = useState(accountInfo?.email || '');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [newSecurityQuestion, setNewSecurityQuestion] = useState(savedCreds.securityQuestion || '');
-    const [newSecurityAnswer, setNewSecurityAnswer] = useState(savedCreds.securityAnswer || '');
+    const [newSecurityQuestion, setNewSecurityQuestion] = useState(accountInfo?.securityQuestion || '');
+    const [newSecurityAnswer, setNewSecurityAnswer] = useState('');
     const [passwordError, setPasswordError] = useState('');
     const [passwordSuccess, setPasswordSuccess] = useState('');
     const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-    const { updateCredentials } = useAuthStore();
-
     const handleChangePassword = async () => {
         setPasswordError('');
         setPasswordSuccess('');
-        
+
         if (!currentPassword) {
             setPasswordError('Please enter your current password to save changes');
             return;
         }
 
-        if (newPassword && newPassword.length < 6) {
-            setPasswordError('New password must be at least 6 characters');
+        if (newPassword && newPassword.length < 8) {
+            setPasswordError('New password must be at least 8 characters');
             return;
         }
         if (newPassword && newPassword !== confirmPassword) {
@@ -143,21 +142,15 @@ export function SettingsPage() {
 
         setIsChangingPassword(true);
         try {
-            // Use a robust way to get current credentials (including defaults)
-            const raw = localStorage.getItem('formease-credentials');
-            const defaults = { username: 'admin', password: 'formease' };
-            const parsed = raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
-            
-            if (parsed.password !== currentPassword) {
-                throw new Error('Current password is incorrect');
-            }
-
-            updateCredentials({
-                username: newUsername || parsed.username,
-                password: newPassword || parsed.password,
-                email: newEmail || parsed.email,
-                securityQuestion: newSecurityQuestion || parsed.securityQuestion,
-                securityAnswer: newSecurityAnswer || parsed.securityAnswer
+            // changeCredentials verifies the current password against the
+            // stored hash and throws if it is incorrect.
+            await changeCredentials({
+                currentPassword,
+                username: newUsername || undefined,
+                newPassword: newPassword || undefined,
+                email: newEmail || undefined,
+                securityQuestion: newSecurityQuestion || undefined,
+                securityAnswer: newSecurityAnswer || undefined
             });
 
             setPasswordSuccess('Account settings updated successfully!');
@@ -1164,7 +1157,7 @@ export function SettingsPage() {
                                         value={newSecurityAnswer}
                                         onChange={(e) => setNewSecurityAnswer(e.target.value)}
                                         className="form-input"
-                                        placeholder="The answer for recovery"
+                                        placeholder="Leave blank to keep your current answer"
                                     />
                                 </div>
                             </div>

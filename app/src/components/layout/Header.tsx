@@ -54,7 +54,7 @@ export function Header() {
             <div className="flex items-center justify-between w-full max-w-screen-2xl mx-auto relative h-full">
                 
                 {/* Left Area: Title */}
-                <div className="flex-1 min-w-0 flex items-center gap-4 pr-16 lg:pr-24">
+                <div className="flex-1 min-w-0 flex items-center gap-4 pr-4">
                     <div className="w-1.5 h-8 rounded-full bg-emerald-500 hidden sm:block" />
                     <div className="flex flex-col justify-center min-w-0">
                         <h2 className="text-[17px] sm:text-lg lg:text-xl font-black text-[#0f172a] dark:text-white tracking-tight leading-none mb-1.5" title={viewTitles[currentView] || 'Dashboard'}>
@@ -66,8 +66,10 @@ export function Header() {
                     </div>
                 </div>
 
-                {/* Center Area: S.Y. (Absolutely Centered to maximize left title space) */}
-                <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 shrink-0">
+                {/* Center Area: S.Y. — in normal flex flow so it can never overlap
+                    the right-side cluster (which is wider in Electron, where the
+                    update button and window controls are rendered) */}
+                <div className="hidden md:flex shrink-0 mx-2">
                     <div 
                         data-tour="school-year"
                         className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-white/5 rounded-full border border-slate-200/50 dark:border-white/10 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] cursor-default transition-all hover:bg-slate-100 dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20"
@@ -82,7 +84,7 @@ export function Header() {
                 </div>
 
                 {/* Right Area: Utilities & Profile */}
-                <div className="flex-1 flex items-center justify-end gap-1 lg:gap-2 shrink-0 pl-16 lg:pl-24">
+                <div className="flex-1 flex items-center justify-end gap-1 lg:gap-2 min-w-0 pl-4">
                     <UpdateStatus />
                     
                     <button

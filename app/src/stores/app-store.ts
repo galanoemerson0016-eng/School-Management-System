@@ -699,13 +699,82 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   promoteStudentsFromYear: async (sourceSchoolYear, sourceGradeLevel, targetSectionId) => {
-    void sourceSchoolYear;
-    void sourceGradeLevel;
-    void targetSectionId;
     try {
-      // Stub: Implement promotion logic
-      get().showNotification('Students promoted', 'success');
-      return 0;
+      const state = get();
+      const targetSection = state.sections.find((s) => s.id === targetSectionId);
+      if (!targetSection) {
+        throw new Error('Target section not found');
+      }
+      const targetSchoolYear = state.activeSchoolYear;
+      if (sourceSchoolYear === targetSchoolYear) {
+        throw new Error('Source school year must differ from the active school year');
+      }
+
+      // Candidates come from enrollment history for the source year/grade.
+      // Installs without enrollment records (all pre-rollover installs) fall
+      // back to students currently sitting on the source grade level.
+      const candidateLrns = new Set(
+        state.enrollments
+          .filter((e) => e.school_year === sourceSchoolYear && e.grade_level === sourceGradeLevel)
+          .map((e) => e.student_lrn)
+      );
+      if (candidateLrns.size === 0) {
+        state.students
+          .filter((s) => s.grade_level === sourceGradeLevel)
+          .forEach((s) => candidateLrns.add(s.lrn));
+      }
+
+      // Never double-enroll a learner into the active school year
+      const alreadyEnrolled = new Set(
+        state.enrollments
+          .filter((e) => e.school_year === targetSchoolYear)
+          .map((e) => e.student_lrn)
+      );
+
+      const timestamp = new Date().toISOString();
+      const updatedStudents = [...state.students];
+      const newEnrollments: Enrollment[] = [];
+
+      for (const lrn of candidateLrns) {
+        if (alreadyEnrolled.has(lrn)) continue;
+        const idx = updatedStudents.findIndex((s) => s.lrn === lrn);
+        if (idx === -1) continue;
+
+        const promotedStudent = {
+          ...updatedStudents[idx],
+          grade_level: targetSection.section_grade_level,
+          student_section: targetSection.section_name,
+        };
+        updatedStudents[idx] = promotedStudent;
+        await db.putRecord('students', promotedStudent);
+
+        const enrollment: Enrollment = {
+          id: `enroll-${lrn}-${targetSchoolYear}`,
+          student_lrn: lrn,
+          school_year: targetSchoolYear,
+          grade_level: targetSection.section_grade_level,
+          student_section: targetSection.section_name,
+          enrolled_at: timestamp,
+        };
+        newEnrollments.push(enrollment);
+        await db.putRecord('enrollments', enrollment);
+      }
+
+      const promoted = newEnrollments.length;
+      if (promoted > 0) {
+        set({
+          students: updatedStudents,
+          studentProfiles: updatedStudents,
+          enrollments: [...state.enrollments, ...newEnrollments],
+        });
+        get().showNotification(
+          `${promoted} learner(s) promoted to ${targetSection.section_grade_level} - ${targetSection.section_name}`,
+          'success'
+        );
+      } else {
+        get().showNotification('No eligible learners found to promote', 'info');
+      }
+      return promoted;
     } catch (error) {
       console.error('Error promoting students:', error);
       throw error;

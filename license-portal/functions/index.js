@@ -212,3 +212,50 @@ exports.xenditWebhook = onRequest({ secrets: [xenditSecretKey, xenditCallbackTok
     return res.status(500).send("Internal database synchronization error");
   }
 });
+
+/**
+ * Endpoint: checkOrderStatus
+ * Description: Lets a customer look up their purchase request by the email
+ * and reference/order ID they submitted with it. Runs with admin
+ * privileges so the Storefront no longer needs direct (and therefore
+ * world-listable) read access to the purchase_requests collection, which
+ * contains every customer's PII and any approved license_key.
+ * Returns only the minimal fields the status page needs.
+ */
+exports.checkOrderStatus = onRequest((req, res) => {
+  return cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method Not Allowed" });
+    }
+
+    const { email, proofId } = req.body || {};
+    if (!email || !proofId) {
+      return res.status(400).json({ error: "Missing required fields: email, proofId" });
+    }
+
+    const targetEmail = String(email).toLowerCase().trim();
+    const targetProofId = String(proofId).toLowerCase().trim();
+
+    try {
+      const snapshot = await db.collection("artifacts/g7-special/admin/data/purchase_requests")
+        .where("email", "==", targetEmail)
+        .where("proof_id", "==", targetProofId)
+        .get();
+
+      const results = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          status: data.status || "pending",
+          license_key: data.license_key || null,
+          decline_reason: data.decline_reason || null,
+        };
+      });
+
+      return res.status(200).json({ results });
+    } catch (err) {
+      console.error("Error checking order status:", err);
+      return res.status(500).json({ error: "Failed to check order status" });
+    }
+  });
+});
