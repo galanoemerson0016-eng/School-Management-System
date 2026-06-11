@@ -102,6 +102,13 @@ if (!gotTheLock) {
   app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit();
   });
+
+  // Any programmatic quit (e.g. autoUpdater.quitAndInstall) must bypass the
+  // window close interception, otherwise the quit is silently cancelled and
+  // the update installer never runs.
+  app.on('before-quit', () => {
+    isQuitting = true;
+  });
 }
 
 // --- IPC Handlers ---
@@ -159,7 +166,9 @@ function sendStatusToWindow(text, status = 'info') {
 
 if (autoUpdater) {
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  // Install a downloaded update when the user quits, so the "Later" path
+  // actually applies the update on next launch as the dialog promises.
+  autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
     sendStatusToWindow('Checking for update...');
@@ -214,6 +223,7 @@ if (autoUpdater) {
       cancelId: 1
     }).then(result => {
       if (result.response === 0) {
+        isQuitting = true;
         autoUpdater.quitAndInstall();
       } else {
         sendStatusToWindow('Update ready to install on next launch.');
