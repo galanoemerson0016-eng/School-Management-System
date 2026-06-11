@@ -12,7 +12,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-message', (_event, message) => callback(message));
   },
   saveAutoBackup: (data, filename) => ipcRenderer.invoke('save-auto-backup', { data, filename }),
-  closeApp: () => ipcRenderer.send('close-app'),
+  closeApp: (force = false) => ipcRenderer.send('close-app', force),
+  onCloseRequested: (callback) => {
+    ipcRenderer.removeAllListeners('app-close-requested');
+    ipcRenderer.on('app-close-requested', () => callback());
+  },
+  minimizeApp: () => ipcRenderer.send('minimize-app'),
+  maximizeApp: () => ipcRenderer.send('maximize-app'),
   printToPDF: (options) => ipcRenderer.invoke('print-to-pdf', options)
 });
 

@@ -27,19 +27,21 @@ filesToObfuscate.forEach(({ src, dest }) => {
 
     const code = fs.readFileSync(srcPath, 'utf8');
     
+    // Light obfuscation only: identifier renaming + plain string array.
+    // controlFlowFlattening, selfDefending, debugProtection, splitStrings,
+    // and numbersToExpressions are deliberately OFF — the main process handles
+    // all IPC (dialogs, backups, printing, updater), and the 2s debugger-trap
+    // loop from debugProtection stalled it periodically on every platform.
     const obfuscationResult = JavaScriptObfuscator.obfuscate(code, {
       compact: true,
-      controlFlowFlattening: true,
-      controlFlowFlatteningThreshold: 1,
-      numbersToExpressions: true,
+      controlFlowFlattening: false,
+      numbersToExpressions: false,
       simplify: true,
       stringArray: true,
-      stringArrayThreshold: 1,
-      splitStrings: true,
-      splitStringsChunkLength: 5,
-      selfDefending: true, // App will break if someone tries to reformat the code
-      debugProtection: true, // App will loop if DevTools are opened
-      debugProtectionInterval: 2000
+      stringArrayThreshold: 0.75,
+      splitStrings: false,
+      selfDefending: false,
+      debugProtection: false
     });
 
     fs.writeFileSync(destPath, obfuscationResult.getObfuscatedCode());

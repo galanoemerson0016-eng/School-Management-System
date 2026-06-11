@@ -7,28 +7,28 @@ import { join } from 'path'
 
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf-8'))
 
+// Light obfuscation only: identifier renaming + plain string array.
+// controlFlowFlattening, deadCodeInjection, debugProtection, selfDefending,
+// RC4 string encoding, numbersToExpressions, and splitStrings are deliberately
+// OFF — they execute on every render and made the production app severely
+// laggy (including a blocking debugger-trap every 2.5s from debugProtection).
 const obfuscatorOptions: any = {
   compact: true,
-  controlFlowFlattening: true,
-  controlFlowFlatteningThreshold: 1,
-  deadCodeInjection: true,
-  deadCodeInjectionThreshold: 0.5,
-  debugProtection: true,
-  debugProtectionInterval: 2500,
+  controlFlowFlattening: false,
+  deadCodeInjection: false,
+  debugProtection: false,
   disableConsoleOutput: true,
   identifierNamesGenerator: 'hexadecimal',
   log: false,
-  numbersToExpressions: true,
+  numbersToExpressions: false,
   renameGlobals: false,
-  selfDefending: true,
+  selfDefending: false,
   simplify: true,
-  splitStrings: true,
-  splitStringsChunkLength: 5,
+  splitStrings: false,
   stringArray: true,
-  stringArrayCallsTransform: true,
-  stringArrayCallsTransformThreshold: 1,
-  stringArrayEncoding: ['rc4'],
-  stringArrayThreshold: 1,
+  stringArrayCallsTransform: false,
+  stringArrayEncoding: [],
+  stringArrayThreshold: 0.75,
   unicodeEscapeSequence: false
 };
 

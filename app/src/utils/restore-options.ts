@@ -253,6 +253,9 @@ export function estimateRestoreTime(backup: ComprehensiveBackup): string {
     if (backup.payload.students) totalRecords += backup.payload.students.length;
     if (backup.payload.classRecords) totalRecords += backup.payload.classRecords.length;
     if (backup.payload.users) totalRecords += backup.payload.users.length;
+    if (backup.payload.attendanceRecords) totalRecords += backup.payload.attendanceRecords.length;
+    if (backup.payload.sf2Sheets) totalRecords += backup.payload.sf2Sheets.length;
+    if (backup.payload.hpsRecords) totalRecords += backup.payload.hpsRecords.length;
 
     // Rough estimation: ~100 records per second
     const estimatedSeconds = Math.max(2, Math.ceil(totalRecords / 100));

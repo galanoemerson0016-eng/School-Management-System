@@ -79,10 +79,10 @@ export function Sidebar() {
 
     const menuItems: Array<{ id: AppView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'subjects', label: 'Subjects', icon: GraduationCap },
         { id: 'sections', label: 'Classes & Sections', icon: Layers },
         { id: 'students', label: 'Student Information', icon: Users },
         { id: 'institute', label: 'Institute Profile', icon: School },
-        { id: 'subjects', label: 'Subjects', icon: GraduationCap },
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
         { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
         { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
@@ -128,6 +128,7 @@ export function Sidebar() {
                         <button
                             key={item.id}
                             onClick={() => handleNavClick(item.id)}
+                            data-tour={`sidebar-${item.id}`}
                             title={isCollapsed ? item.label : undefined}
                             className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
                                 ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
@@ -148,6 +149,7 @@ export function Sidebar() {
                 {canAccessView(user, 'settings') && (
                     <button
                         onClick={() => handleNavClick('settings')}
+                        data-tour="sidebar-settings"
                         title={isCollapsed ? 'Settings' : undefined}
                         className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
                             ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
@@ -164,6 +166,7 @@ export function Sidebar() {
                 {/* About */}
                 <button
                     onClick={() => handleNavClick('about')}
+                    data-tour="sidebar-about"
                     title={isCollapsed ? 'About' : undefined}
                     className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
                         ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
@@ -240,6 +243,7 @@ export function Sidebar() {
             <div 
                 ref={sidebarRef}
                 style={{ width: isCollapsed ? '88px' : `${sidebarWidth}px` }}
+                data-tour="sidebar"
                 className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
             >
                 {sidebarContent}

@@ -34,21 +34,24 @@ export function AutoBackupManager() {
     }, 5000);
 
     // B. Backup on Window Close (Exit)
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Note: Modern browsers/Electron might not wait for async 
-      // calls in beforeunload, but Electron usually handles 
-      // IPC calls if they are fast.
-      void performSilentBackup();
-      
-      // Standard behavior: don't block the close unless there's unsaved work
-      // but here we just want to fire and forget the backup.
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    if (window.electronAPI && window.electronAPI.onCloseRequested) {
+      window.electronAPI.onCloseRequested(async () => {
+        try {
+          const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000));
+          await Promise.race([
+            performSilentBackup(),
+            timeoutPromise
+          ]);
+        } catch (error) {
+          console.error('Error in close-intercept auto-backup:', error);
+        } finally {
+          window.electronAPI.closeApp(true);
+        }
+      });
+    }
 
     return () => {
       clearTimeout(startupTimer);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [performSilentBackup]);
 

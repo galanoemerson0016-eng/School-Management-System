@@ -1,7 +1,8 @@
 import { db } from '../services/database';
 import type { ComprehensiveBackup } from './backup-restore';
 import type { RestoreStrategy } from './restore-options';
-import type { Student, Section, Subject, Enrollment, ClassRecord, ObservedValues } from '../types';
+import type { Student, Section, Subject, Enrollment, ClassRecord, ObservedValues, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
+
 
 export interface RestoreValidation {
     isValid: boolean;
@@ -101,6 +102,9 @@ export function prepareDataForRestore(backup: ComprehensiveBackup): {
     classRecords: ClassRecord[];
     gradingSheetRecords: ClassRecord[];
     observedValues: ObservedValues[];
+    attendanceRecords: AttendanceRecord[];
+    sf2Sheets: SF2Sheet[];
+    hpsRecords: HPSRecord[];
 } {
     return {
         students: backup.payload.students.map((s) => stripUndefinedValues(s)),
@@ -110,6 +114,9 @@ export function prepareDataForRestore(backup: ComprehensiveBackup): {
         classRecords: backup.payload.classRecords.map((r) => stripUndefinedValues(r)),
         gradingSheetRecords: (backup.payload.gradingSheetRecords || []).map((r) => stripUndefinedValues(r)),
         observedValues: (backup.payload.observedValues || []).map((v) => stripUndefinedValues(v)),
+        attendanceRecords: (backup.payload.attendanceRecords || []).map((r) => stripUndefinedValues(r)),
+        sf2Sheets: (backup.payload.sf2Sheets || []).map((s) => stripUndefinedValues(s)),
+        hpsRecords: (backup.payload.hpsRecords || []).map((h) => stripUndefinedValues(h)),
     };
 }
 
@@ -186,6 +193,39 @@ export async function restoreBackupToFirestore(
             for (const item of backup.payload.announcements) {
                 await db.putRecord('announcements', stripUndefinedValues(item));
                 result.updated += 1;
+            }
+        }
+
+        if (selected.has('attendanceRecords')) {
+            for (const item of prepared.attendanceRecords) {
+                await db.putRecord('attendanceRecords', item);
+                result.updated += 1;
+            }
+        }
+
+        if (selected.has('sf2Sheets')) {
+            for (const item of prepared.sf2Sheets) {
+                await db.putRecord('sf2Sheets', item);
+                result.updated += 1;
+            }
+        }
+
+        if (selected.has('hpsRecords')) {
+            for (const item of prepared.hpsRecords) {
+                await db.putRecord('hpsRecords', item);
+                result.updated += 1;
+            }
+        }
+
+        // Restore localStorage items if present in comprehensive payload
+        if (backup.payload.localStorageData) {
+            try {
+                Object.entries(backup.payload.localStorageData).forEach(([key, value]) => {
+                    localStorage.setItem(key, value);
+                });
+                console.log('✅ LocalStorage data restored from comprehensive payload');
+            } catch (e) {
+                console.warn('⚠️ Failed to restore localStorage data from comprehensive payload:', e);
             }
         }
     } catch (error) {

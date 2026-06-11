@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Printer, ChevronDown, Plus, Minus, HeartPulse, Download } from 'lucide-react';
 import { useAppStore } from '../stores';
 import type { Student } from '../types';
@@ -165,8 +165,9 @@ function getEmptySummary() {
 export function SF8Page() {
     const { students, sections, schoolProfile, activeSchoolYear, setCurrentView, updateStudent } = useAppStore();
     const [selectedSection, setSelectedSection] = useState('');
-    const [paperSize, setPaperSize] = useState<PaperSize>('a4');
+    const [paperSize, setPaperSize] = useState<PaperSize>('folio');
     const [zoom, setZoom] = useState(1);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const sortedSections = useMemo(() => {
         return [...sections].sort((a, b) => {
@@ -265,23 +266,87 @@ export function SF8Page() {
         return result;
     }, [selectedStudents]);
 
-    const handlePrint = () => {
+    const handlePrint = useCallback(() => {
         const sectionName = selectedSectionObj?.section_name || 'Record';
         const originalTitle = document.title;
         document.title = `SF8_${schoolProfile.name || 'School'}_${sectionName}_${formatMonthYear(activeSchoolYear)}_${paperSize.toUpperCase()}`;
         window.print();
         document.title = originalTitle;
-    };
+    }, [selectedSectionObj, schoolProfile, activeSchoolYear, paperSize]);
+
+    // Override Ctrl+P shortcut to use handlePrint
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                handlePrint();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handlePrint]);
 
     const handleDownload = async () => {
         const sectionName = selectedSectionObj?.section_name || 'Record';
         const filename = `SF8_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
+        const el = document.getElementById('sf8-printable-area');
+        if (!el) return;
+
+        setIsDownloading(true);
+        el.classList.add('html-capture');
         try {
             if (window.electronAPI?.printToPDF) {
                 await window.electronAPI.printToPDF({ defaultFilename: filename, autoSave: true });
+            } else {
+                const html2canvas = (await import('html2canvas-pro')).default;
+                const { jsPDF } = await import('jspdf');
+
+                // Temporarily reset zoom/scale transform for capture
+                const prevTransform = el.style.transform || '';
+                el.style.transform = 'none';
+
+                const canvas = await html2canvas(el, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                });
+
+                el.style.transform = prevTransform;
+
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: paperSize === 'folio' ? 'legal' : 'a4'
+                });
+
+                const pageW = pdf.internal.pageSize.getWidth();
+                const pageH = pdf.internal.pageSize.getHeight();
+                const margin = 4;
+                const usableW = pageW - margin * 2;
+                const usableH = pageH - margin * 2;
+
+                const canvasW = canvas.width;
+                const canvasH = canvas.height;
+                const scaleX = usableW / canvasW;
+                const scaleY = usableH / canvasH;
+                const scale = Math.min(scaleX, scaleY);
+
+                const drawW = canvasW * scale;
+                const drawH = canvasH * scale;
+                const offsetX = margin + (usableW - drawW) / 2;
+                const offsetY = margin + (usableH - drawH) / 2;
+
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', offsetX, offsetY, drawW, drawH);
+                pdf.save(filename);
             }
         } catch (error) {
             console.error('Failed to download PDF:', error);
+        } finally {
+            el.classList.remove('html-capture');
+            setIsDownloading(false);
         }
     };
 
@@ -451,11 +516,23 @@ export function SF8Page() {
                         {/* Download Button */}
                         <button
                             onClick={handleDownload}
-                            disabled={!effectiveSelectedSection}
+                            disabled={!effectiveSelectedSection || isDownloading}
                             className="h-9 px-3.5 lg:px-4 rounded-xl bg-green-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-green-500/20 hover:bg-green-700 hover:shadow-green-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
                         >
-                            <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-                            Download PDF
+                            {isDownloading ? (
+                                <>
+                                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                    </svg>
+                                    Downloading…
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                                    Download PDF
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -487,7 +564,7 @@ export function SF8Page() {
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{ transform: `scale(${zoom})` }}
                         >
-                            <div className="sf8-page mx-auto w-full max-w-[1123px] bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
+                            <div id="sf8-printable-area" className="sf8-page mx-auto w-full max-w-[1123px] bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
                     <div className="sf8-page-content p-3 sm:p-4 flex flex-col">
                         <div className="flex items-start justify-between gap-3 mb-2">
                             <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />
@@ -658,8 +735,14 @@ export function SF8Page() {
     )}
 
             <style>{`
+                #sf8-printable-area.html-capture input {
+                    display: none !important;
+                }
+                #sf8-printable-area.html-capture .print\\:inline {
+                    display: inline !important;
+                }
                 @media print {
-                    @page { size: ${paperSize === 'folio' ? 'Folio landscape' : 'A4 landscape'}; margin: 0.15in; }
+                    @page { size: ${paperSize === 'folio' ? 'Folio portrait' : 'A4 portrait'}; margin: 0.15in; }
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     .sf8-page {
                         width: 100%;

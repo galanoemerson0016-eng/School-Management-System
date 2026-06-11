@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore } from '../stores';
 import { db } from '../services/database';
-import { Database, Lock, User, Shield, Upload } from 'lucide-react';
+import { Database, User, Shield, Upload } from 'lucide-react';
 import { canPurgeMaintenance } from '../lib/rbac';
 import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
@@ -29,6 +29,7 @@ export function SettingsPage() {
         activeSchoolYear,
         schoolYears,
         enrollments,
+        attendanceRecords,
         deleteStudent,
         deleteSection,
         updateStudent,
@@ -120,7 +121,7 @@ export function SettingsPage() {
     const [passwordSuccess, setPasswordSuccess] = useState('');
     const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-    const { updateCredentials, getSecurityQuestion } = useAuthStore();
+    const { updateCredentials } = useAuthStore();
 
     const handleChangePassword = async () => {
         setPasswordError('');
@@ -172,8 +173,9 @@ export function SettingsPage() {
                 setShowPasswordModal(false);
                 setPasswordSuccess('');
             }, 2000);
-        } catch (error: any) {
-            setPasswordError(error.message || 'Failed to update settings');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to update settings';
+            setPasswordError(message);
         } finally {
             setIsChangingPassword(false);
         }
@@ -202,6 +204,7 @@ export function SettingsPage() {
                 hpsRecords,
                 sf2Sheets,
                 announcements,
+                attendanceRecords,
                 user?.email || 'unknown',
             );
 
@@ -289,12 +292,21 @@ export function SettingsPage() {
                 `🔒 Encrypted: ${options.encrypt ? 'Yes' : 'No'}\n` +
                 `📦 Compressed: ${options.compress ? 'Yes' : 'No'}\n\n` +
                 `📊 Summary:\n` +
+                `• School Year: ${currentBackup.summary.activeSchoolYear}\n` +
                 `• Students: ${currentBackup.summary.students}\n` +
+                `• Sections: ${currentBackup.summary.sections}\n` +
+                `• Subjects: ${currentBackup.summary.subjects}\n` +
+                `• Enrollments: ${currentBackup.summary.enrollments}\n` +
                 `• Subject Grades: ${currentBackup.summary.grades}\n` +
                 `• Consolidated Grades: ${currentBackup.summary.gradingSheetRecords}\n` +
                 `• Core Values: ${currentBackup.summary.observedValues}\n` +
-                `• Sections: ${currentBackup.summary.sections}\n` +
-                `• Users: ${currentBackup.summary.users}\n\n` +
+                `• Attendance Records: ${currentBackup.summary.attendanceRecords}\n` +
+                `• SF2 Attendance Sheets: ${currentBackup.summary.sf2Sheets}\n` +
+                `• Highest Possible Score (HPS) Records: ${currentBackup.summary.hpsRecords}\n` +
+                `• Announcements: ${currentBackup.summary.announcements}\n` +
+                `• School Years: ${currentBackup.summary.schoolYears}\n` +
+                `• Users: ${currentBackup.summary.users}\n` +
+                `• Local Storage Keys (Signatories, Anecdotal, Calendar): ${Object.keys(currentBackup.payload.localStorageData || {}).length}\n\n` +
                 `📏 File Sizes:\n` +
                 `• Original: ${sizes.original}\n` +
                 `• Minified: ${sizes.minified}\n\n` +
@@ -465,9 +477,9 @@ export function SettingsPage() {
         const subjectIds = new Set(subjects.map((s) => s.id));
         const currentStudentLrns = new Set(students.map((s) => s.lrn));
 
-        const isOrphanOrCurrent = (record: any, requiresSubject: boolean) => {
+        const isOrphanOrCurrent = (record: { student_lrn: string; subject_id?: string }, requiresSubject: boolean) => {
             const isForCurrentStudent = currentStudentLrns.has(record.student_lrn);
-            const isOrphan = !studentLrns.has(record.student_lrn) || (requiresSubject && !subjectIds.has(record.subject_id));
+            const isOrphan = !studentLrns.has(record.student_lrn) || (requiresSubject && (!record.subject_id || !subjectIds.has(record.subject_id)));
             return isForCurrentStudent || isOrphan;
         };
 
@@ -842,7 +854,7 @@ export function SettingsPage() {
 
     return (
         <div className="max-w-5xl space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-sky-50 p-6">
+            <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-slate-50 via-white to-sky-50 p-6">
                 <h2 className="text-3xl font-black tracking-tight text-slate-900">Settings</h2>
                 <p className="mt-1 text-sm font-medium text-slate-600">Manage account access, backup, and maintenance.</p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">

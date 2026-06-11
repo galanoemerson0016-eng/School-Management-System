@@ -25,6 +25,8 @@ import type {
   Announcement,
   AttendanceRecord,
   ObservedValues,
+  SF2Sheet,
+  HPSRecord,
 } from '../types';
 
 // IndexedDB database name and stores
@@ -137,7 +139,7 @@ async function putRecord<T>(
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readwrite');
     const store = transaction.objectStore(storeName);
-    const request = store.put(record as any);
+    const request = store.put(record);
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result as string);
@@ -218,11 +220,30 @@ async function exportAllData() {
     getAllRecords<Enrollment>('enrollments'),
     getAllRecords<Announcement>('announcements'),
     getAllRecords<AttendanceRecord>('attendanceRecords'),
-    getAllRecords<any>('sf2Sheets'),
-    getAllRecords<any>('hpsRecords'),
+    getAllRecords<SF2Sheet>('sf2Sheets'),
+    getAllRecords<HPSRecord>('hpsRecords'),
     getAllRecords<ClassRecord>('gradingSheetRecords'),
     getAllRecords<ObservedValues>('observedValues'),
   ]);
+
+  const localStorageData: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('formease_sf8_signatories_') ||
+        key.startsWith('formease_anecdotal_') ||
+        key === 'school_calendar_events'
+      )) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          localStorageData[key] = value;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to export localStorage for backup:', e);
+  }
 
   return {
     schoolProfile,
@@ -237,6 +258,7 @@ async function exportAllData() {
     hpsRecords,
     gradingSheetRecords,
     observedValues,
+    localStorageData,
   };
 }
 
@@ -252,10 +274,11 @@ async function importFromBackup(backupData: {
   enrollments: Enrollment[];
   announcements: Announcement[];
   attendanceRecords: AttendanceRecord[];
-  sf2Sheets: any[];
-  hpsRecords: any[];
+  sf2Sheets: SF2Sheet[];
+  hpsRecords: HPSRecord[];
   gradingSheetRecords?: ClassRecord[];
   observedValues?: ObservedValues[];
+  localStorageData?: Record<string, string>;
 }) {
   // Clear existing data
   const stores = [
@@ -318,24 +341,36 @@ async function importFromBackup(backupData: {
       await putRecord('attendanceRecords', record);
     }
   }
-  if ((backupData as any).sf2Sheets) {
-    for (const record of (backupData as any).sf2Sheets) {
+  if (backupData.sf2Sheets) {
+    for (const record of backupData.sf2Sheets) {
       await putRecord('sf2Sheets', record);
     }
   }
-  if ((backupData as any).hpsRecords) {
-    for (const record of (backupData as any).hpsRecords) {
+  if (backupData.hpsRecords) {
+    for (const record of backupData.hpsRecords) {
       await putRecord('hpsRecords', record);
     }
   }
-  if ((backupData as any).gradingSheetRecords) {
-    for (const record of (backupData as any).gradingSheetRecords) {
+  if (backupData.gradingSheetRecords) {
+    for (const record of backupData.gradingSheetRecords) {
       await putRecord('gradingSheetRecords', record);
     }
   }
   if (backupData.observedValues) {
     for (const record of backupData.observedValues) {
       await putRecord('observedValues', record);
+    }
+  }
+
+  // Restore localStorage items if present
+  if (backupData.localStorageData) {
+    try {
+      Object.entries(backupData.localStorageData).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+      console.log('✅ LocalStorage data restored');
+    } catch (e) {
+      console.warn('⚠️ Failed to restore localStorage data:', e);
     }
   }
 }

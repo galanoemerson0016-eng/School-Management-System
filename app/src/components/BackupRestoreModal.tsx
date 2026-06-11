@@ -36,6 +36,9 @@ interface RestoreSummary {
         classRecords: number;
         gradingSheetRecords: number;
         observedValues: number;
+        attendanceRecords: number;
+        sf2Sheets: number;
+        hpsRecords: number;
     };
     applied: {
         created: number;
@@ -86,6 +89,9 @@ export function BackupRestoreModal({
             'gradingSheetRecords',
             'observedValues',
             'announcements',
+            'attendanceRecords',
+            'sf2Sheets',
+            'hpsRecords',
         ]),
         isProcessing: false,
         error: null,
@@ -110,6 +116,9 @@ export function BackupRestoreModal({
             `- Subject Grades: ${summary.prepared.classRecords}`,
             `- Consolidated Grades: ${summary.prepared.gradingSheetRecords}`,
             `- Core Values: ${summary.prepared.observedValues}`,
+            `- Attendance Records: ${summary.prepared.attendanceRecords}`,
+            `- SF2 Attendance Sheets: ${summary.prepared.sf2Sheets}`,
+            `- Highest Possible Score Records: ${summary.prepared.hpsRecords}`,
             '',
             'Applied Actions',
             `- Created: ${summary.applied.created}`,
@@ -156,7 +165,7 @@ export function BackupRestoreModal({
 
             // Parse backup
             const text = await file.text();
-            let rawData = JSON.parse(text);
+            const rawData = JSON.parse(text);
             let backup: ComprehensiveBackup;
 
             // Handle Standard to Comprehensive conversion
@@ -187,10 +196,12 @@ export function BackupRestoreModal({
                         systemSettings: 0,
                         adviserAssignments: 0,
                         gradingConfiguration: 0,
+                        attendanceRecords: rawData.data.attendanceRecords?.length || 0,
                     },
                     payload: {
                         ...rawData.data,
                         schoolProfile: rawData.data.schoolProfile?.[0] || rawData.data.schoolProfile,
+                        attendanceRecords: rawData.data.attendanceRecords || [],
                         systemSettings: {},
                         adviserAssignments: [],
                         gradingConfiguration: {},
@@ -268,6 +279,9 @@ export function BackupRestoreModal({
                     classRecords: prepared.classRecords.length,
                     gradingSheetRecords: prepared.gradingSheetRecords.length,
                     observedValues: prepared.observedValues.length,
+                    attendanceRecords: prepared.attendanceRecords.length,
+                    sf2Sheets: prepared.sf2Sheets.length,
+                    hpsRecords: prepared.hpsRecords.length,
                 },
                 applied: {
                     created: result.created,
@@ -289,7 +303,10 @@ export function BackupRestoreModal({
                 `• Enrollments: ${prepared.enrollments.length}\n` +
                 `• Subject Grades: ${prepared.classRecords.length}\n` +
                 `• Consolidated Grades: ${prepared.gradingSheetRecords.length}\n` +
-                `• Core Values: ${prepared.observedValues.length}\n\n` +
+                `• Core Values: ${prepared.observedValues.length}\n` +
+                `• Attendance Records: ${prepared.attendanceRecords.length}\n` +
+                `• SF2 Attendance Sheets: ${prepared.sf2Sheets.length}\n` +
+                `• Highest Possible Score Records: ${prepared.hpsRecords.length}\n\n` +
                 `Database Actions:\n` +
                 `• Created: ${result.created}\n` +
                 `• Updated: ${result.updated}\n` +
@@ -392,7 +409,7 @@ export function BackupRestoreModal({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex justify-between items-center">
+                <div className="sticky top-0 bg-linear-to-r from-blue-600 to-blue-700 text-white p-6 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <Download className="w-6 h-6" />
                         <h2 className="text-2xl font-bold">Restore from Backup</h2>
@@ -528,6 +545,11 @@ export function BackupRestoreModal({
                                             count: state.backup.summary.grades,
                                         },
                                         {
+                                            id: 'hpsRecords',
+                                            label: '🎯 Highest Possible Score (HPS) Records',
+                                            count: state.backup.summary.hpsRecords || 0,
+                                        },
+                                        {
                                             id: 'gradingSheetRecords',
                                             label: '📈 Consolidated Grades',
                                             count: state.backup.summary.gradingSheetRecords || 0,
@@ -536,6 +558,16 @@ export function BackupRestoreModal({
                                             id: 'observedValues',
                                             label: '⭐ Core Values',
                                             count: state.backup.summary.observedValues || 0,
+                                        },
+                                        {
+                                            id: 'attendanceRecords',
+                                            label: '📅 Attendance Records',
+                                            count: state.backup.summary.attendanceRecords || 0,
+                                        },
+                                        {
+                                            id: 'sf2Sheets',
+                                            label: '📝 SF2 Attendance Sheets',
+                                            count: state.backup.summary.sf2Sheets || 0,
                                         },
                                         {
                                             id: 'users',

@@ -6,6 +6,7 @@ const fs = require('fs');
 const isDev = process.env.NODE_ENV === 'development';
 
 let autoUpdater;
+let isQuitting = false;
 if (!isDev) {
   try {
     const { autoUpdater: au } = require('electron-updater');
@@ -51,6 +52,13 @@ if (!gotTheLock) {
 
     // Hide the menu bar completely
     mainWindow.setMenuBarVisibility(false);
+
+    mainWindow.on('close', (e) => {
+      if (!isQuitting) {
+        e.preventDefault();
+        mainWindow.webContents.send('app-close-requested');
+      }
+    });
 
     if (isDev) {
       mainWindow.loadURL('http://localhost:3001');
@@ -218,8 +226,34 @@ if (autoUpdater) {
   });
 }
 
-ipcMain.on('close-app', () => {
-  app.quit();
+ipcMain.on('close-app', (event, force = false) => {
+  if (force) {
+    isQuitting = true;
+    app.quit();
+  } else {
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      windows[0].close();
+    } else {
+      app.quit();
+    }
+  }
+});
+
+ipcMain.on('minimize-app', () => {
+  const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (focusedWindow) focusedWindow.minimize();
+});
+
+ipcMain.on('maximize-app', () => {
+  const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (focusedWindow) {
+    if (focusedWindow.isMaximized()) {
+      focusedWindow.unmaximize();
+    } else {
+      focusedWindow.maximize();
+    }
+  }
 });
 
 ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false }) => {

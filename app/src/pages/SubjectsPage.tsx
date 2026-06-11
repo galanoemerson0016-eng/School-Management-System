@@ -283,7 +283,6 @@ export function SubjectsPage() {
     const [curriculumChoice, setCurriculumChoice] = useState<'standard' | 'special' | 'core_only' | null>(null);
     const [showCurriculumChoice, setShowCurriculumChoice] = useState(false);
     const [lastLoadedCurriculumType, setLastLoadedCurriculumType] = useState<'standard' | 'special' | 'core_only' | null>(null);
-    const [showLoadSuccessHighlight, setShowLoadSuccessHighlight] = useState(false);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const [showAutoLoadConfirm, setShowAutoLoadConfirm] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
@@ -528,8 +527,6 @@ export function SubjectsPage() {
 
             showNotification(`Successfully imported ${missingTemplates.length} subjects!`, 'success');
             setLastLoadedCurriculumType(curriculumChoice);
-            setShowLoadSuccessHighlight(true);
-            setTimeout(() => setShowLoadSuccessHighlight(false), 5000);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             console.error("[SUBJECTS WIZARD] Failed to commit selective load:", errorMsg);
@@ -964,8 +961,6 @@ export function SubjectsPage() {
 
                 showNotification(`Successfully loaded all unified ${missingTemplates.length} subjects!`, 'success');
                 setLastLoadedCurriculumType('standard');
-                setShowLoadSuccessHighlight(true);
-                setTimeout(() => setShowLoadSuccessHighlight(false), 5000);
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 console.error("[SUBJECTS AUTOMATIC] Failed to commit:", errorMsg);
@@ -1115,6 +1110,42 @@ export function SubjectsPage() {
                     >
                         {!selectedCategory ? (
                             <>
+                                {/* Quick Guide Header */}
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 15 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.1 }}
+                                    className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 pb-6"
+                                >
+                                    <div className="space-y-3 flex flex-col items-center text-center">
+                                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-2xs">
+                                            <BookOpen className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">1. Select Level</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Choose a department (Elementary, JHS, or SHS) to explore its specific grade levels and curriculum tracks.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 flex flex-col items-center text-center">
+                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-2xs">
+                                            <Settings className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">2. Configure Subjects</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Inside each grade, you can add subjects manually or load standard DepEd templates to ensure academic compliance.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 flex flex-col items-center text-center">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
+                                            <Sparkles className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">3. Automate Workflow</h4>
+                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Configured subjects are automatically synced to class records and SF9/SF10 reports for seamless grading.</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                                     {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, category]) => (
                                         <motion.button
@@ -1122,7 +1153,7 @@ export function SubjectsPage() {
                                             whileHover={{ scale: 1.02, y: -5 }}
                                             whileTap={{ scale: 0.98 }}
                                             onClick={() => setSelectedCategory(key)}
-                                            className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-left overflow-hidden h-full flex flex-col"
+                                            className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-center overflow-hidden h-full flex flex-col items-center"
                                         >
                                             <div className={`absolute top-0 right-0 w-32 h-32 ${category.bg} rounded-bl-[5rem] -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
                                             
@@ -1130,13 +1161,13 @@ export function SubjectsPage() {
                                                 <category.icon className="w-8 h-8" />
                                             </div>
 
-                                            <div className="flex-1">
+                                            <div className="flex-1 w-full">
                                                 <h3 className="text-2xl font-black text-slate-900 mb-1">{category.title}</h3>
                                                 <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{category.range}</p>
                                                 <p className="text-slate-500 text-sm leading-relaxed mb-6">{category.description}</p>
                                             </div>
 
-                                            <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto">
+                                            <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto w-full">
                                                 <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Open Category</span>
                                                 <div className={`w-10 h-10 rounded-full bg-slate-50 group-hover:bg-linear-to-br ${category.color} flex items-center justify-center text-slate-400 group-hover:text-white transition-all`}>
                                                     <ArrowRight className="w-5 h-5" />
@@ -1145,42 +1176,6 @@ export function SubjectsPage() {
                                         </motion.button>
                                     ))}
                                 </div>
-
-                                {/* Quick Guide Footer */}
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.5 }}
-                                    className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-10 pt-16 mt-16 border-t border-slate-100"
-                                >
-                                    <div className="space-y-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm">
-                                            <BookOpen className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">1. Select Level</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Choose a department (Elementary, JHS, or SHS) to explore its specific grade levels and curriculum tracks.</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
-                                            <Settings className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">2. Configure Subjects</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Inside each grade, you can add subjects manually or load standard DepEd templates to ensure academic compliance.</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm">
-                                            <Sparkles className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-2">3. Automate Workflow</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Configured subjects are automatically synced to class records and SF9/SF10 reports for seamless grading.</p>
-                                        </div>
-                                    </div>
-                                </motion.div>
                             </>
                         ) : (
                             <div className="space-y-6">

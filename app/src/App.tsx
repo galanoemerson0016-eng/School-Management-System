@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, initializeAuthStore } from './stores';
 import { getMachineId } from './utils/machine-id';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { Sidebar, Header } from './components/layout';
 import {
   LoginPage,
@@ -35,6 +36,7 @@ import {
 } from './pages';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
+import { AnimatePresence } from 'framer-motion';
 
 
 // DepEd-branded loading splash while auth state resolves
@@ -89,6 +91,27 @@ function LoadingSplash() {
 function App() {
   const { isAuthenticated, isLoading } = useAuthStore();
   const { currentView, schoolProfile, isSyncReady, selectedSection, sections } = useAppStore();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && isSyncReady) {
+      try {
+        const completed = localStorage.getItem('formease_onboarding_completed') === 'true';
+        if (!completed) {
+          const timer = setTimeout(() => setShowOnboarding(true), 0);
+          return () => clearTimeout(timer);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [isAuthenticated, isSyncReady]);
+
+  useEffect(() => {
+    const handleTrigger = () => setShowOnboarding(true);
+    window.addEventListener('formease-trigger-onboarding', handleTrigger);
+    return () => window.removeEventListener('formease-trigger-onboarding', handleTrigger);
+  }, []);
 
   const selectedSectionObj = sections.find(s => s.section_name === selectedSection);
   const isSHSSection = selectedSectionObj 
@@ -247,22 +270,27 @@ function App() {
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-[#080d1a] relative text-slate-800 dark:text-slate-200">
       <AutoBackupManager />
-      {/* Global Animated Multi-Color Mesh Underlay */}
-      <div className="absolute inset-0 z-0 opacity-60 dark:opacity-20 pointer-events-none animate-pulse print:hidden" style={{
+      {/* Global Multi-Color Mesh Underlay (static — animating this forces a
+          full-window repaint every frame and was a major source of lag) */}
+      <div className="absolute inset-0 z-0 opacity-60 dark:opacity-20 pointer-events-none print:hidden" style={{
         backgroundImage: `radial-gradient(circle at 10% 0%, #3A7BFF44 0%, transparent 50%), radial-gradient(circle at 90% 100%, #10b98133 0%, transparent 50%), radial-gradient(circle at 50% 50%, #fdb71411 0%, transparent 50%)`,
-        animationDuration: '15s',
       }} />
       <div className="absolute inset-0 z-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none print:hidden" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
       }} />
 
       <Toast />
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingWizard onClose={() => setShowOnboarding(false)} />
+        )}
+      </AnimatePresence>
 
       <div className="relative z-10 flex w-full h-full p-1.5 lg:p-2 gap-1.5 lg:gap-2 box-border print:p-0 print:block">
         <div className="print:hidden h-full flex flex-col">
           <Sidebar />
         </div>
-        <main className="flex-1 flex flex-col overflow-hidden bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
+        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-white/85 dark:bg-[#0a101f]/90 rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
           </div>

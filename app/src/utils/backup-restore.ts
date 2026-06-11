@@ -11,6 +11,7 @@ import type {
     SF2Sheet,
     SchoolYear,
     Enrollment,
+    AttendanceRecord,
 } from '../types';
 
 export interface BackupMetadata {
@@ -39,6 +40,19 @@ export interface BackupSummary {
     systemSettings: number;
     adviserAssignments: number;
     gradingConfiguration: number;
+    attendanceRecords: number;
+}
+
+export interface BackupUser {
+    uid: string;
+    username: string;
+    email: string;
+    displayName: string;
+    roles: string[];
+    primaryRole: string;
+    adviserSectionId: string;
+    adviserSectionName?: string;
+    createdAt?: string;
 }
 
 export interface ComprehensiveBackup {
@@ -59,17 +73,8 @@ export interface ComprehensiveBackup {
         hpsRecords: HPSRecord[];
         sf2Sheets: SF2Sheet[];
         announcements: Announcement[];
-        users: Array<{
-            uid: string;
-            username: string;
-            email: string;
-            displayName: string;
-            roles: string[];
-            primaryRole: string;
-            adviserSectionId: string;
-            adviserSectionName?: string;
-            createdAt?: string;
-        }>;
+        attendanceRecords: AttendanceRecord[];
+        users: BackupUser[];
         systemSettings: Record<string, unknown>;
         adviserAssignments: Array<{
             userId: string;
@@ -80,6 +85,7 @@ export interface ComprehensiveBackup {
             gradeLevel: string;
         }>;
         gradingConfiguration: Record<string, unknown>;
+        localStorageData?: Record<string, string>;
     };
 }
 
@@ -98,9 +104,29 @@ export async function createComprehensiveBackup(
     hpsRecords: HPSRecord[],
     sf2Sheets: SF2Sheet[],
     announcements: Announcement[],
+    attendanceRecords: AttendanceRecord[],
     exportedBy: string = 'local-user',
 ): Promise<ComprehensiveBackup> {
-    const users = await db.getAllRecords<any>('users').catch(() => []);
+    const users = await db.getAllRecords<BackupUser>('users').catch(() => []);
+
+    const localStorageData: Record<string, string> = {};
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (
+                key.startsWith('formease_sf8_signatories_') ||
+                key.startsWith('formease_anecdotal_') ||
+                key === 'school_calendar_events'
+            )) {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    localStorageData[key] = value;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to read localStorage for comprehensive backup:', e);
+    }
 
     const backup: ComprehensiveBackup = {
         metadata: {
@@ -128,6 +154,7 @@ export async function createComprehensiveBackup(
             systemSettings: 1,
             adviserAssignments: sections.filter((s) => !!s.adviser_id).length,
             gradingConfiguration: 1,
+            attendanceRecords: attendanceRecords.length,
         },
         payload: {
             schoolProfile,
@@ -144,12 +171,14 @@ export async function createComprehensiveBackup(
             hpsRecords,
             sf2Sheets,
             announcements,
+            attendanceRecords,
             users,
             systemSettings: {
                 loginAnnouncement: localStorage.getItem('system_login_announcement') || '',
             },
             adviserAssignments: [],
             gradingConfiguration: {},
+            localStorageData,
         },
     };
 
@@ -169,6 +198,7 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
         `Consolidated Grades: ${backup.summary.gradingSheetRecords}`,
         `Core Values: ${backup.summary.observedValues}`,
         `Announcements: ${backup.summary.announcements}`,
+        `Attendance Records: ${backup.summary.attendanceRecords ?? 0}`,
     ].join('\n');
 }
 

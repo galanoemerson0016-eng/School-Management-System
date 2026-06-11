@@ -987,21 +987,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   restoreFromFile: async (file) => {
     try {
       await backup.restoreFromBackupFile(file);
-      // Reload data
+      // Reload all data collections to keep the UI in sync
       const students = await db.getAllRecords<Student>('students');
       const sections = await db.getAllRecords<Section>('sections');
       const subjects = await db.getAllRecords<Subject>('subjects');
       const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
+      const gradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+      const hpsRecords = await db.getAllRecords<HPSRecord>('hpsRecords');
+      const enrollments = await db.getAllRecords<Enrollment>('enrollments');
       const announcements = await db.getAllRecords<Announcement>('announcements');
+      const attendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+      const sf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+      const observedValues = await db.getAllRecords<ObservedValues>('observedValues');
       const allProfiles = await db.getAllRecords<SchoolProfile>('schoolProfile');
       const schoolProfile = allProfiles.length > 0 ? allProfiles[0] : undefined;
 
       set({
         students,
+        studentProfiles: students,
         sections,
         subjects,
         classRecords,
+        gradingSheetRecords,
+        hpsRecords,
+        enrollments,
         announcements,
+        attendanceRecords,
+        sf2Sheets,
+        observedValues,
         schoolProfile: schoolProfile || defaultSchoolProfile,
       });
       get().showNotification('Data restored successfully', 'success');

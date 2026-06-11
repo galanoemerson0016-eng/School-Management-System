@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X, Database, Power } from 'lucide-react';
+import { Bell, X, Database, Power, Minus, Square, HelpCircle } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 
@@ -69,6 +69,7 @@ export function Header() {
                 {/* Center Area: S.Y. (Absolutely Centered to maximize left title space) */}
                 <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 shrink-0">
                     <div 
+                        data-tour="school-year"
                         className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-white/5 rounded-full border border-slate-200/50 dark:border-white/10 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] cursor-default transition-all hover:bg-slate-100 dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20"
                         title="Current Active School Year"
                     >
@@ -142,10 +143,26 @@ export function Header() {
                         )}
                     </div>
 
+                    {/* Help / Replay Onboarding Button */}
+                    <button
+                        onClick={() => {
+                            const event = new CustomEvent('formease-trigger-onboarding');
+                            window.dispatchEvent(event);
+                        }}
+                        data-tour="help-button"
+                        className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-500 dark:text-slate-300"
+                        title="Replay Welcome Tour"
+                    >
+                        <HelpCircle className="w-4 h-4" />
+                    </button>
+
                     {/* Divider */}
                     <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden sm:block mx-2"></div>
 
-                    <div className="hidden sm:flex items-center gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
+                    <div 
+                        data-tour="user-profile"
+                        className="hidden sm:flex items-center gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                    >
                         <div className="text-right hidden md:block">
                             <p className="text-[13px] font-bold text-[#0f172a] dark:text-white truncate leading-none mb-1">
                                 {user?.displayName || 'User'}
@@ -167,16 +184,38 @@ export function Header() {
                         )}
                     </div>
 
-                    <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden lg:block mx-1"></div>
+                    {window.electronAPI && (
+                        <>
+                            <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden lg:block mx-1"></div>
 
-                    {/* Close App Button */}
-                    <button 
-                        onClick={() => setShowCloseConfirm(true)}
-                        className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 cursor-pointer transition-colors ml-1" 
-                        title="Close Application"
-                    >
-                        <Power className="w-4 h-4" />
-                    </button>
+                            {/* Minimize App Button */}
+                            <button 
+                                onClick={() => window.electronAPI?.minimizeApp()}
+                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 cursor-pointer transition-colors ml-1" 
+                                title="Minimize Window"
+                            >
+                                <Minus className="w-4 h-4" />
+                            </button>
+
+                            {/* Maximize App Button */}
+                            <button 
+                                onClick={() => window.electronAPI?.maximizeApp()}
+                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 cursor-pointer transition-colors ml-1" 
+                                title="Maximize / Restore Window"
+                            >
+                                <Square className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Close App Button */}
+                            <button 
+                                onClick={() => setShowCloseConfirm(true)}
+                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 cursor-pointer transition-colors ml-1" 
+                                title="Close Application"
+                            >
+                                <Power className="w-4 h-4" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
