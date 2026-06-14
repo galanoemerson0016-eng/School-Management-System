@@ -80,6 +80,14 @@ function getStatus() {
   if (record.expiresAt && new Date(record.expiresAt).getTime() < Date.now()) {
     return { activated: false, reason: 'expired', serial: record.serial, expiresAt: record.expiresAt };
   }
+
+  // 7-day offline grace period check
+  const lastVerified = record.lastVerifiedAt ? new Date(record.lastVerifiedAt).getTime() : new Date(record.activatedAt).getTime();
+  const maxOfflineMs = 7 * 24 * 60 * 60 * 1000;
+  if (Date.now() - lastVerified > maxOfflineMs) {
+    return { activated: false, reason: 'offline_limit', serial: record.serial, lastVerifiedAt: record.lastVerifiedAt || record.activatedAt };
+  }
+
   return {
     activated: true,
     serial: record.serial,
@@ -179,6 +187,7 @@ async function activate(serialInput, fullName, platform) {
     registeredTo: String(fullName || '').trim(),
     activatedAt: now.toISOString(),
     expiresAt,
+    lastVerifiedAt: now.toISOString(),
   });
 
   return { success: true, ...getStatus() };
@@ -199,6 +208,10 @@ async function verifyOnline() {
   } catch {
     return { revoked: false, offline: true }; // offline — keep local verdict
   }
+  if (response.status === 404) {
+    clearLicenseRecord();
+    return { revoked: true };
+  }
   if (!response.ok) {
     return { revoked: false }; // transient server issue — keep local verdict
   }
@@ -212,6 +225,13 @@ async function verifyOnline() {
     clearLicenseRecord();
     return { revoked: true };
   }
+
+  // Update last verified timestamp
+  writeLicenseRecord({
+    ...record,
+    lastVerifiedAt: new Date().toISOString()
+  });
+
   return { revoked: false };
 }
 

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   logError: (payload) => ipcRenderer.send('log-renderer-error', payload),
   licenseStatus: () => ipcRenderer.invoke('license:status'),
   licenseActivate: (payload) => ipcRenderer.invoke('license:activate', payload),
+  licenseVerifyOnline: () => ipcRenderer.invoke('license:verify-online'),
   onLicenseRevoked: (callback) => {
     ipcRenderer.removeAllListeners('license-revoked');
     ipcRenderer.on('license-revoked', () => callback());

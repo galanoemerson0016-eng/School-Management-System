@@ -112,7 +112,7 @@ if (!gotTheLock) {
     // Background license re-verification: if the licensing service reports
     // this serial as revoked or rebound to another machine, drop the local
     // license and notify the renderer so it returns to the activation screen.
-    setTimeout(() => {
+    const checkLicense = () => {
       licenseManager.verifyOnline().then((result) => {
         if (result.revoked) {
           const windows = BrowserWindow.getAllWindows();
@@ -121,7 +121,10 @@ if (!gotTheLock) {
           }
         }
       }).catch(() => { /* offline or transient — keep local verdict */ });
-    }, 5000);
+    };
+
+    setTimeout(checkLicense, 5000);
+    setInterval(checkLicense, 15 * 60 * 1000); // Re-verify every 15 minutes
 
     app.on('activate', function () {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -159,6 +162,14 @@ ipcMain.on('log-renderer-error', (event, payload = {}) => {
 
 ipcMain.handle('license:status', () => {
   return licenseManager.getStatus();
+});
+
+ipcMain.handle('license:verify-online', async () => {
+  try {
+    return await licenseManager.verifyOnline();
+  } catch (error) {
+    return { revoked: false, error: error.message };
+  }
 });
 
 ipcMain.handle('license:activate', async (event, { serial, fullName, platform } = {}) => {
@@ -323,6 +334,11 @@ ipcMain.on('maximize-app', () => {
 });
 
 ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false, landscape, pageSize } = {}) => {
+  const status = licenseManager.getStatus();
+  if (!status.activated) {
+    return { success: false, error: 'Product Activation Required. Please activate FormEase Pro to use this feature.' };
+  }
+
   const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (!focusedWindow) {
     return { success: false, error: 'No active window found' };

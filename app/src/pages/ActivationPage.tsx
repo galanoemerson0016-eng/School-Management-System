@@ -16,14 +16,18 @@ export function ActivationPage() {
 
   // Detect if user was redirected here due to a license reset by admin
   const [wasLicenseReset, setWasLicenseReset] = useState(false);
+  const [wasOfflineLimitBlocked, setWasOfflineLimitBlocked] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem('formease-license-reset-detected') === 'true') {
         setWasLicenseReset(true);
         localStorage.removeItem('formease-license-reset-detected');
       }
+      if (localStorage.getItem('formease-license-offline-limit') === 'true') {
+        setWasOfflineLimitBlocked(true);
+      }
     } catch (error) {
-      console.warn('Failed to read license reset status from localStorage:', error);
+      console.warn('Failed to read license reset or offline limit from localStorage:', error);
     }
   }, []);
 
@@ -183,6 +187,10 @@ export function ActivationPage() {
           adviser_name: fullName.trim()
         });
 
+        try {
+          localStorage.removeItem('formease-license-offline-limit');
+        } catch { /* ignore */ }
+
         setStatus('success');
         showNotification('Activation Successful!', 'success');
 
@@ -258,6 +266,9 @@ export function ActivationPage() {
           subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
           adviser_name: fullName.trim()
         });
+        try {
+          localStorage.removeItem('formease-license-offline-limit');
+        } catch { /* ignore */ }
         await useAuthStore.getState().logout();
       }, 2500);
 
@@ -335,6 +346,21 @@ export function ActivationPage() {
                       <div>
                         <p className="text-xs font-black text-red-400 uppercase tracking-widest">License Disconnected</p>
                         <p className="text-[10px] text-red-200/50 font-bold leading-relaxed">This device has been disconnected from the license by an administrator. Please reactivate or use a different key.</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Offline Limit Blocked Warning */}
+                  {wasOfflineLimitBlocked && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }} 
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3"
+                    >
+                      <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-black text-red-400 uppercase tracking-widest">Verification Required</p>
+                        <p className="text-[10px] text-red-200/50 font-bold leading-relaxed">This device has been offline for more than 7 days. Please connect to the internet to verify your license and restore access.</p>
                       </div>
                     </motion.div>
                   )}

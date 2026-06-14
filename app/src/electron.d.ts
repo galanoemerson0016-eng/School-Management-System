@@ -13,7 +13,7 @@ declare global {
       logError: (payload: { kind: string; message: string; stack?: string }) => void;
       licenseStatus: () => Promise<{
         activated: boolean;
-        reason?: 'none' | 'expired';
+        reason?: 'none' | 'expired' | 'offline_limit';
         serial?: string;
         registeredTo?: string;
         activatedAt?: string;
@@ -28,6 +28,11 @@ declare global {
         registeredTo?: string;
         activatedAt?: string;
         expiresAt?: string;
+      }>;
+      licenseVerifyOnline?: () => Promise<{
+        revoked: boolean;
+        offline?: boolean;
+        error?: string;
       }>;
       onLicenseRevoked: (callback: () => void) => void;
       closeApp: (force?: boolean) => void;

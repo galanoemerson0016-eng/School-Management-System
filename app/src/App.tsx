@@ -114,20 +114,54 @@ function App() {
     const refresh = async () => {
       try {
         const status = await electronAPI.licenseStatus();
+        if (status.reason === 'offline_limit') {
+          localStorage.setItem('formease-license-offline-limit', 'true');
+        } else {
+          localStorage.removeItem('formease-license-offline-limit');
+        }
         setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
       } catch {
         setLicenseVerdict('legacy');
       }
     };
 
+    const handleOnline = async () => {
+      console.log('📡 Device back online: triggering license verification...');
+      if (electronAPI.licenseVerifyOnline) {
+        try {
+          await electronAPI.licenseVerifyOnline();
+        } catch (err) {
+          console.error('Failed to trigger online license verification:', err);
+        }
+      }
+      refresh();
+    };
+
     window.addEventListener('formease-license-changed', refresh);
-    electronAPI.onLicenseRevoked?.(() => {
+    window.addEventListener('online', handleOnline);
+    electronAPI.onLicenseRevoked?.(async () => {
       try {
         localStorage.setItem('formease-license-reset-detected', 'true');
+        localStorage.removeItem('formease-license-offline-limit');
       } catch { /* ignore */ }
       setLicenseVerdict('unlicensed');
+
+      // Also clear schoolProfile activation fields if they exist
+      const state = useAppStore.getState();
+      if (state.schoolProfile) {
+        await state.updateSchoolProfile({
+          ...state.schoolProfile,
+          is_activated: false,
+          activated_at: undefined,
+          subscription_end_date: undefined,
+          activation_key: undefined
+        });
+      }
     });
-    return () => window.removeEventListener('formease-license-changed', refresh);
+    return () => {
+      window.removeEventListener('formease-license-changed', refresh);
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   useEffect(() => {
@@ -206,6 +240,11 @@ function App() {
               // through to an 'unlicensed' verdict below.
             }
 
+            if (status.reason === 'offline_limit') {
+              localStorage.setItem('formease-license-offline-limit', 'true');
+            } else {
+              localStorage.removeItem('formease-license-offline-limit');
+            }
             setLicenseVerdict(status.activated ? 'licensed' : 'unlicensed');
           } catch (licenseErr) {
             console.warn('License status check failed, using legacy gate:', licenseErr);
@@ -233,9 +272,20 @@ function App() {
                   ...profile,
                   is_activated: false,
                   activated_at: undefined,
-                  subscription_end_date: undefined
+                  subscription_end_date: undefined,
+                  activation_key: undefined
                 });
               }
+            } else if (response.status === 404) {
+              console.warn('⚠️ License was deleted or revoked. Reverting to activation state.');
+              localStorage.setItem('formease-license-reset-detected', 'true');
+              await state.updateSchoolProfile({
+                ...profile,
+                is_activated: false,
+                activated_at: undefined,
+                subscription_end_date: undefined,
+                activation_key: undefined
+              });
             }
           } catch {
             console.warn('📡 License verification skipped (offline or network error)');

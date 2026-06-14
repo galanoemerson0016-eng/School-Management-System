@@ -277,6 +277,22 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
     }
   };
 
+  const handleDeleteLicense = async (serial: string) => {
+    if (!window.confirm(`Are you sure you want to PERMANENTLY DELETE/REMOVE this license key: ${serial}? \n\nThe device using this key will immediately lose access to the application!`)) return;
+    
+    setIsLoading(true);
+    try {
+      await licenseService.revokeLicense(serial);
+      await loadData();
+      alert("License successfully deleted.");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to delete license.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeclineRequest = async () => {
     if (!declineModal.requestId) return;
     setIsLoading(true);
@@ -697,21 +713,29 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                           <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${license.status === 'activated' ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}>
                              {license.status}
                           </div>
-                           <div className="flex items-center gap-2">
-                             {license.status?.toLowerCase() === 'activated' && (
-                                <button 
-                                  onClick={() => handleResetLicense(license.serial)} 
-                                  title="Reset License"
-                                  className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 flex items-center gap-2"
-                                >
-                                   <RotateCcw className="w-4 h-4" />
-                                   <span className="text-[10px] font-black uppercase tracking-widest md:hidden">Reset</span>
-                                </button>
-                             )}
-                             <button onClick={() => handleTogglePlatform(license.serial, license.platform || 'windows')} className="p-2.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors border border-white/5">
-                                {license.platform === 'mac' ? <Apple className="w-4 h-4 text-indigo-400" /> : <Monitor className="w-4 h-4 text-blue-400" />}
-                             </button>
-                          </div>
+                            <div className="flex items-center gap-2">
+                              {license.status?.toLowerCase() === 'activated' && (
+                                 <button 
+                                   onClick={() => handleResetLicense(license.serial)} 
+                                   title="Reset License"
+                                   className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20 flex items-center gap-2"
+                                 >
+                                    <RotateCcw className="w-4 h-4" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest md:hidden">Reset</span>
+                                 </button>
+                              )}
+                              <button 
+                                onClick={() => handleDeleteLicense(license.serial)} 
+                                title="Delete License"
+                                className="p-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 hover:text-red-500 rounded-xl transition-all border border-red-600/20 flex items-center gap-2"
+                              >
+                                 <Trash2 className="w-4 h-4" />
+                                 <span className="text-[10px] font-black uppercase tracking-widest md:hidden">Delete</span>
+                              </button>
+                              <button onClick={() => handleTogglePlatform(license.serial, license.platform || 'windows')} className="p-2.5 bg-white/5 rounded-xl hover:bg-white/10 transition-colors border border-white/5">
+                                 {license.platform === 'mac' ? <Apple className="w-4 h-4 text-indigo-400" /> : <Monitor className="w-4 h-4 text-blue-400" />}
+                              </button>
+                           </div>
                        </div>
 
                        <div className="flex items-center justify-between mb-6">
