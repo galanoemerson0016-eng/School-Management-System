@@ -953,12 +953,24 @@ export function SettingsPage() {
                         <p className="mb-4 text-sm text-slate-500">View recent updates, feature rollouts, and version summaries.</p>
                         
                         <div className="space-y-4">
-                            {/* Version 2.2.5 */}
+                            {/* Version 2.2.6 */}
                             <div className="relative pl-5 border-l-2 border-slate-200">
                                 <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.5</span>
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.6</span>
                                     <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5">Latest</span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">
+                                    <li>Fixed a critical freeze in SF2 Daily Attendance caused by calendar holiday parsing logic.</li>
+                                </ul>
+                            </div>
+
+                            {/* Version 2.2.5 */}
+                            <div className="relative pl-5 border-l-2 border-slate-200">
+                                <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.5</span>
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
                                 <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">

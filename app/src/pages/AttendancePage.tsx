@@ -308,7 +308,7 @@ export function AttendancePage() {
                             const dates: string[] = [];
                             try {
                                 const curr = new Date(e.date + 'T00:00:00');
-                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : curr;
+                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
                                 if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
                                     while (curr <= end) {
                                         dates.push(curr.toISOString().split('T')[0]);
