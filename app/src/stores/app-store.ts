@@ -329,8 +329,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       let count = 0;
       const validStudents = students.filter(s => s && s.lrn);
       
+      const existingStudents = await db.getAllRecords<Student>('students');
+      
       for (const student of validStudents) {
-        await db.putRecord('students', student);
+        // 1. Check if LRN already exists
+        const matchByLrn = existingStudents.find(s => s.lrn === student.lrn);
+        
+        // 2. Check if Name + Gender matches
+        const matchByName = existingStudents.find(s => 
+          s.last_name?.trim().toUpperCase() === student.last_name?.trim().toUpperCase() &&
+          s.first_name?.trim().toUpperCase() === student.first_name?.trim().toUpperCase() &&
+          (s.middle_name || '').trim().toUpperCase() === (student.middle_name || '').trim().toUpperCase() &&
+          (s.name_extension || '').trim().toUpperCase() === (student.name_extension || '').trim().toUpperCase() &&
+          s.gender === student.gender
+        );
+
+        const existing = matchByLrn || matchByName;
+
+        if (existing) {
+          // If LRN is being upgraded from TEMP- to a real LRN, delete the old TEMP- record from IndexedDB
+          if (existing.lrn.startsWith('TEMP-') && !student.lrn.startsWith('TEMP-')) {
+            await db.deleteRecord('students', existing.lrn);
+          }
+
+          // Merge: Keep all existing details, only update grade and section (and LRN if upgraded)
+          const merged = {
+            ...existing,
+            lrn: student.lrn,
+            grade_level: student.grade_level,
+            student_section: student.student_section
+          };
+          await db.putRecord('students', merged);
+        } else {
+          // Brand new student: write as is
+          await db.putRecord('students', student);
+        }
         count++;
       }
       
@@ -1120,7 +1153,7 @@ export async function initializeAppStore() {
   try {
     const students = await loadStore<Student>('students');
     const sections = await loadStore<Section>('sections');
-    let subjects = await loadStore<Subject>('subjects');
+    const subjects = await loadStore<Subject>('subjects');
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because
     // the client may have changed their School ID, which changes the stored key.

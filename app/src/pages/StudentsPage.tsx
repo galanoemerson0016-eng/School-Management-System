@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
+import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useRef } from 'react';
 
@@ -47,6 +48,7 @@ export function StudentsPage() {
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const templateInputRef = useRef<HTMLInputElement>(null);
 
 
     const [pendingAction, setPendingAction] = useState<
@@ -134,7 +136,7 @@ export function StudentsPage() {
 
         exportToCSV(displayedStudents.map(s => {
             const rowData: Record<string, string | number | boolean> = {
-                'LRN': s.lrn,
+                'LRN': s.lrn.startsWith('TEMP-') ? '' : s.lrn,
                 'Last Name': s.last_name,
                 'First Name': s.first_name,
                 'Middle Name': s.middle_name || '',
@@ -254,6 +256,41 @@ export function StudentsPage() {
         } finally {
             setIsImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDownloadTemplate = () => {
+        if (!selectedSectionObj) return;
+        downloadEnrollmentTemplate(selectedSectionObj.section_name);
+    };
+
+    const handleTemplateImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedSectionObj) return;
+
+        setIsImporting(true);
+        try {
+            const parsedStudents = await parseEnrollmentTemplate(file);
+            
+            // Tag students with the current grade and section
+            const studentsToImport = parsedStudents.map(s => ({
+                ...s,
+                grade_level: selectedSectionObj.section_grade_level,
+                student_section: selectedSectionObj.section_name
+            })) as Student[];
+
+            if (studentsToImport.length === 0) {
+                alert('No valid student records found in the template. Please check the column headers and content.');
+                return;
+            }
+
+            await importStudentsFromSF1(studentsToImport, selectedSectionObj.section_name);
+        } catch (error) {
+            console.error('Template Import Failed:', error);
+            alert(`Template Import Failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsImporting(false);
+            if (templateInputRef.current) templateInputRef.current.value = '';
         }
     };
 
@@ -421,7 +458,11 @@ export function StudentsPage() {
                 ...(isCurrentSectionAdvisory ? [{
                     accessorKey: 'lrn',
                     header: 'LRN',
-                    cell: (info: { getValue: () => unknown }) => <span className="font-mono text-xs text-gray-500">{info.getValue() as string}</span>,
+                    cell: (info: { getValue: () => unknown }) => {
+                        const val = info.getValue() as string;
+                        const displayVal = (val && val.startsWith('TEMP-')) ? '' : val;
+                        return <span className="font-mono text-xs text-gray-500">{displayVal}</span>;
+                    },
                 }] : []),
                 {
                     id: 'name',
@@ -616,6 +657,34 @@ export function StudentsPage() {
                                 <FileSpreadsheet className="w-3.5 h-3.5" />
                                 {isImporting ? 'Importing...' : 'Import SF1'}
                             </button>
+                        )}
+
+                        {canEdit && (
+                            <>
+                                <button
+                                    onClick={handleDownloadTemplate}
+                                    className="h-9 px-3.5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold text-xs hover:bg-blue-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download Template
+                                </button>
+
+                                <input
+                                    type="file"
+                                    ref={templateInputRef}
+                                    onChange={handleTemplateImport}
+                                    accept=".csv,.xlsx,.xls"
+                                    className="hidden"
+                                />
+                                <button
+                                    onClick={() => templateInputRef.current?.click()}
+                                    disabled={isImporting}
+                                    className="h-9 px-3.5 bg-white text-indigo-600 border border-indigo-200 rounded-xl font-bold text-xs hover:bg-indigo-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                    {isImporting ? 'Importing Template...' : 'Import Template'}
+                                </button>
+                            </>
                         )}
 
                         {canEdit && sectionStudents.length > 0 && (

@@ -559,7 +559,7 @@ export function mapStudentToSpecData({
     const todayDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     const certBase = {
       recordOf: fullName,
-      lrn: student.lrn || '',
+      lrn: (student.lrn && !student.lrn.startsWith('TEMP-')) ? student.lrn : '',
       admissionGrade: nextGrade,
       eligibleForGrade: nextGrade,
       schoolName: profile.name || '',
@@ -596,7 +596,7 @@ export function mapStudentToSpecData({
       firstName: student.first_name?.toUpperCase() || '',
       nameExtension: (student.name_extension || '').toUpperCase(),
       middleName: (student.middle_name || '').toUpperCase(),
-      lrn: student.lrn || '',
+      lrn: (student.lrn && !student.lrn.startsWith('TEMP-')) ? student.lrn : '',
       birthdate: student.birthday || '',
       sex: student.gender || '',
       gradeLevel: student.grade_level || '',

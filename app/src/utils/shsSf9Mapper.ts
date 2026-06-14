@@ -103,7 +103,7 @@ export function mapStudentToShsSf9Data({
 
   return {
     student: {
-      lrn: student.lrn,
+      lrn: (student.lrn && !student.lrn.startsWith('TEMP-')) ? student.lrn : '',
       fullName: formatLearnerName(student).toUpperCase(),
       gender: student.gender,
       age: student.age,

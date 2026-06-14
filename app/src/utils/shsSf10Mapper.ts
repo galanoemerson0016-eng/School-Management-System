@@ -43,7 +43,7 @@ export function mapStudentToShsSf10Data({
     firstName: student.first_name?.toUpperCase() || '',
     middleName: student.middle_name?.toUpperCase() || '',
     nameExtension: student.name_extension?.toUpperCase() || '',
-    lrn: student.lrn || '',
+    lrn: (student.lrn && !student.lrn.startsWith('TEMP-')) ? student.lrn : '',
     birthdate: student.birthday || '',
     sex: student.gender || '',
     shsAdmissionDate: student.shs_admission_date || '',

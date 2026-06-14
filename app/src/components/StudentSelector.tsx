@@ -81,7 +81,7 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
                             ? `${selectedStudent.last_name}, ${selectedStudent.first_name}`
                             : 'Search Learner Name...'}
                     </span>
-                    {selectedStudent && (
+                    {selectedStudent && !selectedStudent.lrn?.startsWith('TEMP-') && (
                         <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">
                             LRN: {selectedStudent.lrn}
                         </span>

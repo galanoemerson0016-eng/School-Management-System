@@ -359,8 +359,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             finalLrn = '99' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
         }
 
-        // Validate LRN
-        if (!finalLrn || !/^\d{12}$/.test(finalLrn)) {
+        // Validate LRN (allow 12 digits or TEMP- format)
+        if (!finalLrn || (!/^\d{12}$/.test(finalLrn) && !finalLrn.startsWith('TEMP-'))) {
             alert('LRN must be exactly 12 digits');
             setIsLoading(false);
             setSaveStatus('idle');
@@ -485,16 +485,17 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     <input
                                         type="text"
                                         name="lrn"
-                                        value={formData.lrn}
+                                        value={formData.lrn?.startsWith('TEMP-') ? 'TEMP (Bypassed)' : formData.lrn}
                                         onChange={handleChange}
                                         onBlur={() => {
                                             void tryHydrateFromHistory();
                                         }}
-                                        pattern="[0-9]{12}"
-                                        maxLength={12}
+                                        pattern={formData.lrn?.startsWith('TEMP-') ? undefined : "[0-9]{12}"}
+                                        maxLength={formData.lrn?.startsWith('TEMP-') ? undefined : 12}
+                                        disabled={!!student}
                                         required
                                         placeholder="123456789012"
-                                        className="form-input"
+                                        className={`form-input ${student ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                     />
                                 </div>
                             )}
