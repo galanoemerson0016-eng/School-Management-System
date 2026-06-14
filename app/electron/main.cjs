@@ -322,7 +322,7 @@ ipcMain.on('maximize-app', () => {
   }
 });
 
-ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false }) => {
+ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false, landscape, pageSize } = {}) => {
   const focusedWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (!focusedWindow) {
     return { success: false, error: 'No active window found' };
@@ -360,6 +360,13 @@ ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false
       printBackground: true,
       preferCSSPageSize: true
     };
+
+    if (landscape !== undefined) {
+      options.landscape = landscape;
+    }
+    if (pageSize !== undefined) {
+      options.pageSize = pageSize;
+    }
 
     const data = await focusedWindow.webContents.printToPDF(options);
     fs.writeFileSync(filePath, data);

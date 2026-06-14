@@ -274,7 +274,10 @@ export function SubjectsPage() {
         grade_level: '',
         section_id: '',
         teacher_id: '',
-        term: 'all' as 1 | 2 | 3 | 'all' | 'none'
+        term: 'all' as 1 | 2 | 3 | 'all' | 'none',
+        written_weight: '',
+        performance_weight: '',
+        exam_weight: ''
     });
     const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
     const [draggedSubjectId, setDraggedSubjectId] = useState<string | null>(null);
@@ -765,7 +768,10 @@ export function SubjectsPage() {
             grade_level: selectedGrade || '',
             section_id: selectedSectionId || '',
             teacher_id: '',
-            term: selectedGrade ? getDefaultTermForSubject('', selectedGrade) : 'all'
+            term: selectedGrade ? getDefaultTermForSubject('', selectedGrade) : 'all',
+            written_weight: '',
+            performance_weight: '',
+            exam_weight: ''
         });
         setIsModalOpen(true);
     };
@@ -778,7 +784,10 @@ export function SubjectsPage() {
             grade_level: subject.grade_level,
             section_id: subject.section_id || '',
             teacher_id: subject.teacher_id || '',
-            term: subject.term || 'all'
+            term: subject.term || 'all',
+            written_weight: subject.written_weight !== undefined ? String(Math.round(subject.written_weight * 100)) : '',
+            performance_weight: subject.performance_weight !== undefined ? String(Math.round(subject.performance_weight * 100)) : '',
+            exam_weight: subject.exam_weight !== undefined ? String(Math.round(subject.exam_weight * 100)) : ''
         });
         setIsModalOpen(true);
     };
@@ -823,6 +832,42 @@ export function SubjectsPage() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+
+        // Validation: If any weight is specified, check that all three are specified and sum to 100
+        const hasWritten = formData.written_weight.trim() !== '';
+        const hasPerformance = formData.performance_weight.trim() !== '';
+        const hasExam = formData.exam_weight.trim() !== '';
+
+        let writtenVal: number | undefined;
+        let performanceVal: number | undefined;
+        let examVal: number | undefined;
+
+        if (hasWritten || hasPerformance || hasExam) {
+            if (!hasWritten || !hasPerformance || !hasExam) {
+                showNotification('If you specify custom weights, you must fill in all three fields (Written, Performance, and Exam).', 'error');
+                return;
+            }
+
+            const w = parseFloat(formData.written_weight);
+            const p = parseFloat(formData.performance_weight);
+            const ex = parseFloat(formData.exam_weight);
+
+            if (isNaN(w) || isNaN(p) || isNaN(ex) || w < 0 || p < 0 || ex < 0) {
+                showNotification('Weights must be positive numbers.', 'error');
+                return;
+            }
+
+            if (Math.abs((w + p + ex) - 100) > 0.001) {
+                showNotification(`The sum of the percentages must equal exactly 100%. (Current sum: ${w + p + ex}%)`, 'error');
+                return;
+            }
+
+            // Convert to fraction for DB storage
+            writtenVal = w / 100;
+            performanceVal = p / 100;
+            examVal = ex / 100;
+        }
+
         const subjectData: Subject = {
             id: editingSubjectId || `subject-${Date.now()}`,
             subject_name: formData.subject_name,
@@ -830,7 +875,10 @@ export function SubjectsPage() {
             grade_level: formData.grade_level,
             section_id: formData.section_id || undefined,
             teacher_id: formData.teacher_id || undefined,
-            term: formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3)
+            term: formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3),
+            written_weight: writtenVal,
+            performance_weight: performanceVal,
+            exam_weight: examVal
         };
 
         setIsModalOpen(false);
@@ -1372,6 +1420,11 @@ export function SubjectsPage() {
                                                                     <div>
                                                                         <div className="font-black text-slate-900 text-lg tracking-tight uppercase">{subject.subject_name}</div>
                                                                         {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
+                                                                        {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
+                                                                            <div className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
+                                                                                Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -1874,6 +1927,48 @@ export function SubjectsPage() {
                                     <option value="3">Term 3 Only</option>
                                     <option value="none">Not Offered</option>
                                 </select>
+                            </div>
+                            <div className="border-t border-slate-100 pt-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Custom Grading Weights (Optional)</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Written Works %</label>
+                                        <input
+                                            type="number"
+                                            value={formData.written_weight}
+                                            onChange={(e) => setFormData({ ...formData, written_weight: e.target.value })}
+                                            placeholder="Default"
+                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            min="0"
+                                            max="100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Performance %</label>
+                                        <input
+                                            type="number"
+                                            value={formData.performance_weight}
+                                            onChange={(e) => setFormData({ ...formData, performance_weight: e.target.value })}
+                                            placeholder="Default"
+                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            min="0"
+                                            max="100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Summative %</label>
+                                        <input
+                                            type="number"
+                                            value={formData.exam_weight}
+                                            onChange={(e) => setFormData({ ...formData, exam_weight: e.target.value })}
+                                            placeholder="Default"
+                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            min="0"
+                                            max="100"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2 italic">Leave empty to use standard DepEd cluster defaults. If custom weights are used, they must sum to 100%.</p>
                             </div>
                             <div>
                                 <div className="flex justify-end gap-3 pt-4">

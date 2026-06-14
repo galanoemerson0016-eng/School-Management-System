@@ -1955,6 +1955,7 @@ export function SF9Page() {
                 month,
                 date_labels: buildDefaultSf2DateLabels(month, activeSchoolYear),
                 attendance: {},
+                remarks: {},
                 updated_at: now
             }));
 

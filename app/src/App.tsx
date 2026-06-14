@@ -248,9 +248,32 @@ function App() {
     void init();
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      void initializeAppStore();
+    } else {
+      // Reset app-store state on logout to prevent data leaks between sessions
+      useAppStore.setState({
+        students: [],
+        studentProfiles: [],
+        sections: [],
+        subjects: [],
+        classRecords: [],
+        gradingSheetRecords: [],
+        hpsRecords: [],
+        enrollments: [],
+        announcements: [],
+        attendanceRecords: [],
+        sf2Sheets: [],
+        observedValues: [],
+        activeSF2Sheet: null,
+        selectedSection: null,
+      });
+    }
+  }, [isAuthenticated]);
 
   // Use a synchronized loading state to prevent race conditions during reload
-  if (isLoading || !isSyncReady || licenseVerdict === 'pending') {
+  if (isLoading || (isAuthenticated && !isSyncReady) || licenseVerdict === 'pending') {
     return <LoadingSplash />;
   }
 
@@ -360,11 +383,11 @@ function App() {
         )}
       </AnimatePresence>
 
-      <div className="relative z-10 flex w-full h-full p-1.5 lg:p-2 gap-1.5 lg:gap-2 box-border print:p-0 print:block">
+      <div className="relative z-10 flex w-full h-full p-0 gap-0 box-border print:p-0 print:block">
         <div className="print:hidden h-full flex flex-col">
           <Sidebar />
         </div>
-        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-white/85 dark:bg-[#0a101f]/90 rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
+        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-white/85 dark:bg-[#0a101f]/90 rounded-none border-l border-r-0 border-y-0 border-slate-200 dark:border-white/5 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
           </div>

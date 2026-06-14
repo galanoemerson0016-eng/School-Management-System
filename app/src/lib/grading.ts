@@ -315,7 +315,17 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
 }
 
 // Get weights based on subject cluster
-export function getWeights(cluster: SubjectCluster) {
+export function getWeights(cluster: SubjectCluster, subject?: { written_weight?: number; performance_weight?: number; exam_weight?: number }) {
+    if (subject && 
+        typeof subject.written_weight === 'number' && 
+        typeof subject.performance_weight === 'number' && 
+        typeof subject.exam_weight === 'number') {
+        return {
+            written_works: subject.written_weight,
+            performance_tasks: subject.performance_weight,
+            quarterly_exam: subject.exam_weight
+        };
+    }
     switch (cluster) {
         case 'science_math':
             return WEIGHTS_SCIENCE_MATH;

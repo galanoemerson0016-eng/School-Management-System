@@ -1,11 +1,12 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, type Ref } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
+import { db } from '../services/database';
 
-import type { Section } from '../types';
+import type { Section, Student, SF2Sheet, CalendarEvent } from '../types';
 
 
 type AttendanceDayStatus = string;
@@ -37,10 +38,31 @@ const getDynamicFontSizeClass = (text: string, baseClass: string = "text-[12.5px
     return baseClass;
 };
 
+type PaperSize = 'letter' | 'a4' | 'folio';
+
+type BodyRow =
+    | { type: 'student'; student: Student; displayIdx: number }
+    | { type: 'maleTotal' }
+    | { type: 'femaleTotal' }
+    | { type: 'combinedTotal' };
+
+// 1mm in CSS px at 96dpi - used to convert the printed page height (defined
+// in mm/in via paperDimensions) into the px units the on-screen DOM uses.
+const MM_TO_PX = 96 / 25.4;
+
+// Top+bottom page padding (matches the print:p-1.5 / print:p-2 container
+// padding) plus a small safety buffer so a page never overflows by a
+// fraction of a row due to rounding.
+const PAGE_PADDING_PX: Record<PaperSize, number> = {
+    letter: 18,
+    a4: 22,
+    folio: 22,
+};
+
 
 export function AttendancePage() {
 
-    const { students, sections, activeSF2Sheet, fetchSF2Sheet, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
+    const { students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
@@ -49,60 +71,118 @@ export function AttendancePage() {
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
 
+    // Pagination: how many body rows fit on one printed page, with vs.
+    // without the Guidelines/Summary/Signatures footer block.
+    const [pageCapacity, setPageCapacity] = useState<{ withFooter: number; withoutFooter: number } | null>(null);
+    const measureHeaderRef = useRef<HTMLDivElement>(null);
+    const measureTheadRef = useRef<HTMLTableSectionElement>(null);
+    const measureRowRef = useRef<HTMLTableRowElement>(null);
+    const measureFooterRef = useRef<HTMLDivElement>(null);
+
     const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
 
     const [attendanceData, setAttendanceData] = useState<Record<string, AttendanceMonthData>>({});
     const [monthDateLabels, setMonthDateLabels] = useState<Record<string, DateLabels>>({});
+    const [remarksData, setRemarksData] = useState<Record<string, Record<string, string>>>({});
 
     const days = DAYS;
     const totalColumns = TOTAL_COLUMNS;
 
-    // Persistence: Fetch on change
-    useEffect(() => {
-        if (selectedSection && selectedMonth) {
-            fetchSF2Sheet(selectedSection, selectedMonth);
-        }
-    }, [selectedSection, selectedMonth, fetchSF2Sheet]);
-
     const lastLoadedIdRef = useRef<string | null>(null);
 
-    // Reset ref when section/month changes to force reload the new sheet from database
+    // Persistence: Fetch on change with race-condition protection
     useEffect(() => {
-        lastLoadedIdRef.current = null;
-    }, [selectedSection, selectedMonth, activeSchoolYear]);
+        let active = true;
+        if (!selectedSection || !selectedMonth) return;
 
-    // Persistence: Sync store to local
-    useEffect(() => {
-        if (activeSF2Sheet && activeSF2Sheet.month === selectedMonth && activeSF2Sheet.section_id === selectedSection && activeSF2Sheet.school_year === activeSchoolYear) {
+        const loadSheet = async () => {
             const sheetId = `${selectedSection}_${activeSchoolYear}_${selectedMonth}`;
-            if (lastLoadedIdRef.current !== sheetId) {
-                lastLoadedIdRef.current = sheetId;
-                setAttendanceData(prev => ({
-                    ...prev,
-                    [selectedMonth]: activeSF2Sheet.attendance || {}
-                }));
-                setMonthDateLabels(prev => ({
-                    ...prev,
-                    [selectedMonth]: activeSF2Sheet.date_labels || {}
-                }));
-            }
-        }
-    }, [activeSF2Sheet, selectedMonth, selectedSection, activeSchoolYear]);
+            try {
+                const sheet = await db.getRecord<SF2Sheet>('sf2Sheets', sheetId);
+                if (!active) return;
 
+                if (sheet) {
+                    setAttendanceData(prev => ({
+                        ...prev,
+                        [selectedMonth]: sheet.attendance || {}
+                    }));
+                    setMonthDateLabels(prev => ({
+                        ...prev,
+                        [selectedMonth]: sheet.date_labels || {}
+                    }));
+                    setRemarksData(prev => ({
+                        ...prev,
+                        [selectedMonth]: sheet.remarks || {}
+                    }));
+                } else {
+                    setAttendanceData(prev => ({
+                        ...prev,
+                        [selectedMonth]: {}
+                    }));
+                    setMonthDateLabels(prev => ({
+                        ...prev,
+                        [selectedMonth]: {}
+                    }));
+                    setRemarksData(prev => ({
+                        ...prev,
+                        [selectedMonth]: {}
+                    }));
+                }
+                lastLoadedIdRef.current = sheetId;
+            } catch (error) {
+                console.error('Error loading SF2 sheet:', error);
+            }
+        };
+
+        lastLoadedIdRef.current = null;
+        loadSheet();
+
+        return () => {
+            active = false;
+        };
+    }, [selectedSection, selectedMonth, activeSchoolYear]);
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const pendingSaveRef = useRef<{ month: string; data: AttendanceMonthData; labels: DateLabels } | null>(null);
+    const pendingSaveRef = useRef<{ month: string; data: AttendanceMonthData; labels: DateLabels; remarks: Record<string, string> } | null>(null);
 
-    const triggerSave = useCallback((month: string, newData: AttendanceMonthData, newLabels: DateLabels, immediate = false) => {
+    // Keep track of previous month and section to flush pending saves on switch
+    const prevMonthRef = useRef(selectedMonth);
+    const prevSectionRef = useRef(selectedSection);
+
+    useEffect(() => {
+        if (selectedMonth !== prevMonthRef.current || selectedSection !== prevSectionRef.current) {
+            if (pendingSaveRef.current) {
+                if (saveTimeoutRef.current) {
+                    clearTimeout(saveTimeoutRef.current);
+                }
+                const { month: m, data: d, labels: l, remarks: r } = pendingSaveRef.current;
+                saveSF2Sheet({
+                    id: `${prevSectionRef.current}_${activeSchoolYear}_${m}`,
+                    section_id: prevSectionRef.current,
+                    school_year: activeSchoolYear,
+                    month: m,
+                    date_labels: l,
+                    attendance: d,
+                    remarks: r || {},
+                    updated_at: new Date().toISOString()
+                });
+                pendingSaveRef.current = null;
+            }
+            prevMonthRef.current = selectedMonth;
+            prevSectionRef.current = selectedSection;
+        }
+    }, [selectedMonth, selectedSection, activeSchoolYear, saveSF2Sheet]);
+
+    const triggerSave = useCallback((month: string, newData: AttendanceMonthData, newLabels: DateLabels, newRemarks?: Record<string, string>, immediate = false) => {
         // Track the most recent data for unmount flushing
-        pendingSaveRef.current = { month, data: newData, labels: newLabels };
+        pendingSaveRef.current = { month, data: newData, labels: newLabels, remarks: newRemarks || {} };
 
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
         const doSave = () => {
             if (!selectedSection || !pendingSaveRef.current) return;
-            const { month: m, data: d, labels: l } = pendingSaveRef.current;
+            const { month: m, data: d, labels: l, remarks: r } = pendingSaveRef.current;
             saveSF2Sheet({
                 id: `${selectedSection}_${activeSchoolYear}_${m}`,
                 section_id: selectedSection,
@@ -110,6 +190,7 @@ export function AttendancePage() {
                 month: m,
                 date_labels: l,
                 attendance: d,
+                remarks: r || {},
                 updated_at: new Date().toISOString()
             });
             pendingSaveRef.current = null;
@@ -129,7 +210,7 @@ export function AttendancePage() {
                 clearTimeout(saveTimeoutRef.current);
             }
             if (pendingSaveRef.current && selectedSection) {
-                const { month, data, labels } = pendingSaveRef.current;
+                const { month, data, labels, remarks } = pendingSaveRef.current;
                 saveSF2Sheet({
                     id: `${selectedSection}_${activeSchoolYear}_${month}`,
                     section_id: selectedSection,
@@ -137,6 +218,7 @@ export function AttendancePage() {
                     month,
                     date_labels: labels,
                     attendance: data,
+                    remarks: remarks || {},
                     updated_at: new Date().toISOString()
                 });
             }
@@ -213,6 +295,37 @@ export function AttendancePage() {
         const [startYear, endYear] = sy.split('-').map(Number);
         const year = monthIndex >= 5 ? startYear : endYear;
 
+        // Fetch calendar holidays from localStorage
+        let holidays: string[] = [];
+        try {
+            const storedEvents = localStorage.getItem('school_calendar_events');
+            if (storedEvents) {
+                const parsedEvents = JSON.parse(storedEvents);
+                if (Array.isArray(parsedEvents)) {
+                    holidays = parsedEvents
+                        .filter((e: CalendarEvent) => e.type === 'holiday')
+                        .flatMap((e: CalendarEvent) => {
+                            const dates: string[] = [];
+                            try {
+                                const curr = new Date(e.date + 'T00:00:00');
+                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : curr;
+                                if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
+                                    while (curr <= end) {
+                                        dates.push(curr.toISOString().split('T')[0]);
+                                        curr.setDate(curr.getDate() + 1);
+                                    }
+                                }
+                            } catch (dateErr) {
+                                console.error('Error parsing date range for event:', e, dateErr);
+                            }
+                            return dates;
+                        });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load/parse calendar events for holiday filter', e);
+        }
+
         if (sy === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
             // Use Hardcoded Calendar for SY 2026-2027 with Accurate Week Positioning
             const calendarDays = SCHOOL_CALENDAR_2026_2027[month];
@@ -226,6 +339,11 @@ export function AttendancePage() {
                 const dow = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
                 
                 if (dow >= 1 && dow <= 5) {
+                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    if (holidays.includes(dateStr)) {
+                        return; // Skip holiday
+                    }
+
                     // Calculate which week of the month this date falls into
                     // (d + offset - 1) / 7 gives the 0-indexed week number
                     const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
@@ -266,6 +384,11 @@ export function AttendancePage() {
                 const dow = date.getDay();
 
                 if (dow >= 1 && dow <= 5) {
+                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    if (holidays.includes(dateStr)) {
+                        continue; // Skip holiday
+                    }
+
                     if (currentIndex < totalColumns) {
                         filled[days[currentIndex]] = d.toString();
                         currentIndex++;
@@ -287,13 +410,20 @@ export function AttendancePage() {
 
         // Persist only when current user is allowed to edit this section.
         if (selectedSection && canEditCurrentSection) {
-            triggerSave(month, attendanceData[month] || {}, filled, immediate);
+            triggerSave(month, attendanceData[month] || {}, filled, remarksData[month] || {}, immediate);
         }
-    }, [buildAutoFilledDateLabels, selectedSection, canEditCurrentSection, triggerSave, attendanceData]);
+    }, [buildAutoFilledDateLabels, selectedSection, canEditCurrentSection, triggerSave, attendanceData, remarksData]);
 
     // Auto-populate date labels whenever month/section changes and labels are empty.
     useEffect(() => {
         if (!selectedSection || !selectedMonth) return;
+
+        // Wait until the saved sheet has actually been loaded for this
+        // section/month before deciding labels are empty - otherwise this can
+        // fire before the async fetchSF2Sheet resolves and immediately save
+        // over real attendance/remarks data with empty data via triggerSave.
+        const sheetId = `${selectedSection}_${activeSchoolYear}_${selectedMonth}`;
+        if (lastLoadedIdRef.current !== sheetId) return;
 
         const existingLabels = monthDateLabels[selectedMonth] || {};
         const hasAnyLabel = Object.values(existingLabels).some(v => String(v).trim() !== '');
@@ -301,7 +431,7 @@ export function AttendancePage() {
         if (!hasAnyLabel) {
             applyAutoFillDates(selectedMonth, true);
         }
-    }, [selectedSection, selectedMonth, monthDateLabels, canEditCurrentSection, applyAutoFillDates]);
+    }, [selectedSection, selectedMonth, activeSchoolYear, monthDateLabels, canEditCurrentSection, applyAutoFillDates]);
 
 
 
@@ -340,7 +470,7 @@ export function AttendancePage() {
                 }
             };
 
-            triggerSave(selectedMonth, newData[selectedMonth], monthDateLabels[selectedMonth] || {});
+            triggerSave(selectedMonth, newData[selectedMonth], monthDateLabels[selectedMonth] || {}, remarksData[selectedMonth] || {});
             return newData;
         });
     };
@@ -365,6 +495,8 @@ export function AttendancePage() {
     const currentAttendance = attendanceData[selectedMonth] || {};
     // Use global dates
     const currentDateLabels = monthDateLabels[selectedMonth] || {};
+    // Get current remarks
+    const currentRemarks = remarksData[selectedMonth] || {};
 
     const countStats = (studentId: string, type: string) => {
         const record = currentAttendance[studentId] || {};
@@ -377,14 +509,18 @@ export function AttendancePage() {
     // Count how many date cells actually have a date filled in
     const filledDaysCount = Object.values(currentDateLabels).filter(v => v.trim() !== '').length;
 
-    const calculateDailyAbsent = (day: number, gender: 'Male' | 'Female' | 'Total') => {
+    const calculateDailyPresent = (day: number, gender: 'Male' | 'Female' | 'Total') => {
+        // Unmarked (blank) cells mean perfect attendance, so they count as
+        // present too. Days without a date label aren't real school days.
+        if (!currentDateLabels[day]?.trim()) return 0;
+
         let targetStudents: typeof displayStudents.males = [];
         if (gender === 'Male') targetStudents = displayStudents.males;
         else if (gender === 'Female') targetStudents = displayStudents.females;
         else targetStudents = [...displayStudents.males, ...displayStudents.females];
         return targetStudents.reduce((total, student) => {
             const status = currentAttendance[student.lrn]?.[day];
-            return total + (status === 'absent' ? 1 : 0);
+            return total + (status === 'absent' ? 0 : 1);
         }, 0);
     };
 
@@ -395,6 +531,8 @@ export function AttendancePage() {
         window.print();
         document.title = originalTitle;
     };
+
+
     const totalMaleAbsent = displayStudents.males.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
     const totalFemaleAbsent = displayStudents.females.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
     const totalMalePresent = displayStudents.males.reduce((sum, s) => sum + (Math.max(0, filledDaysCount - countStats(s.lrn, 'absent'))), 0);
@@ -603,384 +741,258 @@ export function AttendancePage() {
         return fromProfile || user?.displayName || '';
     }, [sections, selectedSection, schoolProfile, user, teachers]);
 
-    return (
-        <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
-             {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
-                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
-                    <div className="flex items-center gap-2 min-w-0 shrink-0">
-                        <button
-                            onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
-                            title="Back to Hub"
-                        >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                        </button>
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
-                            <AppLogo className="w-4 h-4" />
-                        </div>
-                        <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight truncate">
-                            SF2 Daily Attendance
-                        </h2>
-                    </div>
+    // ============================================================
+    // Pagination: split the attendance table body into page-sized
+    // chunks so the on-screen preview (and PDF/print output) render
+    // as separate page-sheets, matching the selected paper size.
+    // ============================================================
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0" />
+    const bodyRows = useMemo<BodyRow[]>(() => {
+        const rows: BodyRow[] = [];
+        displayStudents.males.forEach((student, idx) => {
+            rows.push({ type: 'student', student, displayIdx: idx + 1 });
+        });
+        rows.push({ type: 'maleTotal' });
+        displayStudents.females.forEach((student, idx) => {
+            rows.push({ type: 'student', student, displayIdx: idx + 1 });
+        });
+        rows.push({ type: 'femaleTotal' });
+        rows.push({ type: 'combinedTotal' });
+        return rows;
+    }, [displayStudents]);
 
-                    <div className="flex items-center gap-2 min-w-0 shrink-0">
-                        {!singleSection && (
-                            <div className="relative group shrink-0">
-                                <select
-                                    value={selectedSection}
-                                    onChange={(e) => setSelectedSection(e.target.value)}
-                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
-                                >
-                                    <option value="">Section</option>
-                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
-                                        groupSections.length > 0 && (
-                                            <optgroup key={group} label={group}>
-                                                {groupSections.map(s => (
-                                                    <option key={s.id} value={s.section_name}>
-                                                        {s.section_grade_level} - {s.section_name}
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        )
-                                    ))}
-                                </select>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                            </div>
-                        )}
-
-                        <div className="relative group shrink-0">
-                            <select
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-21.25 lg:w-25 duration-200"
-                            >
-                                {months.map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                        </div>
-
-                        {canEditCurrentSection && (
-                            <button
-                                onClick={() => {
-                                    if (confirm("Reset current month's date headers to match official DEPED calendar?")) {
-                                        applyAutoFillDates(selectedMonth, true);
-                                    }
-                                }}
-                                className="h-9 px-2.5 rounded-xl bg-white border border-blue-100 text-[9px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0 duration-200 active:scale-95"
-                                title="Sync headers with official school calendar"
-                            >
-                                Sync Dates
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="flex-1 min-w-3" />
-
-                    <div className="flex items-center gap-2 shrink-0">
-                        {/* Paper Size */}
-                        <div className="relative group shrink-0">
-                            <select
-                                value={paperSize}
-                                onChange={(e) => setPaperSize(e.target.value as 'letter' | 'a4' | 'folio')}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
-                            >
-                                <option value="letter">Letter</option>
-                                <option value="a4">A4</option>
-                                <option value="folio">Folio</option>
-                            </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
-                        </div>
-
-                        <div className="h-6 w-px bg-slate-200 shrink-0" />
-
-                        {/* Zoom Control */}
-                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
-                            <button
-                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                                title="Zoom Out"
-                            >
-                                <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
-                                {Math.round(zoom * 100)}%
-                            </span>
-                            <button
-                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-
-                        {/* Print Primary Button */}
-                        <button
-                            onClick={handlePrint}
-                            disabled={!selectedSection}
-                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
-                        >
-                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-                            Print Official SF2
-                        </button>
-                    </div>
+    const renderHeaderBlock = () => (
+        <>
+            <div className="flex items-center mb-2">
+                <div className="w-18.75 shrink-0">
+                    <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
                 </div>
-             </div>
-
-             {/* Main Workspace Area */}
-             <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
-                {!selectedSection ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-10 p-10 z-10">
-                        <div className="relative">
-                            <div className="absolute -inset-20 bg-blue-500/5 blur-[100px] rounded-full" />
-                            <div className="relative w-48 h-48 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform -rotate-6 border-dashed">
-                                <Search className="w-20 h-20 text-slate-200" />
-                                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-xl">
-                                    <span className="text-2xl font-black text-blue-600 italic">SF2</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="max-w-md space-y-4">
-                            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Attendance Hub</h2>
-                            <p className="text-slate-500 font-bold leading-relaxed">
-                                Please select a section and month from the toolbar above to manage learner attendance records.
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <div ref={previewViewportRef} className="w-full min-h-full flex justify-center py-8 px-4 lg:px-6 print:p-0 print:block overflow-x-auto">
-                        <div 
-                            className="transition-all duration-700 ease-out origin-top print:scale-100"
-                            style={{ transform: `scale(${effectiveZoom})` }}
-                        >
-                            <div 
-                                className={`sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none mb-4 print:p-2 print:m-0 rounded-sm ${layoutConfig.padding}`} 
-                                style={{ 
-                                    width: paperDimensions[paperSize]?.width || '330.2mm',
-                                    minHeight: paperDimensions[paperSize]?.height || '215.9mm',
-                                }}
-                            >
-
-                {/* === HEADER === */}
-                <div className="flex items-center mb-2">
-                    <div className="w-18.75 shrink-0">
-                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
-                    </div>
-                    <div className="flex-1 text-center">
-                        <p className={`font-black leading-tight text-black uppercase ${layoutConfig.headerText}`} style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
-                        <p className={`italic text-gray-800 font-semibold ${layoutConfig.subHeaderText}`}>(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
-                    </div>
-                    <div className="w-25 shrink-0 flex justify-end">
-                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
+                <div className="flex-1 text-center">
+                    <p className={`font-black leading-tight text-black uppercase ${layoutConfig.headerText}`} style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
+                    <p className={`italic text-gray-800 font-semibold ${layoutConfig.subHeaderText}`}>(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
                 </div>
-
-                {/* Row 1: School ID | School Year | Report for the Month of */}
-                <div className={`flex items-center mb-2.5 font-black text-black ${layoutConfig.labelSize}`}>
-                    <div className="flex items-center gap-2">
-                        <span className="mr-1 whitespace-nowrap">School ID</span>
-                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolIdWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.school_id}</div>
-                        <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
-                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolYearWidth} ${layoutConfig.inputValSize}`}>{activeSchoolYear}</div>
-                    </div>
-                    <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
-                        <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
-                        <div className={`border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.monthWidth} ${layoutConfig.inputValSize}`}>{selectedMonth}</div>
-                    </div>
+                <div className="w-25 shrink-0 flex justify-end">
+                    <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 </div>
+            </div>
 
-                {/* Row 2: Name of School | Grade Level | Section */}
-                <div className={`flex items-center mb-3 font-black text-black ${layoutConfig.labelSize}`}>
-                    <div className="flex-1 flex items-center gap-2">
-                        <span className="mr-1 whitespace-nowrap">Name of School</span>
-                        <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.schoolNameWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.name}</div>
-                    </div>
-                    <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
-                        <span className="mr-1 whitespace-nowrap">Grade Level</span>
-                        <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black whitespace-nowrap ${layoutConfig.gradeWidth} ${layoutConfig.inputValSize}`}>
-                            {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
-                        </div>
-                        <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
-                        <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${layoutConfig.inputValSize}`}>{selectedSection}</div>
-                    </div>
+            {/* Row 1: School ID | School Year | Report for the Month of */}
+            <div className={`flex items-center mb-2.5 font-black text-black ${layoutConfig.labelSize}`}>
+                <div className="flex items-center gap-2">
+                    <span className="mr-1 whitespace-nowrap">School ID</span>
+                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolIdWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.school_id}</div>
+                    <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
+                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolYearWidth} ${layoutConfig.inputValSize}`}>{activeSchoolYear}</div>
                 </div>
+                <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
+                    <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
+                    <div className={`border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.monthWidth} ${layoutConfig.inputValSize}`}>{selectedMonth}</div>
+                </div>
+            </div>
 
-                {/* === MAIN TABLE === */}
-                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                        <col style={{ width: '22px' }} />
-                        <col style={{ width: layoutConfig.colNameWidth }} />
-                        {days.map(d => <col key={d} style={{ width: layoutConfig.colDayWidth }} />)}
-                        <col style={{ width: layoutConfig.colAbsentWidth }} />
-                        <col style={{ width: layoutConfig.colPresentWidth }} />
-                        <col style={{ width: layoutConfig.colRemarksWidth }} />
-                    </colgroup>
-                    <thead>
-                        {/* Row 1: Labels */}
-                        <tr>
-                            <th rowSpan={4} className="border-2 border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
-                            <th rowSpan={4} className="border-2 border-black bg-white p-1 text-center align-middle leading-tight">
-                                <div className={`font-black text-black uppercase tracking-tight ${layoutConfig.studentNameSize}`}>Learner's Name</div>
-                                <div className={`font-extrabold text-black ${layoutConfig.guidelinesTextSize}`}>(Last Name, First Name, Middle Name)</div>
-                            </th>
-                            <th colSpan={totalColumns} className={`border-2 border-black bg-white text-center font-black text-black py-1 ${layoutConfig.tableTextSize}`}>
-                                (1st row for date, 2nd row for Day: M,T,W,TH,F)
-                            </th>
-                            <th colSpan={2} rowSpan={3} className={`border-2 border-black bg-white text-center font-black text-black p-1 leading-tight align-middle ${layoutConfig.tableTextSize}`}>
-                                Total for the<br />Month
-                            </th>
-                            <th rowSpan={4} className={`border-2 border-black bg-white p-1.5 leading-tight text-center align-middle font-bold text-black ${layoutConfig.guidelinesTextSize}`}>
-                                <span className="font-black text-black block mb-1">REMARK/S</span>
-                                <span>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</span>
-                            </th>
-                        </tr>
-                        {/* Row 2: Date numbers (blue background, editable) */}
-                        <tr className="bg-[#BDD7EE]">
-                            {days.map((d, i) => (
-                                <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
-                                    <input
-                                        type="text"
-                                        maxLength={2}
-                                        value={currentDateLabels[d] || ''}
-                                        readOnly={!canEditCurrentSection}
-                                        onChange={(e) => {
-                                            if (!canEditCurrentSection) return;
-                                            const val = e.target.value;
-                                            setMonthDateLabels(prev => {
-                                                const newLabels = {
-                                                    ...prev,
-                                                    [selectedMonth]: { ...(prev[selectedMonth] || {}), [d]: val }
-                                                };
-                                                triggerSave(selectedMonth, attendanceData[selectedMonth] || {}, newLabels[selectedMonth]);
-                                                return newLabels;
-                                            });
-                                        }}
-                                        className={`w-full h-full text-center font-black text-black bg-transparent border-none outline-none p-0 ${layoutConfig.tableTextSize}`}
-                                    />
-                                </th>
-                            ))}
-                        </tr>
-                        {/* Row 3: Day letters M T W TH F (white background) */}
-                        <tr>
-                            {days.map((d, i) => (
-                                <th key={d} className={`border-2 border-black bg-white p-0 text-center font-black h-5${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
-                                    {dayLetters[i % 5]}
-                                </th>
-                            ))}
-                        </tr>
-                        {/* Row 4: ABSENT / PRESENT headers */}
-                        <tr>
-                            {days.map((d, i) => (
-                                <th key={d} className={`border-2 border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
-                            ))}
-                            <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
-                            <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {/* Male students FIRST */}
-                        {displayStudents.males.map((student, idx) => (
-                            <tr key={student.lrn} className="h-5.5">
-                                <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{idx + 1}</td>
-                                <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
-                                    {formatLearnerName(student)}
-                                </td>
-                                {days.map((d, i) => (
-                                    <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
-                                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
-                                        {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
-                                    </td>
-                                ))}
-                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
-                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
-                                <td className="border-2 border-black"></td>
-                            </tr>
-                        ))}
+            {/* Row 2: Name of School | Grade Level | Section */}
+            <div className={`flex items-center mb-3 font-black text-black ${layoutConfig.labelSize}`}>
+                <div className="flex-1 flex items-center gap-2">
+                    <span className="mr-1 whitespace-nowrap">Name of School</span>
+                    <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.schoolNameWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.name}</div>
+                </div>
+                <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
+                    <span className="mr-1 whitespace-nowrap">Grade Level</span>
+                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black whitespace-nowrap ${layoutConfig.gradeWidth} ${layoutConfig.inputValSize}`}>
+                        {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
+                    </div>
+                    <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
+                    <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${layoutConfig.inputValSize}`}>{selectedSection}</div>
+                </div>
+            </div>
+        </>
+    );
 
-                        {/* ← MALE | TOTAL Per Day → (AFTER male students) */}
-                        <tr className="bg-white h-5.5">
-                            <td className="border-2 border-black text-center p-0">
-                                <ArrowLeft size={10} className="inline text-blue-700" />
-                            </td>
-                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
-                                MALE | TOTAL Per Day
-                            </td>
-                            {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
-                                    {calculateDailyAbsent(d, 'Male') || ''}
-                                </td>
-                            ))}
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMalePresent}</td>
-                            <td className="border-2 border-black">
-                                <ArrowRight size={10} className="inline text-blue-700 float-right" />
-                            </td>
-                        </tr>
+    const renderColgroup = () => (
+        <colgroup>
+            <col style={{ width: '22px' }} />
+            <col style={{ width: layoutConfig.colNameWidth }} />
+            {days.map(d => <col key={d} style={{ width: layoutConfig.colDayWidth }} />)}
+            <col style={{ width: layoutConfig.colAbsentWidth }} />
+            <col style={{ width: layoutConfig.colPresentWidth }} />
+            <col style={{ width: layoutConfig.colRemarksWidth }} />
+        </colgroup>
+    );
 
-                        {/* Female students FIRST */}
-                        {displayStudents.females.map((student, idx) => (
-                            <tr key={student.lrn} className="h-5.5">
-                                <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{idx + 1}</td>
-                                <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
-                                    {formatLearnerName(student)}
-                                </td>
-                                {days.map((d, i) => (
-                                    <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
-                                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
-                                        {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
-                                    </td>
-                                ))}
-                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
-                                <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
-                                <td className="border-2 border-black"></td>
-                            </tr>
-                        ))}
+    const renderTableHeadRows = (ref?: Ref<HTMLTableSectionElement>) => (
+        <thead ref={ref}>
+            {/* Row 1: Labels */}
+            <tr>
+                <th rowSpan={4} className="border-2 border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
+                <th rowSpan={4} className="border-2 border-black bg-white p-1 text-center align-middle leading-tight">
+                    <div className={`font-black text-black uppercase tracking-tight ${layoutConfig.studentNameSize}`}>Learner's Name</div>
+                    <div className={`font-extrabold text-black ${layoutConfig.guidelinesTextSize}`}>(Last Name, First Name, Middle Name)</div>
+                </th>
+                <th colSpan={totalColumns} className={`border-2 border-black bg-white text-center font-black text-black py-1 ${layoutConfig.tableTextSize}`}>
+                    (1st row for date, 2nd row for Day: M,T,W,TH,F)
+                </th>
+                <th colSpan={2} rowSpan={3} className={`border-2 border-black bg-white text-center font-black text-black p-1 leading-tight align-middle ${layoutConfig.tableTextSize}`}>
+                    Total for the<br />Month
+                </th>
+                <th rowSpan={4} className={`border-2 border-black bg-white p-1.5 leading-tight text-center align-middle font-bold text-black ${layoutConfig.guidelinesTextSize}`}>
+                    <span className="font-black text-black block mb-1">REMARK/S</span>
+                    <span>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</span>
+                </th>
+            </tr>
+            {/* Row 2: Date numbers (blue background, editable) */}
+            <tr className="bg-[#BDD7EE]">
+                {days.map((d, i) => (
+                    <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
+                        <input
+                            type="text"
+                            maxLength={2}
+                            value={currentDateLabels[d] || ''}
+                            readOnly={!canEditCurrentSection}
+                            onChange={(e) => {
+                                if (!canEditCurrentSection) return;
+                                const val = e.target.value;
+                                setMonthDateLabels(prev => {
+                                    const newLabels = {
+                                        ...prev,
+                                        [selectedMonth]: { ...(prev[selectedMonth] || {}), [d]: val }
+                                    };
+                                    triggerSave(selectedMonth, attendanceData[selectedMonth] || {}, newLabels[selectedMonth], remarksData[selectedMonth] || {});
+                                    return newLabels;
+                                });
+                            }}
+                            className={`w-full h-full text-center font-black text-black bg-transparent border-none outline-none p-0 ${layoutConfig.tableTextSize}`}
+                        />
+                    </th>
+                ))}
+            </tr>
+            {/* Row 3: Day letters M T W TH F (white background) */}
+            <tr>
+                {days.map((d, i) => (
+                    <th key={d} className={`border-2 border-black bg-white p-0 text-center font-black h-5${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
+                        {dayLetters[i % 5]}
+                    </th>
+                ))}
+            </tr>
+            {/* Row 4: ABSENT / PRESENT headers */}
+            <tr>
+                {days.map((d, i) => (
+                    <th key={d} className={`border-2 border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
+                ))}
+                <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
+                <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
+            </tr>
+        </thead>
+    );
 
-                        {/* ← FEMALE | TOTAL Per Day → (AFTER female students) */}
-                        <tr className="bg-white h-5.5">
-                            <td className="border-2 border-black text-center p-0">
-                                <ArrowLeft size={10} className="inline text-blue-700" />
-                            </td>
-                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
-                                FEMALE | TOTAL Per Day
-                            </td>
-                            {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
-                                    {calculateDailyAbsent(d, 'Female') || ''}
-                                </td>
-                            ))}
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemalePresent}</td>
-                            <td className="border-2 border-black">
-                                <ArrowRight size={10} className="inline text-blue-700 float-right" />
-                            </td>
-                        </tr>
+    const renderStudentRow = (student: Student, displayIdx: number, key: string | number, ref?: Ref<HTMLTableRowElement>) => (
+        <tr key={key} ref={ref} className="h-5.5">
+            <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{displayIdx}</td>
+            <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
+                {formatLearnerName(student)}
+            </td>
+            {days.map((d, i) => (
+                <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
+                    onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
+                    {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
+                </td>
+            ))}
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+            <td className={`border-2 border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
+                <input
+                    type="text"
+                    value={currentRemarks[student.lrn] || ''}
+                    readOnly={!canEditCurrentSection}
+                    onChange={(e) => {
+                        if (!canEditCurrentSection) return;
+                        const val = e.target.value;
+                        setRemarksData(prev => {
+                            const newRemarks = {
+                                ...prev,
+                                [selectedMonth]: { ...(prev[selectedMonth] || {}), [student.lrn]: val }
+                            };
+                            triggerSave(selectedMonth, attendanceData[selectedMonth] || {}, monthDateLabels[selectedMonth] || {}, newRemarks[selectedMonth]);
+                            return newRemarks;
+                        });
+                    }}
+                    className={`w-full h-full text-left font-normal text-black bg-transparent border-none outline-none p-0 ${canEditCurrentSection ? '' : 'cursor-default'} ${layoutConfig.tableTextSize}`}
+                />
+            </td>
+        </tr>
+    );
 
-                        {/* ← Combined TOTAL PER DAY → (LAST) */}
-                        <tr className="bg-white h-5.5">
-                            <td className="border-2 border-black text-center p-0">
-                                <ArrowLeft size={10} className="inline text-blue-700" />
-                            </td>
-                            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
-                                Combined TOTAL PER DAY
-                            </td>
-                            {days.map((d, i) => (
-                                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
-                                    {calculateDailyAbsent(d, 'Total') || ''}
-                                </td>
-                            ))}
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
-                            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMalePresent + totalFemalePresent}</td>
-                            <td className="border-2 border-black">
-                                <ArrowRight size={10} className="inline text-blue-700 float-right" />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+    const renderMaleTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
+        <tr key={key} ref={ref} className="bg-white h-5.5">
+            <td className="border-2 border-black text-center p-0">
+                <ArrowLeft size={10} className="inline text-blue-700" />
+            </td>
+            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+                MALE | TOTAL Per Day
+            </td>
+            {days.map((d, i) => (
+                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                    {calculateDailyPresent(d, 'Male') || ''}
+                </td>
+            ))}
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMalePresent}</td>
+            <td className="border-2 border-black">
+                <ArrowRight size={10} className="inline text-blue-700 float-right" />
+            </td>
+        </tr>
+    );
 
+    const renderFemaleTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
+        <tr key={key} ref={ref} className="bg-white h-5.5">
+            <td className="border-2 border-black text-center p-0">
+                <ArrowLeft size={10} className="inline text-blue-700" />
+            </td>
+            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+                FEMALE | TOTAL Per Day
+            </td>
+            {days.map((d, i) => (
+                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                    {calculateDailyPresent(d, 'Female') || ''}
+                </td>
+            ))}
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemalePresent}</td>
+            <td className="border-2 border-black">
+                <ArrowRight size={10} className="inline text-blue-700 float-right" />
+            </td>
+        </tr>
+    );
+
+    const renderCombinedTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
+        <tr key={key} ref={ref} className="bg-white h-5.5">
+            <td className="border-2 border-black text-center p-0">
+                <ArrowLeft size={10} className="inline text-blue-700" />
+            </td>
+            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+                Combined TOTAL PER DAY
+            </td>
+            {days.map((d, i) => (
+                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                    {calculateDailyPresent(d, 'Total') || ''}
+                </td>
+            ))}
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
+            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMalePresent + totalFemalePresent}</td>
+            <td className="border-2 border-black">
+                <ArrowRight size={10} className="inline text-blue-700 float-right" />
+            </td>
+        </tr>
+    );
+
+    const renderBodyRow = (row: BodyRow, key: string | number, ref?: Ref<HTMLTableRowElement>) => {
+        if (row.type === 'student') return renderStudentRow(row.student, row.displayIdx, key, ref);
+        if (row.type === 'maleTotal') return renderMaleTotalRow(key, ref);
+        if (row.type === 'femaleTotal') return renderFemaleTotalRow(key, ref);
+        return renderCombinedTotalRow(key, ref);
+    };
+
+    const renderFooterBlock = () => (
+        <>
                 {/* === FOOTER === */}
                 <div className="flex border-l-[2.5px] border-r-[2.5px] border-b-[2.5px] border-black" style={{ fontSize: layoutConfig.guidelinesTextSize }}>
 
@@ -1155,11 +1167,286 @@ export function AttendancePage() {
                 </div>
 
                 <div className={`text-center mt-1 text-gray-700 font-extrabold italic print:mb-0 ${layoutConfig.guidelinesTextSize} ${layoutConfig.bottomMargin}`}>Generated thru LIS</div>
+        </>
+    );
+
+    // Measure the header block, table header row, a single body row, and the
+    // footer block (off-screen, at full print scale) to figure out how many
+    // body rows fit on one printed page - with and without the trailing
+    // footer - for the current paper size.
+    useLayoutEffect(() => {
+        const headerEl = measureHeaderRef.current;
+        const theadEl = measureTheadRef.current;
+        const rowEl = measureRowRef.current;
+        const footerEl = measureFooterRef.current;
+        if (!headerEl || !theadEl || !rowEl || !footerEl || rowEl.offsetHeight === 0) return;
+
+        const pageHeightPx = parseFloat(paperDimensions[paperSize]?.height || '215.9') * MM_TO_PX;
+        const availableHeight = pageHeightPx - PAGE_PADDING_PX[paperSize];
+
+        const headerHeight = headerEl.offsetHeight;
+        const theadHeight = theadEl.offsetHeight;
+        const rowHeight = rowEl.offsetHeight;
+        const footerHeight = footerEl.offsetHeight;
+
+        const tableBorderPx = 5; // table's border-[2.5px] top + bottom
+        const contentForRows = availableHeight - headerHeight - theadHeight - tableBorderPx;
+
+        const withoutFooter = Math.max(1, Math.floor(contentForRows / rowHeight));
+        const withFooter = Math.max(1, Math.floor((contentForRows - footerHeight) / rowHeight));
+
+        setPageCapacity(prev => {
+            if (prev && prev.withFooter === withFooter && prev.withoutFooter === withoutFooter) return prev;
+            return { withFooter, withoutFooter };
+        });
+    }, [paperSize, layoutConfig, paperDimensions, bodyRows]);
+
+    // Split the body rows into page-sized chunks. The Guidelines/Codes/
+    // Summary/Certification footer is only ever placed on the final page; if
+    // the remaining rows fit on a page without the footer but not with it, an
+    // extra (rows-empty) final page is added to hold just the footer.
+    const pages = useMemo<{ rows: BodyRow[]; isLast: boolean }[]>(() => {
+        if (!pageCapacity) {
+            return [{ rows: bodyRows, isLast: true }];
+        }
+
+        const { withFooter, withoutFooter } = pageCapacity;
+        const result: { rows: BodyRow[]; isLast: boolean }[] = [];
+        let remaining = bodyRows;
+
+        while (remaining.length > 0) {
+            if (remaining.length <= withFooter) {
+                result.push({ rows: remaining, isLast: true });
+                remaining = [];
+            } else if (remaining.length <= withoutFooter) {
+                result.push({ rows: remaining, isLast: false });
+                result.push({ rows: [], isLast: true });
+                remaining = [];
+            } else {
+                result.push({ rows: remaining.slice(0, withoutFooter), isLast: false });
+                remaining = remaining.slice(withoutFooter);
+            }
+        }
+
+        return result.length > 0 ? result : [{ rows: [], isLast: true }];
+    }, [bodyRows, pageCapacity]);
+
+    return (
+        <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+             {/* Sticky Premium Top Toolbar */}
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
+                        <button
+                            onClick={() => setCurrentView('school-forms')}
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
+                            title="Back to Hub"
+                        >
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                        </button>
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
+                            <AppLogo className="w-4 h-4" />
+                        </div>
+                        <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight truncate">
+                            SF2 Daily Attendance
+                        </h2>
+                    </div>
+
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
+                        {!singleSection && (
+                            <div className="relative group shrink-0">
+                                <select
+                                    value={selectedSection}
+                                    onChange={(e) => setSelectedSection(e.target.value)}
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
+                                >
+                                    <option value="">Section</option>
+                                    {Object.entries(groupedSections).map(([group, groupSections]) => (
+                                        groupSections.length > 0 && (
+                                            <optgroup key={group} label={group}>
+                                                {groupSections.map(s => (
+                                                    <option key={s.id} value={s.section_name}>
+                                                        {s.section_grade_level} - {s.section_name}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        )
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            </div>
+                        )}
+
+                        <div className="relative group shrink-0">
+                            <select
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-21.25 lg:w-25 duration-200"
+                            >
+                                {months.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        {canEditCurrentSection && (
+                            <button
+                                onClick={() => {
+                                    if (confirm("Reset current month's date headers to match official DEPED calendar?")) {
+                                        applyAutoFillDates(selectedMonth, true);
+                                    }
+                                }}
+                                className="h-9 px-2.5 rounded-xl bg-white border border-blue-100 text-[9px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0 duration-200 active:scale-95"
+                                title="Sync headers with official school calendar"
+                            >
+                                Sync Dates
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex-1 min-w-3" />
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Paper Size */}
+                        <div className="relative group shrink-0">
+                            <select
+                                value={paperSize}
+                                onChange={(e) => setPaperSize(e.target.value as 'letter' | 'a4' | 'folio')}
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
+                            >
+                                <option value="letter">Letter</option>
+                                <option value="a4">A4</option>
+                                <option value="folio">Folio</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        </div>
+
+                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+
+                        {/* Zoom Control */}
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                            <button
+                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom Out"
+                            >
+                                <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                                {Math.round(zoom * 100)}%
+                            </span>
+                            <button
+                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        {/* Print Primary Button */}
+                        <button
+                            onClick={handlePrint}
+                            disabled={!selectedSection}
+                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                        >
+                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+                            Print Official SF2
+                        </button>
+
+                    </div>
+                </div>
+             </div>
+
+             {/* Main Workspace Area */}
+             <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
+                {!selectedSection ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-10 p-10 z-10">
+                        <div className="relative">
+                            <div className="absolute -inset-20 bg-blue-500/5 blur-[100px] rounded-full" />
+                            <div className="relative w-48 h-48 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform -rotate-6 border-dashed">
+                                <Search className="w-20 h-20 text-slate-200" />
+                                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-xl">
+                                    <span className="text-2xl font-black text-blue-600 italic">SF2</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="max-w-md space-y-4">
+                            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Attendance Hub</h2>
+                            <p className="text-slate-500 font-bold leading-relaxed">
+                                Please select a section and month from the toolbar above to manage learner attendance records.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div ref={previewViewportRef} className="w-full min-h-full flex flex-col items-center py-8 px-4 lg:px-6 gap-6 print:p-0 print:gap-0 print:block overflow-x-auto">
+                        {pages.map((page, pageIdx) => {
+                            const isLastPage = pageIdx === pages.length - 1;
+                            const pageHeightPx = parseFloat(paperDimensions[paperSize]?.height || '215.9mm') * MM_TO_PX;
+                            return (
+                                <div
+                                    key={pageIdx}
+                                    className="origin-top print:contents"
+                                    style={{
+                                        transform: `scale(${effectiveZoom})`,
+                                        width: paperDimensions[paperSize]?.pixelWidth || 1248,
+                                        marginBottom: `${(effectiveZoom - 1) * pageHeightPx}px`,
+                                    }}
+                                >
+                                    <div
+                                        id={pageIdx === 0 ? 'sf2-printable-area' : undefined}
+                                        data-sf2-page={pageIdx}
+                                        className={`sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none print:p-2 print:m-0 rounded-sm ${layoutConfig.padding} ${!isLastPage ? 'sf2-page-break' : ''}`}
+                                        style={{
+                                            width: paperDimensions[paperSize]?.width || '330.2mm',
+                                            minHeight: paperDimensions[paperSize]?.height || '215.9mm',
+                                            display: 'flow-root',
+                                        }}
+                                    >
+
+                {renderHeaderBlock()}
+                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                    {renderColgroup()}
+                    {renderTableHeadRows()}
+                    <tbody>
+                        {page.rows.map((row, rowIdx) => renderBodyRow(row, row.type === 'student' ? row.student.lrn : `${row.type}-${rowIdx}`))}
+                    </tbody>
+                </table>
+
+                {page.isLast && renderFooterBlock()}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Hidden measurement template (visibility:hidden, NOT display:none, so
+                            offsetHeight stays measurable): renders one page's header, table
+                            head, a single body row, and the footer block off-screen at full
+                            scale to compute pageCapacity above. */}
+                        <div aria-hidden="true" className="print:hidden" style={{ position: 'fixed', top: 0, left: '-99999px', visibility: 'hidden', pointerEvents: 'none' }}>
+                            <div
+                                className={`sf2-print-container bg-white ${layoutConfig.padding}`}
+                                style={{ width: paperDimensions[paperSize]?.width || '330.2mm', display: 'flow-root' }}
+                            >
+                                <div ref={measureHeaderRef} style={{ display: 'flow-root' }}>
+                                    {renderHeaderBlock()}
+                                </div>
+                                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                                    {renderColgroup()}
+                                    {renderTableHeadRows(measureTheadRef)}
+                                    <tbody>
+                                        {bodyRows.length > 0 && renderBodyRow(bodyRows[0], 'measure-row', measureRowRef)}
+                                    </tbody>
+                                </table>
+                                <div ref={measureFooterRef} style={{ display: 'flow-root' }}>
+                                    {renderFooterBlock()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
-    </div>
-)}
-</div>
 <style dangerouslySetInnerHTML={{ __html: `
     .sf2-print-container, .sf2-print-container * {
         font-family: 'Arial Narrow', Arial, sans-serif !important;
@@ -1172,9 +1459,9 @@ export function AttendancePage() {
         scrollbar-width: none;
     }
     @media print {
-        @page { 
-            size: ${paperSize === 'a4' ? '297mm 210mm' : paperSize === 'letter' ? '11in 8.5in' : '13in 8.5in'}; 
-            margin: 0.15in !important; 
+        @page {
+            size: ${paperSize === 'a4' ? '297mm 210mm' : paperSize === 'letter' ? '11in 8.5in' : '13in 8.5in'};
+            margin: 0 !important;
         }
         html, body {
             width: 100% !important;
@@ -1189,6 +1476,10 @@ export function AttendancePage() {
             margin: 0 auto !important;
             border: none !important;
             box-shadow: none !important;
+        }
+        .sf2-page-break {
+            break-after: page;
+            page-break-after: always;
         }
     }
 ` }} />

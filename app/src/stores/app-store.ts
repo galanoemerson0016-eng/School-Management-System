@@ -11,6 +11,7 @@ import { db } from '../services/database';
 import { backup } from '../services/backup';
 import { announcementSync } from '../services/announcement-sync';
 import { normalizeSubjectName } from '../lib/subjectConfig';
+import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
 
 const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
 const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
@@ -1119,7 +1120,7 @@ export async function initializeAppStore() {
   try {
     const students = await loadStore<Student>('students');
     const sections = await loadStore<Section>('sections');
-    const subjects = await loadStore<Subject>('subjects');
+    let subjects = await loadStore<Subject>('subjects');
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because
     // the client may have changed their School ID, which changes the stored key.
@@ -1129,7 +1130,61 @@ export async function initializeAppStore() {
       allProfiles.find(p => p.school_id !== defaultSchoolProfile.school_id) ??
       allProfiles[0] ??
       undefined;
-    const finalSubjects = schoolProfile ? subjects : [];
+
+    // Auto-load all subjects for all grade levels if none are loaded
+    if (subjects.length === 0) {
+      console.log('Auto-loading all subjects for all grade levels right away...');
+      const timestamp = Date.now();
+      const grades = [
+        'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+        'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+      ];
+      const universalOrder = [
+        'Language',
+        'Reading and Literacy',
+        'Filipino',
+        'English',
+        'Mathematics',
+        'Science',
+        'Araling Panlipunan (AP)',
+        'GMRC (Good Manners and Right Conduct)',
+        'Values Education',
+        'Makabansa',
+        'E.P.P.',
+        'Technology and Livelihood Education (TLE)',
+        'MAPEH',
+        'Music and Arts',
+        'Physical Education and Health',
+        'Specialization',
+        '*Arabic Language',
+        '*Islamic Values Education',
+      ];
+      
+      const normalizeLabel = (val: string) => val.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
+
+      for (const grade of grades) {
+        const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
+        if (!templates) continue;
+
+        for (let i = 0; i < templates.length; i++) {
+          const template = templates[i];
+          const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
+          
+          const newSubject: Subject = {
+            id: subjectId,
+            subject_name: template.name,
+            subject_code: template.code,
+            grade_level: grade,
+            term: getDefaultTermForSubject(template.name, grade),
+            order: universalOrder.findIndex((name) => normalizeLabel(name) === normalizeLabel(template.name))
+          };
+          
+          await db.putRecord('subjects', newSubject);
+          subjects.push(newSubject);
+        }
+      }
+    }
+    const finalSubjects = subjects;
 
     const classRecords = await loadStore<ClassRecord>('classRecords');
     const enrollments = await loadStore<Enrollment>('enrollments');

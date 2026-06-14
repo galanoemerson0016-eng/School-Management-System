@@ -57,8 +57,9 @@ export function Header() {
                 <div className="flex-1 min-w-0 flex items-center gap-4 pr-4">
                     <div className="w-1.5 h-8 rounded-full bg-emerald-500 hidden sm:block" />
                     <div className="flex flex-col justify-center min-w-0">
-                        <h2 className="text-[17px] sm:text-lg lg:text-xl font-black text-[#0f172a] dark:text-white tracking-tight leading-none mb-1.5" title={viewTitles[currentView] || 'Dashboard'}>
-                            {viewTitles[currentView] || 'Dashboard'}
+                        <h2 className="text-[17px] sm:text-lg lg:text-xl font-black text-[#0f172a] dark:text-white tracking-tight leading-none mb-1.5 flex items-center gap-2" title={viewTitles[currentView] || 'Dashboard'}>
+                            <span>{viewTitles[currentView] || 'Dashboard'}</span>
+                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/20 rounded-md tracking-wider uppercase xl:hidden shrink-0">S.Y. {activeSchoolYear}</span>
                         </h2>
                         <p className="text-[10px] lg:text-[11px] font-bold tracking-[0.15em] uppercase text-slate-500 dark:text-slate-400 leading-none truncate" title={schoolProfile.name}>
                             {schoolProfile.name}
@@ -66,10 +67,9 @@ export function Header() {
                     </div>
                 </div>
 
-                {/* Center Area: S.Y. — in normal flex flow so it can never overlap
-                    the right-side cluster (which is wider in Electron, where the
-                    update button and window controls are rendered) */}
-                <div className="hidden md:flex shrink-0 mx-2">
+                {/* Center Area: S.Y. — shown only on xl screens to avoid overlap
+                    on mid-sized laptops when the sidebar is expanded */}
+                <div className="hidden xl:flex shrink-0 mx-2">
                     <div 
                         data-tour="school-year"
                         className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-white/5 rounded-full border border-slate-200/50 dark:border-white/10 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] cursor-default transition-all hover:bg-slate-100 dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20"

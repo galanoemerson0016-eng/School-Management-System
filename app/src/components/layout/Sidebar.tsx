@@ -1,5 +1,7 @@
 import { useAppStore, useAuthStore } from '../../stores';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { db } from '../../services/database';
 import {
     LayoutDashboard,
     Users,
@@ -24,6 +26,29 @@ import { canAccessView, type AppView } from '../../lib/rbac';
 export function Sidebar() {
     const { currentView, setCurrentView, schoolProfile } = useAppStore();
     const { logout, user } = useAuthStore();
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            // Perform silent backup before signing out
+            if (window.electronAPI && window.electronAPI.saveAutoBackup) {
+                const data = await db.exportAllData();
+                const now = new Date();
+                const timestamp = now.toISOString().replace(/[:.]/g, '-');
+                const filename = `logoutbackup_${timestamp}.json`;
+                await window.electronAPI.saveAutoBackup(data, filename);
+            }
+        } catch (error) {
+            console.error('Backup during sign out failed:', error);
+        } finally {
+            setIsLoggingOut(false);
+            setShowLogoutConfirm(false);
+            logout();
+        }
+    };
+
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = localStorage.getItem('sidebar-collapsed');
         return saved ? JSON.parse(saved) : false;
@@ -193,7 +218,7 @@ export function Sidebar() {
                 </button>
 
                 <button
-                    onClick={() => logout()}
+                    onClick={() => setShowLogoutConfirm(true)}
                     className={`w-full flex items-center justify-center gap-2.5 h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all font-medium border border-transparent hover:border-red-500/20`}
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
@@ -244,7 +269,7 @@ export function Sidebar() {
                 ref={sidebarRef}
                 style={{ width: isCollapsed ? '88px' : `${sidebarWidth}px` }}
                 data-tour="sidebar"
-                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-[28px] border border-white/60 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
+                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-none border-r border-l-0 border-y-0 border-slate-200 dark:border-white/5 shadow-none group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
             >
                 {sidebarContent}
                 
@@ -258,6 +283,17 @@ export function Sidebar() {
                     </div>
                 )}
             </div>
+
+            <ConfirmationModal
+                open={showLogoutConfirm}
+                title="Sign Out"
+                message="Are you sure you want to sign out of FormEase Pro? A full backup of your current database will be saved automatically."
+                confirmLabel={isLoggingOut ? "Signing Out..." : "Yes, Sign Out"}
+                cancelLabel="Cancel"
+                intent="info"
+                onConfirm={handleLogout}
+                onCancel={() => !isLoggingOut && setShowLogoutConfirm(false)}
+            />
         </>
     );
 }

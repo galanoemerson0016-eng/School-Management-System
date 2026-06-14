@@ -154,9 +154,10 @@ export function BackupRestoreModal({
             // Validate file
             const isComprehensive = file.name.includes('SMS_Backup_Comprehensive');
             const isStandard = file.name.includes('FormEase_Backup');
+            const isAuto = file.name.includes('autobackup') || file.name.includes('logoutbackup');
 
-            if (!isComprehensive && !isStandard) {
-                throw new Error('Invalid backup file. Must be FormEase_Backup_*.json or SMS_Backup_Comprehensive_*.json');
+            if (!isComprehensive && !isStandard && !isAuto) {
+                throw new Error('Invalid backup file. Must be FormEase_Backup_*.json, SMS_Backup_Comprehensive_*.json, autobackup_*.json, or logoutbackup_*.json');
             }
             if (file.size > 50 * 1024 * 1024) {
                 // 50MB limit
@@ -168,40 +169,46 @@ export function BackupRestoreModal({
             const rawData = JSON.parse(text);
             let backup: ComprehensiveBackup;
 
-            // Handle Standard to Comprehensive conversion
-            if (isStandard && !rawData.payload && rawData.data) {
+            // Handle Standard/Auto to Comprehensive conversion
+            if (isAuto || (isStandard && !rawData.payload && rawData.data)) {
+                const dbData = isAuto ? rawData : rawData.data;
+                const timestampVal = isAuto
+                    ? (file.lastModified ? new Date(file.lastModified).toISOString() : new Date().toISOString())
+                    : new Date(rawData.timestamp).toISOString();
+                const labelVal = isAuto ? `Auto-backup: ${file.name}` : `Standard Backup: ${rawData.label}`;
+
                 backup = {
                     metadata: {
-                        exportDate: new Date(rawData.timestamp).toISOString(),
-                        version: '1.0.0-converted',
+                        exportDate: timestampVal,
+                        version: '2.0.0-auto-converted',
                         exportedBy: 'Auto-detected',
-                        note: `Standard Backup: ${rawData.label}`,
-                        warning: 'Converted from standard backup format',
+                        note: labelVal,
+                        warning: 'Converted from raw database or standard backup format',
                     },
                     summary: {
-                        activeSchoolYear: rawData.data.activeSchoolYear || 'Unknown',
-                        students: rawData.data.students?.length || 0,
-                        studentProfiles: rawData.data.studentProfiles?.length || 0,
-                        sections: rawData.data.sections?.length || 0,
-                        subjects: rawData.data.subjects?.length || 0,
-                        grades: rawData.data.classRecords?.length || 0,
-                        gradingSheetRecords: rawData.data.gradingSheetRecords?.length || 0,
-                        observedValues: rawData.data.observedValues?.length || 0,
-                        hpsRecords: rawData.data.hpsRecords?.length || 0,
-                        sf2Sheets: rawData.data.sf2Sheets?.length || 0,
-                        announcements: rawData.data.announcements?.length || 0,
-                        schoolYears: rawData.data.schoolYears?.length || 0,
-                        enrollments: rawData.data.enrollments?.length || 0,
-                        users: rawData.data.users?.length || 0,
+                        activeSchoolYear: dbData.activeSchoolYear || 'Unknown',
+                        students: dbData.students?.length || 0,
+                        studentProfiles: dbData.studentProfiles?.length || 0,
+                        sections: dbData.sections?.length || 0,
+                        subjects: dbData.subjects?.length || 0,
+                        grades: dbData.classRecords?.length || 0,
+                        gradingSheetRecords: dbData.gradingSheetRecords?.length || 0,
+                        observedValues: dbData.observedValues?.length || 0,
+                        hpsRecords: dbData.hpsRecords?.length || 0,
+                        sf2Sheets: dbData.sf2Sheets?.length || 0,
+                        announcements: dbData.announcements?.length || 0,
+                        schoolYears: dbData.schoolYears?.length || 0,
+                        enrollments: dbData.enrollments?.length || 0,
+                        users: dbData.users?.length || 0,
                         systemSettings: 0,
                         adviserAssignments: 0,
                         gradingConfiguration: 0,
-                        attendanceRecords: rawData.data.attendanceRecords?.length || 0,
+                        attendanceRecords: dbData.attendanceRecords?.length || 0,
                     },
                     payload: {
-                        ...rawData.data,
-                        schoolProfile: rawData.data.schoolProfile?.[0] || rawData.data.schoolProfile,
-                        attendanceRecords: rawData.data.attendanceRecords || [],
+                        ...dbData,
+                        schoolProfile: dbData.schoolProfile?.[0] || dbData.schoolProfile,
+                        attendanceRecords: dbData.attendanceRecords || [],
                         systemSettings: {},
                         adviserAssignments: [],
                         gradingConfiguration: {},

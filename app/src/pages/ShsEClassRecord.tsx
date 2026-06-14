@@ -401,8 +401,8 @@ export function ShsEClassRecord() {
     }, [subjectName, sectionGradeLevel, sectionTrack]);
 
     const currentWeights = useMemo(() => {
-        return getWeights(currentCluster);
-    }, [currentCluster]);
+        return getWeights(currentCluster, selectedSubjectObj);
+    }, [currentCluster, selectedSubjectObj]);
 
     // Fetch Teacher Name
     const [teacherName, setTeacherName] = useState('');

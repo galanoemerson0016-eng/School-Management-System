@@ -223,6 +223,9 @@ export interface Subject {
     order?: number; // Display order for reordering
     is_teaching_load?: boolean; // Flag for separate E-Class subjects
     term?: 1 | 2 | 3 | 'all' | 'none'; // The term this subject is offered in
+    written_weight?: number;
+    performance_weight?: number;
+    exam_weight?: number;
 }
 
 export interface ClassRecord {
@@ -328,6 +331,7 @@ export interface SF2Sheet {
     month: string; // e.g., "JUNE"
     date_labels: Record<number, string>; // { 1: "3", 2: "4", ... }
     attendance: Record<string, Record<number, string>>; // { "LRN123": { 1: "absent", 2: "tardy" } }
+    remarks: Record<string, string>; // { "LRN123": "NLS - reasons..." }
     updated_at: string;
 }
 

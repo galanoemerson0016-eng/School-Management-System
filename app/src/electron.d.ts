@@ -34,7 +34,7 @@ declare global {
       onCloseRequested: (callback: () => void) => void;
       minimizeApp: () => void;
       maximizeApp: () => void;
-      printToPDF: (options: { defaultFilename?: string; autoSave?: boolean }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      printToPDF: (options: { defaultFilename?: string; autoSave?: boolean; landscape?: boolean; pageSize?: any }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
     };
   }
   const __APP_VERSION__: string;

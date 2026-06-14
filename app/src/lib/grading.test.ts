@@ -171,6 +171,31 @@ describe('getWeights', () => {
       quarterly_exam: 0.20,
     });
   });
+
+  it('returns custom weights when specified on the subject', () => {
+    const customSubject = {
+      written_weight: 0.30,
+      performance_weight: 0.45,
+      exam_weight: 0.25,
+    };
+    expect(getWeights('languages_ap_esp', customSubject)).toEqual({
+      written_works: 0.30,
+      performance_tasks: 0.45,
+      quarterly_exam: 0.25,
+    });
+  });
+
+  it('falls back to cluster default when custom weights are partially missing or incorrect', () => {
+    const incompleteSubject = {
+      written_weight: 0.30,
+      performance_weight: 0.45,
+    };
+    expect(getWeights('mapeh_tle', incompleteSubject)).toEqual({
+      written_works: 0.20,
+      performance_tasks: 0.60,
+      quarterly_exam: 0.20,
+    });
+  });
 });
 
 describe('isDescriptiveGrading — KS1 transition schedule', () => {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload } from 'lucide-react';
+import { Database, User, Shield, Upload, History } from 'lucide-react';
 import { canPurgeMaintenance } from '../lib/rbac';
 import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
@@ -942,6 +942,49 @@ export function SettingsPage() {
                             >
                                 {isExporting ? 'Exporting...' : 'Export Backup'}
                             </button>
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <History className="h-5 w-5 text-emerald-600" />
+                            <h3 className="text-lg font-bold text-slate-900">Version History</h3>
+                        </div>
+                        <p className="mb-4 text-sm text-slate-500">View recent updates, feature rollouts, and version summaries.</p>
+                        
+                        <div className="space-y-4">
+                            {/* Version 2.2.2 */}
+                            <div className="relative pl-5 border-l-2 border-slate-200">
+                                <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.2</span>
+                                    <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5">Latest</span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">
+                                    <li>Added option to edit custom grading weight percentages (Written, Performance, Exam) for subjects.</li>
+                                    <li>Excluded calendar holiday dates dynamically from SF2 daily attendance.</li>
+                                    <li>Updated sidebar and main workspace to modern flat edge-to-edge layouts (no rounded edges).</li>
+                                    <li>Added sign-out confirmation popup with automatic silent database backup.</li>
+                                    <li>Fixed the backup restore interface to support importing auto-backups and logout-backups.</li>
+                                </ul>
+                            </div>
+
+                            {/* Version 2.2.1 */}
+                            <div className="relative pl-5 border-l-2 border-slate-200">
+                                <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.1</span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">
+                                    <li>Removed redundant PDF Download button from the SF2 page.</li>
+                                    <li>Wired up custom printing to PDF using Electron backend.</li>
+                                    <li>Fixed overlapping character spacing issues in Chrome/Electron printing.</li>
+                                    <li>Added auto-loading of standard subjects (Grade 1 to 12) for empty databases.</li>
+                                    <li>Fixed month-switching and session logout SF2 data preservation.</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>

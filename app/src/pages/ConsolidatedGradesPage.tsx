@@ -479,7 +479,7 @@ export function ConsolidatedGradesPage() {
                     const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
 
                     const cluster = getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack);
-                    const weights = getWeights(cluster);
+                    const weights = getWeights(cluster, subject);
                     const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
                     const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
 
