@@ -246,6 +246,8 @@ export function SectionsPage() {
                                         const subjects = section.is_teaching_load
                                             ? [...(section.taught_subjects || [])].sort((a, b) => a.localeCompare(b))
                                             : [];
+                                        const isGrade11 = (section.section_grade_level || '').includes('Grade 11');
+                                        const isGrade12 = (section.section_grade_level || '').includes('Grade 12');
                                         return (
                                             <div
                                                 key={section.id}
@@ -267,6 +269,25 @@ export function SectionsPage() {
                                                                     ? section.adviser_name
                                                                     : <span className="italic text-slate-400">No adviser</span>}
                                                             </p>
+                                                            {isGrade11 && section.track && (
+                                                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100/80 uppercase tracking-wider">
+                                                                        {section.track} Track
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            {isGrade12 && section.track && (
+                                                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100/80 uppercase tracking-wider">
+                                                                        {section.track}
+                                                                    </span>
+                                                                    {section.strand && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100/80 uppercase tracking-wider">
+                                                                            {section.strand}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     {section.is_advisory ? (

@@ -953,12 +953,26 @@ export function SettingsPage() {
                         <p className="mb-4 text-sm text-slate-500">View recent updates, feature rollouts, and version summaries.</p>
                         
                         <div className="space-y-4">
-                            {/* Version 2.2.2 */}
+                            {/* Version 2.2.3 */}
                             <div className="relative pl-5 border-l-2 border-slate-200">
                                 <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.2</span>
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.3</span>
                                     <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5">Latest</span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">
+                                    <li>Added Track display for Grade 11 section cards and Track & Strand display for Grade 12 section cards.</li>
+                                    <li>Integrated dynamic statement-form comment suggestions engine with Tone selection in SF9 Remarks.</li>
+                                    <li>Capped SF9 comments at 250 characters with validation warning and automatic spacing/punctuation helpers.</li>
+                                </ul>
+                            </div>
+
+                            {/* Version 2.2.2 */}
+                            <div className="relative pl-5 border-l-2 border-slate-200">
+                                <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.2</span>
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
                                 <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">

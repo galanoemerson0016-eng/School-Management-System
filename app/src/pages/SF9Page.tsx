@@ -1259,6 +1259,7 @@ interface SF9ExactDocumentProps {
     grades: Record<string, number[]>;
     subjects: SF9SubjectItem[];
     observedValues: Record<string, string[]>;
+    comments?: string[];
     attendance: {
         months: string[];
         schoolDays: number[];
@@ -1274,7 +1275,7 @@ interface SF9ExactDocumentProps {
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
     adviser, principal, principalTitle,
-    grades, subjects: currentSubjects, attendance, pageSize, logoUrl, printMode = 'full', schoolProfile
+    grades, subjects: currentSubjects, comments = ['', '', ''], attendance, pageSize, logoUrl, printMode = 'full', schoolProfile
 }: SF9ExactDocumentProps) {
 
     const STRAND_MAPPING: Record<string, string> = {
@@ -1678,15 +1679,15 @@ function SF9Pages({
                                 <View style={[styles.singleCommentsBox, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                                     <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 1</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(0) ? (comments[0] || '') : ''}</Text>
                                     </View>
                                     <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 2</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(1) ? (comments[1] || '') : ''}</Text>
                                     </View>
                                     <View style={[styles.singleCommentTermRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 3</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}></Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(2) ? (comments[2] || '') : ''}</Text>
                                     </View>
                                 </View>
                             </View>
@@ -1800,7 +1801,12 @@ export function SF9BatchDocument({
 }: SF9BatchDocumentProps) {
     return (
         <Document title={`SF9 Batch - ${sectionObj.section_name}`}>
-            {students.map((student) => {
+            {students.filter(student => {
+                if (printMode === 'full') return true;
+                const q = printMode === 'term1' ? 1 : printMode === 'term2' ? 2 : 3;
+                const comment = observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                return comment.trim() !== '';
+            }).map((student) => {
                 const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, subjectSelections);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj);
@@ -1808,6 +1814,9 @@ export function SF9BatchDocument({
                 // Resolve student's section name (supports both ID and name stored in student_section)
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                 const sectionName = resolvedSection?.section_name || sectionObj.section_name;
+
+                const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
                 return (
                     <SF9PagesMemo 
@@ -1825,6 +1834,7 @@ export function SF9BatchDocument({
                         grades={grades}
                         subjects={computedSubjects}
                         observedValues={values}
+                        comments={studentComments}
                         attendance={attendance}
                         pageSize={pageSize}
                         logoUrl={schoolProfile.logo_url || ''}
@@ -1858,6 +1868,9 @@ export function SF9Page() {
     const [isPending, startTransition] = useTransition();
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
     const [printMode, setPrintMode] = useState<SF9PrintMode>('full');
+    const [suggestionTab, setSuggestionTab] = useState<'academic' | 'behavior' | 'growth'>('academic');
+    const [suggestionMode, setSuggestionMode] = useState<'replace' | 'append'>('append');
+    const [suggestionTone, setSuggestionTone] = useState<'positive' | 'neutral' | 'negative'>('positive');
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const stabilizationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2096,6 +2109,33 @@ export function SF9Page() {
         return computeStudentGrades(selectedStudent, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
     }, [selectedStudent, selectedSectionObj, gradingSheetRecords, activeSchoolYear, subjects, schoolProfile, currentSubjectSelections]);
 
+    // Automatically resolve default suggestion tone from student grades when modal state changes
+    useEffect(() => {
+        if (isValuesModalOpen && selectedStudent) {
+            const gradesList: number[] = [];
+            if (studentGrades?.grades) {
+                Object.values(studentGrades.grades).forEach((termGrades) => {
+                    const gradeVal = termGrades[modalQuarter - 1];
+                    if (gradeVal && gradeVal > 0) {
+                        gradesList.push(gradeVal);
+                    }
+                });
+            }
+            if (gradesList.length === 0) {
+                setSuggestionTone('positive');
+            } else {
+                const avg = gradesList.reduce((a, b) => a + b, 0) / gradesList.length;
+                if (avg >= 85) {
+                    setSuggestionTone('positive');
+                } else if (avg >= 75) {
+                    setSuggestionTone('neutral');
+                } else {
+                    setSuggestionTone('negative');
+                }
+            }
+        }
+    }, [isValuesModalOpen, selectedStudent, modalQuarter, studentGrades]);
+
     const singleDocument = useMemo(() => {
         if (!selectedStudent || !selectedSectionObj) return null;
         
@@ -2103,6 +2143,9 @@ export function SF9Page() {
 
         const studentResolvedSection = sections.find(s => s.id === selectedStudent.student_section || s.section_name === selectedStudent.student_section);
         const resolvedSectionName = studentResolvedSection?.section_name || selectedSectionObj.section_name;
+
+        const getQComment = (q: number) => observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+        const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
         return (
             <SF9ExactDocument 
@@ -2119,6 +2162,7 @@ export function SF9Page() {
                 grades={studentGrades.grades || {}} 
                 subjects={studentGrades.subjects || []}
                 observedValues={studentValues} 
+                comments={studentComments}
                 attendance={attendance}
                 pageSize={pageSize} 
                 logoUrl={schoolProfile.logo_url || ''}
@@ -2126,7 +2170,7 @@ export function SF9Page() {
                 printMode={printMode}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, sf2Sheets, pageSize, sections, printMode]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, pageSize, sections, printMode]);
 
     const handlePrint = useCallback(async () => {
         if (!selectedStudent || !singleDocument || isShsSf9Section) return;
@@ -2182,7 +2226,12 @@ export function SF9Page() {
 
     const batchDocument = useMemo(() => {
         if (!isGeneratingBatch || !selectedSectionObj || sectionStudents.length === 0) return null;
-        const sortedStudents = [...males, ...females];
+        const sortedStudents = [...males, ...females].filter(student => {
+            if (printMode === 'full') return true;
+            const q = printMode === 'term1' ? 1 : printMode === 'term2' ? 2 : 3;
+            const comment = observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+            return comment.trim() !== '';
+        });
         return (
             <Document title={`SF9 Batch - ${selectedSectionObj.section_name}`}>
                 {sortedStudents.map((student) => {
@@ -2192,6 +2241,9 @@ export function SF9Page() {
                     
                     const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                     const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+
+                    const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                    const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
                     return (
                         <SF9PagesMemo 
@@ -2209,6 +2261,7 @@ export function SF9Page() {
                             grades={grades}
                             subjects={compSubjects}
                             observedValues={values}
+                            comments={studentComments}
                             attendance={attendance}
                             pageSize={pageSize}
                             logoUrl={schoolProfile.logo_url || ''}
@@ -2274,6 +2327,15 @@ export function SF9Page() {
         }
 
         const quarters = Object.keys(pendingChanges).map(Number);
+        
+        // Validate that comments do not exceed 250 characters
+        for (const q of quarters) {
+            const commentVal = pendingChanges[q]?.['teacher_comment'];
+            if (commentVal && commentVal.length > 250) {
+                useAppStore.getState().showNotification(`Term ${q} comments/remarks exceed the 250 characters limit. Cannot save.`, "error");
+                return;
+            }
+        }
         
         for (const q of quarters) {
             const changesForQ = pendingChanges[q];
@@ -2474,13 +2536,13 @@ export function SF9Page() {
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         {/* Divider between Center and Right */}
                         <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
-                        {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1to10 && (
+                        {selectedStudent && !isBatchReady && !isShsSf9Section && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
                                 className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
                             >
                                 <Edit3 className="w-3 h-3 text-blue-500" />
-                                Values
+                                {isGrade1to10 ? 'Remarks' : 'Values'}
                             </button>
                         )}
 
@@ -2787,7 +2849,9 @@ export function SF9Page() {
                                         <Edit3 className="w-7 h-7 text-white" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">Evaluate Values</h2>
+                                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                                            {isGrade1to10 ? "Teacher's Comments/Remarks" : 'Evaluate Values'}
+                                        </h2>
                                         <div className="flex items-center gap-3 mt-2.5">
                                             <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-indigo-100">{selectedStudent.lrn}</span>
                                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{formatLearnerName(selectedStudent)}</span>
@@ -2816,58 +2880,392 @@ export function SF9Page() {
                                 ))}
                             </div>
 
-                            {/* Evaluation Grid */}
-                            <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-slate-50/20">
-                                <div className="max-w-5xl mx-auto space-y-12">
-                                    {CORE_VALUES.map((cv) => (
-                                        <div key={cv.name} className="space-y-6">
-                                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em] ml-2">{cv.name}</h3>
-                                            <div className="grid grid-cols-1 gap-4">
-                                                {cv.behaviors.map((behavior, bIdx) => {
-                                                    const key = `${cv.name}_${bIdx}`;
-                                                    const pendingForQ = pendingChanges[modalQuarter]?.[key];
-                                                    const currentRating = pendingForQ !== undefined 
-                                                        ? pendingForQ 
-                                                        : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values[key] || '';
-                                                    
-                                                    return (
-                                                        <div key={bIdx} className="bg-white p-6 rounded-2.5xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                                                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                                                                <p className="text-sm font-bold text-slate-600 leading-relaxed max-w-2xl">
-                                                                    {behavior}
-                                                                </p>
-                                                                <div className="flex items-center gap-1.5 shrink-0 w-full overflow-x-auto custom-scrollbar">
-                                                                    {[
-                                                                        { val: 'AO', label: 'AO', color: 'bg-emerald-500', desc: 'Always Observed' },
-                                                                        { val: 'SO', label: 'SO', color: 'bg-indigo-500', desc: 'Sometimes Observed' },
-                                                                        { val: 'RO', label: 'RO', color: 'bg-amber-500', desc: 'Rarely Observed' },
-                                                                        { val: 'NO', label: 'NO', color: 'bg-rose-500', desc: 'Not Observed' }
-                                                                    ].map((opt) => (
+                            {/* Evaluation Grid or Remarks Textarea */}
+                            <div className={`flex-1 overflow-y-auto custom-scrollbar bg-slate-50/20 ${isGrade1to10 ? 'p-4 md:p-6' : 'p-12'}`}>
+                                <div className="max-w-5xl mx-auto">
+                                    {isGrade1to10 ? (() => {
+                                        const currentComment = pendingChanges[modalQuarter]?.['teacher_comment'] !== undefined
+                                            ? pendingChanges[modalQuarter]['teacher_comment']
+                                            : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values?.['teacher_comment'] || '';
+                                        
+                                        const pronoun = selectedStudent.gender?.toLowerCase() === 'female' ? 'She' : 'He';
+                                        const possessive = selectedStudent.gender?.toLowerCase() === 'female' ? 'her' : 'his';
+                                        const object = selectedStudent.gender?.toLowerCase() === 'female' ? 'her' : 'him';
+                                        const studentName = selectedStudent.first_name || 'The student';
+
+                                        const getSuggestionsForTab = () => {
+                                            // Academic Performance-based Suggestions
+                                            if (suggestionTab === 'academic') {
+                                                if (suggestionTone === 'positive') {
+                                                    return [
+                                                        `${studentName} demonstrates outstanding academic performance, showing strong critical thinking and consistency across all subjects.`,
+                                                        `${studentName} exhibits an excellent grasp of concepts and consistently produces work of high quality.`,
+                                                        `${studentName} is a highly self-motivated learner who shows advanced comprehension and analytical skills.`,
+                                                        `${studentName} consistently delivers exceptional performance in both oral and written works.`,
+                                                        `${studentName} has a sharp mind and displays an outstanding ability to solve complex problems.`,
+                                                        `${studentName} maintains excellent academic standards and is very dedicated to learning.`,
+                                                        `${studentName} possesses a quick understanding of the concepts taught.`,
+                                                        `${studentName} displays superior work in all academic areas.`
+                                                    ];
+                                                }
+                                                if (suggestionTone === 'neutral') {
+                                                    return [
+                                                        `${studentName} performs satisfactorily in class, meeting the basic expectations across most subjects.`,
+                                                        `${studentName} has shown steady academic progress and completes requirements with acceptable quality.`,
+                                                        `${studentName} displays a fair understanding of the lessons and participates regularly in class.`,
+                                                        `${studentName} is working at a steady pace and is meeting the grade-level standards.`,
+                                                        `${studentName} shows a balanced performance and completes tasks with satisfactory results.`,
+                                                        `${studentName} is making progress but needs to focus more on lesson reviews.`,
+                                                        `${studentName} exhibits satisfactory work and completes most requirements.`,
+                                                        `${studentName} participates fairly in subjects, showing potential to do better.`
+                                                    ];
+                                                }
+                                                // negative / needs improvement
+                                                return [
+                                                    `${studentName} struggled with basic concepts this term and needs constant guidance and review at home.`,
+                                                    `${studentName} needs significant academic support and guidance to help ${object} meet the grade-level expectations.`,
+                                                    `${studentName} has missed several tasks and needs to catch up on lessons to avoid falling behind.`,
+                                                    `${studentName} needs to practice reading comprehension and mathematical skills regularly.`,
+                                                    `${studentName} requires closer monitoring of homework and class requirements to improve ${possessive} marks.`,
+                                                    `${studentName} needs to practice reading and math skills regularly.`,
+                                                    `${studentName} needs to pay closer attention to guidelines and deadlines.`,
+                                                    `${studentName} is capable of improvement if regular class attendance is maintained.`
+                                                ];
+                                            }
+
+                                            // Behavior & Attitude-based Suggestions
+                                            if (suggestionTab === 'behavior') {
+                                                if (suggestionTone === 'positive') {
+                                                    return [
+                                                        `${pronoun} is polite, cooperative, and actively leads in class discussions and activities.`,
+                                                        `${pronoun} shows exemplary leadership skills and is always willing to support ${possessive} peers.`,
+                                                        `${pronoun} maintains an excellent focus in class and serves as a positive role model for classmates.`,
+                                                        `${pronoun} displays outstanding character traits and is highly respected by peers.`,
+                                                        `${pronoun} handles classroom responsibilities with maturity and integrity.`,
+                                                        `${pronoun} exhibits great maturity and responsibility in daily tasks.`,
+                                                        `${pronoun} is highly dependable and always displays positive behaviors.`,
+                                                        `${pronoun} demonstrates excellent self-discipline and work habits.`
+                                                    ];
+                                                }
+                                                if (suggestionTone === 'neutral') {
+                                                    return [
+                                                        `${pronoun} shows respect and maintains good relationships with classmates.`,
+                                                        `${pronoun} is generally cooperative during group tasks and is helpful around the classroom.`,
+                                                        `${pronoun} follows classroom guidelines and displays a friendly, polite attitude.`,
+                                                        `${pronoun} is well-behaved and cooperative under direct teacher supervision.`,
+                                                        `${pronoun} gets along well with classmates, though occasionally socializes during study time.`,
+                                                        `${pronoun} is well-behaved and follows instructions well.`,
+                                                        `${pronoun} is polite and shows good manners towards classmates and teachers.`,
+                                                        `${pronoun} exhibits a positive attitude towards classmates.`
+                                                    ];
+                                                }
+                                                // negative / behavior concerns
+                                                return [
+                                                    `${pronoun} must focus more on ${possessive} studies and avoid distractions during class discussions.`,
+                                                    `${pronoun} needs to improve behavior and respect school/classroom rules.`,
+                                                    `${pronoun} needs to show more cooperative behavior and participate positively in group activities.`,
+                                                    `${pronoun} needs to develop better self-control and avoid disruptive behavior during lectures.`,
+                                                    `${pronoun} needs constant reminders to stay seated, listen attentively, and focus on task.`,
+                                                    `${pronoun} needs to improve behavior and respect classroom policies.`,
+                                                    `${pronoun} needs to show more cooperative behavior during group activities.`,
+                                                    `${pronoun} needs to develop better self-control and focus in class.`
+                                                ];
+                                            }
+
+                                            // Growth & Next Steps-based Suggestions
+                                            if (suggestionTab === 'growth') {
+                                                if (suggestionTone === 'positive') {
+                                                    return [
+                                                        `Keep up the excellent work and continue to strive for academic excellence!`,
+                                                        `${pronoun} is encouraged to maintain this outstanding level of dedication and curiosity.`,
+                                                        `Continue to challenge yourself with more advanced reading and tasks.`,
+                                                        `Your dedication to learning is highly commendable. Keep shining!`,
+                                                        `Keep exploring new ideas and sharing your valuable insights in class.`,
+                                                        `Keep up the outstanding effort and lead your classmates by example!`,
+                                                        `Maintain your exceptional focus and passion for learning.`,
+                                                        `Continue to set high standards for yourself in all subjects.`
+                                                    ];
+                                                }
+                                                if (suggestionTone === 'neutral') {
+                                                    return [
+                                                        `Continue this good progress and aim even higher next term!`,
+                                                        `Striving for more active participation will help ${object} reach ${possessive} full potential.`,
+                                                        `Keep up the good work and maintain this positive momentum.`,
+                                                        `Reviewing your notes daily will help you feel more confident during exams.`,
+                                                        `With more consistent effort, you are capable of achieving even better results.`,
+                                                        `Keep up the great effort and keep challenging yourself daily.`,
+                                                        `Maintain this level of interest and focus next term.`,
+                                                        `You have what it takes to reach even higher goals. Keep it up!`
+                                                    ];
+                                                }
+                                                // negative / growth concerns
+                                                return [
+                                                    `Attending remediation classes and doing daily home reviews are highly recommended.`,
+                                                    `A closer parent-teacher coordination is needed to support ${possessive} academic needs.`,
+                                                    `${pronoun} is urged to put more effort and focus into ${possessive} studies starting next term.`,
+                                                    `Seeking peer tutoring or extra teacher guidance would greatly help ${object} improve.`,
+                                                    `Please ensure all late assignments are completed and submitted to catch up.`,
+                                                    `A structured study plan at home will help improve your grades.`,
+                                                    `Please ensure all late assignments are completed and submitted.`,
+                                                    `Do not hesitate to ask for help when a topic seems difficult.`
+                                                ];
+                                            }
+
+                                            return [];
+                                        };
+
+                                        const suggestions = getSuggestionsForTab();
+
+                                        const applySuggestion = (suggestion: string) => {
+                                            let finalComment = suggestion;
+
+                                            // Dynamic Pronoun-to-Firstname substitution:
+                                            // If the current comment box is empty, automatically replace starting He/She with student's first name.
+                                            if (!currentComment.trim()) {
+                                                if (suggestion.startsWith('He ')) {
+                                                    finalComment = studentName + suggestion.slice(2);
+                                                } else if (suggestion.startsWith('She ')) {
+                                                    finalComment = studentName + suggestion.slice(3);
+                                                }
+                                            }
+
+                                            if (suggestionMode === 'append') {
+                                                if (currentComment.trim()) {
+                                                    const trimmed = currentComment.trim();
+                                                    // Check if it ends with a punctuation (. or ! or ?)
+                                                    const endsWithPunct = /[.!?]$/.test(trimmed);
+                                                    finalComment = trimmed + (endsWithPunct ? '' : '.') + ' ' + suggestion;
+                                                }
+                                            }
+
+                                            if (finalComment.length > 250) {
+                                                useAppStore.getState().showNotification('Adding this remark would exceed the 250-character limit.', 'error');
+                                                return;
+                                            }
+
+                                            setPendingChanges(prev => ({
+                                                ...prev,
+                                                [modalQuarter]: {
+                                                    ...(prev[modalQuarter] || {}),
+                                                    'teacher_comment': finalComment
+                                                }
+                                            }));
+                                        };
+
+                                        return (
+                                            <div className="space-y-4">
+                                                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <label htmlFor={`comments-textarea-term-${modalQuarter}`} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                            Teacher's Comments / Remarks (Term {modalQuarter})
+                                                        </label>
+                                                        <p className="text-xs text-slate-500 font-medium">
+                                                            Enter remarks and comments regarding the student's progress and behavior for Term {modalQuarter}. These will be printed on the SF9 report card.
+                                                        </p>
+                                                    </div>
+                                                    <textarea
+                                                        id={`comments-textarea-term-${modalQuarter}`}
+                                                        value={currentComment}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (val.length > 250) {
+                                                                useAppStore.getState().showNotification('Comments/remarks cannot exceed 250 characters.', 'error');
+                                                                return;
+                                                                }
+                                                            setPendingChanges(prev => ({
+                                                                ...prev,
+                                                                [modalQuarter]: {
+                                                                    ...(prev[modalQuarter] || {}),
+                                                                    'teacher_comment': val
+                                                                }
+                                                            }));
+                                                        }}
+                                                        placeholder={`Type comments/remarks for Term ${modalQuarter} here...`}
+                                                        rows={4}
+                                                        maxLength={250}
+                                                        className="w-full p-4.5 bg-slate-50/60 border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-2xl text-slate-700 font-medium text-sm leading-relaxed transition-all outline-none resize-none focus:ring-4 focus:ring-indigo-100"
+                                                    />
+                                                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                                        <div className="flex items-center gap-4">
+                                                            <span>Maximum 250 characters</span>
+                                                            {currentComment.length > 0 && (
+                                                                <>
+                                                                    <span className="text-slate-300">|</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setPendingChanges(prev => ({
+                                                                                ...prev,
+                                                                                [modalQuarter]: {
+                                                                                    ...(prev[modalQuarter] || {}),
+                                                                                    'teacher_comment': ''
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        className="text-red-500 hover:text-red-600 transition-colors uppercase tracking-widest text-[9px] font-black cursor-pointer"
+                                                                    >
+                                                                        Clear Text
+                                                                    </button>
+                                                                    <span className="text-slate-300">|</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            navigator.clipboard.writeText(currentComment);
+                                                                            useAppStore.getState().showNotification('Comment copied to clipboard!', 'success');
+                                                                        }}
+                                                                        className="text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-widest text-[9px] font-black cursor-pointer"
+                                                                    >
+                                                                        Copy Text
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <span className={currentComment.length >= 225 ? 'text-amber-500 font-black' : ''}>
+                                                            {currentComment.length} / 250
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Suggested Remarks Builder Section */}
+                                                    <div className="flex flex-col gap-3 pt-3.5 border-t border-slate-100">
+                                                        {/* Category and Tone Toggles */}
+                                                        <div className="flex flex-col gap-2.5">
+                                                            {/* Category Row */}
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                        Remarks Category:
+                                                                    </span>
+                                                                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
+                                                                        {(['academic', 'behavior', 'growth'] as const).map((tab) => (
+                                                                            <button
+                                                                                key={tab}
+                                                                                type="button"
+                                                                                onClick={() => setSuggestionTab(tab)}
+                                                                                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${suggestionTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                            >
+                                                                                {tab}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 self-start sm:self-center">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Mode:</span>
+                                                                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
                                                                         <button
-                                                                            key={opt.val}
-                                                                            onClick={() => {
-                                                                                setPendingChanges(prev => ({
-                                                                                    ...prev,
-                                                                                    [modalQuarter]: {
-                                                                                        ...(prev[modalQuarter] || {}),
-                                                                                        [key]: opt.val
-                                                                                    }
-                                                                                }));
-                                                                            }}
-                                                                            className={`w-12 h-12 rounded-xl font-black text-[10px] transition-all relative ${currentRating === opt.val ? `${opt.color} text-white shadow-lg scale-110 z-10` : 'bg-slate-50 text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
-                                                                            title={opt.desc}
+                                                                            type="button"
+                                                                            onClick={() => setSuggestionMode('replace')}
+                                                                            className={`px-2.5 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider transition-all ${suggestionMode === 'replace' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                                                         >
-                                                                            {opt.label}
+                                                                            Replace
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setSuggestionMode('append')}
+                                                                            className={`px-2.5 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider transition-all ${suggestionMode === 'append' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        >
+                                                                            Append
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Tone/Performance Level Row */}
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    Remarks Tone:
+                                                                </span>
+                                                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
+                                                                    {([
+                                                                        { key: 'positive', label: 'Positive' },
+                                                                        { key: 'neutral', label: 'Neutral' },
+                                                                        { key: 'negative', label: 'Needs Improvement' }
+                                                                    ] as const).map((tone) => (
+                                                                        <button
+                                                                            key={tone.key}
+                                                                            type="button"
+                                                                            onClick={() => setSuggestionTone(tone.key)}
+                                                                            className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${suggestionTone === tone.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        >
+                                                                            {tone.label}
                                                                         </button>
                                                                     ))}
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
+                                                        
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {suggestions.map((suggestion, idx) => (
+                                                                <button
+                                                                    key={idx}
+                                                                    type="button"
+                                                                    onClick={() => applySuggestion(suggestion)}
+                                                                    className="w-full text-left p-2.5 bg-slate-50/50 hover:bg-indigo-50/50 border border-slate-100 hover:border-indigo-100 rounded-xl text-slate-600 hover:text-indigo-600 font-semibold text-xs transition-all duration-200 active:scale-[0.995] cursor-pointer flex justify-between items-center group"
+                                                                >
+                                                                    <span className="flex-1 pr-4 leading-relaxed">{suggestion}</span>
+                                                                    <span className="text-[9px] font-black text-indigo-400 group-hover:text-indigo-600 uppercase tracking-wider whitespace-nowrap shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        {suggestionMode === 'append' ? '+ Append' : '✓ Replace'}
+                                                                    </span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                </div>
                                             </div>
+                                        );
+                                    })() : (
+                                        <div className="space-y-12">
+                                            {CORE_VALUES.map((cv) => (
+                                                <div key={cv.name} className="space-y-6">
+                                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em] ml-2">{cv.name}</h3>
+                                                    <div className="grid grid-cols-1 gap-4">
+                                                        {cv.behaviors.map((behavior, bIdx) => {
+                                                            const key = `${cv.name}_${bIdx}`;
+                                                            const pendingForQ = pendingChanges[modalQuarter]?.[key];
+                                                            const currentRating = pendingForQ !== undefined 
+                                                                ? pendingForQ 
+                                                                : observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === modalQuarter)?.values[key] || '';
+                                                            
+                                                            return (
+                                                                <div key={bIdx} className="bg-white p-6 rounded-2.5xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                                                        <p className="text-sm font-bold text-slate-600 leading-relaxed max-w-2xl">
+                                                                            {behavior}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-1.5 shrink-0 w-full overflow-x-auto custom-scrollbar">
+                                                                            {[
+                                                                                { val: 'AO', label: 'AO', color: 'bg-emerald-500', desc: 'Always Observed' },
+                                                                                { val: 'SO', label: 'SO', color: 'bg-indigo-500', desc: 'Sometimes Observed' },
+                                                                                { val: 'RO', label: 'RO', color: 'bg-amber-500', desc: 'Rarely Observed' },
+                                                                                { val: 'NO', label: 'NO', color: 'bg-rose-500', desc: 'Not Observed' }
+                                                                            ].map((opt) => (
+                                                                                <button
+                                                                                    key={opt.val}
+                                                                                    onClick={() => {
+                                                                                        setPendingChanges(prev => ({
+                                                                                            ...prev,
+                                                                                            [modalQuarter]: {
+                                                                                                ...(prev[modalQuarter] || {}),
+                                                                                                [key]: opt.val
+                                                                                            }
+                                                                                        }));
+                                                                                    }}
+                                                                                    className={`w-12 h-12 rounded-xl font-black text-[10px] transition-all relative ${currentRating === opt.val ? `${opt.color} text-white shadow-lg scale-110 z-10` : 'bg-slate-50 text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+                                                                                    title={opt.desc}
+                                                                                >
+                                                                                    {opt.label}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
 
