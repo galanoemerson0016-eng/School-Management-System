@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "2.2.8",
+  "version": "2.2.9",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -24,6 +24,7 @@
     "appId": "com.formease.pro",
     "productName": "FormEase Pro",
     "copyright": "Copyright © 2026 Department of Education",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
