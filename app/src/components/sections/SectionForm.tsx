@@ -287,23 +287,34 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const grade = formData.section_grade_level as GradeLevel;
 
         // The Subjects Hub is the Source of Truth.
-        // We only show subjects that exist in the hub for this grade.
-        // This includes:
-        // 1. Grade-level templates (no section_id)
-        // 2. Subjects already assigned to this specific section
-        const hubSubjects = subjects.filter(s => 
-            s.grade_level === grade && 
-            !s.is_teaching_load
-        );
+        // We resolve subjects in order of specificity:
+        // 1. Section-specific subjects (if configured)
+        // 2. Grade-level template subjects (if configured)
+        // 3. Fallback to standard curriculum templates
+        let hubSubjects = formData.id
+            ? subjects.filter(s => 
+                s.grade_level === grade && 
+                !s.is_teaching_load &&
+                s.section_id === formData.id
+              )
+            : [];
+
+        if (hubSubjects.length === 0) {
+            hubSubjects = subjects.filter(s => 
+                s.grade_level === grade && 
+                !s.is_teaching_load &&
+                !s.section_id
+            );
+        }
 
         // Map to the format expected by the UI and ensure uniqueness by name
         const uniqueList: { name: string; code: string }[] = [];
         const seenNames = new Set<string>();
 
         const addToList = (name: string, code: string) => {
-            const normalized = normalizeSubjectLabel(name);
-            if (!seenNames.has(normalized)) {
-                seenNames.add(normalized);
+            const key = name.trim().toLowerCase();
+            if (!seenNames.has(key)) {
+                seenNames.add(key);
                 uniqueList.push({ name, code });
             }
         };
@@ -336,7 +347,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 if (indexB !== -1) return 1;
                 return a.name.localeCompare(b.name);
             });
-    }, [formData.section_grade_level, subjects]);
+    }, [formData.section_grade_level, formData.id, subjects]);
 
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 

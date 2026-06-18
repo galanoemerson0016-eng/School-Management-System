@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { filterSF9Sections } from '../lib/rbac';
@@ -23,7 +22,9 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-// ── Activity Log System (localStorage) ───────────────────────────────
+// ── Activity Log System (IndexedDB) ──────────────────────────────────
+import { db as idb } from '../services/database';
+
 interface ActivityEntry {
     id: string;
     type: 'sf9' | 'sf10' | 'sf8' | 'sf6' | 'sf5' | 'attendance';
@@ -33,27 +34,16 @@ interface ActivityEntry {
     user_id: string;
 }
 
-const ACTIVITY_KEY = 'school_forms_activity_log';
-
-function getActivityLog(): ActivityEntry[] {
-    try {
-        const raw = localStorage.getItem(ACTIVITY_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-}
-
-function pushActivity(type: ActivityEntry['type'], action: string, detail: string, user_id: string) {
-    const log = getActivityLog();
-    log.unshift({
+async function pushActivity(type: ActivityEntry['type'], action: string, detail: string, user_id: string) {
+    const entry: ActivityEntry = {
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         type,
         action,
         detail,
         timestamp: Date.now(),
         user_id,
-    });
-    // Keep last 50 entries
-    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(log.slice(0, 50)));
+    };
+    await idb.addActivityEntry(entry);
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -89,34 +79,8 @@ function getActivityColor(type: ActivityEntry['type']): string {
     return 'amber';
 }
 
-// ── Animated Number Counter ──────────────────────────────────────────
-function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
-    const [display, setDisplay] = useState(0);
-    const ref = useRef<number | null>(null);
-    const previousValueRef = useRef(0);
-
-    useEffect(() => {
-        const start = previousValueRef.current;
-        const end = value;
-        const duration = 1200;
-        const startTime = performance.now();
-
-        const animate = (now: number) => {
-            const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setDisplay(Math.round(start + (end - start) * eased));
-            if (progress < 1) {
-                ref.current = requestAnimationFrame(animate);
-            }
-        };
-
-        ref.current = requestAnimationFrame(animate);
-        previousValueRef.current = value;
-        return () => { if (ref.current) cancelAnimationFrame(ref.current); };
-    }, [value]);
-
-    return <>{display}{suffix}</>;
+function AnimatedNumber({ value, suffix = '' }: { value: number | string; suffix?: string }) {
+    return <>{value}{suffix}</>;
 }
 
 // ── Circular Progress Ring ───────────────────────────────────────────
@@ -135,14 +99,12 @@ function ProgressRing({ progress, color, size = 36 }: { progress: number; color:
     return (
         <svg width={size} height={size} className="transform -rotate-90">
             <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-slate-100 dark:text-white/5" />
-            <motion.circle
+            <circle
                 cx={size / 2} cy={size / 2} r={radius} fill="none"
                 stroke={colorMap[color] || '#10b981'}
                 strokeWidth={strokeWidth} strokeLinecap="round"
                 strokeDasharray={circumference}
-                initial={{ strokeDashoffset: circumference }}
-                animate={{ strokeDashoffset: offset }}
-                transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 }}
+                strokeDashoffset={offset}
             />
         </svg>
     );
@@ -160,17 +122,7 @@ interface FormCardProps {
     delay?: number;
 }
 
-function FormCard({ title, description, icon: Icon, color, badge, stats, onSelect, delay = 0 }: FormCardProps) {
-    const cardRef = useRef<HTMLDivElement>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-    const [isHovering, setIsHovering] = useState(false);
-
-    const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        if (!cardRef.current) return;
-        const rect = cardRef.current.getBoundingClientRect();
-        setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    }, []);
-
+function FormCard({ title, description, icon: Icon, color, badge, stats, onSelect }: FormCardProps) {
     const colorMap: Record<string, { bg: string; text: string; border: string; accent: string; gradient: string }> = {
         emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/20', accent: '#10b981', gradient: 'from-emerald-500 to-teal-400' },
         blue: { bg: 'bg-blue-500/10', text: 'text-blue-600', border: 'border-blue-500/20', accent: '#3b82f6', gradient: 'from-blue-500 to-indigo-400' },
@@ -185,17 +137,9 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
     const c = colorMap[color] || colorMap.emerald;
 
     return (
-        <motion.div
-            ref={cardRef}
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -6, scale: 1.015 }}
-            onMouseMove={handleMouseMove}
-            onMouseEnter={() => setIsHovering(true)}
-            onMouseLeave={() => setIsHovering(false)}
+        <div
             onClick={onSelect}
-            className={`group relative flex flex-col items-center text-center p-5 backdrop-blur-xl rounded-[22px] border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-[0_20px_60px_rgba(31,38,135,0.12)] ${
+            className={`group relative flex flex-col items-center text-center p-5 backdrop-blur-xl rounded-[22px] border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-[0_20px_60px_rgba(31,38,135,0.12)] hover:-translate-y-1.5 hover:scale-[1.015] ${
                 color === 'emerald' ? 'bg-emerald-50/80 dark:bg-emerald-500/5 hover:bg-emerald-100/80' : 
                 color === 'blue' ? 'bg-blue-50/80 dark:bg-blue-500/5 hover:bg-blue-100/80' : 
                 color === 'rose' ? 'bg-rose-50/80 dark:bg-rose-500/5 hover:bg-rose-100/80' :
@@ -213,16 +157,6 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
             <div className={`absolute -right-6 -bottom-6 opacity-[0.03] dark:opacity-[0.05] group-hover:opacity-[0.08] transition-all duration-700 pointer-events-none transform -rotate-12 group-hover:rotate-0 group-hover:scale-110 ${c.text}`}>
                 <Icon className="w-40 h-40" />
             </div>
-
-            {/* Mouse-tracking glow */}
-            {isHovering && (
-                <div className="absolute pointer-events-none" style={{
-                    left: mousePos.x - 120, top: mousePos.y - 120,
-                    width: 240, height: 240,
-                    background: `radial-gradient(circle, ${c.accent}15 0%, transparent 70%)`,
-                    filter: 'blur(20px)',
-                }} />
-            )}
 
             {/* Header row: icon + badge */}
             <div className="flex flex-col items-center mb-3 relative z-10 w-full">
@@ -254,7 +188,7 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
                             </div>
                         ) : (
                             <p className="text-[14px] font-black text-slate-700 dark:text-slate-200">
-                                {typeof stat.value === 'number' ? <AnimatedNumber value={stat.value} /> : stat.value}
+                                <AnimatedNumber value={typeof stat.value === 'number' ? stat.value : stat.value} />
                             </p>
                         )}
                     </div>
@@ -265,21 +199,16 @@ function FormCard({ title, description, icon: Icon, color, badge, stats, onSelec
             <div className={`mt-4 flex items-center justify-center gap-2 text-[12px] font-bold transition-all duration-300 ${c.text} group-hover:gap-3 relative z-10`}>
                 Open Form View <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </div>
-        </motion.div>
+        </div>
     );
 }
 
-// ── Full Logs Modal ──────────────────────────────────────────────────
 function FullLogsModal({ logs, onClose, currentUserId }: { logs: ActivityEntry[]; onClose: () => void; currentUserId: string }) {
     // Filter logs to show only current user's activity
     const userLogs = logs.filter(log => log.user_id === currentUserId);
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <motion.div
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.92, opacity: 0 }}
-                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            <div
                 className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
@@ -341,7 +270,7 @@ function FullLogsModal({ logs, onClose, currentUserId }: { logs: ActivityEntry[]
                         Close
                     </button>
                 </div>
-            </motion.div>
+            </div>
         </div>
     );
 }
@@ -357,11 +286,20 @@ const TIPS = [
 
 // ── Main Page Component ──────────────────────────────────────────────
 export function SchoolFormsPage() {
-    const { setCurrentView, students, gradingSheetRecords, subjects, sections, activeSchoolYear } = useAppStore();
+    const setCurrentView = useAppStore(state => state.setCurrentView);
+    const students = useAppStore(state => state.students);
+    const gradingSheetRecords = useAppStore(state => state.gradingSheetRecords);
+    const subjects = useAppStore(state => state.subjects);
+    const sections = useAppStore(state => state.sections);
+    const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
     const { user } = useAuthStore();
     const [tipIndex, setTipIndex] = useState(0);
     const [showLogsModal, setShowLogsModal] = useState(false);
-    const [activityLog, setActivityLog] = useState<ActivityEntry[]>(() => getActivityLog());
+    const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+
+    useEffect(() => {
+        idb.getActivityLog<ActivityEntry>().then(setActivityLog).catch(() => {});
+    }, []);
 
     // Rotate tips every 8 seconds
     useEffect(() => {
@@ -383,12 +321,12 @@ export function SchoolFormsPage() {
             'name-tags': { type: 'sf10', action: 'Opened Name Tag Generator', detail: `Preparing batch tags for sections` },
             lir: { type: 'sf10', action: 'Opened Learner\'s Individual Record', detail: `S.Y. ${activeSchoolYear}` },
             tgs: { type: 'sf9', action: 'Opened Temporary Grade Slip', detail: `S.Y. ${activeSchoolYear}` },
-            'anecdotal-record': { type: 'sf10', action: 'Opened Anecdotal Record', detail: `S.Y. ${activeSchoolYear}` },
         };
         const entry = actionMap[formId];
         if (entry && user) {
-            pushActivity(entry.type, entry.action, entry.detail, user.uid);
-            setActivityLog(getActivityLog());
+            pushActivity(entry.type, entry.action, entry.detail, user.uid)
+                .then(() => idb.getActivityLog<ActivityEntry>().then(setActivityLog))
+                .catch(() => {});
         }
         setCurrentView(formId);
     }, [setCurrentView, activeSchoolYear, students.length, user]);
@@ -543,18 +481,6 @@ export function SchoolFormsPage() {
                 { label: 'Sections', value: activeSectionsCount },
             ],
         },
-        {
-            id: 'anecdotal-record',
-            title: 'Anecdotal Record',
-            description: 'Log and track significant student behaviors, observations, strengths, weaknesses, and interventions.',
-            icon: FileText,
-            color: 'rose',
-            badge: 'New',
-            stats: [
-                { label: 'Learners', value: activeStudentsCount },
-                { label: 'Records', value: 'Auto-Saved' },
-            ],
-        },
     ];
 
     const currentTip = TIPS[tipIndex];
@@ -562,26 +488,21 @@ export function SchoolFormsPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20">
             {/* Hub Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col md:flex-row md:items-end justify-between gap-6"
-            >
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-2">
-                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-emerald-500/10 rounded-xl">
                             <Sparkles className="w-5 h-5 text-emerald-600" />
                         </div>
                         <span className="text-xs font-black text-emerald-600 uppercase tracking-[0.2em]">Management Hub</span>
-                    </motion.div>
+                    </div>
                     <h1 className="text-4xl lg:text-5xl font-black text-slate-800 dark:text-white tracking-tighter">School Forms</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium max-w-xl leading-relaxed">
                         A centralized portal for generating and managing official DepEd school forms.
                     </p>
                 </div>
 
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 }} className="flex gap-3">
+                <div className="flex gap-3">
                     <div className="px-4 py-3 bg-white/50 dark:bg-white/5 backdrop-blur-md rounded-2xl border border-white/60 dark:border-white/10 flex items-center gap-3 group hover:shadow-lg transition-shadow">
                         <div className="p-2 bg-blue-500/10 text-blue-600 rounded-xl group-hover:scale-110 transition-transform"><ShieldCheck className="w-4 h-4" /></div>
                         <div>
@@ -596,13 +517,13 @@ export function SchoolFormsPage() {
                             <p className="text-xs font-black text-slate-700 dark:text-slate-200"><AnimatedNumber value={activeStudentsCount} /></p>
                         </div>
                     </div>
-                </motion.div>
-            </motion.div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
                 {/* Main Cards Grid */}
                 <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {forms.map((form, i) => (
+                    {forms.map((form) => (
                         <FormCard
                             key={form.id}
                             title={form.title}
@@ -612,18 +533,12 @@ export function SchoolFormsPage() {
                             badge={form.badge}
                             stats={form.stats}
                             onSelect={() => handleFormOpen(form.id)}
-                            delay={0.15 + i * 0.12}
                         />
                     ))}
                 </div>
 
                 {/* Right Sidebar */}
-                <motion.div
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.6, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                    className="space-y-5"
-                >
+                <div className="space-y-5">
                     {/* Recent Activity */}
                     <div className="p-5 bg-white/70 dark:bg-white/5 backdrop-blur-xl rounded-[24px] border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
                         <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-[0.15em] mb-5 flex items-center gap-2">
@@ -637,14 +552,11 @@ export function SchoolFormsPage() {
                                     <p className="text-[11px] text-slate-400 font-medium">No activity yet. Open a form to start logging.</p>
                                 </div>
                             ) : (
-                                recentActivity.map((entry, i) => {
+                                recentActivity.map((entry) => {
                                     const color = getActivityColor(entry.type);
                                     return (
-                                        <motion.div
+                                        <div
                                             key={entry.id}
-                                            initial={{ opacity: 0, x: 10 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.6 + i * 0.1 }}
                                             className={`group relative pl-3.5 border-l-2 transition-colors duration-300 ${
                                                 color === 'emerald' ? 'border-emerald-200 hover:border-emerald-500' :
                                                 color === 'blue' ? 'border-blue-200 hover:border-blue-500' :
@@ -658,7 +570,7 @@ export function SchoolFormsPage() {
                                             }`}>{formatRelativeTime(entry.timestamp)}</p>
                                             <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 mt-0.5">{entry.action}</p>
                                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{entry.detail}</p>
-                                        </motion.div>
+                                        </div>
                                     );
                                 })
                             )}
@@ -673,38 +585,27 @@ export function SchoolFormsPage() {
                     </div>
 
                     {/* Rotating Tips */}
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={tipIndex}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.35 }}
-                            className="p-4 bg-emerald-500/5 rounded-[24px] border border-emerald-500/10"
-                        >
-                            <div className="flex items-center gap-2 mb-2">
-                                <currentTip.icon className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.15em]">Pro Tip</span>
-                                <div className="flex-1" />
-                                <div className="flex gap-1">
-                                    {TIPS.map((_, i) => (
-                                        <button key={i} onClick={() => setTipIndex(i)} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === tipIndex ? 'bg-emerald-500 w-3.5' : 'bg-emerald-500/20 hover:bg-emerald-500/40'}`} />
-                                    ))}
-                                </div>
+                    <div className="p-4 bg-emerald-500/5 rounded-[24px] border border-emerald-500/10">
+                        <div className="flex items-center gap-2 mb-2">
+                            <currentTip.icon className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.15em]">Pro Tip</span>
+                            <div className="flex-1" />
+                            <div className="flex gap-1">
+                                {TIPS.map((_, i) => (
+                                    <button key={i} onClick={() => setTipIndex(i)} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === tipIndex ? 'bg-emerald-500 w-3.5' : 'bg-emerald-500/20 hover:bg-emerald-500/40'}`} />
+                                ))}
                             </div>
-                            <p className="text-[11px] text-emerald-800/70 dark:text-emerald-400/70 font-medium leading-relaxed">{currentTip.text}</p>
-                        </motion.div>
-                    </AnimatePresence>
+                        </div>
+                        <p className="text-[11px] text-emerald-800/70 dark:text-emerald-400/70 font-medium leading-relaxed">{currentTip.text}</p>
+                    </div>
 
-                </motion.div>
+                </div>
             </div>
 
             {/* Full Logs Modal */}
-            <AnimatePresence>
-                {showLogsModal && user && (
-                    <FullLogsModal logs={activityLog} onClose={() => setShowLogsModal(false)} currentUserId={user.uid} />
-                )}
-            </AnimatePresence>
+            {showLogsModal && user && (
+                <FullLogsModal logs={activityLog} onClose={() => setShowLogsModal(false)} currentUserId={user.uid} />
+            )}
         </div>
     );
 }

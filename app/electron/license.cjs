@@ -81,9 +81,9 @@ function getStatus() {
     return { activated: false, reason: 'expired', serial: record.serial, expiresAt: record.expiresAt };
   }
 
-  // 7-day offline grace period check
+  // 30-day offline grace period check
   const lastVerified = record.lastVerifiedAt ? new Date(record.lastVerifiedAt).getTime() : new Date(record.activatedAt).getTime();
-  const maxOfflineMs = 7 * 24 * 60 * 60 * 1000;
+  const maxOfflineMs = 30 * 24 * 60 * 60 * 1000;
   if (Date.now() - lastVerified > maxOfflineMs) {
     return { activated: false, reason: 'offline_limit', serial: record.serial, lastVerifiedAt: record.lastVerifiedAt || record.activatedAt };
   }

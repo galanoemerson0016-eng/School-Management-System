@@ -92,17 +92,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // School-Wide Interconnected Announcements
+    // Global Announcements (Read-Only for clients, Write/Edit for Admin/Developer)
     match /shared_announcements/{announcementId} {
-      // Anyone can see announcements
       allow read: if true;
-
-      // Any signed-in identity (including each desktop install's anonymous
-      // session) can post.
-      allow create: if signedIn();
-
-      // ONLY the author's own session can delete or update it.
-      allow delete, update: if signedIn() && (resource.data.author_id == request.auth.uid);
+      allow write, create, update, delete: if isAdmin();
     }
   }
 }

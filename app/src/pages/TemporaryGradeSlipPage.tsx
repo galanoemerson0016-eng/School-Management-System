@@ -75,7 +75,7 @@ export function TemporaryGradeSlipPage() {
     
     return (
         <div className="h-full bg-slate-50 flex flex-col overflow-hidden font-sans print:bg-white print:h-auto print:overflow-visible">
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style>{`
                 .print-page {
                     width: ${printDimensions[paperSize].width};
                     height: ${printDimensions[paperSize].height};
@@ -226,7 +226,7 @@ export function TemporaryGradeSlipPage() {
                         width: 100% !important;
                     }
                 }
-            ` }} />
+            `}</style>
 
             {/* Header Toolbar */}
             <div className="h-20 px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-100 shadow-sm print:hidden">

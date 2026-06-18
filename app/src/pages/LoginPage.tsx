@@ -172,6 +172,18 @@ export const LoginPage = () => {
         return message;
     };
 
+    // Load saved credentials on mount
+    useEffect(() => {
+        const savedId = localStorage.getItem('formease-remember-id') || '';
+        const savedPassword = localStorage.getItem('formease-remember-password') || '';
+        const savedRemember = localStorage.getItem('formease-remember-me') !== 'false';
+        
+        setRememberMe(savedRemember);
+        if (savedRemember) {
+            setCredentials({ id: savedId, password: savedPassword });
+        }
+    }, []);
+
     // Clock ticker
     useEffect(() => {
         fetchSystemSettings();
@@ -183,7 +195,17 @@ export const LoginPage = () => {
         e.preventDefault();
         try {
             const success = await login(credentials.id, credentials.password);
-            if (!success) {
+            if (success) {
+                if (rememberMe) {
+                    localStorage.setItem('formease-remember-id', credentials.id);
+                    localStorage.setItem('formease-remember-password', credentials.password);
+                    localStorage.setItem('formease-remember-me', 'true');
+                } else {
+                    localStorage.removeItem('formease-remember-id');
+                    localStorage.removeItem('formease-remember-password');
+                    localStorage.setItem('formease-remember-me', 'false');
+                }
+            } else {
                 setShake(true);
                 setTimeout(() => setShake(false), 600);
             }
@@ -650,7 +672,15 @@ export const LoginPage = () => {
                             {/* Modern Toggle Switch */}
                             <label className="flex items-center gap-2.5 cursor-pointer select-none">
                                 <div
-                                    onClick={() => setRememberMe(!rememberMe)}
+                                    onClick={() => {
+                                        const newVal = !rememberMe;
+                                        setRememberMe(newVal);
+                                        localStorage.setItem('formease-remember-me', String(newVal));
+                                        if (!newVal) {
+                                            localStorage.removeItem('formease-remember-id');
+                                            localStorage.removeItem('formease-remember-password');
+                                        }
+                                    }}
                                     className={`toggle-switch ${rememberMe ? 'active' : ''}`}
                                     style={{
                                         backgroundColor: rememberMe

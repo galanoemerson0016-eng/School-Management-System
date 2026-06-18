@@ -4,6 +4,11 @@ import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monit
 import { useAppStore, useAuthStore } from '../stores';
 import { getMachineId } from '../utils/machine-id';
 
+async function hashMachineId(machineId: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(machineId));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function ActivationPage() {
   const { updateSchoolProfile, schoolProfile, showNotification } = useAppStore();
   const [key, setKey] = useState('');
@@ -96,7 +101,8 @@ export function ActivationPage() {
 
     try {
         const projectId = 'formease-licensing';
-        const checkUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/trials/${machineId}`;
+        const machineIdHash = await hashMachineId(machineId);
+        const checkUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/artifacts/g7-special/public/data/trials/${machineIdHash}`;
 
         // Verify if this machine already used a trial
         const verifyRes = await fetch(checkUrl);
@@ -107,14 +113,14 @@ export function ActivationPage() {
         const now = new Date();
         const expiry = new Date(now.getTime() + (1 * 60 * 60 * 1000)); // 1 Hour
 
-        // Register the trial in the cloud database bound to this machine ID
-        const createUrl = `${checkUrl}?updateMask.fieldPaths=machine_id&updateMask.fieldPaths=started_at&updateMask.fieldPaths=platform`;
+        // Register the trial using the hashed machine ID as document ID (not raw machine ID).
+        const createUrl = `${checkUrl}?updateMask.fieldPaths=machine_id_hash&updateMask.fieldPaths=started_at&updateMask.fieldPaths=platform`;
         const registerRes = await fetch(createUrl, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fields: {
-              machine_id: { stringValue: machineId },
+              machine_id_hash: { stringValue: machineIdHash },
               started_at: { timestampValue: now.toISOString() },
               platform: { stringValue: currentPlatform }
             }
@@ -360,7 +366,7 @@ export function ActivationPage() {
                       <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-xs font-black text-red-400 uppercase tracking-widest">Verification Required</p>
-                        <p className="text-[10px] text-red-200/50 font-bold leading-relaxed">This device has been offline for more than 7 days. Please connect to the internet to verify your license and restore access.</p>
+                        <p className="text-[10px] text-red-200/50 font-bold leading-relaxed">This device has been offline for more than 30 days. Please connect to the internet to verify your license and restore access.</p>
                       </div>
                     </motion.div>
                   )}

@@ -2,13 +2,69 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3 } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3, ClipboardList } from 'lucide-react';
 import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees, getStudentAbsences } from '../utils/grading-helpers';
-import { isDescriptiveGrading, isKeyStage1 } from '../lib/grading';
+import { isKeyStage1 } from '../lib/grading';
 import { exportToCSV } from '../utils/csv-export';
 import { canEditReport, canViewReport, filterOfficialSectionsForUser, filterOfficialRecords, type ReportType } from '../lib/rbac';
+import type { Student, AwardEvaluation } from '../types';
 
 const COLORS = ['#003f87', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+
+interface EvaluationFormState {
+    motivational?: number;
+    planning?: number;
+    contribution?: number;
+    position?: string;
+    noDerogatory?: boolean;
+    grade?: number;
+    supervisorRating?: string;
+    teacherRating?: string;
+    isEndorsed?: boolean;
+    projectTitle?: string;
+    projectMembers?: string[];
+    finalGrade?: number;
+    significance?: number;
+    rigor?: number;
+    originality?: number;
+    feasibility?: number;
+    presentation?: number;
+    characterTraitId?: string;
+    characterTraitTitle?: string;
+    characterTraitDescription?: string;
+    gmrcCompetency?: string;
+    specialRecognitionTitle?: string;
+    specialRecognitionLevel?: string;
+}
+
+const isKinderOrG1 = (gradeLevel: string) => {
+    const gl = (gradeLevel || '').toLowerCase().trim();
+    return gl.includes('kinder') || gl === 'grade 1' || gl === 'g1' || gl === '1';
+};
+
+const getStudentRequirementStats = (student: Student) => {
+    const isG1K = isKinderOrG1(student.grade_level);
+    const requiredDocs = isG1K 
+        ? ['req_birth_cert', 'req_beef', 'req_eccd'] 
+        : ['req_report_card', 'req_birth_cert', 'req_sf10', 'req_good_moral', 'req_beef'];
+    
+    let submittedCount = 0;
+    requiredDocs.forEach(doc => {
+        if (student[doc as keyof Student]) submittedCount++;
+    });
+
+    const totalRequired = requiredDocs.length;
+    const isComplete = submittedCount === totalRequired;
+    const isTemporary = !!student.req_undertaking;
+
+    return {
+        submittedCount,
+        totalRequired,
+        isComplete,
+        isTemporary,
+        requiredDocs
+    };
+};
 
 export function ReportsPage() {
     const { students, sections, subjects, gradingSheetRecords, setCurrentView, setSelectedSection, setSelectedSubject, activeSchoolYear } = useAppStore();
@@ -23,7 +79,8 @@ export function ReportsPage() {
     const [selectedSectionForAwards, setSelectedSectionForAwards] = useState<string>('');
     const [evaluatingStudentLrn, setEvaluatingStudentLrn] = useState<string | null>(null);
     const [evaluatingAwardType, setEvaluatingAwardType] = useState<string | null>(null);
-    const [evaluationForm, setEvaluationForm] = useState<any>({});
+    const [evaluationForm, setEvaluationForm] = useState<EvaluationFormState>({});
+    const [reqFilter, setReqFilter] = useState<'all' | 'complete' | 'pending'>('all');
 
     const reportKeyByActive: Record<string, ReportType> = {
         quarterly: 'quarterly-summaries',
@@ -31,6 +88,7 @@ export function ReportsPage() {
         progress: 'learner-progress',
         'at-risk': 'at-risk-students',
         'honor-roll': 'honor-roll',
+        requirements: 'requirements-checklist',
     };
 
     const openReport = (key: keyof typeof reportKeyByActive) => {
@@ -575,6 +633,327 @@ export function ReportsPage() {
         );
     };
 
+
+
+    const sectionStudentsForRequirements = useMemo(() => {
+        if (selectedSectionFilter === 'all') return validStudents;
+        const section = officialSections.find(s => s.id === selectedSectionFilter);
+        const nameOrId = section ? section.section_name : selectedSectionFilter;
+        return validStudents.filter(s => s.student_section === nameOrId || s.student_section === selectedSectionFilter);
+    }, [validStudents, selectedSectionFilter, officialSections]);
+
+    const filteredStudentsForRequirements = useMemo(() => {
+        return sectionStudentsForRequirements.filter(student => {
+            const stats = getStudentRequirementStats(student);
+            if (reqFilter === 'complete') return stats.isComplete;
+            if (reqFilter === 'pending') return !stats.isComplete;
+            return true;
+        });
+    }, [sectionStudentsForRequirements, reqFilter]);
+
+    const handleToggleRequirement = async (
+        student: Student,
+        field: 'req_report_card' | 'req_birth_cert' | 'req_sf10' | 'req_good_moral' | 'req_beef' | 'req_eccd' | 'req_undertaking',
+        value: boolean
+    ) => {
+        await useAppStore.getState().updateStudent(student.lrn, { [field]: value });
+    };
+
+    const handleExportRequirements = () => {
+        const data = sectionStudentsForRequirements.map(s => {
+            const stats = getStudentRequirementStats(s);
+            const isG1K = isKinderOrG1(s.grade_level);
+            return {
+                'LRN': s.lrn,
+                'Last Name': s.last_name,
+                'First Name': s.first_name,
+                'Middle Name': s.middle_name || '',
+                'Gender': s.gender,
+                'Grade Level': s.grade_level,
+                'Section': s.student_section || '',
+                'Report Card (SF9)': s.req_report_card ? 'Submitted' : (isG1K ? 'N/A' : 'Pending'),
+                'Birth Certificate (PSA)': s.req_birth_cert ? 'Submitted' : 'Pending',
+                'SF10 / Form 137': s.req_sf10 ? 'Submitted' : (isG1K ? 'N/A' : 'Pending'),
+                'Good Moral': s.req_good_moral ? 'Submitted' : (isG1K ? 'N/A' : 'Pending'),
+                'BEEF Form': s.req_beef ? 'Submitted' : 'Pending',
+                'ECCD Checklist': s.req_eccd ? 'Submitted' : (isG1K ? 'Pending' : 'N/A'),
+                'Affidavit of Undertaking': s.req_undertaking ? 'Submitted' : 'None',
+                'Completion Status': stats.isComplete ? 'Complete' : (s.req_undertaking ? 'Temporary (Undertaking)' : 'Incomplete'),
+                'Submitted Count': `${stats.submittedCount}/${stats.totalRequired}`
+            };
+        });
+        exportToCSV(data, `Requirements_Checklist_${activeSectionName.replace(/\s+/g, '_')}_${activeSchoolYear}`);
+    };
+
+    const renderRequirementsChecklist = () => {
+        const totalCount = sectionStudentsForRequirements.length;
+        const completeCount = sectionStudentsForRequirements.filter(s => getStudentRequirementStats(s).isComplete).length;
+        const pendingCount = totalCount - completeCount;
+        const undertakingCount = sectionStudentsForRequirements.filter(s => s.req_undertaking).length;
+
+        return (
+            <motion.div
+                key="requirements"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-6"
+            >
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 px-4 py-3 rounded-xl border border-blue-100 shadow-xs">
+                        <p className="text-sm font-bold text-blue-700">{totalCount} Students</p>
+                        <p className="text-xs text-blue-600">Total in Section</p>
+                    </div>
+                    <div className="bg-emerald-50 px-4 py-3 rounded-xl border border-emerald-100 shadow-xs">
+                        <p className="text-sm font-bold text-emerald-700">{completeCount} Complete</p>
+                        <p className="text-xs text-emerald-600">All required documents submitted</p>
+                    </div>
+                    <div className="bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 shadow-xs">
+                        <p className="text-sm font-bold text-rose-700">{pendingCount} Pending / Incomplete</p>
+                        <p className="text-xs text-rose-600">Missing at least one requirement</p>
+                    </div>
+                    <div className="bg-amber-50 px-4 py-3 rounded-xl border border-amber-100 shadow-xs">
+                        <p className="text-sm font-bold text-amber-700">{undertakingCount} Under Undertaking</p>
+                        <p className="text-xs text-amber-600">Temporarily enrolled via Affidavit</p>
+                    </div>
+                </div>
+
+                {/* Filter and Action Bar */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-gray-600">Filter Status:</span>
+                        <div className="flex bg-gray-100 rounded-lg p-1">
+                            <button
+                                onClick={() => setReqFilter('all')}
+                                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                                    reqFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                All ({totalCount})
+                            </button>
+                            <button
+                                onClick={() => setReqFilter('complete')}
+                                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                                    reqFilter === 'complete' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                Complete ({completeCount})
+                            </button>
+                            <button
+                                onClick={() => setReqFilter('pending')}
+                                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                                    reqFilter === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                Pending ({pendingCount})
+                            </button>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleExportRequirements} 
+                        disabled={totalCount === 0}
+                        className="text-xs flex items-center gap-2 text-deped-blue hover:bg-blue-50 font-bold px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <Download className="w-4 h-4" /> Export CSV
+                    </button>
+                </div>
+
+                {/* Checklist Table */}
+                <div className="bg-white rounded-2xl shadow-xs border border-gray-150 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr className="bg-linear-to-r from-deped-blue to-blue-700 text-white">
+                                    <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wider">Student Name</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Report Card (SF9)</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Birth Cert (PSA)</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">SF10 / Form 137</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Good Moral</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">BEEF Form</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">ECCD Checklist</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Undertaking</th>
+                                    <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wider">Progress</th>
+                                    <th className="px-4 py-3.5 text-right font-bold uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredStudentsForRequirements.map((student) => {
+                                    const stats = getStudentRequirementStats(student);
+                                    const isG1K = isKinderOrG1(student.grade_level);
+
+                                    return (
+                                        <tr key={student.lrn} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-4 py-3 font-semibold text-gray-800">
+                                                <div className="font-extrabold text-sm uppercase text-gray-800">
+                                                    {student.last_name}, {student.first_name} {student.middle_name ? `${student.middle_name.charAt(0)}.` : ''}
+                                                </div>
+                                                <div className="text-[10px] text-gray-400 font-bold tracking-wider mt-0.5">
+                                                    LRN: {student.lrn} | {student.grade_level}
+                                                </div>
+                                            </td>
+
+                                            {/* Report Card */}
+                                            <td className="px-3 py-3 text-center">
+                                                {isG1K ? (
+                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                ) : (
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!!student.req_report_card}
+                                                        onChange={(e) => handleToggleRequirement(student, 'req_report_card', e.target.checked)}
+                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                )}
+                                            </td>
+
+                                            {/* Birth Cert */}
+                                            <td className="px-3 py-3 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={!!student.req_birth_cert}
+                                                    onChange={(e) => handleToggleRequirement(student, 'req_birth_cert', e.target.checked)}
+                                                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                />
+                                            </td>
+
+                                            {/* SF10 */}
+                                            <td className="px-3 py-3 text-center">
+                                                {isG1K ? (
+                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                ) : (
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!!student.req_sf10}
+                                                        onChange={(e) => handleToggleRequirement(student, 'req_sf10', e.target.checked)}
+                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                )}
+                                            </td>
+
+                                            {/* Good Moral */}
+                                            <td className="px-3 py-3 text-center">
+                                                {isG1K ? (
+                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                ) : (
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!!student.req_good_moral}
+                                                        onChange={(e) => handleToggleRequirement(student, 'req_good_moral', e.target.checked)}
+                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                )}
+                                            </td>
+
+                                            {/* BEEF Form */}
+                                            <td className="px-3 py-3 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={!!student.req_beef}
+                                                    onChange={(e) => handleToggleRequirement(student, 'req_beef', e.target.checked)}
+                                                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                />
+                                            </td>
+
+                                            {/* ECCD Checklist */}
+                                            <td className="px-3 py-3 text-center">
+                                                {isG1K ? (
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!!student.req_eccd}
+                                                        onChange={(e) => handleToggleRequirement(student, 'req_eccd', e.target.checked)}
+                                                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                ) : (
+                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                )}
+                                            </td>
+
+                                            {/* Affidavit of Undertaking */}
+                                            <td className="px-3 py-3 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={!!student.req_undertaking}
+                                                    onChange={(e) => handleToggleRequirement(student, 'req_undertaking', e.target.checked)}
+                                                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                />
+                                            </td>
+
+                                            {/* Progress bar and text */}
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className={`text-[10px] font-black ${stats.isComplete ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                                        {stats.submittedCount} / {stats.totalRequired}
+                                                    </span>
+                                                    <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                        <div 
+                                                            className={`h-full transition-all duration-350 ${stats.isComplete ? 'bg-emerald-500' : stats.isTemporary ? 'bg-amber-400' : 'bg-blue-500'}`} 
+                                                            style={{ width: `${(stats.submittedCount / stats.totalRequired) * 100}%` }}
+                                                        />
+                                                    </div>
+                                                    {stats.isComplete ? (
+                                                        <span className="bg-emerald-50 text-emerald-700 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-100 mt-0.5">COMPLETE</span>
+                                                    ) : stats.isTemporary ? (
+                                                        <span className="bg-amber-50 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-100 mt-0.5">UNDERTAKING</span>
+                                                    ) : (
+                                                        <span className="bg-gray-50 text-gray-500 text-[8px] font-bold px-1.5 py-0.5 rounded border border-gray-200 mt-0.5">PENDING</span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex justify-end gap-1.5">
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const updates: Partial<Student> = {};
+                                                            stats.requiredDocs.forEach(doc => {
+                                                                const key = doc as 'req_report_card' | 'req_birth_cert' | 'req_sf10' | 'req_good_moral' | 'req_beef' | 'req_eccd' | 'req_undertaking';
+                                                                updates[key] = true;
+                                                            });
+                                                            await useAppStore.getState().updateStudent(student.lrn, updates);
+                                                        }}
+                                                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 text-[9px] font-black rounded uppercase transition-colors"
+                                                        title="Mark all required documents as submitted"
+                                                    >
+                                                        All
+                                                    </button>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const updates: Partial<Student> = {};
+                                                            stats.requiredDocs.forEach(doc => {
+                                                                const key = doc as 'req_report_card' | 'req_birth_cert' | 'req_sf10' | 'req_good_moral' | 'req_beef' | 'req_eccd' | 'req_undertaking';
+                                                                updates[key] = false;
+                                                            });
+                                                            updates.req_undertaking = false;
+                                                            await useAppStore.getState().updateStudent(student.lrn, updates);
+                                                        }}
+                                                        className="px-2 py-1 bg-gray-50 hover:bg-gray-250 text-gray-500 text-[9px] font-black rounded uppercase transition-colors"
+                                                        title="Reset all checkboxes"
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {filteredStudentsForRequirements.length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-20 text-center text-gray-400 italic">
+                                            {totalCount === 0 ? 'No students enrolled in this section.' : 'No students matching the selected status filter.'}
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </motion.div>
+        );
+    };
+
     if (safeActiveReport) {
         return (
             <div className="space-y-6 pb-8">
@@ -597,6 +976,7 @@ export function ReportsPage() {
                                 {safeActiveReport === 'progress' && 'Learner Progress Tracker'}
                                 {safeActiveReport === 'at-risk' && 'At-Risk Students Report'}
                                 {safeActiveReport === 'honor-roll' && 'Academic Excellence Awards Report'}
+                                {safeActiveReport === 'requirements' && 'Checklist of Requirements'}
                             </h2>
                             {sortedSections.length === 1 && (
                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
@@ -1211,6 +1591,7 @@ export function ReportsPage() {
                             </div>
                         </motion.div>
                     )}
+                    {safeActiveReport === 'requirements' && renderRequirementsChecklist()}
                     {safeActiveReport === 'honor-roll' && (
                         <motion.div
                             key="honor-roll"
@@ -2334,12 +2715,12 @@ export function ReportsPage() {
                                 const isSpecial = evaluatingAwardType === 'SpecialRecognition';
 
                                 const handleFormSave = async () => {
-                                    let newEval: any = {
+                                    const newEval: AwardEvaluation = {
                                         id: `${evaluatingStudentLrn}_${activeSchoolYear}_${selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter}_${evaluatingAwardType}`,
                                         student_lrn: evaluatingStudentLrn,
                                         schoolYear: activeSchoolYear,
-                                        term: selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter,
-                                        awardType: evaluatingAwardType
+                                        term: (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter) as AwardEvaluation['term'],
+                                        awardType: evaluatingAwardType as AwardEvaluation['awardType']
                                     };
 
                                     if (isLeadership) {
@@ -2408,7 +2789,7 @@ export function ReportsPage() {
                                         awardEvaluations: [...filtered, newEval] 
                                     });
 
-                                    if ((isResearch || isInnovation) && evaluationForm.projectMembers?.length > 0) {
+                                    if ((isResearch || isInnovation) && evaluationForm.projectMembers && evaluationForm.projectMembers.length > 0) {
                                         for (const lrn of evaluationForm.projectMembers) {
                                             if (lrn === evaluatingStudentLrn) continue;
                                             const member = students.find(s => s.lrn === lrn);
@@ -2880,6 +3261,25 @@ export function ReportsPage() {
                     </p>
                     <button className="w-full py-3 rounded-lg border border-green-800 text-green-900 hover:bg-green-900 hover:text-white transition-all font-medium flex items-center justify-center gap-2">
                         View Awardees <ArrowRight className="w-4 h-4" />
+                    </button>
+                </div>
+                )}
+
+                {/* Checklist of Requirements */}
+                {canViewReport(user, 'requirements-checklist') && (
+                <div className="bg-linear-to-br from-blue-50 to-white p-6 rounded-xl shadow border border-blue-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('requirements')}>
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-600 transition-colors duration-300">
+                            <ClipboardList className="w-8 h-8 text-blue-600 group-hover:text-white" />
+                        </div>
+                        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">Advisory Class</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Checklist of Requirements</h3>
+                    <p className="text-gray-600 mb-6 text-sm">
+                        Track submissions of Learner's Report Card (SF9), Birth Certificate (PSA), and other essential DepEd requirements.
+                    </p>
+                    <button className="w-full py-3 rounded-lg border border-blue-250 text-blue-600 hover:bg-blue-600 hover:text-white hover:border-transparent transition-all font-medium flex items-center justify-center gap-2">
+                        Open Tracker <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
                 )}

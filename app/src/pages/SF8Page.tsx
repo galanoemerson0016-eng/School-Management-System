@@ -311,6 +311,41 @@ export function SF8Page() {
                     allowTaint: true,
                     backgroundColor: '#ffffff',
                     logging: false,
+                    onclone: (clonedDoc, clonedEl) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+
+                        // Swap inputs to static spans to capture values
+                        const origInputs = el.querySelectorAll('input');
+                        const clonedInputs = clonedEl.querySelectorAll('input');
+                        origInputs.forEach((origInput, idx) => {
+                            const clonedInput = clonedInputs[idx];
+                            if (clonedInput) {
+                                const val = (origInput as HTMLInputElement).value || '';
+                                const span = clonedDoc.createElement('span');
+                                span.textContent = val;
+                                span.className = clonedInput.className;
+                                span.style.cssText = clonedInput.style.cssText;
+                                span.style.display = 'flex';
+                                span.style.alignItems = 'center';
+                                span.style.justifyContent = 'center';
+                                span.style.width = '100%';
+                                span.style.height = '100%';
+                                if (clonedInput.parentNode) {
+                                    clonedInput.parentNode.replaceChild(span, clonedInput);
+                                }
+                            }
+                        });
+                    }
                 });
 
                 el.style.transform = prevTransform;
@@ -336,7 +371,7 @@ export function SF8Page() {
                 const drawW = canvasW * scale;
                 const drawH = canvasH * scale;
                 const offsetX = margin + (usableW - drawW) / 2;
-                const offsetY = margin + (usableH - drawH) / 2;
+                const offsetY = margin;
 
                 const imgData = canvas.toDataURL('image/png');
                 pdf.addImage(imgData, 'PNG', offsetX, offsetY, drawW, drawH);
@@ -369,7 +404,7 @@ export function SF8Page() {
     };
 
     const renderStudentRows = (items: typeof selectedStudents) => {
-        const rows = Array.from({ length: Math.max(items.length, 18) });
+        const rows = Array.from({ length: Math.max(items.length, 4) });
 
         return rows.map((_, index) => {
             const student = items[index] as HealthStudent | undefined;
@@ -377,14 +412,14 @@ export function SF8Page() {
             const ageDisplay = student ? getAgeDisplay(student.birthday) : '';
             return (
                 <tr key={student?.lrn || `blank-${index}`} className="border-b border-black hover:bg-slate-50/50 transition-colors">
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{index + 1}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] tracking-tighter">{student?.lrn || ''}</td>
-                    <td className="border-r border-black text-[10px] py-1.5 w-[28%] leading-none px-2 whitespace-nowrap overflow-hidden font-black">
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[4%] font-bold">{index + 1}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[8%] tracking-tighter">{student?.lrn || ''}</td>
+                    <td className="border-r border-black text-[10px] py-0.5 w-[28%] leading-none px-2 whitespace-nowrap overflow-hidden font-black">
                         {student ? formatLearnerName(student).toUpperCase() : ''}
                     </td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%]">{student?.birthday || ''}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[4%] font-bold">{ageDisplay}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[9%]">{student?.birthday || ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[4%] font-bold">{ageDisplay}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[5%]">
                         {student ? (
                             <input
                                 type="number"
@@ -397,7 +432,7 @@ export function SF8Page() {
                         ) : ''}
                         <span className="hidden print:inline">{healthFields.weight !== '' ? Number(healthFields.weight).toFixed(1) : ''}</span>
                     </td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[5%]">
                         {student ? (
                             <input
                                 type="number"
@@ -410,11 +445,11 @@ export function SF8Page() {
                         ) : ''}
                         <span className="hidden print:inline">{healthFields.height !== '' ? Number(healthFields.height).toFixed(2) : ''}</span>
                     </td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%]">{healthFields.heightSquared !== '' ? Number(healthFields.heightSquared).toFixed(2) : ''}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[5%] font-bold">{healthFields.bmi !== '' ? Number(healthFields.bmi).toFixed(1) : ''}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[8%] font-black text-blue-600 uppercase tracking-tighter">{healthFields.bmi_category}</td>
-                    <td className="border-r border-black text-center text-[10px] py-1.5 w-[9%] font-black text-amber-600 uppercase tracking-tighter">{healthFields.hfa}</td>
-                    <td className="text-center text-[10px] py-1.5 w-[10%] font-bold italic opacity-70">{healthFields.remarks}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[5%]">{healthFields.heightSquared !== '' ? Number(healthFields.heightSquared).toFixed(2) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[5%] font-bold">{healthFields.bmi !== '' ? Number(healthFields.bmi).toFixed(1) : ''}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[8%] font-black text-blue-600 uppercase tracking-tighter">{healthFields.bmi_category}</td>
+                    <td className="border-r border-black text-center text-[10px] py-0.5 w-[9%] font-black text-amber-600 uppercase tracking-tighter">{healthFields.hfa}</td>
+                    <td className="text-center text-[10px] py-0.5 w-[10%] font-bold italic opacity-70">{healthFields.remarks}</td>
                 </tr>
             );
         });
@@ -619,8 +654,8 @@ export function SF8Page() {
                         </div>
 
                         <div className="mt-3 print:break-inside-avoid">
-                            <p className="text-center font-bold text-[15px] uppercase mb-2">Summary Table</p>
-                            <table className="w-full table-fixed border-collapse text-[11px] sm:text-[12px] border border-black">
+                            <p className="sf8-summary-table-title text-center font-bold uppercase mb-2">Summary Table</p>
+                            <table className="sf8-summary-table w-full table-fixed border-collapse text-[11px] sm:text-[12px] border border-black">
                                 <thead>
                                     <tr className="bg-slate-100">
                                         <th className="border border-black px-2 py-1 text-center" rowSpan={2}>Sex</th>
@@ -688,9 +723,9 @@ export function SF8Page() {
                             </table>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 text-[12px] sm:text-[13px] print:break-inside-avoid">
+                        <div className="sf8-signatories-section grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-[12px] sm:text-[13px] print:break-inside-avoid">
                             <div>
-                                <p className="mb-2">Date of Assessment:</p>
+                                <p className="mb-1">Date of Assessment:</p>
                                 <input
                                     type="text"
                                     value={signatories.dateOfAssessment}
@@ -699,7 +734,7 @@ export function SF8Page() {
                                 />
                             </div>
                             <div>
-                                <p className="mb-2">Conducted/Assessed By:</p>
+                                <p className="mb-1">Conducted/Assessed By:</p>
                                 <input
                                     type="text"
                                     value={signatories.conductedBy}
@@ -708,7 +743,7 @@ export function SF8Page() {
                                 />
                             </div>
                             <div>
-                                <p className="mb-2">Certified Correct By:</p>
+                                <p className="mb-1">Certified Correct By:</p>
                                 <input
                                     type="text"
                                     value={signatories.certifiedBy}
@@ -717,7 +752,7 @@ export function SF8Page() {
                                 />
                             </div>
                             <div>
-                                <p className="mb-2">Reviewed By:</p>
+                                <p className="mb-1">Reviewed By:</p>
                                 <input
                                     type="text"
                                     value={signatories.reviewedBy}
@@ -727,7 +762,7 @@ export function SF8Page() {
                             </div>
                         </div>
 
-                        <p className="text-right text-[11px] italic mt-4 pt-4">SFRT 2017</p>
+                        <p className="sf8-footer-text text-right italic mt-2 pt-2">SFRT 2017</p>
                     </div>
                 </div>
             </div>
@@ -740,6 +775,34 @@ export function SF8Page() {
                 }
                 #sf8-printable-area.html-capture .print\\:inline {
                     display: inline !important;
+                }
+                .sf8-summary-table-title {
+                    font-size: 13px !important;
+                    margin-bottom: 4px !important;
+                }
+                .sf8-summary-table th,
+                .sf8-summary-table td {
+                    padding-top: 2px !important;
+                    padding-bottom: 2px !important;
+                    font-size: 9.5px !important;
+                    line-height: 1.1 !important;
+                }
+                .sf8-signatories-section {
+                    margin-top: 10px !important;
+                }
+                .sf8-signatories-section p {
+                    margin-bottom: 2px !important;
+                    font-size: 11px !important;
+                }
+                .sf8-signatories-section input,
+                .sf8-signatories-section span {
+                    height: 22px !important;
+                    font-size: 11px !important;
+                }
+                .sf8-footer-text {
+                    font-size: 9.5px !important;
+                    margin-top: 6px !important;
+                    padding-top: 0px !important;
                 }
                 @media print {
                     @page { size: ${paperSize === 'folio' ? 'Folio portrait' : 'A4 portrait'}; margin: 0.15in; }

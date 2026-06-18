@@ -27,7 +27,6 @@ export type AppView =
     | 'about'
     | 'lir'
     | 'tgs'
-    | 'anecdotal-record'
     | 'games-tools';
 
 export type SubjectArea =
@@ -77,7 +76,11 @@ export function hasAnyRole(user: User | null | undefined, roles: UserRole[]): bo
     return roles.some((role) => effective.includes(role));
 }
 
-// Single-user offline mode: authenticated user can access/edit all app views/features.
+// Single-user offline mode: all can*() functions return true for any authenticated
+// user regardless of their assigned role. This is intentional for the current
+// single-user architecture — there is no multi-user enforcement surface.
+// IMPORTANT: If multi-user mode is ever added, every function below must be
+// updated to check user.role / user.roles[] before any gates become meaningful.
 export function canAccessView(user: User | null | undefined, _view: AppView): boolean {
     return !!user;
 }
@@ -130,7 +133,8 @@ export type ReportType =
     | 'subject-performance'
     | 'learner-progress'
     | 'at-risk-students'
-    | 'honor-roll';
+    | 'honor-roll'
+    | 'requirements-checklist';
 
 export function canViewReport(user: User | null | undefined, _report: ReportType): boolean {
     return !!user;

@@ -29,18 +29,16 @@ const viewTitles: Record<string, string> = {
     'name-tags': 'Name Tag Generator',
     lir: "Learner's Individual Record",
     tgs: 'Temporary Grade Slip',
-    'anecdotal-record': 'Anecdotal Record Hub',
 };
 
 export function Header() {
-    const {
-        currentView,
-        schoolProfile,
-        activeSchoolYear,
-        announcements,
-        createBackup,
-        lastBackupTime,
-    } = useAppStore();
+    const currentView = useAppStore(state => state.currentView);
+    const schoolProfile = useAppStore(state => state.schoolProfile);
+    const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
+    const announcements = useAppStore(state => state.announcements);
+    const createBackup = useAppStore(state => state.createBackup);
+    const lastBackupTime = useAppStore(state => state.lastBackupTime);
+    const dbWritePendingCount = useAppStore(state => state.dbWritePendingCount || 0);
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -84,7 +82,22 @@ export function Header() {
                 </div>
 
                 {/* Right Area: Utilities & Profile */}
-                <div className="flex-1 flex items-center justify-end gap-1 lg:gap-2 min-w-0 pl-4">
+                <div className="flex-1 flex items-center justify-end gap-1 lg:gap-2 min-w-max pl-4">
+                    {/* Database Sync Status Indicator */}
+                    <div 
+                        className={`flex items-center gap-1.5 h-8 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider select-none cursor-default transition-all duration-300 ${
+                            dbWritePendingCount > 0 
+                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-500/20' 
+                                : 'bg-[#F0FDF4] dark:bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-200/40 dark:border-emerald-500/10'
+                        }`}
+                        title={dbWritePendingCount > 0 ? `${dbWritePendingCount} changes saving to local storage` : 'All database changes saved locally'}
+                    >
+                        <Database className={`w-3 h-3 ${dbWritePendingCount > 0 ? 'animate-bounce text-amber-500' : 'text-emerald-500'}`} />
+                        <span className={dbWritePendingCount > 0 ? 'animate-pulse' : ''}>
+                            {dbWritePendingCount > 0 ? 'Saving...' : 'Saved'}
+                        </span>
+                    </div>
+
                     <UpdateStatus />
                     
                     <button

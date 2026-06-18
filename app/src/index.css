@@ -480,10 +480,20 @@
        GLOBAL PRINT QUALITY
     ------------------------------------------------- */
     * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: economy !important;
+      print-color-adjust: economy !important;
       box-shadow: none !important;
       text-rendering: auto !important;
+    }
+
+    table,
+    thead,
+    tbody,
+    tr,
+    td,
+    th {
+      -webkit-print-color-adjust: unset !important;
+      print-color-adjust: unset !important;
     }
 
     /* -------------------------------------------------
@@ -595,6 +605,24 @@
 
     thead {
       display: table-header-group !important;
+      background: white !important;
+    }
+
+    th,
+    thead th,
+    td {
+      background-color: white !important;
+      background: white !important;
+    }
+
+    /* Set proper gray background for table headers during print */
+    th,
+    thead th,
+    table th,
+    .bg-slate-50 {
+      background-color: #f3f4f6 !important;
+      background: #f3f4f6 !important;
+      color: black !important;
     }
 
     tfoot {
@@ -606,6 +634,8 @@
     th {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
+      border: 1px solid black !important;
+      border-collapse: collapse !important;
     }
 
     .print-compact-tables table {

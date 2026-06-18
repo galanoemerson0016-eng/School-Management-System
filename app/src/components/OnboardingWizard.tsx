@@ -63,7 +63,7 @@ export function OnboardingWizard({ onClose }: OnboardingWizardProps) {
         },
         {
             title: "Dashboard Module",
-            description: "View real-time school statistics, student population breakdown, attendance averages, academic health indices, and current reminders.",
+            description: "View real-time school statistics, student population breakdown, attendance averages, class sections and teaching loads statistics, and current reminders.",
             elementSelector: '[data-tour="sidebar-dashboard"]',
             icon: LayoutDashboard,
             color: "from-blue-500 to-indigo-600",

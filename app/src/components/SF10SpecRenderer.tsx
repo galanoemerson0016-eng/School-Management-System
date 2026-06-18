@@ -2,63 +2,9 @@ import React from 'react';
 import { getSF10RowsForGrade } from '../lib/subjectConfig';
 import { formatGradeForDisplay } from '../lib/grading';
 import type { SchoolCurriculum } from '../types';
+import { AutoShrinkText, asString, type BoundData, type AnyObject, type SF10RendererProps } from './SF10Shared';
 
-interface BoundData {
-    [key: string]: unknown;
-}
-
-type AnyObject = Record<string, unknown>;
-
-const asString = (value: unknown): string => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    return '';
-};
-
-interface SF10SpecRendererProps {
-    pageNumber: number;
-    data: BoundData;
-    onUpdate?: (path: string, value: string) => void;
-}
-
-const AutoShrinkText: React.FC<{ text: string; minScale?: number; align?: 'left' | 'center' | 'right' }> = ({ text, minScale = 0.5, align = 'center' }) => {
-    const [scale, setScale] = React.useState(1);
-    const textRef = React.useRef<HTMLSpanElement>(null);
-    const containerRef = React.useRef<HTMLDivElement>(null);
-
-    React.useLayoutEffect(() => {
-        if (textRef.current && containerRef.current) {
-            const textWidth = textRef.current.scrollWidth;
-            const containerWidth = containerRef.current.clientWidth;
-            if (textWidth > containerWidth && containerWidth > 0) {
-                setScale(Math.max(minScale, containerWidth / textWidth));
-            } else {
-                setScale(1);
-            }
-        }
-    }, [text, minScale]);
-
-    const justifyClass = align === 'left' ? 'justify-start' : align === 'right' ? 'justify-end' : 'justify-center';
-    const originX = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
-
-    return (
-        <div ref={containerRef} className={`w-full h-full flex items-end ${justifyClass} overflow-hidden relative`}>
-            <span 
-                ref={textRef} 
-                className="inline-block whitespace-nowrap"
-                style={{ 
-                    transform: `scaleX(${scale})`, 
-                    transformOrigin: `${originX} bottom`,
-                }}
-            >
-                {text}
-            </span>
-        </div>
-    );
-};
-
-export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, data, onUpdate }) => {
+export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
     
     // Helper to resolve nested data paths (e.g., 'learner.lastName')
     const getRaw = (path: string): unknown => {
@@ -144,11 +90,11 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
         return (
             <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
                 <div className="page w-[8.5in] h-[12.95in] bg-white p-[15pt_0.3in_0.3in_0.3in] flex flex-col justify-between box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
-                    <style dangerouslySetInnerHTML={{ __html: `
+                    <style>{`
                         @page { size: 8.5in 13in; margin: 0in; }
                         body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
-                        .fill-blank { 
-                            border-bottom: 1px solid black !important; 
+                        .fill-blank {
+                            border-bottom: 1px solid black !important;
                             display: inline-flex; 
                             align-items: flex-end; 
                             justify-content: center !important;
@@ -166,7 +112,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                         .border-thick { border: 1.2pt solid black !important; }
                         .border-thick-b { border-bottom: 1.2pt solid black !important; }
                         .h-spacer td { height: 3pt !important; min-height: 0 !important; padding: 0 !important; line-height: 0; }
-                    ` }} />
+                    `}</style>
 
                     <div className="flex flex-col h-full justify-start">
                         <div>
@@ -412,14 +358,14 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     </div>
                 </div>
 
-                <style dangerouslySetInnerHTML={{ __html: `
+                <style>{`
                     @page { size: 8.5in 13in; margin: 0mm; }
                     @media print {
                         html, body { height: 13in !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
                         .sf10-container { background: white !important; padding: 0 !important; margin: 0 !important; height: 13in !important; min-height: 13in !important; display: block !important; overflow: hidden !important; }
                         .page { box-shadow: none !important; margin: 0 !important; padding: 10pt 0.3in 0.3in 0.3in !important; height: 12.95in !important; width: 8.5in !important; display: block !important; break-after: avoid-page !important; position: relative !important; }
                     }
-                ` }} />
+                `}</style>
             </div>
         );
     }
@@ -429,11 +375,11 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
         <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
             
             <div className="page w-[8.5in] h-[12.95in] bg-white p-[10pt_0.35in_0.15in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.05]">
-                <style dangerouslySetInnerHTML={{ __html: `
+                <style>{`
                     @page { size: 8.5in 13in; margin: 0in; }
                     body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
-                    .fill-blank { 
-                            border-bottom: 1px solid black !important; 
+                    .fill-blank {
+                            border-bottom: 1px solid black !important;
                             display: inline-flex; 
                             align-items: flex-end; 
                             justify-content: center !important;
@@ -463,7 +409,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                         font-stretch: condensed;
                         text-align: left !important;
                     }
-                ` }} />
+                `}</style>
 
                 <div className="grow">
                     {/* Header */}
@@ -886,7 +832,7 @@ export const SF10SpecRenderer: React.FC<SF10SpecRendererProps> = ({ pageNumber, 
                     </div>
                 </div>
             </div>
-            <style dangerouslySetInnerHTML={{ __html: `@page { size: 8.5in 13in; margin: 0mm; } @media print { html, body { height: auto !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; } .sf10-container { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; display: block !important; } .page { box-shadow: none !important; margin: 0 !important; padding: 15pt 0.35in 0.15in 0.35in !important; height: 12.95in !important; width: 8.5in !important; display: flex !important; flex-direction: column !important; break-after: page !important; position: relative !important; } }` }} />
+            <style>{`@page { size: 8.5in 13in; margin: 0mm; } @media print { html, body { height: auto !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; } .sf10-container { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; display: block !important; } .page { box-shadow: none !important; margin: 0 !important; padding: 15pt 0.35in 0.15in 0.35in !important; height: 12.95in !important; width: 8.5in !important; display: flex !important; flex-direction: column !important; break-after: page !important; position: relative !important; } }`}</style>
         </div>
     );
 };

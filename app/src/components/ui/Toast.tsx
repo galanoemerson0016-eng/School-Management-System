@@ -4,7 +4,8 @@ import { AlertCircle, CheckCircle2, Info, X, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../stores';
 
 export function Toast() {
-    const { notification, hideNotification } = useAppStore();
+    const notification = useAppStore(state => state.notification);
+    const hideNotification = useAppStore(state => state.hideNotification);
 
     useEffect(() => {
         if (notification.visible) {

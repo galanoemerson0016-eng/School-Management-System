@@ -28,10 +28,75 @@ import type {
   SF2Sheet,
   HPSRecord,
 } from '../types';
+import { encryptPayload, decryptPayload } from '../utils/db-crypto';
+
+let dbKey: CryptoKey | null = null;
+
+export function setDatabaseEncryptionKey(key: CryptoKey | null) {
+  dbKey = key;
+}
+
+const ENCRYPTED_STORES = new Set([
+  'students',
+  'classRecords',
+  'enrollments',
+  'attendanceRecords',
+  'sf2Sheets',
+  'gradingSheetRecords',
+  'observedValues',
+  'automated_backups'
+]);
+
+interface EncryptedEnvelope {
+  lrn?: string;
+  id?: string;
+  iv: string;
+  ciphertext: string;
+  is_encrypted: boolean;
+}
+
+async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T | EncryptedEnvelope> {
+  if (!dbKey || !ENCRYPTED_STORES.has(storeName)) {
+    return record;
+  }
+  
+  const keyField = storeName === 'students' ? 'lrn' : 'id';
+  const keyValue = (record as Record<string, unknown>)[keyField];
+  
+  if (!keyValue) {
+    return record;
+  }
+  
+  const { ciphertext, iv } = await encryptPayload(record, dbKey);
+  
+  const envelope: EncryptedEnvelope = {
+    [keyField]: keyValue,
+    iv,
+    ciphertext,
+    is_encrypted: true
+  } as unknown as EncryptedEnvelope;
+  
+  return envelope;
+}
+
+async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Promise<T> {
+  if (!record) return record as T;
+  const rawRecord = record as Record<string, unknown>;
+  if (!dbKey || !rawRecord.is_encrypted || !rawRecord.iv || !rawRecord.ciphertext) {
+    return record as T;
+  }
+  
+  try {
+    return await decryptPayload<T>(rawRecord.ciphertext as string, rawRecord.iv as string, dbKey);
+  } catch (error) {
+    console.error(`Failed to decrypt record in store ${storeName}:`, error);
+    return record as T;
+  }
+}
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 7;
+const DB_VERSION = 9;
 
 interface BackupMetadata {
   id: string;
@@ -49,15 +114,46 @@ interface BackupMetadata {
   };
 }
 
+let dbInstance: IDBDatabase | null = null;
+
+let activeWrites = 0;
+const writeListeners = new Set<(activeCount: number) => void>();
+
+export function onDatabaseWriteChange(listener: (activeCount: number) => void): () => void {
+  writeListeners.add(listener);
+  // Call immediately with the current count
+  listener(activeWrites);
+  return () => {
+    writeListeners.delete(listener);
+  };
+}
+
+function notifyWriteChange(change: number) {
+  activeWrites += change;
+  writeListeners.forEach(listener => {
+    try {
+      listener(activeWrites);
+    } catch (e) {
+      console.error('Error in database write listener:', e);
+    }
+  });
+}
+
 /**
  * Open IndexedDB database with all required object stores
  */
 function openDatabase(): Promise<IDBDatabase> {
+  if (dbInstance) {
+    return Promise.resolve(dbInstance);
+  }
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      dbInstance = request.result;
+      resolve(request.result);
+    };
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -87,6 +183,8 @@ function openDatabase(): Promise<IDBDatabase> {
         ['gradingSheetRecords', 'id'],
         ['observedValues', 'id'],
         ['backups', 'id'],
+        ['automated_backups', 'id'],
+        ['activityLog', 'id'],
       ];
 
       for (const [store, keyPath] of storeConfigs) {
@@ -103,7 +201,7 @@ function openDatabase(): Promise<IDBDatabase> {
  */
 async function getAllRecords<T>(storeName: string): Promise<T[]> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  const rawList = await new Promise<unknown[]>((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readonly');
     const store = transaction.objectStore(storeName);
     const request = store.getAll();
@@ -111,6 +209,7 @@ async function getAllRecords<T>(storeName: string): Promise<T[]> {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
+  return Promise.all(rawList.map(raw => decryptRecordIfNeeded<T>(storeName, raw)));
 }
 
 /**
@@ -118,7 +217,7 @@ async function getAllRecords<T>(storeName: string): Promise<T[]> {
  */
 async function getRecord<T>(storeName: string, key: string): Promise<T | undefined> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  const raw = await new Promise<unknown>((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readonly');
     const store = transaction.objectStore(storeName);
     const request = store.get(key);
@@ -126,6 +225,7 @@ async function getRecord<T>(storeName: string, key: string): Promise<T | undefin
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
   });
+  return decryptRecordIfNeeded<T>(storeName, raw);
 }
 
 /**
@@ -135,45 +235,91 @@ async function putRecord<T>(
   storeName: string,
   record: T
 ): Promise<string> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readwrite');
-    const store = transaction.objectStore(storeName);
-    const request = store.put(record);
+  notifyWriteChange(1);
+  try {
+    const encrypted = await encryptRecordIfNeeded(storeName, record);
+    const db = await openDatabase();
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.put(encrypted);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result as string);
-  });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result as string);
+    });
+  } finally {
+    notifyWriteChange(-1);
+  }
+}
+
+/**
+ * Add or update multiple records in a single transaction (Bulk write)
+ */
+async function putRecordsBulk<T>(
+  storeName: string,
+  records: T[]
+): Promise<void> {
+  if (records.length === 0) return;
+  notifyWriteChange(1);
+  try {
+    const encryptedRecords = await Promise.all(
+      records.map(record => encryptRecordIfNeeded(storeName, record))
+    );
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+
+      for (const record of encryptedRecords) {
+        store.put(record);
+      }
+    });
+  } finally {
+    notifyWriteChange(-1);
+  }
 }
 
 /**
  * Delete a record
  */
 async function deleteRecord(storeName: string, key: string): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readwrite');
-    const store = transaction.objectStore(storeName);
-    const request = store.delete(key);
+  notifyWriteChange(1);
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.delete(key);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  } finally {
+    notifyWriteChange(-1);
+  }
 }
 
 /**
  * Clear all records from a store
  */
 async function clearStore(storeName: string): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readwrite');
-    const store = transaction.objectStore(storeName);
-    const request = store.clear();
+  notifyWriteChange(1);
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.clear();
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-  });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  } finally {
+    notifyWriteChange(-1);
+  }
 }
 
 /**
@@ -191,9 +337,6 @@ async function getStoreCount(storeName: string): Promise<number> {
   });
 }
 
-/**
- * Export all data as JSON for backup
- */
 /**
  * Export all data as JSON for backup
  */
@@ -232,7 +375,6 @@ async function exportAllData() {
       const key = localStorage.key(i);
       if (key && (
         key.startsWith('formease_sf8_signatories_') ||
-        key.startsWith('formease_anecdotal_') ||
         key === 'school_calendar_events'
       )) {
         const value = localStorage.getItem(key);
@@ -302,64 +444,40 @@ async function importFromBackup(backupData: {
 
   // Import new data
   if (backupData.schoolProfile) {
-    for (const record of backupData.schoolProfile) {
-      await putRecord('schoolProfile', record);
-    }
+    await putRecordsBulk('schoolProfile', backupData.schoolProfile);
   }
   if (backupData.students) {
-    for (const record of backupData.students) {
-      await putRecord('students', record);
-    }
+    await putRecordsBulk('students', backupData.students);
   }
   if (backupData.sections) {
-    for (const record of backupData.sections) {
-      await putRecord('sections', record);
-    }
+    await putRecordsBulk('sections', backupData.sections);
   }
   if (backupData.subjects) {
-    for (const record of backupData.subjects) {
-      await putRecord('subjects', record);
-    }
+    await putRecordsBulk('subjects', backupData.subjects);
   }
   if (backupData.classRecords) {
-    for (const record of backupData.classRecords) {
-      await putRecord('classRecords', record);
-    }
+    await putRecordsBulk('classRecords', backupData.classRecords);
   }
   if (backupData.enrollments) {
-    for (const record of backupData.enrollments) {
-      await putRecord('enrollments', record);
-    }
+    await putRecordsBulk('enrollments', backupData.enrollments);
   }
   if (backupData.announcements) {
-    for (const record of backupData.announcements) {
-      await putRecord('announcements', record);
-    }
+    await putRecordsBulk('announcements', backupData.announcements);
   }
   if (backupData.attendanceRecords) {
-    for (const record of backupData.attendanceRecords) {
-      await putRecord('attendanceRecords', record);
-    }
+    await putRecordsBulk('attendanceRecords', backupData.attendanceRecords);
   }
   if (backupData.sf2Sheets) {
-    for (const record of backupData.sf2Sheets) {
-      await putRecord('sf2Sheets', record);
-    }
+    await putRecordsBulk('sf2Sheets', backupData.sf2Sheets);
   }
   if (backupData.hpsRecords) {
-    for (const record of backupData.hpsRecords) {
-      await putRecord('hpsRecords', record);
-    }
+    await putRecordsBulk('hpsRecords', backupData.hpsRecords);
   }
   if (backupData.gradingSheetRecords) {
-    for (const record of backupData.gradingSheetRecords) {
-      await putRecord('gradingSheetRecords', record);
-    }
+    await putRecordsBulk('gradingSheetRecords', backupData.gradingSheetRecords);
   }
   if (backupData.observedValues) {
-    for (const record of backupData.observedValues) {
-      await putRecord('observedValues', record);
-    }
+    await putRecordsBulk('observedValues', backupData.observedValues);
   }
 
   // Restore localStorage items if present
@@ -396,10 +514,69 @@ async function deleteBackup(backupId: string): Promise<void> {
   await deleteRecord('backups', backupId);
 }
 
+async function getPaginatedRecords<T>(
+  storeName: string,
+  pageIndex: number,
+  pageSize: number
+): Promise<{ records: T[]; total: number }> {
+  const db = await openDatabase();
+  const total = await new Promise<number>((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).count();
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+  });
+
+  const offset = pageIndex * pageSize;
+  const rawRecords = await new Promise<unknown[]>((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    const results: unknown[] = [];
+    let skipped = 0;
+    const req = store.openCursor();
+    req.onerror = () => reject(req.error);
+    req.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (!cursor || results.length >= pageSize) {
+        resolve(results);
+        return;
+      }
+      if (skipped < offset) {
+        skipped++;
+        cursor.continue();
+      } else {
+        results.push(cursor.value);
+        cursor.continue();
+      }
+    };
+  });
+
+  const records = await Promise.all(
+    rawRecords.map(raw => decryptRecordIfNeeded<T>(storeName, raw))
+  );
+  return { records, total };
+}
+
+async function getActivityLog<T>(): Promise<T[]> {
+  const entries = await getAllRecords<T & { timestamp?: number }>('activityLog');
+  return entries.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0)).slice(0, 50) as T[];
+}
+
+async function addActivityEntry<T extends { id: string }>(entry: T): Promise<void> {
+  await putRecord('activityLog', entry);
+  const all = await getAllRecords<T & { timestamp?: number }>('activityLog');
+  const sorted = all.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+  for (const old of sorted.slice(50)) {
+    await deleteRecord('activityLog', (old as { id: string }).id);
+  }
+}
+
 export const db = {
+  setDatabaseEncryptionKey,
   getAllRecords,
   getRecord,
   putRecord,
+  putRecordsBulk,
   deleteRecord,
   clearStore,
   getStoreCount,
@@ -408,6 +585,9 @@ export const db = {
   getBackups,
   saveBackupMetadata,
   deleteBackup,
+  getPaginatedRecords,
+  getActivityLog,
+  addActivityEntry,
   nukeDatabase: async (): Promise<void> => {
     // Clear localStorage first
     localStorage.clear();

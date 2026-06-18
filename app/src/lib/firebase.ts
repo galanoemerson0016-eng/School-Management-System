@@ -2,6 +2,11 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
+// NOTE: These credentials are intentionally embedded in the client bundle.
+// Firebase API keys are NOT secrets — they identify the project but grant no
+// privileged access. All access control is enforced exclusively by Firestore
+// Security Rules (firestore.rules). Never rely on obscuring this key.
+// See: https://firebase.google.com/docs/projects/api-keys
 const FIREBASE_CONFIG = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBEw6c8Pwb7EZ53wKpDzUNYMwRVo0Nqc9Q",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "formease-licensing.firebaseapp.com",

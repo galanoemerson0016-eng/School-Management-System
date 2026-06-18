@@ -86,6 +86,15 @@ export interface Student {
     enrollment_date?: string;
     photo_url?: string;
     
+    // Checklist of requirements for advisory class
+    req_report_card?: boolean;
+    req_birth_cert?: boolean;
+    req_sf10?: boolean;
+    req_good_moral?: boolean;
+    req_beef?: boolean;
+    req_eccd?: boolean;
+    req_undertaking?: boolean;
+    
     // Elementary Enrolment Eligibility (SF10-ES)
     kinder_progress_report?: boolean;
     eccd_checklist?: boolean;
@@ -369,3 +378,4 @@ export interface AppNotification {
     timestamp: string;
     link?: string; // Navigation target
 }
+

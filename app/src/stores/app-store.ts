@@ -7,11 +7,13 @@
 
 import { create } from 'zustand';
 import type { SchoolProfile, Student, Section, Subject, Announcement, ClassRecord, Enrollment, SchoolYear, ObservedValues, HPSRecord, SF2Sheet, User, AttendanceRecord } from '../types';
-import { db } from '../services/database';
+import { db, onDatabaseWriteChange } from '../services/database';
 import { backup } from '../services/backup';
-import { announcementSync } from '../services/announcement-sync';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
+import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
+import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
+import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
 
 const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
 const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
@@ -40,7 +42,7 @@ function removeLocalStorageValue(key: string): void {
   }
 }
 
-interface AppState {
+interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
   // School profile
   schoolProfile: SchoolProfile;
   setSchoolProfile: (profile: SchoolProfile) => void;
@@ -82,52 +84,12 @@ interface AppState {
   deleteSubject: (id: string) => Promise<void>;
   deleteSubjectsBulk: (ids: string[]) => Promise<void>;
 
-  // Class Records (Grades)
-  classRecords: ClassRecord[];
-  setClassRecords: (records: ClassRecord[]) => void;
-  addClassRecord: (record: ClassRecord) => Promise<void>;
-  updateClassRecord: (record: ClassRecord) => Promise<void>;
-  deleteClassRecord: (id: string) => Promise<void>;
-
-  // Grading Sheet Records (separate from E-Class records)
-  gradingSheetRecords: ClassRecord[];
-  setGradingSheetRecords: (records: ClassRecord[]) => void;
-  updateGradingSheetRecord: (record: ClassRecord) => Promise<void>;
-  deleteGradingSheetRecord: (id: string) => Promise<void>;
-  clearGradingSheet: () => Promise<void>;
-
   // Enrollments
   enrollments: Enrollment[];
   setEnrollments: (enrollments: Enrollment[]) => void;
   addEnrollment: (enrollment: Enrollment) => Promise<void>;
   promoteStudentsFromYear: (sourceSchoolYear: string, sourceGradeLevel: string, targetSectionId: string) => Promise<number>;
   enrollReturningStudent: (lrn: string, targetSectionId: string) => Promise<void>;
-
-  // Announcements
-  announcements: Announcement[];
-  setAnnouncements: (announcements: Announcement[]) => void;
-  addAnnouncement: (announcement: Announcement) => Promise<void>;
-  deleteAnnouncement: (id: string) => Promise<void>;
-  deleteAnnouncementFromCloud: (cloudId: string) => Promise<void>;
-
-  // Observed Values
-  observedValues: ObservedValues[];
-  setObservedValues: (values: ObservedValues[]) => void;
-  updateObservedValue: (value: ObservedValues) => Promise<void>;
-
-  // HPS Records
-  hpsRecords: HPSRecord[];
-  setHpsRecords: (records: HPSRecord[]) => void;
-  updateHPSRecord: (record: HPSRecord) => Promise<void>;
-
-  // SF2 Attendance Persistence
-  activeSF2Sheet: SF2Sheet | null;
-  sf2Sheets: SF2Sheet[];
-  setSF2Sheets: (sheets: SF2Sheet[]) => void;
-  fetchSF2Sheet: (sectionId: string, month: string) => Promise<void>;
-  saveSF2Sheet: (sheet: SF2Sheet) => Promise<void>;
-  attendanceRecords: AttendanceRecord[];
-  setAttendanceRecords: (records: AttendanceRecord[]) => void;
 
   // Teachers (Users)
   teachers: User[];
@@ -182,6 +144,7 @@ interface AppState {
   listBackups: () => Promise<void>;
   lastBackupTime: number | null;
   setLastBackupTime: (time: number | null) => void;
+  dbWritePendingCount: number;
 }
 
 const defaultSchoolProfile: SchoolProfile = {
@@ -205,6 +168,10 @@ const defaultSchoolProfile: SchoolProfile = {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
+  ...createGradingSlice(set, get),
+  ...createAttendanceSlice(set, get),
+  ...createAnnouncementsSlice(set, get),
+
   // ==================== SCHOOL PROFILE ====================
   schoolProfile: defaultSchoolProfile,
   setSchoolProfile: (profile) => set({ schoolProfile: profile }),
@@ -380,9 +347,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   bulkAddStudents: async (newStudents) => {
     try {
-      for (const student of newStudents) {
-        await db.putRecord('students', student);
-      }
+      await db.putRecordsBulk('students', newStudents);
       const allStudents = await db.getAllRecords<Student>('students');
       set({ students: allStudents, studentProfiles: allStudents });
       get().showNotification(`${newStudents.length} students added successfully`, 'success');
@@ -449,11 +414,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           return student;
         });
 
-        for (const s of updatedStudents) {
-          if (s.student_section === newName) {
-            await db.putRecord('students', s);
-          }
-        }
+        const studentsToUpdate = get().students
+          .filter((s) => s.student_section === oldName || s.student_section === section.id)
+          .map((s) => ({ ...s, student_section: newName }));
+
+        await db.putRecordsBulk('students', studentsToUpdate);
 
         // Cascade changes to studentProfiles list
         const updatedStudentProfiles = get().studentProfiles.map((student) => {
@@ -471,11 +436,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           return e;
         });
 
-        for (const e of updatedEnrollments) {
-          if (e.student_section === newName) {
-            await db.putRecord('enrollments', e);
-          }
-        }
+        const enrollmentsToUpdate = get().enrollments
+          .filter((e) => e.student_section === oldName || e.student_section === section.id)
+          .map((e) => ({ ...e, student_section: newName }));
+
+        await db.putRecordsBulk('enrollments', enrollmentsToUpdate);
 
         set({
           students: updatedStudents,
@@ -493,6 +458,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   deleteSection: async (id) => {
     const previousSections = get().sections;
+    const targetSection = previousSections.find((s) => s.id === id);
+    if (!targetSection) return;
+
+    // Verify if there are students still assigned to this section
+    const activeStudents = get().students.filter(
+      (student) => student.student_section === targetSection.id || student.student_section === targetSection.section_name
+    );
+
+    if (activeStudents.length > 0) {
+      const errMsg = `Cannot delete section "${targetSection.section_name}" because ${activeStudents.length} student(s) are still assigned to it. Please reassign or unenroll them first.`;
+      get().showNotification(errMsg, 'error');
+      throw new Error(errMsg);
+    }
+
     try {
       set((state) => ({ sections: state.sections.filter((s) => s.id !== id) }));
       await db.deleteRecord('sections', id);
@@ -671,54 +650,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ==================== CLASS RECORDS ====================
-  classRecords: [],
-  setClassRecords: (records) => set({ classRecords: records }),
-  addClassRecord: async (record) => {
-    try {
-      set((state) => ({ classRecords: [...state.classRecords, record] }));
-      await db.putRecord('classRecords', record);
-      get().showNotification('Grade recorded', 'success');
-    } catch (error) {
-      console.error('Error adding class record:', error);
-      get().showNotification('Failed to record grade', 'error');
-      set((state) => ({ classRecords: state.classRecords.filter((r) => r.id !== record.id) }));
-      throw error;
-    }
-  },
-  updateClassRecord: async (record) => {
-    try {
-      const existing = get().classRecords.find(r => r.id === record.id);
-      if (existing) {
-        set((state) => ({
-          classRecords: state.classRecords.map((r) => (r.id === record.id ? record : r)),
-        }));
-      } else {
-        set((state) => ({
-          classRecords: [...state.classRecords, record],
-        }));
-      }
-      await db.putRecord('classRecords', record);
-    } catch (error) {
-      console.error('Error updating class record:', error);
-      get().showNotification('Failed to update grade', 'error');
-      throw error;
-    }
-  },
-  deleteClassRecord: async (id) => {
-    const previousRecords = get().classRecords;
-    try {
-      set((state) => ({ classRecords: state.classRecords.filter((r) => r.id !== id) }));
-      await db.deleteRecord('classRecords', id);
-      get().showNotification('Grade deleted', 'success');
-    } catch (error) {
-      console.error('Error deleting class record:', error);
-      set({ classRecords: previousRecords });
-      get().showNotification('Failed to delete grade', 'error');
-      throw error;
-    }
-  },
-
   // ==================== ENROLLMENTS ====================
   enrollments: [],
   setEnrollments: (enrollments) => set({ enrollments }),
@@ -768,6 +699,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const timestamp = new Date().toISOString();
       const updatedStudents = [...state.students];
       const newEnrollments: Enrollment[] = [];
+      const promotedStudentsToSave: Student[] = [];
 
       for (const lrn of candidateLrns) {
         if (alreadyEnrolled.has(lrn)) continue;
@@ -780,7 +712,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           student_section: targetSection.section_name,
         };
         updatedStudents[idx] = promotedStudent;
-        await db.putRecord('students', promotedStudent);
+        promotedStudentsToSave.push(promotedStudent);
 
         const enrollment: Enrollment = {
           id: `enroll-${lrn}-${targetSchoolYear}`,
@@ -791,11 +723,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           enrolled_at: timestamp,
         };
         newEnrollments.push(enrollment);
-        await db.putRecord('enrollments', enrollment);
       }
 
       const promoted = newEnrollments.length;
       if (promoted > 0) {
+        await db.putRecordsBulk('students', promotedStudentsToSave);
+        await db.putRecordsBulk('enrollments', newEnrollments);
+
         set({
           students: updatedStudents,
           studentProfiles: updatedStudents,
@@ -830,186 +764,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ==================== ANNOUNCEMENTS ====================
-  announcements: [],
-  setAnnouncements: (announcements) => set({ announcements }),
-  addAnnouncement: async (announcement) => {
-    try {
-      set((state) => ({ announcements: [...state.announcements, announcement] }));
-      await db.putRecord('announcements', announcement);
-      get().showNotification('Announcement posted', 'success');
-
-      // Auto-publish to cloud if enabled and school_id exists, and it's NOT already a cloud-sourced announcement
-      const state = get();
-      // Get author ID from local storage or session
-      const authorId = localStorage.getItem('auth_user_uid') || 'anonymous';
-      
-      if (state.cloudSyncEnabled && state.schoolProfile.school_id && !announcement.is_cloud) {
-        try {
-          await announcementSync.publishToCloud(announcement, state.schoolProfile.school_id, authorId);
-        } catch (err) {
-          console.error('Failed to sync announcement to cloud:', err);
-        }
-      }
-    } catch (error) {
-      console.error('Error adding announcement:', error);
-      get().showNotification('Failed to post announcement', 'error');
-      set((state) => ({ announcements: state.announcements.filter((a) => a.id !== announcement.id) }));
-      throw error;
-    }
-  },
-  deleteAnnouncement: async (id) => {
-    const previousAnnouncements = get().announcements;
-    const target = previousAnnouncements.find(a => a.id === id);
-    
-    try {
-      set((state) => ({ announcements: state.announcements.filter((a) => a.id !== id) }));
-      await db.deleteRecord('announcements', id);
-      
-      // If it's a cloud announcement, also delete from cloud (if sync enabled)
-      // Note: Firebase rules will verify if the user is actually the author
-      if (target && target.is_cloud && get().cloudSyncEnabled) {
-          await announcementSync.deleteFromCloud(id);
-      }
-      
-      get().showNotification('Announcement deleted', 'success');
-    } catch (error) {
-      console.error('Error deleting announcement:', error);
-      set({ announcements: previousAnnouncements });
-      get().showNotification('Failed to delete announcement', 'error');
-      throw error;
-    }
-  },
-  deleteAnnouncementFromCloud: async (cloudId) => {
-      try {
-          await announcementSync.deleteFromCloud(cloudId);
-          set((state) => ({ announcements: state.announcements.filter((a) => a.id !== cloudId) }));
-          await db.deleteRecord('announcements', cloudId);
-      } catch (err) {
-          console.error('Cloud delete failed:', err);
-          throw err;
-      }
-  },
-
-  // ==================== GRADING SHEET RECORDS ====================
-  gradingSheetRecords: [],
-  setGradingSheetRecords: (records) => set({ gradingSheetRecords: records }),
-  updateGradingSheetRecord: async (record) => {
-    try {
-      const existing = get().gradingSheetRecords.find(r => r.id === record.id);
-      if (existing) {
-        set((state) => ({
-          gradingSheetRecords: state.gradingSheetRecords.map((r) => (r.id === record.id ? record : r)),
-        }));
-      } else {
-        set((state) => ({
-          gradingSheetRecords: [...state.gradingSheetRecords, record],
-        }));
-      }
-      await db.putRecord('gradingSheetRecords', record);
-    } catch (error) {
-      console.error('Error updating grading sheet record:', error);
-      throw error;
-    }
-  },
-  deleteGradingSheetRecord: async (id) => {
-    const previousRecords = get().gradingSheetRecords;
-    try {
-      set((state) => ({ gradingSheetRecords: state.gradingSheetRecords.filter((r) => r.id !== id) }));
-      await db.deleteRecord('gradingSheetRecords', id);
-    } catch (error) {
-      console.error('Error deleting grading sheet record:', error);
-      set({ gradingSheetRecords: previousRecords });
-      throw error;
-    }
-  },
-  clearGradingSheet: async () => {
-    try {
-      set({ gradingSheetRecords: [] });
-      await db.clearStore('gradingSheetRecords');
-      get().showNotification('All grading records cleared', 'success');
-    } catch (error) {
-      console.error('Error clearing grading sheet:', error);
-      get().showNotification('Failed to clear records', 'error');
-      throw error;
-    }
-  },
-
-  // ==================== OBSERVED VALUES ====================
-  observedValues: [],
-  setObservedValues: (values) => set({ observedValues: values }),
-  updateObservedValue: async (value) => {
-    try {
-      const existing = get().observedValues.find(v => v.id === value.id);
-      if (existing) {
-        set((state) => ({
-          observedValues: state.observedValues.map((v) => (v.id === value.id ? value : v)),
-        }));
-      } else {
-        set((state) => ({
-          observedValues: [...state.observedValues, value],
-        }));
-      }
-      await db.putRecord('observedValues', value);
-    } catch (error) {
-      console.error('Error updating observed value:', error);
-      throw error;
-    }
-  },
-
-  // ==================== HPS RECORDS ====================
-  hpsRecords: [],
-  setHpsRecords: (records) => set({ hpsRecords: records }),
-  updateHPSRecord: async (record) => {
-    try {
-      const existing = get().hpsRecords.find(r => r.id === record.id);
-      if (existing) {
-        set((state) => ({
-          hpsRecords: state.hpsRecords.map((r) => (r.id === record.id ? record : r)),
-        }));
-      } else {
-        set((state) => ({
-          hpsRecords: [...state.hpsRecords, record],
-        }));
-      }
-      await db.putRecord('hpsRecords', record);
-    } catch (error) {
-      console.error('Error updating HPS record:', error);
-      throw error;
-    }
-  },
-
-  // ==================== SF2 SHEETS ====================
-  activeSF2Sheet: null,
-  sf2Sheets: [],
-  setSF2Sheets: (sheets) => set({ sf2Sheets: sheets }),
-  fetchSF2Sheet: async (sectionId, month) => {
-    try {
-      const sy = get().activeSchoolYear;
-      const id = `${sectionId}_${sy}_${month}`;
-      const sheet = await db.getRecord<SF2Sheet>('sf2Sheets', id);
-      if (sheet) {
-        set({ activeSF2Sheet: sheet });
-      } else {
-        set({ activeSF2Sheet: null });
-      }
-    } catch (error) {
-      console.error('Error fetching SF2 sheet:', error);
-    }
-  },
-  saveSF2Sheet: async (sheet) => {
-    try {
-      await db.putRecord('sf2Sheets', sheet);
-      set((state) => ({
-        sf2Sheets: [...state.sf2Sheets.filter((s) => s.id !== sheet.id), sheet],
-        activeSF2Sheet: sheet
-      }));
-    } catch (error) {
-      console.error('Error saving SF2 sheet:', error);
-      throw error;
-    }
-  },
-
   // ==================== TEACHERS/USERS ====================
   teachers: [],
   setTeachers: (teachers) => set({ teachers }),
@@ -1031,8 +785,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   },
   setSF9Layout: (layout) => set({ sf9Layout: layout }),
-  attendanceRecords: [],
-  setAttendanceRecords: (records) => set({ attendanceRecords: records }),
 
   // ==================== UI STATE ====================
   currentView: getLocalStorageValue(CURRENT_VIEW_STORAGE_KEY) || 'dashboard',
@@ -1072,6 +824,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.setItem('announcement_cloud_sync', enabled.toString());
     set({ cloudSyncEnabled: enabled });
   },
+
+  // ==================== DB WRITE TRACKING ====================
+  dbWritePendingCount: 0,
 
   // ==================== BACKUP & RESTORE ====================
   lastBackupTime: null,
@@ -1137,6 +892,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 }));
 
+onDatabaseWriteChange((count) => {
+  useAppStore.setState({ dbWritePendingCount: count });
+});
+
 /**
  * Initialize app store by loading all data from local database
  */
@@ -1151,20 +910,26 @@ export async function initializeAppStore() {
   };
 
   try {
-    const students = await loadStore<Student>('students');
-    const sections = await loadStore<Section>('sections');
-    const subjects = await loadStore<Subject>('subjects');
+    // Phase 1: load data needed before making decisions, all in parallel
+    const [students, sections, subjects, allProfiles] = await Promise.all([
+      loadStore<Student>('students'),
+      loadStore<Section>('sections'),
+      loadStore<Subject>('subjects'),
+      db.getAllRecords<SchoolProfile>('schoolProfile'),
+    ]);
+
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because
     // the client may have changed their School ID, which changes the stored key.
     // If somehow multiple records exist (legacy), prefer the non-default one.
-    const allProfiles = await db.getAllRecords<SchoolProfile>('schoolProfile');
     const schoolProfile =
       allProfiles.find(p => p.school_id !== defaultSchoolProfile.school_id) ??
       allProfiles[0] ??
       undefined;
 
-    // Auto-load all subjects for all grade levels if none are loaded
+    // Auto-load all subjects for all grade levels if none are loaded.
+    // Collect into an array then write in one bulk transaction instead of
+    // issuing one putRecord() per subject (which was 100+ round-trips).
     if (subjects.length === 0) {
       console.log('Auto-loading all subjects for all grade levels right away...');
       const timestamp = Date.now();
@@ -1192,8 +957,9 @@ export async function initializeAppStore() {
         '*Arabic Language',
         '*Islamic Values Education',
       ];
-      
+
       const normalizeLabel = (val: string) => val.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
+      const newSubjects: Subject[] = [];
 
       for (const grade of grades) {
         const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
@@ -1202,31 +968,33 @@ export async function initializeAppStore() {
         for (let i = 0; i < templates.length; i++) {
           const template = templates[i];
           const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
-          
-          const newSubject: Subject = {
+          newSubjects.push({
             id: subjectId,
             subject_name: template.name,
             subject_code: template.code,
             grade_level: grade,
             term: getDefaultTermForSubject(template.name, grade),
-            order: universalOrder.findIndex((name) => normalizeLabel(name) === normalizeLabel(template.name))
-          };
-          
-          await db.putRecord('subjects', newSubject);
-          subjects.push(newSubject);
+            order: universalOrder.findIndex((name) => normalizeLabel(name) === normalizeLabel(template.name)),
+          });
         }
       }
+
+      await db.putRecordsBulk('subjects', newSubjects);
+      subjects.push(...newSubjects);
     }
     const finalSubjects = subjects;
 
-    const classRecords = await loadStore<ClassRecord>('classRecords');
-    const enrollments = await loadStore<Enrollment>('enrollments');
-    const announcements = await loadStore<Announcement>('announcements');
-    const attendanceRecords = await loadStore<AttendanceRecord>('attendanceRecords');
-    const gradingSheetRecords = await loadStore<ClassRecord>('gradingSheetRecords');
-    const hpsRecords = await loadStore<HPSRecord>('hpsRecords');
-    const sf2Sheets = await loadStore<SF2Sheet>('sf2Sheets');
-    const observedValues = await loadStore<ObservedValues>('observedValues');
+    // Phase 2: load remaining stores in parallel — none depend on each other
+    const [classRecords, enrollments, announcements, attendanceRecords, gradingSheetRecords, hpsRecords, sf2Sheets, observedValues] = await Promise.all([
+      loadStore<ClassRecord>('classRecords'),
+      loadStore<Enrollment>('enrollments'),
+      loadStore<Announcement>('announcements'),
+      loadStore<AttendanceRecord>('attendanceRecords'),
+      loadStore<ClassRecord>('gradingSheetRecords'),
+      loadStore<HPSRecord>('hpsRecords'),
+      loadStore<SF2Sheet>('sf2Sheets'),
+      loadStore<ObservedValues>('observedValues'),
+    ]);
 
 
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);

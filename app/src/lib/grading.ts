@@ -572,20 +572,20 @@ export function getKs1Descriptor(letterGrade: string, gradeLevel: string): strin
     
     if (isKindergarten(gradeLevel)) {
         switch (lg) {
-            case 'C': return 'Consistent (Palagiang Naipapakita)';
-            case 'D': return 'Developing (Umuusbong)';
-            case 'B': return 'Beginning (Nagsisimula)';
+            case 'C': return 'Consistent';
+            case 'D': return 'Developing';
+            case 'B': return 'Beginning';
             default: return '';
         }
     }
     
     // Grades 1-3
     switch (lg) {
-        case 'A': return 'Advancing (Namumukod-tangi)';
-        case 'B': return 'Benchmarking (Napamamalas)';
-        case 'C': return 'Connecting (Natutungo)';
-        case 'D': return 'Developing (Napauunlad)';
-        case 'E': return 'Emerging (Nagsisimula)';
+        case 'A': return 'Advancing';
+        case 'B': return 'Benchmarking';
+        case 'C': return 'Connecting';
+        case 'D': return 'Developing';
+        case 'E': return 'Emerging';
         default: return '';
     }
 }
@@ -600,11 +600,11 @@ export function getGradeDescriptorWithFilipino(grade: number, gradeLevel: string
     }
     
     // Grades 4-12
-    if (grade >= 90) return 'Advancing (Namumukod-tangi)';
-    if (grade >= 80) return 'Benchmarking (Napamamalas)';
-    if (grade >= 75) return 'Connecting (Natutungo)';
-    if (grade >= 65) return 'Developing (Napauunlad)';
-    return 'Emerging (Nagsisimula)';
+    if (grade >= 90) return 'Advancing';
+    if (grade >= 80) return 'Benchmarking';
+    if (grade >= 75) return 'Connecting';
+    if (grade >= 65) return 'Developing';
+    return 'Emerging';
 }
 
 // Formatter to display numerical grade as descriptive letter (for KS1) or rounded number (for KS2-KS4)

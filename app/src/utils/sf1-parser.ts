@@ -114,7 +114,9 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         lrnRaw = row[1];
                     }
                     
-                    if (!lrnRaw) continue; // Not a valid LRN (Skip rows with no LRN)
+                    if (!lrnRaw) continue;
+                    const finalLrn = String(lrnRaw).trim();
+                    if (!/^\d{12}$/.test(finalLrn) && !finalLrn.startsWith('TEMP-')) continue; // Skip invalid LRN rows
 
                     if (!colC.includes(',')) continue; // Name must have comma
 
@@ -212,7 +214,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                     }
 
                     students.push({
-                        lrn: String(lrnRaw).trim(),
+                        lrn: finalLrn,
                         last_name: lastName,
                         first_name: firstName,
                         middle_name: middleName,

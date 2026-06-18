@@ -20,6 +20,15 @@ export interface BackupMetadata {
     exportedBy: string;
     note: string;
     warning: string;
+    payloadHash?: string; // SHA-256 hex of JSON.stringify(payload) — used to detect corruption/tampering
+}
+
+async function hashPayload(payload: ComprehensiveBackup['payload']): Promise<string> {
+    const encoded = new TextEncoder().encode(JSON.stringify(payload));
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 }
 
 export interface BackupSummary {
@@ -115,7 +124,6 @@ export async function createComprehensiveBackup(
             const key = localStorage.key(i);
             if (key && (
                 key.startsWith('formease_sf8_signatories_') ||
-                key.startsWith('formease_anecdotal_') ||
                 key === 'school_calendar_events'
             )) {
                 const value = localStorage.getItem(key);
@@ -182,6 +190,7 @@ export async function createComprehensiveBackup(
         },
     };
 
+    backup.metadata.payloadHash = await hashPayload(backup.payload);
     return backup;
 }
 
@@ -202,7 +211,7 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
     ].join('\n');
 }
 
-export function validateBackup(backup: ComprehensiveBackup): { isValid: boolean; issues: string[] } {
+export async function validateBackup(backup: ComprehensiveBackup): Promise<{ isValid: boolean; issues: string[] }> {
     const issues: string[] = [];
 
     if (!backup?.metadata?.exportDate) {
@@ -213,6 +222,17 @@ export function validateBackup(backup: ComprehensiveBackup): { isValid: boolean;
     }
     if (!Array.isArray(backup?.payload?.sections)) {
         issues.push('Sections payload is invalid');
+    }
+
+    if (backup?.metadata?.payloadHash) {
+        try {
+            const recomputed = await hashPayload(backup.payload);
+            if (recomputed !== backup.metadata.payloadHash) {
+                issues.push('Backup integrity check failed — the file may be corrupted or tampered with.');
+            }
+        } catch {
+            issues.push('Could not verify backup integrity hash.');
+        }
     }
 
     return {

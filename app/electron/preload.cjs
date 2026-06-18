@@ -27,7 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   minimizeApp: () => ipcRenderer.send('minimize-app'),
   maximizeApp: () => ipcRenderer.send('maximize-app'),
-  printToPDF: (options) => ipcRenderer.invoke('print-to-pdf', options)
+  printToPDF: (options) => ipcRenderer.invoke('print-to-pdf', options),
+  readDbSalt: () => ipcRenderer.invoke('db:read-salt'),
+  storeDbSalt: (saltHex) => ipcRenderer.invoke('db:store-salt', saltHex),
 });
 
 // Setup dynamic keyboard and mouse scroll zoom controls

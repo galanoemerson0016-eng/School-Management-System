@@ -1,10 +1,10 @@
 import React from 'react';
-import type { Student } from '../types';
+import type { Student, SchoolProfile } from '../types';
 
 interface LIRRendererProps {
     pageNumber: number;
     student: Student;
-    profile: any;
+    profile: SchoolProfile;
     schoolYear: string;
     subject?: string;
     teacher?: string;
@@ -32,7 +32,7 @@ interface LIRRendererProps {
 }
 
 export const LIRRenderer: React.FC<LIRRendererProps> = ({
-    pageNumber, student, profile, schoolYear, subject, teacher,
+    pageNumber: _pageNumber, student, profile, schoolYear, subject, teacher,
     fillColor = '#86efac', outlineColor = '#22c55e', gradeData,
     paperSize = 'folio', attendanceData = {}
 }) => {
@@ -129,8 +129,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                 className="page bg-white flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none overflow-hidden shadow-2xl print:shadow-none"
                 style={{ width: pageWidth, height: pageHeight }}
             >
-                <style dangerouslySetInnerHTML={{
-                    __html: `
+                <style>{`
                     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap');
                     @page { size: ${pageWidth} ${pageHeight}; margin: 0in; }
                     
@@ -367,7 +366,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         border-collapse: collapse;
                         table-layout: auto;
                     }
-                ` }} />
+                `}</style>
 
                 <div className="card-container-combined print:m-0 print:shadow-none">
                     {/* --- FRONT SECTION --- */}
@@ -377,7 +376,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                             <div className="flex items-center gap-4 shrink-0">
                                 <div className="flex items-center justify-center bg-white overflow-hidden" style={{ width: 64 * scale, height: 64 * scale }}>
                                     <img
-                                        src={profile.logo_url || profile.logo || profile.logoUrl || `${baseUrl}school-logo.png`}
+                                        src={profile.logo_url || `${baseUrl}school-logo.png`}
                                         alt="School Logo"
                                         className="max-w-full max-h-full object-contain"
                                         onError={(e) => {
@@ -412,7 +411,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                                 <span className="font-bold leading-tight" style={{ fontSize: 0.7 * scale + 'rem' }}>1 X 1<br />PHOTO</span>
                             </div>
 
-                            <div className="flex-grow flex flex-col gap-1 overflow-hidden">
+                            <div className="grow flex flex-col gap-1 overflow-hidden">
                                 <table 
                                     className="student-info-table border-2" 
                                     style={{ 
@@ -565,7 +564,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                     {/* --- BACK SECTION --- */}
                     <div className="half-page-section border-t-4" style={{ borderColor: outlineColor }}>
                         {/* Title Bar */}
-                        <div className="lir-title-bar-custom mb-3 uppercase tracking-[0.1em]">
+                        <div className="lir-title-bar-custom mb-3 uppercase tracking-widest">
                             Daily Attendance
                         </div>
 

@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import type { SVGProps } from 'react';
 import { useAppStore } from '../stores';
 import { isDescriptiveGrading } from '../lib/grading';
-import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, Bell, Trophy, AlertTriangle, Zap, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity, HelpCircle } from 'lucide-react';
+import { Users, Calendar, Bell, Trophy, AlertTriangle, ChevronLeft, ChevronRight, Clock, ListChecks, Search, Plus, Activity, HelpCircle, Layers } from 'lucide-react';
 import type { CalendarEvent, Student } from '../types';
 import { OFFICIAL_CALENDAR_2026_2027 } from '../data/calendar-events';
 
@@ -175,6 +174,9 @@ export function Dashboard() {
     const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('all');
     const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+    const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+    const [hoveredDonutIndex, setHoveredDonutIndex] = useState<'Male' | 'Female' | null>(null);
 
     const attendanceStats = useMemo(() => {
         const last14Days = Array.from({ length: 14 }, (_, i) => {
@@ -232,6 +234,10 @@ export function Dashboard() {
     }, [sections]);
 
     const officialSections = useMemo(() => sections.filter(s => !s.is_teaching_load || s.is_advisory), [sections]);
+    const totalTeachingLoads = useMemo(() => {
+        return sections.reduce((sum, s) => sum + (s.taught_subjects?.length || 0), 0);
+    }, [sections]);
+
     const officialSubjects = useMemo(() => subjects.filter(s => {
         const section = sections.find(sec => sec.id === s.section_id);
         return !s.is_teaching_load || (section && section.is_advisory);
@@ -402,27 +408,11 @@ export function Dashboard() {
 
 
 
-    const totalStudents = filteredStudents.length;
-    const maleCount = filteredStudents.filter(s => s.gender === 'Male').length;
-    const femaleCount = totalStudents - maleCount;
-
-    const genderPieData = [
-        { name: 'Male', value: maleCount, color: '#003f87' },
-        { name: 'Female', value: femaleCount, color: '#ec4899' }
-    ];
-
-    // Academic Health Score calculation
-    const academicHealthScore = useMemo(() => {
-        if (totalStudents === 0) return 100;
-        
-        const failingRate = (failingStudentList.length / totalStudents) * 100;
-        const completionRate = gradingProgress;
-        
-        // Health score: weighted average of completion rate and inverse failing rate
-        const healthScore = Math.round((completionRate * 0.6) + ((100 - failingRate) * 0.4));
-        
-        return Math.max(0, Math.min(100, healthScore));
-    }, [totalStudents, failingStudentList.length, gradingProgress]);
+    const { totalStudents, maleCount, femaleCount } = useMemo(() => {
+        const total = filteredStudents.length;
+        const male = filteredStudents.filter(s => s.gender === 'Male').length;
+        return { totalStudents: total, maleCount: male, femaleCount: total - male };
+    }, [filteredStudents]);
 
     // Subject performance averages
     const subjectAverages = useMemo(() => {
@@ -667,6 +657,410 @@ export function Dashboard() {
             </div>
         );
     }
+    const renderDonutChart = () => {
+        if (totalStudents === 0) {
+            return (
+                <svg width="100" height="100" viewBox="0 0 100 100">
+                    <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke="#e2e8f0"
+                        strokeWidth="10"
+                    />
+                </svg>
+            );
+        }
+
+        const radius = 38;
+        const circumference = 2 * Math.PI * radius; // ~238.76
+        const malePercent = maleCount / totalStudents;
+        const femalePercent = femaleCount / totalStudents;
+
+        const maleStrokeLength = malePercent * circumference;
+        const femaleStrokeLength = femalePercent * circumference;
+
+        return (
+            <div className="relative flex items-center justify-center">
+                <svg width="105" height="105" viewBox="0 0 100 100" className="transform -rotate-90">
+                    {/* Male Segment */}
+                    {maleCount > 0 && (
+                        <motion.circle
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            fill="transparent"
+                            stroke="#003f87"
+                            strokeWidth={hoveredDonutIndex === 'Male' ? 12 : 9}
+                            strokeDasharray={`${maleStrokeLength} ${circumference}`}
+                            strokeDashoffset={0}
+                            strokeLinecap="round"
+                            className="transition-all duration-300 cursor-pointer"
+                            onMouseEnter={() => setHoveredDonutIndex('Male')}
+                            onMouseLeave={() => setHoveredDonutIndex(null)}
+                            initial={{ strokeDasharray: `0 ${circumference}` }}
+                            animate={{ strokeDasharray: `${maleStrokeLength} ${circumference}` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                        />
+                    )}
+                    {/* Female Segment */}
+                    {femaleCount > 0 && (
+                        <motion.circle
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            fill="transparent"
+                            stroke="#ec4899"
+                            strokeWidth={hoveredDonutIndex === 'Female' ? 12 : 9}
+                            strokeDasharray={`${femaleStrokeLength} ${circumference}`}
+                            strokeDashoffset={-maleStrokeLength}
+                            strokeLinecap="round"
+                            className="transition-all duration-300 cursor-pointer"
+                            onMouseEnter={() => setHoveredDonutIndex('Female')}
+                            onMouseLeave={() => setHoveredDonutIndex(null)}
+                            initial={{ strokeDasharray: `0 ${circumference}` }}
+                            animate={{ strokeDasharray: `${femaleStrokeLength} ${circumference}` }}
+                            transition={{ duration: 1, ease: "easeOut", delay: 0.1 }}
+                        />
+                    )}
+                </svg>
+                {/* Center text overlay */}
+                <div className="absolute flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total</span>
+                    <span className="text-xl font-black text-slate-900 tabular-nums">{totalStudents}</span>
+                </div>
+                {/* Tooltip on Hover */}
+                {hoveredDonutIndex && (
+                    <div className="absolute -bottom-8 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1 px-2.5 rounded-lg shadow-lg z-20 transition-all pointer-events-none text-center">
+                        {hoveredDonutIndex}: {hoveredDonutIndex === 'Male' ? maleCount : femaleCount} ({hoveredDonutIndex === 'Male' ? Math.round(malePercent * 100) : Math.round(femalePercent * 100)}%)
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderBarChart = () => {
+        if (subjectAverages.length === 0) {
+            return (
+                <div className="h-full flex items-center justify-center text-slate-400 text-[10px] font-black uppercase tracking-widest italic">
+                    No grading records
+                </div>
+            );
+        }
+
+        const svgWidth = 240;
+        const svgHeight = 100;
+        const paddingBottom = 15;
+        const paddingTop = 15;
+        const paddingLeft = 15;
+        const paddingRight = 15;
+        
+        const chartHeight = svgHeight - paddingTop - paddingBottom;
+        const chartWidth = svgWidth - paddingLeft - paddingRight;
+        
+        const barWidth = 24;
+        const numBars = subjectAverages.length;
+        const gap = (chartWidth - (numBars * barWidth)) / (numBars - 1 || 1);
+        const maxVal = 100;
+
+        return (
+            <div className="relative w-full h-full flex flex-col justify-end">
+                <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <linearGradient id="barGrad-0" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stopColor="#3b82f6" />
+                            <stop offset="100%" stopColor="#60a5fa" />
+                        </linearGradient>
+                        <linearGradient id="barGrad-1" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stopColor="#10b981" />
+                            <stop offset="100%" stopColor="#34d399" />
+                        </linearGradient>
+                        <linearGradient id="barGrad-2" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stopColor="#6366f1" />
+                            <stop offset="100%" stopColor="#818cf8" />
+                        </linearGradient>
+                        <linearGradient id="barGrad-3" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stopColor="#f59e0b" />
+                            <stop offset="100%" stopColor="#fbbf24" />
+                        </linearGradient>
+                        <linearGradient id="barGrad-4" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stopColor="#ec4899" />
+                            <stop offset="100%" stopColor="#f472b6" />
+                        </linearGradient>
+                    </defs>
+
+                    {/* Grid Lines */}
+                    {[0, 25, 50, 75, 100].map((tick) => {
+                        const y = paddingTop + chartHeight - (tick / maxVal) * chartHeight;
+                        return (
+                            <line
+                                key={tick}
+                                x1={paddingLeft}
+                                y1={y}
+                                x2={svgWidth - paddingRight}
+                                y2={y}
+                                stroke="#f1f5f9"
+                                strokeWidth="1"
+                                strokeDasharray="2 2"
+                            />
+                        );
+                    })}
+
+                    {/* Bars */}
+                    {subjectAverages.map((item, index) => {
+                        const x = paddingLeft + index * (barWidth + gap);
+                        const barHeight = (item.avg / maxVal) * chartHeight;
+                        const y = paddingTop + chartHeight - barHeight;
+
+                        const isHovered = hoveredBarIndex === index;
+
+                        return (
+                            <g 
+                                key={index}
+                                className="cursor-pointer"
+                                onMouseEnter={() => setHoveredBarIndex(index)}
+                                onMouseLeave={() => setHoveredBarIndex(null)}
+                            >
+                                {/* Background bar area for easier hovering */}
+                                <rect
+                                    x={x - gap / 4}
+                                    y={paddingTop}
+                                    width={barWidth + gap / 2}
+                                    height={chartHeight}
+                                    fill="transparent"
+                                />
+                                
+                                {/* Visible Animated Bar */}
+                                <motion.rect
+                                    x={x}
+                                    y={y}
+                                    width={barWidth}
+                                    height={barHeight}
+                                    rx="4"
+                                    ry="4"
+                                    fill={`url(#barGrad-${index % 5})`}
+                                    filter={isHovered ? "drop-shadow(0px 4px 6px rgba(0,0,0,0.15))" : "none"}
+                                    className="transition-all duration-200"
+                                    initial={{ height: 0, y: paddingTop + chartHeight }}
+                                    animate={{ height: barHeight, y: y }}
+                                    transition={{ duration: 0.8, ease: "easeOut", delay: index * 0.05 }}
+                                />
+
+                                {/* Short Subject Abbreviation label at bottom */}
+                                <text
+                                    x={x + barWidth / 2}
+                                    y={svgHeight - 2}
+                                    textAnchor="middle"
+                                    fontSize="7px"
+                                    fontWeight="bold"
+                                    fill="#64748b"
+                                >
+                                    {item.name.substring(0, 5).toUpperCase()}
+                                </text>
+
+                                {/* Floating Score above bar on Hover */}
+                                {isHovered && (
+                                    <text
+                                        x={x + barWidth / 2}
+                                        y={y - 4}
+                                        textAnchor="middle"
+                                        fontSize="8px"
+                                        fontWeight="bold"
+                                        fill="#1e293b"
+                                    >
+                                        {item.avg}%
+                                    </text>
+                                )}
+                            </g>
+                        );
+                    })}
+                </svg>
+
+                {/* Custom Tooltip */}
+                {hoveredBarIndex !== null && subjectAverages[hoveredBarIndex] && (
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1 px-2.5 rounded-lg shadow-lg z-25 transition-all pointer-events-none text-center min-w-[120px]">
+                        <p className="line-clamp-1">{subjectAverages[hoveredBarIndex].name}</p>
+                        <p className="text-emerald-400 mt-0.5">{subjectAverages[hoveredBarIndex].avg}% Average</p>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderAttendanceTrendChart = () => {
+        const svgWidth = 800;
+        const svgHeight = 120;
+        const paddingLeft = 30;
+        const paddingRight = 20;
+        const paddingTop = 15;
+        const paddingBottom = 20;
+
+        const chartWidth = svgWidth - paddingLeft - paddingRight;
+        const chartHeight = svgHeight - paddingTop - paddingBottom;
+
+        const counts = attendanceStats.map(d => d.count);
+        const maxCount = Math.max(5, ...counts);
+
+        const points = attendanceStats.map((d, i) => {
+            const x = paddingLeft + (i / (attendanceStats.length - 1)) * chartWidth;
+            const y = paddingTop + chartHeight - (d.count / maxCount) * chartHeight;
+            return { x, y, date: d.date, count: d.count };
+        });
+
+        // Generate Path Data
+        const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        const areaPath = points.length > 0
+            ? `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`
+            : '';
+
+        return (
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-[0_28px_56px_-20px_rgba(15,23,42,0.08)] transition-all duration-300">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                            <Activity className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight">14-Day Attendance Absences Trend</h3>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Absence rates overview</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                            <span>Daily Absences</span>
+                        </div>
+                        <div className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-150">
+                            Average: <span className="text-indigo-600 font-extrabold">{attendanceInsights.averageDailyAbsences}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="relative h-[120px] w-full">
+                    <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.00" />
+                            </linearGradient>
+                        </defs>
+
+                        {/* Horizontal Y-Gridlines */}
+                        {[0, 25, 50, 75, 100].map((tick) => {
+                            const val = Math.round((tick / 100) * maxCount);
+                            const y = paddingTop + chartHeight - (tick / 100) * chartHeight;
+                            return (
+                                <g key={tick}>
+                                    <line
+                                        x1={paddingLeft}
+                                        y1={y}
+                                        x2={svgWidth - paddingRight}
+                                        y2={y}
+                                        stroke="#f8fafc"
+                                        strokeWidth="1"
+                                    />
+                                    <text
+                                        x={paddingLeft - 8}
+                                        y={y + 3}
+                                        textAnchor="end"
+                                        fontSize="7px"
+                                        fontWeight="bold"
+                                        fill="#94a3b8"
+                                    >
+                                        {val}
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Shaded Area under the path */}
+                        {areaPath && (
+                            <motion.path
+                                d={areaPath}
+                                fill="url(#areaGrad)"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ duration: 0.8 }}
+                            />
+                        )}
+
+                        {/* Glowing Line Path */}
+                        {linePath && (
+                            <motion.path
+                                d={linePath}
+                                fill="none"
+                                stroke="#6366f1"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: 1.2, ease: "easeOut" }}
+                            />
+                        )}
+
+                        {/* Interactive Circles for data points */}
+                        {points.map((p, i) => {
+                            const isHovered = hoveredPointIndex === i;
+                            return (
+                                <g key={i}>
+                                    {/* Invisible larger touch targets */}
+                                    <circle
+                                        cx={p.x}
+                                        cy={p.y}
+                                        r="8"
+                                        fill="transparent"
+                                        className="cursor-pointer"
+                                        onMouseEnter={() => setHoveredPointIndex(i)}
+                                        onMouseLeave={() => setHoveredPointIndex(null)}
+                                    />
+                                    {/* Visible glowing dot */}
+                                    <circle
+                                        cx={p.x}
+                                        cy={p.y}
+                                        r={isHovered ? "5.5" : "3.5"}
+                                        fill={isHovered ? "#ffffff" : "#6366f1"}
+                                        stroke="#6366f1"
+                                        strokeWidth={isHovered ? "3" : "1.5"}
+                                        className="transition-all duration-150 pointer-events-none"
+                                    />
+                                    {/* X-Axis Date label */}
+                                    {i % 2 === 0 && (
+                                        <text
+                                            x={p.x}
+                                            y={svgHeight - 2}
+                                            textAnchor="middle"
+                                            fontSize="7px"
+                                            fontWeight="bold"
+                                            fill="#94a3b8"
+                                        >
+                                            {p.date}
+                                        </text>
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+
+                    {/* Floating Tooltip */}
+                    {hoveredPointIndex !== null && points[hoveredPointIndex] && (
+                        <div 
+                            className="absolute bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1.5 px-2.5 rounded-lg shadow-lg z-25 pointer-events-none transition-all duration-75"
+                            style={{
+                                left: `${(points[hoveredPointIndex].x / svgWidth) * 100}%`,
+                                top: `${(points[hoveredPointIndex].y / svgHeight) * 100 - 32}%`,
+                                transform: 'translateX(-50%)',
+                            }}
+                        >
+                            <div>Date: {points[hoveredPointIndex].date}</div>
+                            <div className="text-rose-400 font-extrabold">{points[hoveredPointIndex].count} Absences</div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-app-bg text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
             {/* Background Decorative Elements - Ambient Light Canvas */}
@@ -683,7 +1077,7 @@ export function Dashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/70 backdrop-blur-xl p-6 lg:p-8 rounded-4xl border border-white/80 shadow-[0_20px_40px_-16px_rgba(0,0,0,0.02)]">
                     <div>
                         <h1 className="text-2xl font-black text-slate-800 tracking-tight">Welcome to FormEase Pro</h1>
-                        <p className="text-sm text-slate-500 mt-1">Manage classes, subjects, grades, and DepEd school forms in one unified workspace.</p>
+                        <p className="text-sm text-slate-500 mt-1">Manage classes, subjects, grades, and DepEd school forms in one unified workspace (School Year: {activeSchoolYear}).</p>
                     </div>
                     <button
                         onClick={() => {
@@ -739,15 +1133,15 @@ export function Dashboard() {
                             gradient: 'from-indigo-400/20 to-purple-500/20'
                         },
                         { 
-                            label: 'Academic Health', 
-                            value: `${academicHealthScore}%`, 
-                            sub: academicHealthScore >= 75 ? 'Healthy environment' : 'Action required', 
-                            icon: Zap, 
-                            color: academicHealthScore >= 90 ? 'emerald' : academicHealthScore >= 75 ? 'blue' : 'rose', 
-                            bg: academicHealthScore >= 90 ? 'bg-emerald-500' : academicHealthScore >= 75 ? 'bg-blue-500' : 'bg-rose-500', 
-                            light: academicHealthScore >= 90 ? 'bg-emerald-50' : academicHealthScore >= 75 ? 'bg-blue-50' : 'bg-rose-50',
-                            textColor: academicHealthScore >= 90 ? 'text-emerald-600' : academicHealthScore >= 75 ? 'text-blue-600' : 'text-rose-600',
-                            gradient: academicHealthScore >= 90 ? 'from-emerald-400/20 to-teal-500/20' : academicHealthScore >= 75 ? 'from-blue-400/20 to-indigo-500/20' : 'from-rose-400/20 to-pink-500/20'
+                            label: 'Class Sections', 
+                            value: sections.length, 
+                            sub: `${totalTeachingLoads} teaching loads`, 
+                            icon: Layers, 
+                            color: 'indigo', 
+                            bg: 'bg-indigo-500', 
+                            light: 'bg-indigo-50',
+                            textColor: 'text-indigo-600',
+                            gradient: 'from-indigo-400/20 to-purple-500/20'
                         }
                     ].map((metric, i) => (
                         <motion.div 
@@ -785,6 +1179,9 @@ export function Dashboard() {
                         </motion.div>
                     ))}
                 </motion.div>
+
+                {/* 14-Day Attendance Absences Trend Chart */}
+                {renderAttendanceTrendChart()}
 
                 {/* ═══ 3. Insight Pillars ═══ */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch lg:h-[220px]">
@@ -854,29 +1251,7 @@ export function Dashboard() {
                             </div>
                         </div>
                         <div className="flex-1 flex items-center justify-center relative min-h-[105px] h-[105px]">
-                            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
-                                <PieChart>
-                                    <Pie
-                                        data={genderPieData}
-                                        innerRadius={34}
-                                        outerRadius={48}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        strokeWidth={0}
-                                    >
-                                        {genderPieData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip 
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 12px 24px -4px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 900 }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="absolute flex flex-col items-center">
-                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total</span>
-                                <span className="text-2xl font-black text-slate-900 tabular-nums">{totalStudents}</span>
-                            </div>
+                            {renderDonutChart()}
                         </div>
                     </div>
                     {/* Right — Academic Performance */}
@@ -902,31 +1277,7 @@ export function Dashboard() {
                             </div>
                         </div>
                         <div className="flex-1 flex flex-col justify-between min-h-[105px] h-[105px] py-1">
-                            {subjectAverages.map((item, index) => {
-                                const score = item.avg;
-                                const colorClass = score >= 95
-                                    ? 'bg-gradient-to-r from-emerald-400 to-teal-500 shadow-emerald-500/10'
-                                    : score >= 90
-                                        ? 'bg-gradient-to-r from-blue-400 to-indigo-500 shadow-blue-500/10'
-                                        : 'bg-gradient-to-r from-violet-400 to-purple-500 shadow-violet-500/10';
-
-                                return (
-                                    <div key={index} className="flex flex-col space-y-0.5">
-                                        <div className="flex justify-between items-center text-[8.5px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-                                            <span className="truncate max-w-[130px]">{item.name}</span>
-                                            <span className="tabular-nums bg-slate-100 dark:bg-white/10 px-1.5 py-0.2 rounded text-[7.5px] font-bold text-slate-700 dark:text-slate-200">{item.avg}%</span>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden border border-slate-100/50 dark:border-white/5 relative">
-                                            <motion.div 
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${item.avg}%` }}
-                                                transition={{ duration: 1.2, ease: "easeOut", delay: index * 0.08 }}
-                                                className={`h-full ${colorClass} rounded-full`}
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {renderBarChart()}
                         </div>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100/60 flex justify-center">
                             <p className="text-[7.5px] font-black text-slate-400 uppercase tracking-[0.12em] italic text-center">

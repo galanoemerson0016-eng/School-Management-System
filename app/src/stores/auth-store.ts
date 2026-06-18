@@ -16,6 +16,9 @@ import type { User } from '../types';
 import { auth } from '../lib/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { hashSecret, verifySecret } from '../utils/password-crypto';
+import { deriveDbKey, getDbSalt } from '../utils/db-crypto';
+import { db } from '../services/database';
+import { getMachineId } from '../utils/machine-id';
 
 const CREDS_KEY = 'formease-credentials-v2';
 const LEGACY_CREDS_KEY = 'formease-credentials';
@@ -194,6 +197,19 @@ function setRecoveryAttempts(attempts: RecoveryAttempts): void {
   localStorage.setItem(RECOVERY_ATTEMPTS_KEY, JSON.stringify(attempts));
 }
 
+async function setupDatabaseEncryption(password: string) {
+  const salt = await getDbSalt();
+  const key = await deriveDbKey(password, salt);
+  db.setDatabaseEncryptionKey(key);
+}
+
+async function setupTrialDatabaseEncryption() {
+  const machineId = await getMachineId();
+  const salt = await getDbSalt();
+  const key = await deriveDbKey(machineId, salt);
+  db.setDatabaseEncryptionKey(key);
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
@@ -222,6 +238,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const user = buildUser(stored);
+      await setupDatabaseEncryption(password);
       await attachCloudIdentity(user);
 
       set({ user, isAuthenticated: true, isLoading: false, error: null });
@@ -236,6 +253,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem('formease-db-session-key');
+    db.setDatabaseEncryptionKey(null);
     set({ user: null, isAuthenticated: false, error: null });
   },
 
@@ -268,6 +287,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem(LEGACY_CREDS_KEY);
 
       const user = buildUser(creds);
+      await setupDatabaseEncryption(input.password);
       await attachCloudIdentity(user);
 
       set({ user, isAuthenticated: true, isLoading: false, needsAccountSetup: false, error: null });
@@ -377,6 +397,7 @@ export async function initializeAuthStore() {
     const { useAppStore } = await import('./app-store');
     const profile = useAppStore.getState().schoolProfile;
     if (profile && profile.is_activated && profile.is_trial) {
+      await setupTrialDatabaseEncryption();
       const user: User = {
         uid: 'trial-user',
         email: 'trial@school.local',
@@ -395,22 +416,10 @@ export async function initializeAuthStore() {
       return;
     }
 
-    const sessionRaw = localStorage.getItem(SESSION_KEY);
-    if (sessionRaw) {
-      const session = JSON.parse(sessionRaw);
-      const notExpired = typeof session.expiresAt === 'number' && session.expiresAt > Date.now();
-
-      if (notExpired && session.username && stored.username.toLowerCase() === session.username.toLowerCase()) {
-        const user = buildUser(stored);
-        user.uid = session.uid || user.uid;
-        await attachCloudIdentity(user);
-        useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
-        return;
-      }
-
-      // Expired or stale (incl. pre-v2 sessions without expiresAt) → re-login
-      localStorage.removeItem(SESSION_KEY);
-    }
+    // DB key is not persisted across restarts (safeStorage migration removed the
+    // session key from sessionStorage). Clear any stale session token so the
+    // user is always prompted to re-authenticate on launch.
+    localStorage.removeItem(SESSION_KEY);
 
     useAuthStore.setState({ isLoading: false });
   } catch (error) {

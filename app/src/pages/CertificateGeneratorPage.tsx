@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import { Printer, ArrowLeft, Calendar as CalendarIcon, Search, GraduationCap, FileText, CheckCircle2, RefreshCcw, Layers } from 'lucide-react';
+import { Printer, ArrowLeft, Calendar as CalendarIcon, Search, GraduationCap, FileText, CheckCircle2, RefreshCcw, Layers, Download } from 'lucide-react';
 import { CertificateRenderer } from '../components/certificates/CertificateRenderer';
 import { filterSF9Sections } from '../lib/rbac';
 import type { CertificateType, HonorsInfo } from '../utils/certificateUtils';
@@ -84,6 +84,10 @@ export function CertificateGeneratorPage() {
     const [isCertResizing, setIsCertResizing] = useState(false);
     const [showAdvancedHeader, setShowAdvancedHeader] = useState(false);
     const certSidebarRef = useRef<HTMLDivElement>(null);
+    
+    // PDF Generation State
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [pdfProgress, setPdfProgress] = useState(0);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -503,6 +507,154 @@ const section = sections.find(s => s.id === selectedSectionId);
         ));
     };
 
+    const generateBatchPDF = async () => {
+        const selectedHonors = batchStudents.filter(s => s.selected);
+        const selectedSubjects = subjectAwards.filter(s => s.selected);
+        const selectedCustoms = customAwards.filter(s => s.selected);
+        const totalCerts = selectedHonors.length + selectedSubjects.length + selectedCustoms.length;
+
+        if (totalCerts === 0) {
+            useAppStore.getState().showNotification('Please select at least one student or award to generate.', 'error');
+            return;
+        }
+
+        setIsGeneratingPDF(true);
+        setPdfProgress(0);
+
+        try {
+            const { PDFDocument } = await import('pdf-lib');
+            const { pdf } = await import('@react-pdf/renderer');
+            const { CertificatePDFDocument } = await import('../components/certificates/CertificatePDFDocument');
+
+            const mergedPdf = await PDFDocument.create();
+            let renderedCount = 0;
+
+            const baseUrl = import.meta.env.BASE_URL || '/';
+            const logoLeftUrl = window.location.origin + baseUrl + 'deped_logo_left.png';
+            const logoRightUrl = schoolProfile?.logo_url || (window.location.origin + baseUrl + 'school-logo.png');
+
+            // 1. Process Honors
+            for (const student of selectedHonors) {
+                const certDataForDoc = {
+                    ...certData,
+                    learnerName: student.name,
+                    lrn: student.lrn,
+                    awardTitleTagalog: student.honors.tagalog,
+                    awardTitleEnglish: student.honors.english,
+                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
+                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                };
+
+                const blob = await pdf(
+                    <CertificatePDFDocument 
+                        data={certDataForDoc}
+                        logoLeftUrl={logoLeftUrl}
+                        logoRightUrl={logoRightUrl}
+                    />
+                ).toBlob();
+
+                const pdfDoc = await PDFDocument.load(await blob.arrayBuffer());
+                const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+
+                renderedCount++;
+                setPdfProgress(Math.round((renderedCount / totalCerts) * 100));
+                await new Promise((resolve) => setTimeout(resolve, 30));
+            }
+
+            // 2. Process Subject Awards
+            for (const award of selectedSubjects) {
+                const certDataForDoc = {
+                    ...certData,
+                    learnerName: award.student,
+                    lrn: award.lrn,
+                    awardTitleTagalog: `May Pinakamataas na Marka sa ${award.subject}`,
+                    awardTitleEnglish: `Highest Grade in ${award.subject}`,
+                    excellenceAward: 'Subject Excellence Award',
+                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
+                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                };
+
+                const blob = await pdf(
+                    <CertificatePDFDocument 
+                        data={certDataForDoc}
+                        logoLeftUrl={logoLeftUrl}
+                        logoRightUrl={logoRightUrl}
+                    />
+                ).toBlob();
+
+                const pdfDoc = await PDFDocument.load(await blob.arrayBuffer());
+                const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+
+                renderedCount++;
+                setPdfProgress(Math.round((renderedCount / totalCerts) * 100));
+                await new Promise((resolve) => setTimeout(resolve, 30));
+            }
+
+            // 3. Process Custom Awards
+            for (const award of selectedCustoms) {
+                const certDataForDoc = {
+                    ...certData,
+                    learnerName: award.studentName,
+                    lrn: award.lrn,
+                    awardTitleTagalog: award.awardTitleTagalog,
+                    awardTitleEnglish: award.awardTitleEnglish,
+                    excellenceAward: award.excellenceAward,
+                    bodyTextTagalog: award.bodyTextTagalog,
+                    bodyTextEnglish: award.bodyTextEnglish,
+                    projectTitle: award.projectTitle,
+                    projectMembers: award.projectMembers,
+                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
+                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                };
+
+                const blob = await pdf(
+                    <CertificatePDFDocument 
+                        data={certDataForDoc}
+                        logoLeftUrl={logoLeftUrl}
+                        logoRightUrl={logoRightUrl}
+                    />
+                ).toBlob();
+
+                const pdfDoc = await PDFDocument.load(await blob.arrayBuffer());
+                const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+
+                renderedCount++;
+                setPdfProgress(Math.round((renderedCount / totalCerts) * 100));
+                await new Promise((resolve) => setTimeout(resolve, 30));
+            }
+
+            // Save and download merged PDF file
+            const mergedPdfBytes = await mergedPdf.save();
+            const mergedBlob = new Blob([mergedPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+            const url = URL.createObjectURL(mergedBlob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            const section = sections.find(s => s.id === selectedSectionId);
+            const secLabel = section ? `${section.section_grade_level}_${section.section_name}`.replace(/\s+/g, '_') : 'Class';
+            a.download = `Certificates_${secLabel}_${certType}_${activeSchoolYear}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                if (document.body.contains(a)) {
+                    document.body.removeChild(a);
+                }
+                URL.revokeObjectURL(url);
+            }, 3000);
+
+            useAppStore.getState().showNotification('Certificates PDF compiled and saved successfully!', 'success');
+        } catch (error) {
+            console.error('Batch Certificate PDF generation failed:', error);
+            useAppStore.getState().showNotification('Failed to generate batch certificates PDF.', 'error');
+        } finally {
+            setIsGeneratingPDF(false);
+            setPdfProgress(0);
+        }
+    };
 
     const handlePrint = () => {
         window.print();
@@ -528,6 +680,13 @@ const section = sections.find(s => s.id === selectedSectionId);
                 </div>
                 
                 <div className="flex items-center gap-4">
+                    <button 
+                        onClick={generateBatchPDF}
+                        disabled={isGeneratingPDF}
+                        className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-2xl hover:bg-emerald-700 disabled:opacity-50 transition-all font-bold shadow-lg shadow-emerald-500/20 active:scale-95 border-b-4 border-emerald-900/50"
+                    >
+                        <Download className="w-4 h-4" /> Export Batch PDF
+                    </button>
                     <button 
                         onClick={handlePrint}
                         className="flex items-center gap-2 bg-deped-blue text-white px-6 py-2.5 rounded-2xl hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-500/20 active:scale-95 border-b-4 border-blue-900/50"
@@ -1021,7 +1180,7 @@ const section = sections.find(s => s.id === selectedSectionId);
             </div>
 
             {/* Print styles injection */}
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style>{`
                 @media print {
                   /* FORCE CORRECT PAPER SIZE */
                   @page {
@@ -1071,7 +1230,29 @@ const section = sections.find(s => s.id === selectedSectionId);
                       border: none !important;
                   }
                 }
-            `}} />
+            `}</style>
+            {isGeneratingPDF && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="relative w-20 h-20 mx-auto flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl shadow-inner">
+                            <RefreshCcw className="w-10 h-10 animate-spin" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white">Compiling Certificate PDF Batch</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Generating page {pdfProgress}%...</p>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-white/5 rounded-full h-2 overflow-hidden border border-slate-150/50 dark:border-white/5 relative">
+                            <div 
+                                className="bg-blue-600 h-full rounded-full transition-all duration-300 relative"
+                                style={{ width: `${pdfProgress}%` }}
+                            >
+                                <span className="absolute right-0 top-0 bottom-0 w-2 bg-white/40 blur-[1px] animate-pulse" />
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold italic">Please keep this window active while the PDF compiles.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

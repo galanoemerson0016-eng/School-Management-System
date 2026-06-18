@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { ArrowLeft, FileText, Plus, Minus, Printer } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 
@@ -13,11 +13,13 @@ export function SF5Page() {
     const activeSchoolYear = useAppStore(s => s.activeSchoolYear);
     const teachers = useAppStore(s => s.teachers);
     const setCurrentView = useAppStore(s => s.setCurrentView);
+    const showNotification = useAppStore(s => s.showNotification);
     const { user } = useAuthStore();
     
     const [selectedSection, setSelectedSection] = useState<string>('');
     const [paperSize, setPaperSize] = useState<'a4' | 'folio'>('a4');
     const [zoom, setZoom] = useState<number>(1); // Default zoom for preview
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
     
     // 1. Sort Sections by Grade Level -> Alphabetical
     const sortedSections = useMemo(() => {
@@ -50,7 +52,7 @@ export function SF5Page() {
 
         if (gradeNum === 11) return 'Strengthened Senior High School';
         if (gradeNum === 12) return 'K-12';
-        return 'Matatag';
+        return 'Revised K-10';
     }, [currentSectionInfo?.section_grade_level]);
 
     // Helpers to compute average and status
@@ -325,97 +327,220 @@ export function SF5Page() {
         document.title = originalTitle;
     };
 
+    const handleDownloadSF5 = async () => {
+        const selectedSectionName = sortedSections.find(s => s.section_name === selectedSection)?.section_name || 'Record';
+        const filename = `SF5_${schoolProfile.name || 'School'}_${selectedSectionName}_${activeSchoolYear}.pdf`;
+
+        const printPages = Array.from(document.querySelectorAll('.sf5-print-page')) as HTMLElement[];
+        if (printPages.length === 0) {
+            showNotification('Nothing to download. Please select a section first.', 'error');
+            return;
+        }
+
+        setIsDownloading(true);
+        const parentTransforms: string[] = [];
+        const parentsToRestore: HTMLElement[] = [];
+
+        try {
+            const html2canvas = (await import('html2canvas-pro')).default;
+            const { jsPDF } = await import('jspdf');
+
+            // Temporarily reset zoom scale transforms on the parent wrappers
+            printPages.forEach(p => {
+                const parent = p.parentElement;
+                if (parent) {
+                    parentTransforms.push(parent.style.transform);
+                    parentsToRestore.push(parent);
+                    parent.style.transform = 'none';
+                }
+            });
+
+            // Force a layout reflow
+            if (parentsToRestore.length > 0) {
+                void parentsToRestore[0].offsetHeight;
+            }
+
+            // Derive PDF dimensions dynamically from the selected paperSize
+            const paperWidthMm = paperSize === 'a4' ? 297 : 330.2;
+            const paperHeightMm = paperSize === 'a4' ? 210 : 215.9;
+            const pdfFormat = [paperWidthMm, paperHeightMm];
+
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: pdfFormat
+            });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 4;
+            const usableW = pageW - margin * 2;
+            const usableH = pageH - margin * 2;
+            const pdfRatio = usableW / usableH;
+
+            for (let i = 0; i < printPages.length; i++) {
+                if (i > 0) {
+                    pdf.addPage(pdfFormat, 'landscape');
+                }
+                const pageEl = printPages[i];
+
+                const canvas = await html2canvas(pageEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const canvasRatio = canvas.width / canvas.height;
+
+                let imgW = usableW;
+                let imgH = usableH;
+                let xOffset = margin;
+                let yOffset = margin;
+
+                if (canvasRatio > pdfRatio) {
+                    imgW = usableW;
+                    imgH = usableW / canvasRatio;
+                    yOffset = margin + (usableH - imgH) / 2;
+                } else {
+                    imgH = usableH;
+                    imgW = usableH * canvasRatio;
+                    xOffset = margin + (usableW - imgW) / 2;
+                }
+
+                pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgW, imgH);
+            }
+
+            pdf.save(filename);
+            showNotification('SF5 Report downloaded successfully!', 'success');
+        } catch (err) {
+            console.error('Download failed:', err);
+            showNotification('Failed to download SF5 Report. Please try again.', 'error');
+        } finally {
+            // Restore original parent transforms
+            parentsToRestore.forEach((parent, idx) => {
+                parent.style.transform = parentTransforms[idx] || '';
+            });
+            setIsDownloading(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="h-24 px-8 flex items-center justify-between z-100 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full overflow-x-auto custom-scrollbar">
-                <div className="flex items-center gap-8">
-                    {/* Brand/Back Hook */}
-                    <div className="flex items-center gap-5">
-                        <button 
+             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-14 px-2.5 lg:px-3 flex items-center justify-between gap-2.5 overflow-x-auto no-scrollbar scroll-smooth">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
+                        <button
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group"
+                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="flex flex-col">
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">SF5 Report</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Report on Promotion</p>
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
+                            <AppLogo className="w-4 h-4" />
                         </div>
+                        <h2 className="text-[9px] lg:text-[11px] font-black text-slate-900 uppercase tracking-tight truncate">
+                            SF5 Report
+                        </h2>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
+                    <div className="h-6 w-px bg-slate-200 shrink-0" />
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         {sortedSections.length > 1 && (
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Section</span>
-                                <select 
-                                    className="bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2 text-[12px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                            <div className="relative group shrink-0">
+                                <select
                                     value={selectedSection}
                                     onChange={(e) => setSelectedSection(e.target.value)}
+                                    className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
                                 >
-                                    <option value="">Select Section</option>
-                                    {sortedSections.map(s => <option key={s.id} value={s.section_name}>{s.section_grade_level} - {s.section_name}</option>)}
+                                    <option value="">Section</option>
+                                    {sortedSections.map(s => (
+                                        <option key={s.id} value={s.section_name}>
+                                            {s.section_grade_level} - {s.section_name}
+                                        </option>
+                                    ))}
                                 </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                             </div>
                         )}
+
                         {/* Paper Size */}
-                        <div className="flex flex-col ml-4">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Paper Size</span>
-                            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                                <button
-                                    onClick={() => setPaperSize('a4')}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'a4' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    A4
-                                </button>
-                                <button
-                                    onClick={() => setPaperSize('folio')}
-                                    className={`px-5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${paperSize === 'folio' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Folio
-                                </button>
-                            </div>
+                        <div className="relative group shrink-0">
+                            <select
+                                value={paperSize}
+                                onChange={(e) => setPaperSize(e.target.value as 'a4' | 'folio')}
+                                className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
+                            >
+                                <option value="a4">A4</option>
+                                <option value="folio">Folio</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-6">
-                    {/* Zoom Control */}
-                    <div className="flex flex-col items-center">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">View Zoom</span>
-                        <div className="flex items-center gap-3 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                            <button 
+                    <div className="flex-1 min-w-3" />
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Zoom Control */}
+                        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+                            <button
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom Out"
                             >
-                                <Minus className="w-4 h-4" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-[11px] font-black text-slate-900 w-12 text-center tabular-nums">
+                            <span className="text-[8px] font-black text-slate-900 w-7 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
-                            <button 
+                            <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom In"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
+
+                        {/* Download PDF Button */}
+                        <button
+                            onClick={handleDownloadSF5}
+                            disabled={!selectedSection || isDownloading}
+                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-black active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Download PDF"
+                        >
+                            <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                        </button>
+
+                        {/* Print Primary Button */}
+                        <button
+                            onClick={handlePrintSF5}
+                            disabled={!selectedSection}
+                            className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Print Official SF5"
+                        >
+                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                        </button>
                     </div>
-
-                    <div className="h-10 w-px bg-slate-200" />
-
-                    {/* Print Primary Button */}
-                    <button
-                        onClick={handlePrintSF5}
-                        disabled={!selectedSection}
-                        className="h-14 px-10 rounded-2.5xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-3 group"
-                    >
-                        <Printer className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
-                        Print Official SF5
-                    </button>
                 </div>
              </div>
 
@@ -539,7 +664,7 @@ export function SF5Page() {
                                             {/* Tables Container */}
                                             <div className="flex gap-4 px-1 print:flex print:gap-3">
                                                 <div className="flex-[3.3] flex flex-col">
-                                                    <table className="w-full border-collapse border border-black text-center text-[10.5px] font-sans">
+                                                    <table className="w-full border-collapse text-center text-[10.5px] font-sans">
                                                         <thead>
                                                             <tr className="leading-tight">
                                                                 <th className="border border-black p-1 w-[1%] whitespace-nowrap font-bold" rowSpan={2}>LRN</th>
@@ -600,7 +725,7 @@ export function SF5Page() {
                                                 <div className="flex-1 flex flex-col gap-3 pl-2 pb-6 min-w-0 font-sans">
                                                     {pageIdx === 0 && (
                                                         <div className="flex flex-col gap-3">
-                                                            <table className="w-full border-collapse border border-black text-center text-[11px]">
+                                                            <table className="w-full border-collapse text-center text-[11px]">
                                                                 <thead>
                                                                     <tr className="font-bold">
                                                                         <th className="border border-black py-1 px-0 text-[11px]" style={{ letterSpacing: '0px' }} colSpan={4}>SUMMARY TABLE</th>
@@ -634,7 +759,7 @@ export function SF5Page() {
                                                                 </tbody>
                                                             </table>
 
-                                                            <table className="w-full border-collapse border border-black text-center text-[11px] mt-0.5">
+                                                            <table className="w-full border-collapse text-center text-[11px] mt-0.5">
                                                                 <thead>
                                                                     <tr className="font-bold">
                                                                         <th className="border border-black py-1 tracking-tight text-[9px]" colSpan={4}>LEARNING PROGRESS AND ACHIEVEMENT (Based on Learners' General Average)</th>

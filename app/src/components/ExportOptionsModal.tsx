@@ -39,7 +39,7 @@ export function ExportOptionsModal({
     isExporting,
 }: ExportOptionsModalProps) {
     const [options, setOptions] = useState<ExportOptions>({
-        encrypt: false,
+        encrypt: true,
         compress: true,
         saveMetadata: true,
         includeReport: true,
@@ -86,7 +86,7 @@ export function ExportOptionsModal({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex justify-between items-center">
+                <div className="sticky top-0 bg-linear-to-r from-blue-600 to-blue-700 text-white p-6 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <Zap className="w-6 h-6" />
                         <h2 className="text-2xl font-bold">Export Options</h2>

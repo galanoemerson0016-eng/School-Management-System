@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, type Ref } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo } from 'lucide-react';
+import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Layout as AppLogo, Download } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 import { db } from '../services/database';
@@ -30,12 +30,12 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
 const TOTAL_COLUMNS = 25; // 5 weeks × 5 days (Mon-Fri)
 const DAYS = Array.from({ length: TOTAL_COLUMNS }, (_, i) => i + 1);
 
-const getDynamicFontSizeClass = (text: string, baseClass: string = "text-[12.5px]") => {
-    if (!text) return baseClass;
-    if (text.length > 35) return "text-[9px] leading-none";
-    if (text.length > 28) return "text-[10px] leading-tight";
-    if (text.length > 20) return "text-[11.5px] leading-tight";
-    return baseClass;
+const getHeaderBoxFontSize = (text: string = ''): string => {
+    const len = String(text).length;
+    if (len > 40) return 'text-[10px]';
+    if (len > 30) return 'text-[11px]';
+    if (len > 20) return 'text-[12px]';
+    return 'text-[13px]';
 };
 
 type PaperSize = 'letter' | 'a4' | 'folio';
@@ -50,24 +50,67 @@ type BodyRow =
 // in mm/in via paperDimensions) into the px units the on-screen DOM uses.
 const MM_TO_PX = 96 / 25.4;
 
-// Top+bottom page padding (matches the print:p-1.5 / print:p-2 container
-// padding) plus a small safety buffer so a page never overflows by a
-// fraction of a row due to rounding.
+// Top+bottom page padding (matches the print:py-N from layoutConfig.padding)
+// plus a small safety buffer so a page never overflows by a fraction of a row.
 const PAGE_PADDING_PX: Record<PaperSize, number> = {
-    letter: 18,
-    a4: 22,
-    folio: 22,
+    letter: 40,
+    a4: 42,
+    folio: 50,
 };
 
+interface DebouncedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+    value: string;
+    onChange: (val: string) => void;
+    debounceMs?: number;
+}
+
+function DebouncedInput({
+    value: initialValue,
+    onChange,
+    debounceMs = 300,
+    ...props
+}: DebouncedInputProps) {
+    const [value, setValue] = useState(initialValue);
+
+    useEffect(() => {
+        setValue(initialValue);
+    }, [initialValue]);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            if (value !== initialValue) {
+                onChange(value);
+            }
+        }, debounceMs);
+
+        return () => clearTimeout(timeout);
+    }, [value, onChange, initialValue, debounceMs]);
+
+    const handleBlur = () => {
+        if (value !== initialValue) {
+            onChange(value);
+        }
+    };
+
+    return (
+        <input
+            {...props}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={handleBlur}
+        />
+    );
+}
 
 export function AttendancePage() {
 
-    const { students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear } = useAppStore();
+    const { students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
     const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
     const [zoom, setZoom] = useState(0.8);
+    const [isDownloading, setIsDownloading] = useState(false);
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
 
@@ -486,42 +529,85 @@ export function AttendancePage() {
 
     const getBorderClass = (i: number) => {
         let cls = '';
-        if (i % 5 === 0) cls += ' border-l-[3.5px] border-l-black';
-        if (i % 5 === 4) cls += ' border-r-[3.5px] border-r-black';
+        if (i % 5 === 4) cls += ' border-r-2 border-r-black';
         return cls;
     };
 
     // Helper to get current month's data
-    const currentAttendance = attendanceData[selectedMonth] || {};
+    const currentAttendance = useMemo(() => attendanceData[selectedMonth] || {}, [attendanceData, selectedMonth]);
     // Use global dates
-    const currentDateLabels = monthDateLabels[selectedMonth] || {};
+    const currentDateLabels = useMemo(() => monthDateLabels[selectedMonth] || {}, [monthDateLabels, selectedMonth]);
     // Get current remarks
-    const currentRemarks = remarksData[selectedMonth] || {};
-
-    const countStats = (studentId: string, type: string) => {
-        const record = currentAttendance[studentId] || {};
-        return Object.entries(record).filter(([col, s]) => {
-            const colNum = parseInt(col);
-            return colNum >= 1 && colNum <= totalColumns && s === type;
-        }).length;
-    };
+    const currentRemarks = useMemo(() => remarksData[selectedMonth] || {}, [remarksData, selectedMonth]);
 
     // Count how many date cells actually have a date filled in
     const filledDaysCount = Object.values(currentDateLabels).filter(v => v.trim() !== '').length;
 
-    const calculateDailyPresent = (day: number, gender: 'Male' | 'Female' | 'Total') => {
-        // Unmarked (blank) cells mean perfect attendance, so they count as
-        // present too. Days without a date label aren't real school days.
-        if (!currentDateLabels[day]?.trim()) return 0;
+    // Pre-calculate student attendance counts to avoid O(N * D) rendering operations
+    const studentStats = useMemo(() => {
+        const stats: Record<string, { absent: number; present: number }> = {};
 
-        let targetStudents: typeof displayStudents.males = [];
-        if (gender === 'Male') targetStudents = displayStudents.males;
-        else if (gender === 'Female') targetStudents = displayStudents.females;
-        else targetStudents = [...displayStudents.males, ...displayStudents.females];
-        return targetStudents.reduce((total, student) => {
-            const status = currentAttendance[student.lrn]?.[day];
-            return total + (status === 'absent' ? 0 : 1);
-        }, 0);
+        sectionStudents.forEach(student => {
+            const record = currentAttendance[student.lrn] || {};
+            let absentCount = 0;
+            
+            for (let day = 1; day <= totalColumns; day++) {
+                if (record[day] === 'absent') {
+                    absentCount++;
+                }
+            }
+            stats[student.lrn] = {
+                absent: absentCount,
+                present: Math.max(0, filledDaysCount - absentCount)
+            };
+        });
+        return stats;
+    }, [currentAttendance, filledDaysCount, sectionStudents, totalColumns]);
+
+    // Pre-calculate daily present count to avoid O(D * N) rendering operations
+    const dailyPresentCounts = useMemo(() => {
+        const counts: Record<number, { Male: number; Female: number; Total: number }> = {};
+        
+        for (let day = 1; day <= totalColumns; day++) {
+            if (!currentDateLabels[day]?.trim()) {
+                counts[day] = { Male: 0, Female: 0, Total: 0 };
+                continue;
+            }
+
+            let maleCount = 0;
+            displayStudents.males.forEach(student => {
+                const status = currentAttendance[student.lrn]?.[day];
+                if (status !== 'absent') {
+                    maleCount++;
+                }
+            });
+
+            let femaleCount = 0;
+            displayStudents.females.forEach(student => {
+                const status = currentAttendance[student.lrn]?.[day];
+                if (status !== 'absent') {
+                    femaleCount++;
+                }
+            });
+
+            counts[day] = {
+                Male: maleCount,
+                Female: femaleCount,
+                Total: maleCount + femaleCount
+            };
+        }
+        return counts;
+    }, [currentAttendance, currentDateLabels, displayStudents, totalColumns]);
+
+    const countStats = (studentId: string, type: string) => {
+        if (type === 'absent') {
+            return studentStats[studentId]?.absent || 0;
+        }
+        return studentStats[studentId]?.present || 0;
+    };
+
+    const calculateDailyPresent = (day: number, gender: 'Male' | 'Female' | 'Total') => {
+        return dailyPresentCounts[day]?.[gender] || 0;
     };
 
     const handlePrint = () => {
@@ -532,11 +618,158 @@ export function AttendancePage() {
         document.title = originalTitle;
     };
 
+    const handleDownloadAttendance = async () => {
+        const selectedSectionName = sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.section_name || 'Record';
+        const filename = `SF2_${schoolProfile.name || 'School'}_${selectedSectionName}_${selectedMonth}_${activeSchoolYear}.pdf`;
 
-    const totalMaleAbsent = displayStudents.males.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
-    const totalFemaleAbsent = displayStudents.females.reduce((sum, s) => sum + countStats(s.lrn, 'absent'), 0);
-    const totalMalePresent = displayStudents.males.reduce((sum, s) => sum + (Math.max(0, filledDaysCount - countStats(s.lrn, 'absent'))), 0);
-    const totalFemalePresent = displayStudents.females.reduce((sum, s) => sum + (Math.max(0, filledDaysCount - countStats(s.lrn, 'absent'))), 0);
+        // Use html2canvas + jsPDF to capture exactly what's rendered (WYSIWYG)
+        const pages = Array.from(document.querySelectorAll('.sf2-print-container[data-sf2-page]')) as HTMLElement[];
+        if (pages.length === 0) {
+            showNotification('Nothing to download. Please select a section first.', 'error');
+            return;
+        }
+
+        setIsDownloading(true);
+        const parentTransforms: string[] = [];
+        const parentsToRestore: HTMLElement[] = [];
+
+        try {
+            const html2canvas = (await import('html2canvas-pro')).default;
+            const { jsPDF } = await import('jspdf');
+
+            // Temporarily reset zoom scale transforms on the parent wrappers
+            pages.forEach(p => {
+                const parent = p.parentElement;
+                if (parent) {
+                    parentTransforms.push(parent.style.transform);
+                    parentsToRestore.push(parent);
+                    parent.style.transform = 'none';
+                }
+            });
+
+            // Force a layout reflow
+            if (parentsToRestore.length > 0) {
+                void parentsToRestore[0].offsetHeight;
+            }
+
+            // Derive PDF dimensions dynamically from the selected paperSize
+            const paperWidthMm = paperSize === 'letter' ? 279.4 : paperSize === 'a4' ? 297 : 330.2;
+            const paperHeightMm = paperSize === 'letter' ? 215.9 : paperSize === 'a4' ? 210 : 215.9;
+            const pdfFormat = [paperWidthMm, paperHeightMm];
+
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: pdfFormat
+            });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 4;
+            const usableW = pageW - margin * 2;
+            const usableH = pageH - margin * 2;
+            const pdfRatio = usableW / usableH;
+
+            for (let i = 0; i < pages.length; i++) {
+                if (i > 0) {
+                    pdf.addPage(pdfFormat, 'landscape');
+                }
+                const pageEl = pages[i];
+
+                const canvas = await html2canvas(pageEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    onclone: (clonedDoc, clonedPageEl) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+
+                        // Swap input fields with text content spans
+                        const origInputs = pageEl.querySelectorAll('input');
+                        const clonedInputs = clonedPageEl.querySelectorAll('input');
+                        origInputs.forEach((origInput, idx) => {
+                            const clonedInput = clonedInputs[idx];
+                            if (clonedInput) {
+                                const val = (origInput as HTMLInputElement).value || '';
+                                const span = clonedDoc.createElement('span');
+                                span.textContent = val;
+                                span.className = clonedInput.className;
+                                span.style.cssText = clonedInput.style.cssText;
+                                span.style.display = 'flex';
+                                span.style.alignItems = 'center';
+                                if (clonedInput.classList.contains('text-left')) {
+                                    span.style.justifyContent = 'flex-start';
+                                    span.style.paddingLeft = '4px';
+                                } else {
+                                    span.style.justifyContent = 'center';
+                                }
+                                span.style.width = '100%';
+                                span.style.height = '100%';
+                                if (clonedInput.parentNode) {
+                                    clonedInput.parentNode.replaceChild(span, clonedInput);
+                                }
+                            }
+                        });
+
+                        // Remove select tags inside print container (if any exist)
+                        const clonedSelects = clonedPageEl.querySelectorAll('select');
+                        clonedSelects.forEach(select => {
+                            select.remove();
+                        });
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const canvasRatio = canvas.width / canvas.height;
+
+                let imgW = usableW;
+                let imgH = usableH;
+                let xOffset = margin;
+                let yOffset = margin;
+
+                if (canvasRatio > pdfRatio) {
+                    imgW = usableW;
+                    imgH = usableW / canvasRatio;
+                    yOffset = margin + (usableH - imgH) / 2;
+                } else {
+                    imgH = usableH;
+                    imgW = usableH * canvasRatio;
+                    xOffset = margin + (usableW - imgW) / 2;
+                }
+
+                pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgW, imgH);
+            }
+
+            pdf.save(filename);
+            showNotification('Daily Attendance downloaded successfully!', 'success');
+        } catch (err) {
+            console.error('Download failed:', err);
+            showNotification('Failed to download Daily Attendance. Please try again.', 'error');
+        } finally {
+            // Restore original parent transforms
+            parentsToRestore.forEach((parent, idx) => {
+                parent.style.transform = parentTransforms[idx] || '';
+            });
+            setIsDownloading(false);
+        }
+    };
+
+
+    const totalMaleAbsent = displayStudents.males.reduce((sum, s) => sum + (studentStats[s.lrn]?.absent || 0), 0);
+    const totalFemaleAbsent = displayStudents.females.reduce((sum, s) => sum + (studentStats[s.lrn]?.absent || 0), 0);
+    const totalMalePresent = displayStudents.males.reduce((sum, s) => sum + (studentStats[s.lrn]?.present || 0), 0);
+    const totalFemalePresent = displayStudents.females.reduce((sum, s) => sum + (studentStats[s.lrn]?.present || 0), 0);
 
     const summaryStats = useMemo(() => {
         // Enrolment Stats
@@ -624,25 +857,25 @@ export function AttendancePage() {
     const layoutConfig = useMemo(() => {
         const configs = {
             letter: {
-                padding: 'p-3 print:p-1.5',
+                padding: 'px-8 py-5 print:px-8 print:py-4',
                 headerText: 'text-[18px]',
                 subHeaderText: 'text-[10px]',
                 labelSize: 'text-[11px]',
                 inputValSize: 'text-[13px]',
-                schoolIdWidth: 'w-28',
-                schoolYearWidth: 'w-28',
-                monthWidth: 'w-44',
-                schoolNameWidth: 'w-96 lg:w-[450px]',
-                gradeWidth: 'w-12',
-                sectionWidth: 'w-44',
+                schoolIdWidth: 'w-32',
+                schoolYearWidth: 'w-32',
+                monthWidth: 'w-40',
+                schoolNameWidth: 'w-[420px]',
+                gradeWidth: 'w-32',
+                sectionWidth: 'w-40',
                 headerMarginRight: 'mr-2',
-                colNameWidth: '190px',
-                colDayWidth: '18px',
+                colNameWidth: '165px',
+                colDayWidth: '20px',
                 colAbsentWidth: '38px',
                 colPresentWidth: '38px',
-                colRemarksWidth: '100px',
+                colRemarksWidth: '80px',
                 tableTextSize: 'text-[10px]',
-                studentNameSize: 'text-[10.5px]',
+                studentNameSize: 'text-[9.5px]',
                 absentPresentHeaderSize: 'text-[7px] tracking-tighter',
                 guidelinesTextSize: 'text-[8.5px]',
                 summaryTableWidths: { col1: '40%', col2: '28%', col3: '10%', col4: '10%', col5: '12%' },
@@ -652,25 +885,25 @@ export function AttendancePage() {
                 bottomMargin: 'mb-12'
             },
             a4: {
-                padding: 'p-4 print:p-2',
+                padding: 'px-10 py-5 print:px-10 print:py-4',
                 headerText: 'text-[20px]',
                 subHeaderText: 'text-[11px]',
                 labelSize: 'text-[11.5px]',
                 inputValSize: 'text-[14px]',
-                schoolIdWidth: 'w-32',
-                schoolYearWidth: 'w-32',
-                monthWidth: 'w-48',
+                schoolIdWidth: 'w-36',
+                schoolYearWidth: 'w-36',
+                monthWidth: 'w-44',
                 schoolNameWidth: 'w-[480px]',
-                gradeWidth: 'w-14',
-                sectionWidth: 'w-48',
+                gradeWidth: 'w-36',
+                sectionWidth: 'w-44',
                 headerMarginRight: 'mr-6',
-                colNameWidth: '220px',
-                colDayWidth: '19px',
+                colNameWidth: '195px',
+                colDayWidth: '21px',
                 colAbsentWidth: '40px',
                 colPresentWidth: '40px',
-                colRemarksWidth: '110px',
+                colRemarksWidth: '90px',
                 tableTextSize: 'text-[10.5px]',
-                studentNameSize: 'text-[11.5px]',
+                studentNameSize: 'text-[10px]',
                 absentPresentHeaderSize: 'text-[7.5px] tracking-tighter',
                 guidelinesTextSize: 'text-[9px]',
                 summaryTableWidths: { col1: '41%', col2: '28%', col3: '9%', col4: '9%', col5: '13%' },
@@ -680,25 +913,25 @@ export function AttendancePage() {
                 bottomMargin: 'mb-16'
             },
             folio: {
-                padding: 'p-4 md:p-5 print:p-2',
+                padding: 'px-12 py-6 print:px-12 print:py-5',
                 headerText: 'text-[22px]',
                 subHeaderText: 'text-[12px]',
                 labelSize: 'text-[12px]',
                 inputValSize: 'text-[15px]',
-                schoolIdWidth: 'w-37.5',
-                schoolYearWidth: 'w-37.5',
-                monthWidth: 'w-55',
-                schoolNameWidth: 'w-150',
-                gradeWidth: 'w-16',
-                sectionWidth: 'w-55',
+                schoolIdWidth: 'w-40',
+                schoolYearWidth: 'w-40',
+                monthWidth: 'w-48',
+                schoolNameWidth: 'w-[560px]',
+                gradeWidth: 'w-40',
+                sectionWidth: 'w-48',
                 headerMarginRight: 'mr-15',
-                colNameWidth: '260px',
-                colDayWidth: '23px',
+                colNameWidth: '225px',
+                colDayWidth: '25px',
                 colAbsentWidth: '42px',
                 colPresentWidth: '42px',
-                colRemarksWidth: '120px',
+                colRemarksWidth: '95px',
                 tableTextSize: 'text-[11px]',
-                studentNameSize: 'text-[12px]',
+                studentNameSize: 'text-[10.5px]',
                 absentPresentHeaderSize: 'text-[8.5px] tracking-tighter',
                 guidelinesTextSize: 'text-[10px]',
                 summaryTableWidths: { col1: '42%', col2: '28%', col3: '8%', col4: '8%', col5: '14%' },
@@ -761,52 +994,55 @@ export function AttendancePage() {
         return rows;
     }, [displayStudents]);
 
-    const renderHeaderBlock = () => (
-        <>
-            <div className="flex items-center mb-2">
-                <div className="w-18.75 shrink-0">
-                    <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
-                </div>
-                <div className="flex-1 text-center">
-                    <p className={`font-black leading-tight text-black uppercase ${layoutConfig.headerText}`} style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
-                    <p className={`italic text-gray-800 font-semibold ${layoutConfig.subHeaderText}`}>(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
-                </div>
-                <div className="w-25 shrink-0 flex justify-end">
-                    <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                </div>
-            </div>
-
-            {/* Row 1: School ID | School Year | Report for the Month of */}
-            <div className={`flex items-center mb-2.5 font-black text-black ${layoutConfig.labelSize}`}>
-                <div className="flex items-center gap-2">
-                    <span className="mr-1 whitespace-nowrap">School ID</span>
-                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolIdWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.school_id}</div>
-                    <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
-                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolYearWidth} ${layoutConfig.inputValSize}`}>{activeSchoolYear}</div>
-                </div>
-                <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
-                    <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
-                    <div className={`border-2 border-black bg-[#BDD7EE] px-2 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.monthWidth} ${layoutConfig.inputValSize}`}>{selectedMonth}</div>
-                </div>
-            </div>
-
-            {/* Row 2: Name of School | Grade Level | Section */}
-            <div className={`flex items-center mb-3 font-black text-black ${layoutConfig.labelSize}`}>
-                <div className="flex-1 flex items-center gap-2">
-                    <span className="mr-1 whitespace-nowrap">Name of School</span>
-                    <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.schoolNameWidth} ${layoutConfig.inputValSize}`}>{schoolProfile?.name}</div>
-                </div>
-                <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
-                    <span className="mr-1 whitespace-nowrap">Grade Level</span>
-                    <div className={`border-2 border-black px-2 h-9 flex items-center justify-center text-center font-black text-black whitespace-nowrap ${layoutConfig.gradeWidth} ${layoutConfig.inputValSize}`}>
-                        {(sections.find(s => s.section_name === selectedSection)?.section_grade_level || '').replace(/\D/g, '') || '7'}
+    const renderHeaderBlock = () => {
+        const gradeLevelText = sections.find(s => s.section_name === selectedSection)?.section_grade_level || 'Grade 7';
+        return (
+            <>
+                <div className="flex items-center mb-2">
+                    <div className="w-18.75 shrink-0">
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-17.5 h-17.5 object-contain" />
                     </div>
-                    <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
-                    <div className={`border-2 border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${layoutConfig.inputValSize}`}>{selectedSection}</div>
+                    <div className="flex-1 text-center">
+                        <p className={`font-black leading-tight text-black uppercase ${layoutConfig.headerText}`} style={{ fontFamily: '"Arial Narrow", Arial, sans-serif', letterSpacing: '-0.015em' }}>School Form 2 (SF2) Daily Attendance Report of Learners</p>
+                        <p className={`italic text-gray-800 font-semibold ${layoutConfig.subHeaderText}`}>(This replaced Form 1, Form 2 &amp; STS Form 4 - Absenteeism and Dropout Profile)</p>
+                    </div>
+                    <div className="w-25 shrink-0 flex justify-end">
+                        <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd" className="h-16.25 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    </div>
                 </div>
-            </div>
-        </>
-    );
+
+                {/* Row 1: School ID | School Year | Report for the Month of */}
+                <div className={`flex items-center mb-2.5 font-black text-black ${layoutConfig.labelSize}`}>
+                    <div className="flex items-center gap-2">
+                        <span className="mr-1 whitespace-nowrap">School ID</span>
+                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolIdWidth} ${getHeaderBoxFontSize(schoolProfile?.school_id)}`}>{schoolProfile?.school_id}</div>
+                        <span className="ml-6 mr-1 whitespace-nowrap">School Year</span>
+                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black ${layoutConfig.schoolYearWidth} ${getHeaderBoxFontSize(activeSchoolYear)}`}>{activeSchoolYear}</div>
+                    </div>
+                    <div className={`flex items-center gap-2 ml-auto ${layoutConfig.headerMarginRight}`}>
+                        <span className="mr-1 whitespace-nowrap">Report for the Month of</span>
+                        <div className={`border border-black bg-slate-50 px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.monthWidth} ${getHeaderBoxFontSize(selectedMonth)}`}>{selectedMonth}</div>
+                    </div>
+                </div>
+
+                {/* Row 2: Name of School | Grade Level | Section */}
+                <div className={`flex items-center mb-3 font-black text-black ${layoutConfig.labelSize}`}>
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <span className="mr-1 whitespace-nowrap">Name of School</span>
+                        <div className={`flex-1 min-w-0 border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${getHeaderBoxFontSize(schoolProfile?.name)}`}>{schoolProfile?.name}</div>
+                    </div>
+                    <div className={`flex items-center gap-2 shrink-0 ml-4 ${layoutConfig.headerMarginRight}`}>
+                        <span className="mr-1 whitespace-nowrap">Grade Level</span>
+                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black whitespace-nowrap uppercase ${layoutConfig.gradeWidth} ${getHeaderBoxFontSize(gradeLevelText)}`}>
+                            {gradeLevelText}
+                        </div>
+                        <span className="ml-6 mr-1 whitespace-nowrap">Section</span>
+                        <div className={`border border-black px-3 h-9 flex items-center justify-center text-center font-black text-black uppercase ${layoutConfig.sectionWidth} ${getHeaderBoxFontSize(selectedSection)}`}>{selectedSection}</div>
+                    </div>
+                </div>
+            </>
+        );
+    };
 
     const renderColgroup = () => (
         <colgroup>
@@ -820,37 +1056,36 @@ export function AttendancePage() {
     );
 
     const renderTableHeadRows = (ref?: Ref<HTMLTableSectionElement>) => (
-        <thead ref={ref}>
+        <thead ref={ref} className="bg-slate-50">
             {/* Row 1: Labels */}
-            <tr>
-                <th rowSpan={4} className="border-2 border-black bg-white p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
-                <th rowSpan={4} className="border-2 border-black bg-white p-1 text-center align-middle leading-tight">
+            <tr className="bg-slate-50">
+                <th rowSpan={4} className="border border-black bg-slate-50 p-0 text-center align-middle" style={{ writingMode: 'horizontal-tb' }}></th>
+                <th rowSpan={4} className="border border-black border-r-2 border-r-black bg-slate-50 px-2 py-2 text-center align-middle leading-snug">
                     <div className={`font-black text-black uppercase tracking-tight ${layoutConfig.studentNameSize}`}>Learner's Name</div>
-                    <div className={`font-extrabold text-black ${layoutConfig.guidelinesTextSize}`}>(Last Name, First Name, Middle Name)</div>
+                    <div className={`font-bold text-black text-[8px]`}>(Last Name, First Name, Middle Name)</div>
                 </th>
-                <th colSpan={totalColumns} className={`border-2 border-black bg-white text-center font-black text-black py-1 ${layoutConfig.tableTextSize}`}>
+                <th colSpan={totalColumns} className={`border border-black bg-slate-50 text-center font-black text-black py-2 text-[9px]`}>
                     (1st row for date, 2nd row for Day: M,T,W,TH,F)
                 </th>
-                <th colSpan={2} rowSpan={3} className={`border-2 border-black bg-white text-center font-black text-black p-1 leading-tight align-middle ${layoutConfig.tableTextSize}`}>
+                <th colSpan={2} rowSpan={3} className={`border border-black border-r-2 border-r-black bg-slate-50 px-1 py-2 text-center font-black text-black leading-tight align-middle text-[9px]`}>
                     Total for the<br />Month
                 </th>
-                <th rowSpan={4} className={`border-2 border-black bg-white p-1.5 leading-tight text-center align-middle font-bold text-black ${layoutConfig.guidelinesTextSize}`}>
-                    <span className="font-black text-black block mb-1">REMARK/S</span>
-                    <span>(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</span>
+                <th rowSpan={4} className={`border border-black bg-slate-50 px-2 py-2 leading-tight text-center align-middle font-bold text-black text-[8px]`}>
+                    <span className="font-black text-black block mb-0.5">REMARK/S</span>
+                    <span className="text-[7px] font-bold">(If NLS, state reason, please refer to legend number 2. If TRANSFERRED IN/OUT, write the name of School.)</span>
                 </th>
             </tr>
-            {/* Row 2: Date numbers (blue background, editable) */}
-            <tr className="bg-[#BDD7EE]">
+            {/* Row 2: Date numbers (editable) */}
+            <tr className="bg-slate-50">
                 {days.map((d, i) => (
-                    <th key={d} className={`border-2 border-black bg-[#BDD7EE] p-0 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
-                        <input
+                    <th key={d} className={`border border-black bg-slate-50 p-1 text-center font-black h-7${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
+                        <DebouncedInput
                             type="text"
                             maxLength={2}
                             value={currentDateLabels[d] || ''}
                             readOnly={!canEditCurrentSection}
-                            onChange={(e) => {
+                            onChange={(val) => {
                                 if (!canEditCurrentSection) return;
-                                const val = e.target.value;
                                 setMonthDateLabels(prev => {
                                     const newLabels = {
                                         ...prev,
@@ -865,47 +1100,59 @@ export function AttendancePage() {
                     </th>
                 ))}
             </tr>
-            {/* Row 3: Day letters M T W TH F (white background) */}
-            <tr>
+            {/* Row 3: Day letters M T W TH F */}
+            <tr className="bg-slate-50">
                 {days.map((d, i) => (
-                    <th key={d} className={`border-2 border-black bg-white p-0 text-center font-black h-5${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
+                    <th key={d} className={`border border-black bg-slate-50 p-1 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
                         {dayLetters[i % 5]}
                     </th>
                 ))}
             </tr>
             {/* Row 4: ABSENT / PRESENT headers */}
-            <tr>
+            <tr className="bg-slate-50">
                 {days.map((d, i) => (
-                    <th key={d} className={`border-2 border-black bg-white p-0 h-0${getBorderClass(i)}`}></th>
+                    <th key={d} className={`border border-black bg-slate-50 p-0 h-4${getBorderClass(i)}`}></th>
                 ))}
-                <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
-                <th className={`border-2 border-black bg-white font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
+                <th className={`border border-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
+                <th className={`border border-black border-r-2 border-r-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
             </tr>
         </thead>
     );
 
+    const getStudentNameStyle = (name: string) => {
+        const style: React.CSSProperties = {};
+        if (name.length > 35) {
+            style.fontSize = '80%';
+        } else if (name.length > 25) {
+            style.fontSize = '90%';
+        }
+        return style;
+    };
+
     const renderStudentRow = (student: Student, displayIdx: number, key: string | number, ref?: Ref<HTMLTableRowElement>) => (
-        <tr key={key} ref={ref} className="h-5.5">
-            <td className={`border-2 border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{displayIdx}</td>
-            <td className={`border-2 border-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black ${layoutConfig.studentNameSize}`}>
+        <tr key={key} ref={ref} className="h-5.5 bg-white">
+            <td className={`border border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{displayIdx}</td>
+            <td 
+                className={`border border-black border-r-2 border-r-black px-1.5 uppercase whitespace-nowrap overflow-hidden text-ellipsis text-left font-black text-black sf2-student-name-cell ${layoutConfig.studentNameSize}`}
+                style={getStudentNameStyle(formatLearnerName(student))}
+            >
                 {formatLearnerName(student)}
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border-2 border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
+                <td key={d} className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
                     onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
                     {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
                 </td>
             ))}
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
-            <td className={`border-2 border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
-                <input
+            <td className={`border border-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
+            <td className={`border border-black border-r-2 border-r-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+            <td className={`border border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
+                <DebouncedInput
                     type="text"
                     value={currentRemarks[student.lrn] || ''}
                     readOnly={!canEditCurrentSection}
-                    onChange={(e) => {
+                    onChange={(val) => {
                         if (!canEditCurrentSection) return;
-                        const val = e.target.value;
                         setRemarksData(prev => {
                             const newRemarks = {
                                 ...prev,
@@ -922,63 +1169,63 @@ export function AttendancePage() {
     );
 
     const renderMaleTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
-        <tr key={key} ref={ref} className="bg-white h-5.5">
-            <td className="border-2 border-black text-center p-0">
+        <tr key={key} ref={ref} className="bg-slate-50 h-5.5">
+            <td className="border border-black border-t-2 border-t-black text-center p-0">
                 <ArrowLeft size={10} className="inline text-blue-700" />
             </td>
-            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                 MALE | TOTAL Per Day
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`}>
                     {calculateDailyPresent(d, 'Male') || ''}
                 </td>
             ))}
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMalePresent}</td>
-            <td className="border-2 border-black">
+            <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMalePresent}</td>
+            <td className="border border-black border-t-2 border-t-black">
                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
             </td>
         </tr>
     );
 
     const renderFemaleTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
-        <tr key={key} ref={ref} className="bg-white h-5.5">
-            <td className="border-2 border-black text-center p-0">
+        <tr key={key} ref={ref} className="bg-slate-50 h-5.5">
+            <td className="border border-black border-t-2 border-t-black text-center p-0">
                 <ArrowLeft size={10} className="inline text-blue-700" />
             </td>
-            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                 FEMALE | TOTAL Per Day
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`}>
                     {calculateDailyPresent(d, 'Female') || ''}
                 </td>
             ))}
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemalePresent}</td>
-            <td className="border-2 border-black">
+            <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemalePresent}</td>
+            <td className="border border-black border-t-2 border-t-black">
                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
             </td>
         </tr>
     );
 
     const renderCombinedTotalRow = (key: string | number, ref?: Ref<HTMLTableRowElement>) => (
-        <tr key={key} ref={ref} className="bg-white h-5.5">
-            <td className="border-2 border-black text-center p-0">
+        <tr key={key} ref={ref} className="bg-slate-100/80 h-5.5">
+            <td className="border border-black border-t-2 border-t-black text-center p-0">
                 <ArrowLeft size={10} className="inline text-blue-700" />
             </td>
-            <td className={`border-2 border-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black px-1.5 font-black text-black text-right uppercase ${layoutConfig.studentNameSize}`}>
                 Combined TOTAL PER DAY
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border-2 border-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-200/40 ${layoutConfig.tableTextSize}`}>
                     {calculateDailyPresent(d, 'Total') || ''}
                 </td>
             ))}
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
-            <td className={`border-2 border-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMalePresent + totalFemalePresent}</td>
-            <td className="border-2 border-black">
+            <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
+            <td className={`border border-black border-t-2 border-t-black border-r-2 border-r-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMalePresent + totalFemalePresent}</td>
+            <td className="border border-black border-t-2 border-t-black">
                 <ArrowRight size={10} className="inline text-blue-700 float-right" />
             </td>
         </tr>
@@ -991,50 +1238,55 @@ export function AttendancePage() {
         return renderCombinedTotalRow(key, ref);
     };
 
-    const renderFooterBlock = () => (
+    const renderFooterBlock = (hasTable = true) => (
         <>
                 {/* === FOOTER === */}
-                <div className="flex border-l-[2.5px] border-r-[2.5px] border-b-[2.5px] border-black" style={{ fontSize: layoutConfig.guidelinesTextSize }}>
+                <div className={`flex border-l-2 border-r-2 border-b-2 border-black ${hasTable ? '' : 'border-t-2'}`} style={{ fontSize: layoutConfig.guidelinesTextSize }}>
 
                     {/* Col 1: GUIDELINES */}
-                    <div className="w-[38%] p-2.5 border-r-2 border-black leading-tight text-black">
+                    <div className="w-[35%] p-2.5 border-r-2 border-black leading-tight text-black">
                         <p className={`font-black text-black mb-1.5 ${layoutConfig.studentNameSize}`}>GUIDELINES:</p>
                         <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
                         <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>2 Dates shall be written in the preceding columns beside Learner's Name.</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>3 To compute the following:</p>
-                        <div className="pl-3 mb-1.5">
-                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>3. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
+                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>4. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
+                        <p className={`font-bold text-black ${layoutConfig.guidelinesTextSize}`}>5. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
+                    </div>
+
+                    {/* Col 2: CODES & FORMULAS */}
+                    <div className="w-[35%] border-r-2 border-black flex flex-col text-black">
+                        {/* 3. TO COMPUTE THE FOLLOWING */}
+                        <div className="p-2 border-b-2 border-black bg-slate-50">
+                            <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>3. TO COMPUTE THE FOLLOWING</p>
+                        </div>
+                        <div className="p-2.5 leading-tight text-black border-b-2 border-black">
+                            <div className={`mb-2 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>a. Percentage of Enrolment =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the Month</span>
+                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the Month</span>
                                     <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Enrolment as of 1st Friday of the school year</span>
                                 </span>
                                 <span>&nbsp;x 100</span>
                             </div>
-                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                            <div className={`mb-2 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>b. Average Daily Attendance =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Total Daily Attendance</span>
+                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Total Daily Attendance</span>
                                     <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Number of School Days in reporting month</span>
                                 </span>
                             </div>
-                            <div className={`mb-2.5 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                            <div className={`font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
                                 <span>c. Percentage of Attendance for the month =&nbsp;</span>
                                 <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b-2 border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Average daily attendance</span>
+                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Average daily attendance</span>
                                     <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the month</span>
                                 </span>
                                 <span>&nbsp;x 100</span>
                             </div>
                         </div>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>4. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>5. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
-                        <p className={`font-bold text-black ${layoutConfig.guidelinesTextSize}`}>6. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
-                    </div>
 
-                    {/* Col 2: CODES */}
-                    <div className="w-[28%] border-r-2 border-black flex flex-col text-black">
-                        <div className="p-2 border-b-2 border-black">
+                        {/* 1. CODES FOR CHECKING ATTENDANCE */}
+                        <div className="p-2 border-b-2 border-black bg-slate-50">
                             <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>1. CODES FOR CHECKING ATTENDANCE</p>
                         </div>
                         <div className={`p-2.5 flex-1 flex flex-col leading-normal text-black font-bold ${layoutConfig.guidelinesTextSize}`}>
@@ -1072,9 +1324,9 @@ export function AttendancePage() {
                     </div>
 
                     {/* Col 3: Summary + Certification */}
-                    <div className="w-[34%] flex flex-col text-black">
+                    <div className="w-[30%] flex flex-col text-black">
                         {/* Summary Table */}
-                        <table className={`w-full border-collapse border-b-2 border-black ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                        <table className={`w-full border-collapse border border-black ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
                             <colgroup>
                                 <col style={{ width: layoutConfig.summaryTableWidths.col1 }} />
                                 <col style={{ width: layoutConfig.summaryTableWidths.col2 }} />
@@ -1084,32 +1336,32 @@ export function AttendancePage() {
                             </colgroup>
                             <thead>
                                 {/* Row 1 of Header */}
-                                <tr className="h-5.5 border-b-2 border-black">
-                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
+                                <tr className="h-5.5 border-b border-black">
+                                    <th className={`border-r border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         Month:
                                     </th>
-                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
+                                    <th className={`border-r border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         No. of Days of Classes:
                                     </th>
-                                    <th colSpan={3} className={`p-1 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                                    <th colSpan={3} className={`border-l border-black p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         Summary for the Month
                                     </th>
                                 </tr>
                                 {/* Row 2 of Header */}
-                                <tr className="h-6 border-b-2 border-black">
-                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black uppercase ${layoutConfig.inputValSize}`}>
+                                <tr className="h-6 border-b border-black">
+                                    <th className={`border-r border-black p-1 text-center font-black text-black uppercase ${layoutConfig.inputValSize}`}>
                                         {selectedMonth}
                                     </th>
-                                    <th className={`border-r-2 border-black p-1 text-center font-black text-black ${layoutConfig.inputValSize}`}>
+                                    <th className={`border-r border-black p-1 text-center font-black text-black ${layoutConfig.inputValSize}`}>
                                         {filledDaysCount}
                                     </th>
-                                    <th className={`border-r-2 border-black p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                                    <th className={`border-r border-black p-0.5 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         M
                                     </th>
-                                    <th className={`border-r-2 border-black p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                                    <th className={`border-r border-black p-0.5 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         F
                                     </th>
-                                    <th className={`p-0.5 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                                    <th className={`p-0.5 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                         TOTAL
                                     </th>
                                 </tr>
@@ -1128,17 +1380,17 @@ export function AttendancePage() {
                                     { label: 'Transferred out', m: 0, f: 0, t: 0 },
                                     { label: 'Transferred in', m: 0, f: 0, t: 0 }
                                 ].map((row, i) => (
-                                    <tr key={i} className="h-5.5 border-b-2 border-black">
-                                        <td colSpan={2} className={`border-r-2 border-black p-1 font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''} ${layoutConfig.summaryTextSize}`}>
+                                    <tr key={i} className="h-5.5 border-b border-black">
+                                        <td colSpan={2} className={`border-r border-black p-1 font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''} ${layoutConfig.summaryTextSize}`}>
                                             {row.label}
                                         </td>
-                                        <td className={`border-r-2 border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
+                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
                                             {row.m}
                                         </td>
-                                        <td className={`border-r-2 border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
+                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
                                             {row.f}
                                         </td>
-                                        <td className={`p-1 text-center font-black text-black bg-slate-50 ${layoutConfig.tableTextSize}`}>
+                                        <td className={`p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
                                             {row.t}
                                         </td>
                                     </tr>
@@ -1147,26 +1399,25 @@ export function AttendancePage() {
                         </table>
 
                         {/* Certification */}
-                        <div className="p-2.5 mt-auto bg-slate-50/50">
-                            <p className={`font-bold text-black mb-3 ${layoutConfig.certTextSize}`}>I certify that this is a true and correct report.</p>
-                            <div className="text-center mb-3">
-                                <div className={`font-black border-b-2 border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} ${getDynamicFontSizeClass(adviserName, layoutConfig.inputValSize)}`}>
+                        <div className="p-2 mt-[10px] bg-slate-50/50 pt-2 pb-0.5 space-y-2 flex flex-col">
+                            <p className={`font-bold text-black text-[8.5px]`}>I certify that this is a true and correct report.</p>
+                            <div className="text-center pt-0.5">
+                                <div className={`font-black border-b border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} text-[8px]`}>
                                     {adviserName}
                                 </div>
-                                <div className={`font-bold text-slate-800 mt-1 ${layoutConfig.guidelinesTextSize}`}>(Signature of Teacher over Printed Name)</div>
+                                <div className={`font-bold text-slate-800 mt-0.5 text-[7.5px]`}>(Signature of Teacher over Printed Name)</div>
                             </div>
-                            <div className={`font-bold text-black mb-1 ${layoutConfig.certTextSize}`}>Attested by:</div>
+                            <div className={`font-bold text-black pt-1 text-[8.5px]`}>Attested by:</div>
                             <div className="text-center">
-                                <div className={`font-black border-b-2 border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} ${getDynamicFontSizeClass(schoolProfile?.head_name || '', layoutConfig.inputValSize)}`}>
+                                <div className={`font-black border-b border-black mx-auto uppercase text-black py-0.5 tracking-wide whitespace-nowrap truncate text-center ${layoutConfig.adviserWidth} text-[8px]`}>
                                     {schoolProfile?.head_name}
                                 </div>
-                                <div className={`font-bold text-slate-800 mt-1 ${layoutConfig.guidelinesTextSize}`}>(Signature of School Head over Printed Name)</div>
+                                <div className={`font-bold text-slate-800 mt-0.5 text-[7.5px]`}>(Signature of School Head over Printed Name)</div>
                             </div>
+                            <div className={`text-center mt-auto pt-1 text-gray-700 font-extrabold italic text-[7px]`}>Generated thru LIS</div>
                         </div>
                     </div>
                 </div>
-
-                <div className={`text-center mt-1 text-gray-700 font-extrabold italic print:mb-0 ${layoutConfig.guidelinesTextSize} ${layoutConfig.bottomMargin}`}>Generated thru LIS</div>
         </>
     );
 
@@ -1189,7 +1440,7 @@ export function AttendancePage() {
         const rowHeight = rowEl.offsetHeight;
         const footerHeight = footerEl.offsetHeight;
 
-        const tableBorderPx = 5; // table's border-[2.5px] top + bottom
+        const tableBorderPx = 4; // table's border-2 top + bottom
         const contentForRows = availableHeight - headerHeight - theadHeight - tableBorderPx;
 
         const withoutFooter = Math.max(1, Math.floor(contentForRows / rowHeight));
@@ -1236,7 +1487,7 @@ export function AttendancePage() {
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
-                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                <div className="h-14 px-2.5 lg:px-3 flex items-center justify-between gap-2.5 overflow-x-auto no-scrollbar scroll-smooth">
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button
                             onClick={() => setCurrentView('school-forms')}
@@ -1248,7 +1499,7 @@ export function AttendancePage() {
                         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
                             <AppLogo className="w-4 h-4" />
                         </div>
-                        <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight truncate">
+                        <h2 className="text-[9px] lg:text-[11px] font-black text-slate-900 uppercase tracking-tight truncate">
                             SF2 Daily Attendance
                         </h2>
                     </div>
@@ -1261,7 +1512,7 @@ export function AttendancePage() {
                                 <select
                                     value={selectedSection}
                                     onChange={(e) => setSelectedSection(e.target.value)}
-                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
+                                    className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-27.5 lg:w-32.5 duration-200"
                                 >
                                     <option value="">Section</option>
                                     {Object.entries(groupedSections).map(([group, groupSections]) => (
@@ -1284,7 +1535,7 @@ export function AttendancePage() {
                             <select
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-21.25 lg:w-25 duration-200"
+                                className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-21.25 lg:w-25 duration-200"
                             >
                                 {months.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -1298,7 +1549,7 @@ export function AttendancePage() {
                                         applyAutoFillDates(selectedMonth, true);
                                     }
                                 }}
-                                className="h-9 px-2.5 rounded-xl bg-white border border-blue-100 text-[9px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap shrink-0 duration-200 active:scale-95"
+                                className="h-8 px-2 rounded-lg bg-white border border-blue-100 text-[7px] font-black uppercase tracking-wide text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all flex items-center gap-1 shadow-sm whitespace-nowrap shrink-0 duration-200 active:scale-95"
                                 title="Sync headers with official school calendar"
                             >
                                 Sync Dates
@@ -1314,7 +1565,7 @@ export function AttendancePage() {
                             <select
                                 value={paperSize}
                                 onChange={(e) => setPaperSize(e.target.value as 'letter' | 'a4' | 'folio')}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
+                                className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
                             >
                                 <option value="letter">Letter</option>
                                 <option value="a4">A4</option>
@@ -1326,33 +1577,43 @@ export function AttendancePage() {
                         <div className="h-6 w-px bg-slate-200 shrink-0" />
 
                         {/* Zoom Control */}
-                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            <span className="text-[8px] font-black text-slate-900 w-7 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
+                        {/* Download PDF Button */}
+                        <button
+                            onClick={handleDownloadAttendance}
+                            disabled={!selectedSection || isDownloading}
+                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-black active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Download PDF"
+                        >
+                            <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                        </button>
+
                         {/* Print Primary Button */}
                         <button
                             onClick={handlePrint}
                             disabled={!selectedSection}
-                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                            className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Print Official SF2"
                         >
-                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-                            Print Official SF2
+                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
                         </button>
 
                     </div>
@@ -1397,24 +1658,29 @@ export function AttendancePage() {
                                     <div
                                         id={pageIdx === 0 ? 'sf2-printable-area' : undefined}
                                         data-sf2-page={pageIdx}
-                                        className={`sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none print:p-2 print:m-0 rounded-sm ${layoutConfig.padding} ${!isLastPage ? 'sf2-page-break' : ''}`}
+                                        className={`sf2-print-container bg-white mx-auto print:w-full shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none border border-slate-200 print:border-none print:m-0 rounded-sm ${layoutConfig.padding} ${!isLastPage ? 'sf2-page-break' : ''}`}
                                         style={{
                                             width: paperDimensions[paperSize]?.width || '330.2mm',
-                                            minHeight: paperDimensions[paperSize]?.height || '215.9mm',
+                                            height: paperDimensions[paperSize]?.height || '215.9mm',
                                             display: 'flow-root',
                                         }}
                                     >
 
-                {renderHeaderBlock()}
-                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
-                    {renderColgroup()}
-                    {renderTableHeadRows()}
-                    <tbody>
-                        {page.rows.map((row, rowIdx) => renderBodyRow(row, row.type === 'student' ? row.student.lrn : `${row.type}-${rowIdx}`))}
-                    </tbody>
-                </table>
-
-                {page.isLast && renderFooterBlock()}
+                {page.rows.length > 0 ? (
+                    <>
+                        {renderHeaderBlock()}
+                        <table className={`w-full border-collapse border-2 border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                            {renderColgroup()}
+                            {renderTableHeadRows()}
+                            <tbody>
+                                {page.rows.map((row, rowIdx) => renderBodyRow(row, row.type === 'student' ? row.student.lrn : `${row.type}-${rowIdx}`))}
+                            </tbody>
+                        </table>
+                        {page.isLast && renderFooterBlock(true)}
+                    </>
+                ) : (
+                    page.isLast && renderFooterBlock(false)
+                )}
                                     </div>
                                 </div>
                             );
@@ -1432,7 +1698,7 @@ export function AttendancePage() {
                                 <div ref={measureHeaderRef} style={{ display: 'flow-root' }}>
                                     {renderHeaderBlock()}
                                 </div>
-                                <table className={`w-full border-collapse border-[2.5px] border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                                <table className={`w-full border-collapse border-2 border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
                                     {renderColgroup()}
                                     {renderTableHeadRows(measureTheadRef)}
                                     <tbody>
@@ -1440,16 +1706,23 @@ export function AttendancePage() {
                                     </tbody>
                                 </table>
                                 <div ref={measureFooterRef} style={{ display: 'flow-root' }}>
-                                    {renderFooterBlock()}
+                                    {renderFooterBlock(true)}
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
-<style dangerouslySetInnerHTML={{ __html: `
+<style>{`
     .sf2-print-container, .sf2-print-container * {
         font-family: 'Arial Narrow', Arial, sans-serif !important;
+    }
+    .sf2-print-container th[rowspan], 
+    .sf2-print-container td[rowspan], 
+    .sf2-print-container th[colspan], 
+    .sf2-print-container td[colspan] {
+        position: relative !important;
+        background-clip: padding-box !important;
     }
     .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -1471,7 +1744,7 @@ export function AttendancePage() {
         }
         .sf2-print-container {
             width: ${paperSize === 'a4' ? '297mm' : paperSize === 'letter' ? '11in' : '13in'} !important;
-            min-height: ${paperSize === 'a4' ? '210mm' : '8.5in'} !important;
+            height: ${paperSize === 'a4' ? '210mm' : '8.5in'} !important;
             max-width: none !important;
             margin: 0 auto !important;
             border: none !important;
@@ -1482,7 +1755,7 @@ export function AttendancePage() {
             page-break-after: always;
         }
     }
-` }} />
+`}</style>
 </div>
 );
 }

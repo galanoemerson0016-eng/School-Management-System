@@ -4,9 +4,11 @@ import {
     getCoreRowModel,
     getFilteredRowModel,
     getSortedRowModel,
+    getPaginationRowModel,
     flexRender,
     type ColumnDef,
     type SortingState,
+    type PaginationState,
 } from '@tanstack/react-table';
 import { useAppStore, useAuthStore } from '../stores';
 import type { Section, Student } from '../types';
@@ -42,6 +44,7 @@ export function StudentsPage() {
     // Table State
     const [sorting, setSorting] = useState<SortingState>([]);
     const [globalFilter, setGlobalFilter] = useState('');
+    const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
     const [formDataForModal, setFormDataForModal] = useState<Partial<Student> | undefined>(undefined);
@@ -522,12 +525,14 @@ export function StudentsPage() {
     const table = useReactTable({
         data: displayedStudents,
         columns,
-        state: { sorting, globalFilter },
+        state: { sorting, globalFilter, pagination },
         onSortingChange: setSorting,
-        onGlobalFilterChange: setGlobalFilter,
+        onGlobalFilterChange: (value) => { setGlobalFilter(value); setPagination(p => ({ ...p, pageIndex: 0 })); },
+        onPaginationChange: setPagination,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
     });
 
     const handleAdd = () => {
@@ -1063,7 +1068,7 @@ export function StudentsPage() {
                                     key={stat.label}
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
-                                    onClick={() => setGenderFilter(stat.filter as 'All' | 'Male' | 'Female')}
+                                    onClick={() => { setGenderFilter(stat.filter as 'All' | 'Male' | 'Female'); setPagination(p => ({ ...p, pageIndex: 0 })); }}
                                     className={`bg-white p-4 rounded-2xl shadow-sm border-2 cursor-pointer transition-all flex items-center gap-3 ${genderFilter === stat.filter
                                         ? stat.color === 'blue' ? 'border-blue-400 bg-blue-50/50'
                                             : stat.color === 'sky' ? 'border-sky-400 bg-sky-50/50'
@@ -1097,7 +1102,7 @@ export function StudentsPage() {
                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
                                             <select
                                                 value={addressFilter}
-                                                onChange={(e) => setAddressFilter(e.target.value)}
+                                                onChange={(e) => { setAddressFilter(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
                                                 className="w-full text-xs font-bold border-none p-0 focus:ring-0 cursor-pointer text-gray-700 bg-transparent truncate"
                                             >
                                                 <option value="All">All ({uniqueAddresses.length})</option>
@@ -1188,6 +1193,29 @@ export function StudentsPage() {
                                         ))}
                                     </tbody>
                                 </table>
+                                {table.getPageCount() > 1 && (
+                                    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
+                                        <span className="text-xs text-gray-500 font-medium">
+                                            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => table.previousPage()}
+                                                disabled={!table.getCanPreviousPage()}
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                onClick={() => table.nextPage()}
+                                                disabled={!table.getCanNextPage()}
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </motion.div>

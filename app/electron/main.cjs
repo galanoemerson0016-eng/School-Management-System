@@ -223,6 +223,40 @@ ipcMain.handle('save-auto-backup', async (event, { data, filename }) => {
   }
 });
 
+// --- DB salt via safeStorage (OS-level encrypted keychain) ---
+// The DB salt is 32 bytes of randomness persisted across app restarts.
+// Keeping it in safeStorage prevents it from being extracted by a script
+// that can read localStorage (e.g., a compromised renderer).
+const SALT_FILE = 'formease-db-salt.enc';
+
+ipcMain.handle('db:read-salt', async () => {
+  const { safeStorage } = require('electron');
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  try {
+    const saltPath = path.join(app.getPath('userData'), SALT_FILE);
+    if (!fs.existsSync(saltPath)) return null;
+    const buf = fs.readFileSync(saltPath);
+    return safeStorage.decryptString(buf);
+  } catch (err) {
+    log.error('db:read-salt failed:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('db:store-salt', async (event, saltHex) => {
+  const { safeStorage } = require('electron');
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  try {
+    const encrypted = safeStorage.encryptString(saltHex);
+    const saltPath = path.join(app.getPath('userData'), SALT_FILE);
+    fs.writeFileSync(saltPath, encrypted);
+    return true;
+  } catch (err) {
+    log.error('db:store-salt failed:', err);
+    return false;
+  }
+});
+
 // --- Auto Updater Logic ---
 function sendStatusToWindow(text, status = 'info') {
   const windows = BrowserWindow.getAllWindows();
@@ -371,10 +405,11 @@ ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false
 
     const options = {
       margins: {
-        marginType: 'default'
+        marginType: 'printableArea'
       },
       printBackground: true,
-      preferCSSPageSize: true
+      preferCSSPageSize: true,
+      displayHeaderFooter: false
     };
 
     if (landscape !== undefined) {

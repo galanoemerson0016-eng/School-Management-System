@@ -67,7 +67,7 @@ export function NameTagPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style>{`
                 .print-page {
                     width: 210mm;
                     min-height: 297mm;
@@ -119,7 +119,7 @@ export function NameTagPage() {
                         display: none !important;
                     }
                 }
-            ` }} />
+            `}</style>
             {/* Header Toolbar */}
             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />

@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Award } from 'lucide-react';
+import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Download, Layout as AppLogo } from 'lucide-react';
 import { useAppStore } from '../stores';
 
 type PaperSize = 'a4' | 'folio';
@@ -111,14 +111,128 @@ export function SF6Page() {
         setCurrentView,
     } = useAppStore();
 
+    const showNotification = useAppStore((s) => s.showNotification);
     const [paperSize, setPaperSize] = useState<PaperSize>('a4');
     const [previewZoom, setPreviewZoom] = useState<number>(1);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
     const handlePrintSF6 = () => {
         const originalTitle = document.title;
         document.title = `SF6_${schoolProfile.name || 'School'}_${activeSchoolYear}`;
         window.print();
         document.title = originalTitle;
+    };
+
+    const handleDownloadSF6 = async () => {
+        const filename = `SF6_${schoolProfile.name || 'School'}_${activeSchoolYear}.pdf`;
+
+        const printPages = Array.from(document.querySelectorAll('.sf6-print-page')) as HTMLElement[];
+        if (printPages.length === 0) {
+            showNotification('Nothing to download.', 'error');
+            return;
+        }
+
+        setIsDownloading(true);
+        const parentTransforms: string[] = [];
+        const parentsToRestore: HTMLElement[] = [];
+
+        try {
+            const html2canvas = (await import('html2canvas-pro')).default;
+            const { jsPDF } = await import('jspdf');
+
+            // Temporarily reset zoom scale transforms on the parent wrappers
+            printPages.forEach(p => {
+                const parent = p.parentElement;
+                if (parent) {
+                    parentTransforms.push(parent.style.transform);
+                    parentsToRestore.push(parent);
+                    parent.style.transform = 'none';
+                }
+            });
+
+            // Force a layout reflow
+            if (parentsToRestore.length > 0) {
+                void parentsToRestore[0].offsetHeight;
+            }
+
+            // Derive PDF dimensions dynamically from the selected paperSize
+            const paperWidthMm = paperSize === 'a4' ? 297 : 330.2;
+            const paperHeightMm = paperSize === 'a4' ? 210 : 215.9;
+            const pdfFormat = [paperWidthMm, paperHeightMm];
+
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: pdfFormat
+            });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 4;
+            const usableW = pageW - margin * 2;
+            const usableH = pageH - margin * 2;
+            const pdfRatio = usableW / usableH;
+
+            for (let i = 0; i < printPages.length; i++) {
+                if (i > 0) {
+                    pdf.addPage(pdfFormat, 'landscape');
+                }
+                const pageEl = printPages[i];
+
+                const canvas = await html2canvas(pageEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const canvasRatio = canvas.width / canvas.height;
+
+                let imgW = usableW;
+                let imgH = usableH;
+                let xOffset = margin;
+                let yOffset = margin;
+
+                if (canvasRatio > pdfRatio) {
+                    imgW = usableW;
+                    imgH = usableW / canvasRatio;
+                    yOffset = margin + (usableH - imgH) / 2;
+                } else {
+                    imgH = usableH;
+                    imgW = usableH * canvasRatio;
+                    xOffset = margin + (usableW - imgW) / 2;
+                }
+
+                pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgW, imgH);
+            }
+
+            pdf.save(filename);
+            showNotification('SF6 Report downloaded successfully!', 'success');
+        } catch (err) {
+            console.error('Download failed:', err);
+            showNotification('Failed to download SF6 Report. Please try again.', 'error');
+        } finally {
+            // Restore original parent transforms
+            parentsToRestore.forEach((parent, idx) => {
+                parent.style.transform = parentTransforms[idx] || '';
+            });
+            setIsDownloading(false);
+        }
     };
 
     const buckets = useMemo(() => {
@@ -217,8 +331,8 @@ export function SF6Page() {
         <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
-                <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="h-14 px-2.5 lg:px-3 flex items-center justify-between gap-2.5 overflow-x-auto no-scrollbar scroll-smooth">
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
@@ -227,18 +341,17 @@ export function SF6Page() {
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
-                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 shrink-0 select-none">
-                            <Award className="w-4 h-4" />
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0 select-none">
+                            <AppLogo className="w-4 h-4" />
                         </div>
-                        <div className="flex flex-col">
-                            <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF6 Report</h2>
-                            <p className="text-[8.5px] font-black text-blue-600 uppercase tracking-widest">Summarized Promotion</p>
-                        </div>
+                        <h2 className="text-[9px] lg:text-[11px] font-black text-slate-900 uppercase tracking-tight truncate">
+                            SF6 Report
+                        </h2>
                     </div>
 
                     <div className="h-6 w-px bg-slate-200 shrink-0" />
                     
-                    <div className="flex-1 min-w-[12px]" />
+                    <div className="flex-1 min-w-3" />
 
                     <div className="flex items-center gap-2 shrink-0">
                         {/* Paper Size */}
@@ -250,7 +363,7 @@ export function SF6Page() {
                                     setPaperSize(size);
                                     setPreviewZoom(size === 'a4' ? 1 : 0.9);
                                 }}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                                className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-7 text-[8px] lg:text-[9px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
                             >
                                 <option value="a4">A4</option>
                                 <option value="folio">Folio</option>
@@ -261,32 +374,43 @@ export function SF6Page() {
                         <div className="h-6 w-px bg-slate-200 shrink-0" />
 
                         {/* Zoom Control */}
-                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
                             <button 
                                 onClick={() => setPreviewZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
                                 title="Zoom Out"
                             >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            <span className="text-[8px] font-black text-slate-900 w-7 text-center tabular-nums">
                                 {Math.round(previewZoom * 100)}%
                             </span>
                             <button 
                                 onClick={() => setPreviewZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all shadow-sm active:scale-90 duration-200"
+                                title="Zoom In"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
+                        {/* Download PDF Button */}
+                        <button
+                            onClick={handleDownloadSF6}
+                            disabled={isDownloading}
+                            className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-black active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Download PDF"
+                        >
+                            <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                        </button>
+
                         {/* Print Primary Button */}
                         <button
                             onClick={handlePrintSF6}
-                            className="h-9 px-3.5 lg:px-4 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1.5 group whitespace-nowrap duration-200"
+                            className="w-8 h-8 rounded-lg bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            title="Print Official SF6"
                         >
-                            <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-                            Print Official SF6
+                            <Printer className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
                         </button>
                     </div>
                 </div>
@@ -323,36 +447,36 @@ export function SF6Page() {
                                         <div className="mt-2.5 text-[11px] space-y-2">
                                             <div className="flex items-center justify-center gap-3">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[68px] text-right text-slate-500 font-bold uppercase tracking-tighter">School ID</span>
+                                                    <span className="w-[68px] text-right text-black font-bold uppercase tracking-tighter">School ID</span>
                                                     <div className="w-[135px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.school_id || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[52px] text-right text-slate-500 font-bold uppercase tracking-tighter">Region</span>
+                                                    <span className="w-[52px] text-right text-black font-bold uppercase tracking-tighter">Region</span>
                                                     <div className="w-[120px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.region || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[56px] text-right text-slate-500 font-bold uppercase tracking-tighter">Division</span>
+                                                    <span className="w-[56px] text-right text-black font-bold uppercase tracking-tighter">Division</span>
                                                     <div className="w-[185px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.division || ''}</div>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center justify-center gap-3">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[78px] text-right text-slate-500 font-bold uppercase tracking-tighter">School Name</span>
+                                                    <span className="w-[78px] text-right text-black font-bold uppercase tracking-tighter">School Name</span>
                                                     <div className="w-[390px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.name || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[46px] text-right text-slate-500 font-bold uppercase tracking-tighter">District</span>
+                                                    <span className="w-[46px] text-right text-black font-bold uppercase tracking-tighter">District</span>
                                                     <div className="w-[185px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.district || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[66px] text-right text-slate-500 font-bold uppercase tracking-tighter">School Year</span>
-                                                    <div className="w-[95px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{activeSchoolYear}</div>
-                                                </div>
+                                                     <span className="w-[84px] text-right text-black font-bold uppercase tracking-tighter whitespace-nowrap">School Year</span>
+                                                     <div className="w-[77px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{activeSchoolYear}</div>
+                                                 </div>
                                             </div>
                                         </div>
                                     </div>
@@ -466,7 +590,7 @@ export function SF6Page() {
                      </div>
                  </div>
              </div>
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style>{`
                 .no-scrollbar::-webkit-scrollbar {
                     display: none;
                 }
@@ -496,7 +620,7 @@ export function SF6Page() {
                         box-shadow: none !important;
                     }
                 }
-            ` }} />
+            `}</style>
          </div>
      );
  }

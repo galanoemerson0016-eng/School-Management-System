@@ -1,45 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, initializeAuthStore } from './stores';
 import { getMachineId } from './utils/machine-id';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { Sidebar, Header } from './components/layout';
-import {
-  LoginPage,
-  AccountSetupPage,
-  Dashboard,
-  StudentsPage,
-  EnrollmentCenterPage,
-  SubjectsPage,
-  SectionsPage,
-  EClassRecord,
-  ShsEClassRecord,
-  SF9Page,
-  SF10Page,
-  SF8Page,
-  SF5Page,
-  SF6Page,
-  AttendancePage,
-  AnnouncementsPage,
-  InstitutePage,
-  SettingsPage,
-  UsersPage,
-  ReportsPage,
-  ConsolidatedGradesPage,
-  CalendarPage,
-  CertificateGeneratorPage,
-  SchoolFormsPage,
-  NameTagPage,
-  AboutPage,
-  ActivationPage,
-  LIRPage,
-  TemporaryGradeSlipPage,
-  AnecdotalRecordPage,
-  GamesAndToolsPage,
-} from './pages';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AutoBackupManager } from './components/AutoBackupManager';
+import { AutoBackupManager as AutoBackupService } from './services/AutoBackupManager';
 import { Toast } from './components/ui/Toast';
 import { AnimatePresence } from 'framer-motion';
 
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const StudentsPage = lazy(() => import('./pages/StudentsPage').then(m => ({ default: m.StudentsPage })));
+const EnrollmentCenterPage = lazy(() => import('./pages/EnrollmentCenterPage').then(m => ({ default: m.EnrollmentCenterPage })));
+const SubjectsPage = lazy(() => import('./pages/SubjectsPage').then(m => ({ default: m.SubjectsPage })));
+const SectionsPage = lazy(() => import('./pages/SectionsPage').then(m => ({ default: m.SectionsPage })));
+const EClassRecord = lazy(() => import('./pages/EClassRecord').then(m => ({ default: m.EClassRecord })));
+const ShsEClassRecord = lazy(() => import('./pages/ShsEClassRecord').then(m => ({ default: m.ShsEClassRecord })));
+const SF9Page = lazy(() => import('./pages/SF9Page').then(m => ({ default: m.SF9Page })));
+const SF10Page = lazy(() => import('./pages/SF10Page').then(m => ({ default: m.SF10Page })));
+const SF8Page = lazy(() => import('./pages/SF8Page').then(m => ({ default: m.SF8Page })));
+const SF5Page = lazy(() => import('./pages/SF5Page').then(m => ({ default: m.SF5Page })));
+const SF6Page = lazy(() => import('./pages/SF6Page').then(m => ({ default: m.SF6Page })));
+const AttendancePage = lazy(() => import('./pages/AttendancePage').then(m => ({ default: m.AttendancePage })));
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage').then(m => ({ default: m.AnnouncementsPage })));
+const InstitutePage = lazy(() => import('./pages/InstitutePage').then(m => ({ default: m.InstitutePage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const ConsolidatedGradesPage = lazy(() => import('./pages/ConsolidatedGradesPage').then(m => ({ default: m.ConsolidatedGradesPage })));
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
+const CertificateGeneratorPage = lazy(() => import('./pages/CertificateGeneratorPage').then(m => ({ default: m.CertificateGeneratorPage })));
+const SchoolFormsPage = lazy(() => import('./pages/SchoolFormsPage').then(m => ({ default: m.SchoolFormsPage })));
+const NameTagPage = lazy(() => import('./pages/NameTagPage').then(m => ({ default: m.NameTagPage })));
+const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ActivationPage = lazy(() => import('./pages/ActivationPage').then(m => ({ default: m.ActivationPage })));
+const LIRPage = lazy(() => import('./pages/LIRPage').then(m => ({ default: m.LIRPage })));
+const TemporaryGradeSlipPage = lazy(() => import('./pages/TemporaryGradeSlipPage').then(m => ({ default: m.TemporaryGradeSlipPage })));
+const GamesAndToolsPage = lazy(() => import('./pages/GamesAndToolsPage').then(m => ({ default: m.GamesAndToolsPage })));
+
+function ContentLoading() {
+  return (
+    <div className="h-full w-full flex items-center justify-center min-h-[300px]">
+      <div className="relative w-8 h-8">
+        <div className="absolute inset-0 border-2 border-slate-200 dark:border-slate-800 rounded-full" />
+        <div className="absolute inset-0 border-2 border-transparent border-t-deped-blue dark:border-t-blue-400 rounded-full animate-spin" />
+      </div>
+    </div>
+  );
+}
 
 // DepEd-branded loading splash while auth state resolves
 function LoadingSplash() {
@@ -99,7 +109,11 @@ type LicenseVerdict = 'pending' | 'licensed' | 'unlicensed' | 'legacy';
 
 function App() {
   const { isAuthenticated, isLoading, needsAccountSetup } = useAuthStore();
-  const { currentView, schoolProfile, isSyncReady, selectedSection, sections } = useAppStore();
+  const currentView = useAppStore(state => state.currentView);
+  const schoolProfile = useAppStore(state => state.schoolProfile);
+  const isSyncReady = useAppStore(state => state.isSyncReady);
+  const selectedSection = useAppStore(state => state.selectedSection);
+  const sections = useAppStore(state => state.sections);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [licenseVerdict, setLicenseVerdict] = useState<LicenseVerdict>(
     window.electronAPI?.licenseStatus ? 'pending' : 'legacy'
@@ -184,7 +198,7 @@ function App() {
     return () => window.removeEventListener('formease-trigger-onboarding', handleTrigger);
   }, []);
 
-  const selectedSectionObj = sections.find(s => s.section_name === selectedSection);
+  const selectedSectionObj = sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
   const isSHSSection = selectedSectionObj 
     ? (selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12'))
     : false;
@@ -204,6 +218,7 @@ function App() {
       try {
         await initializeAppStore();
         await initializeAuthStore();
+        void AutoBackupService.init();
         console.log('✅ Application initialization complete');
 
         const state = useAppStore.getState();
@@ -338,17 +353,29 @@ function App() {
     (licenseVerdict === 'unlicensed' && trialActive);
 
   if (!activationOk) {
-    return <ActivationPage />;
+    return (
+      <Suspense fallback={<LoadingSplash />}>
+        <ActivationPage />
+      </Suspense>
+    );
   }
 
   // 3. First run: no local account exists yet — force account creation
   if (!isAuthenticated && needsAccountSetup) {
-    return <AccountSetupPage />;
+    return (
+      <Suspense fallback={<LoadingSplash />}>
+        <AccountSetupPage />
+      </Suspense>
+    );
   }
 
   // 4. Show login page if not authenticated
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return (
+      <Suspense fallback={<LoadingSplash />}>
+        <LoginPage />
+      </Suspense>
+    );
   }
 
   const renderContent = () => {
@@ -405,8 +432,6 @@ function App() {
         return <LIRPage />;
       case 'tgs':
         return <TemporaryGradeSlipPage />;
-      case 'anecdotal-record':
-        return <AnecdotalRecordPage />;
       case 'games-tools':
         return <GamesAndToolsPage />;
       default:
@@ -442,7 +467,11 @@ function App() {
             <Header />
           </div>
           <div className="flex-1 overflow-y-auto p-3 lg:p-4 custom-scrollbar print:p-0 print:overflow-visible">
-            {renderContent()}
+            <ErrorBoundary>
+              <Suspense fallback={<ContentLoading />}>
+                {renderContent()}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

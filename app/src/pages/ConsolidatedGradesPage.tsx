@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
+import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -263,19 +263,27 @@ const GradeInput = ({
 }: any) => {
     const [localValue, setLocalValue] = useState(value || '');
     const [isSaving, setIsSaving] = useState(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const valueRef = useRef(value);
 
     useEffect(() => {
+        valueRef.current = value;
         setLocalValue(value || '');
     }, [value]);
 
-    const handleBlur = async () => {
-        if (localValue === value) return;
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
-        // Perform grade validation: should not be below 0 and should not be above 100
-        const valNum = Number(localValue);
-        if (localValue !== '' && (isNaN(valNum) || valNum < 0 || valNum > 100)) {
+    const saveChanges = async (targetVal: string) => {
+        if (targetVal === valueRef.current) return;
+
+        const valNum = Number(targetVal);
+        if (targetVal !== '' && (isNaN(valNum) || valNum < 0 || valNum > 100)) {
             useAppStore.getState().showNotification('Grades must be between 0 and 100.', 'error');
-            setLocalValue(value || ''); // Reset input to previous value
+            setLocalValue(valueRef.current || '');
             return;
         }
 
@@ -297,16 +305,32 @@ const GradeInput = ({
                 section_id: section.id,
                 quarter: quarter as 1 | 2 | 3,
                 school_year: activeSchoolYear,
-                final_grade: localValue || 0,
+                final_grade: targetVal || 0,
                 written_works: [],
                 performance_tasks: [],
                 quarterly_exam: 0
             });
+            valueRef.current = targetVal;
         } catch (error) {
             console.error("Failed to update grading record", error);
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleBlur = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        saveChanges(localValue);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLocalValue(val);
+        
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+            saveChanges(val);
+        }, 300);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -344,7 +368,7 @@ const GradeInput = ({
             <input
                 type="number"
                 value={localValue}
-                onChange={(e) => setLocalValue(e.target.value)}
+                onChange={handleChange}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 disabled={isSaving}
@@ -378,6 +402,259 @@ const formatLearnerName = (student: any) => {
     return `${student.last_name || ''}, ${student.first_name || ''} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
 };
 
+interface StudentGradeRowProps {
+    student: any;
+    studentRow: number;
+    data: any;
+    activeQuarterTerm: string | null;
+    isElementary: boolean;
+    learnerNameColumnWidth: number;
+    subjectColumns: any[];
+    selectedTerm: string;
+    activeSchoolYear: string;
+    subjects: any[];
+    sectionObj: any;
+    updateGradingSheetRecord: any;
+    subjectColumnWidth: number;
+    showGenAvg: boolean;
+    showDescriptor: boolean;
+    descriptorGradeLevel: string;
+}
+
+const areEqual = (prev: StudentGradeRowProps, next: StudentGradeRowProps) => {
+    if (prev.studentRow !== next.studentRow) return false;
+    if (prev.isElementary !== next.isElementary) return false;
+    if (prev.learnerNameColumnWidth !== next.learnerNameColumnWidth) return false;
+    if (prev.selectedTerm !== next.selectedTerm) return false;
+    if (prev.activeSchoolYear !== next.activeSchoolYear) return false;
+    if (prev.subjectColumnWidth !== next.subjectColumnWidth) return false;
+    if (prev.showGenAvg !== next.showGenAvg) return false;
+    if (prev.showDescriptor !== next.showDescriptor) return false;
+    if (prev.descriptorGradeLevel !== next.descriptorGradeLevel) return false;
+    if (prev.student?.lrn !== next.student?.lrn) return false;
+    if (prev.sectionObj !== next.sectionObj) return false;
+    
+    if (prev.subjectColumns?.length !== next.subjectColumns?.length) return false;
+    
+    const prevData = prev.data || {};
+    const nextData = next.data || {};
+    
+    if (prevData.termAverage !== nextData.termAverage) return false;
+    if (prevData.generalAverage !== nextData.generalAverage) return false;
+    
+    const keys = prev.subjectColumns.map(col => col.subject.id);
+    for (const key of keys) {
+        const pSub = prevData[key] || {};
+        const nSub = nextData[key] || {};
+        
+        if (typeof pSub === 'object' && typeof nSub === 'object') {
+            if (pSub.value !== nSub.value) return false;
+            if (pSub.musicArts !== nSub.musicArts) return false;
+            if (pSub.peHealth !== nSub.peHealth) return false;
+            if (pSub.effectiveComm !== nSub.effectiveComm) return false;
+            if (pSub.mabisangKom !== nSub.mabisangKom) return false;
+        } else {
+            if (pSub.q1 !== nSub.q1) return false;
+            if (pSub.q2 !== nSub.q2) return false;
+            if (pSub.q3 !== nSub.q3) return false;
+            if (pSub.q4 !== nSub.q4) return false;
+            if (pSub.final !== nSub.final) return false;
+        }
+    }
+    
+    return true;
+};
+
+const StudentGradeRow = memo(({
+    student,
+    studentRow,
+    data,
+    activeQuarterTerm,
+    isElementary,
+    learnerNameColumnWidth,
+    subjectColumns,
+    selectedTerm,
+    activeSchoolYear,
+    subjects,
+    sectionObj,
+    updateGradingSheetRecord,
+    subjectColumnWidth,
+    showGenAvg,
+    showDescriptor,
+    descriptorGradeLevel,
+}: StudentGradeRowProps) => {
+    const colIndices = useMemo(() => {
+        const indices: number[] = [];
+        let currentIndex = 0;
+        for (let i = 0; i < subjectColumns.length; i++) {
+            const column = subjectColumns[i];
+            indices.push(currentIndex);
+            if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && column.subject._mapehGroups) {
+                currentIndex += 2;
+            } else if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && column.subject._ecmkGroups) {
+                currentIndex += 2;
+            } else if (selectedTerm !== 'all') {
+                currentIndex += 1;
+            }
+        }
+        return indices;
+    }, [subjectColumns, selectedTerm]);
+
+    return (
+        <tr className="hover:bg-blue-50/20">
+            <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
+                <span className="inline-block w-4 text-gray-500 mr-1 text-[7px] text-center font-bold tracking-tighter">
+                    {studentRow + 1}
+                </span> 
+                {formatLearnerName(student)}
+            </td>
+            {subjectColumns.map((column, index) => {
+                const sData = data[column.subject.id] || {};
+                const currentCol = colIndices[index];
+                return (
+                    <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
+                        {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
+                            <>
+                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
+                                    {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
+                                        <GradeInput
+                                            studentLrn={student.lrn}
+                                            subjectId={column.subject._mapehGroups.musicArts[0].id}
+                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.musicArts}
+                                            activeSchoolYear={activeSchoolYear}
+                                            subjects={subjects}
+                                            sectionObj={sectionObj}
+                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                            row={studentRow} col={currentCol}
+                                        />
+                                    )}
+                                </td>
+                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
+                                    {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
+                                        <GradeInput
+                                            studentLrn={student.lrn}
+                                            subjectId={column.subject._mapehGroups.peHealth[0].id}
+                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth}
+                                            activeSchoolYear={activeSchoolYear}
+                                            subjects={subjects}
+                                            sectionObj={sectionObj}
+                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                            row={studentRow} col={currentCol + 1}
+                                        />
+                                    )}
+                                </td>
+                                <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                            </>
+                        ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
+                            <>
+                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                    {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
+                                        <GradeInput
+                                            studentLrn={student.lrn}
+                                            subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
+                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
+                                            activeSchoolYear={activeSchoolYear}
+                                            subjects={subjects}
+                                            sectionObj={sectionObj}
+                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                            row={studentRow} col={currentCol}
+                                        />
+                                    )}
+                                </td>
+                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
+                                    {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
+                                        <GradeInput
+                                            studentLrn={student.lrn}
+                                            subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
+                                            quarter={parseInt(activeQuarterTerm.replace('q', ''))}
+                                            value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
+                                            activeSchoolYear={activeSchoolYear}
+                                            subjects={subjects}
+                                            sectionObj={sectionObj}
+                                            updateGradingSheetRecord={updateGradingSheetRecord}
+                                            row={studentRow} col={currentCol + 1}
+                                        />
+                                    )}
+                                </td>
+                                <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
+                            </>
+                        ) : (
+                            <>
+                                {(selectedTerm === 'q1' || selectedTerm === 'all') && (
+                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
+                                        {selectedTerm === 'q1' ? (
+                                            <GradeInput 
+                                                studentLrn={student.lrn} 
+                                                subjectId={column.subject.id} 
+                                                quarter={1} 
+                                                value={sData.q1} 
+                                                activeSchoolYear={activeSchoolYear}
+                                                subjects={subjects}
+                                                sectionObj={sectionObj}
+                                                updateGradingSheetRecord={updateGradingSheetRecord}
+                                                row={studentRow} col={currentCol}
+                                            />
+                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
+                                    </td>
+                                )}
+                                {(selectedTerm === 'q2' || selectedTerm === 'all') && (
+                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
+                                        {selectedTerm === 'q2' ? (
+                                            <GradeInput 
+                                                studentLrn={student.lrn} 
+                                                subjectId={column.subject.id} 
+                                                quarter={2} 
+                                                value={sData.q2} 
+                                                activeSchoolYear={activeSchoolYear}
+                                                subjects={subjects}
+                                                sectionObj={sectionObj}
+                                                updateGradingSheetRecord={updateGradingSheetRecord}
+                                                row={studentRow} col={currentCol}
+                                            />
+                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
+                                    </td>
+                                )}
+                                {(selectedTerm === 'q3' || selectedTerm === 'all') && (
+                                    <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
+                                        {selectedTerm === 'q3' ? (
+                                            <GradeInput 
+                                                studentLrn={student.lrn} 
+                                                subjectId={column.subject.id} 
+                                                quarter={3} 
+                                                value={sData.q3} 
+                                                activeSchoolYear={activeSchoolYear}
+                                                subjects={subjects}
+                                                sectionObj={sectionObj}
+                                                updateGradingSheetRecord={updateGradingSheetRecord}
+                                                row={studentRow} col={currentCol}
+                                            />
+                                            ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
+                                    </td>
+                                )}
+                                {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
+                            </>
+                        )}
+                    </Fragment>
+                );
+            })}
+            {showGenAvg && (
+                <>
+                    <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
+                    <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
+                    {showDescriptor && (
+                        <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
+                            {data.generalAverage ? getDescriptor(Number(data.generalAverage), descriptorGradeLevel || "") : ''}
+                        </td>
+                    )}
+                </>
+            )}
+        </tr>
+    );
+}, areEqual);
+
 export function ConsolidatedGradesPage() {
     
 
@@ -390,11 +667,14 @@ export function ConsolidatedGradesPage() {
 
     const [selectedTerm, setSelectedTerm] = useState<'q1' | 'q2' | 'q3' | 'all'>('q1');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [zoom, setZoom] = useState(0.9);
+    const [sheetWidth, setSheetWidth] = useState<number | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const showGenAvg = selectedTerm !== 'all';
 
     // Derived State
-    const sectionObj = useMemo(() => sections.find(s => s.section_name === selectedSection), [sections, selectedSection]);
+    const sectionObj = useMemo(() => sections.find(s => s.id === selectedSection || s.section_name === selectedSection), [sections, selectedSection]);
 
     // ADVISORY CHECK: Is the current user the adviser of this section?
     const isAdviser = useMemo(() => {
@@ -420,13 +700,30 @@ export function ConsolidatedGradesPage() {
 
         const quarter = parseInt(selectedTerm.replace('q', '')) as 1 | 2 | 3;
         const sectionGradeLevel = sectionObj.section_grade_level || '';
-        const trackNorm = (sectionObj.section_name || '').toUpperCase();
         let sectionTrack = 'Academic Track';
-        if (trackNorm.includes('STEM')) sectionTrack = 'Academic - STEM';
-        else if (trackNorm.includes('ABM')) sectionTrack = 'Academic - ABM';
-        else if (trackNorm.includes('HUMSS')) sectionTrack = 'Academic - HUMSS';
-        else if (trackNorm.includes('GAS')) sectionTrack = 'Academic - GAS';
-        else if (trackNorm.includes('TVL') || trackNorm.includes('TECHPRO') || trackNorm.includes('HE') || trackNorm.includes('ICT')) sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+        if (sectionObj.track) {
+            const tr = sectionObj.track;
+            if (tr === 'Academic') {
+                if (sectionObj.strand) {
+                    sectionTrack = `Academic - ${sectionObj.strand}`;
+                } else {
+                    sectionTrack = 'Academic Track';
+                }
+            } else if (tr === 'TechPro') {
+                sectionTrack = 'TechPro Track';
+            } else if (tr === 'TVL') {
+                sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+            } else {
+                sectionTrack = `${tr} Track`;
+            }
+        } else {
+            const trackNorm = (sectionObj.section_name || '').toUpperCase();
+            if (trackNorm.includes('STEM')) sectionTrack = 'Academic - STEM';
+            else if (trackNorm.includes('ABM')) sectionTrack = 'Academic - ABM';
+            else if (trackNorm.includes('HUMSS')) sectionTrack = 'Academic - HUMSS';
+            else if (trackNorm.includes('GAS')) sectionTrack = 'Academic - GAS';
+            else if (trackNorm.includes('TVL') || trackNorm.includes('TECHPRO') || trackNorm.includes('HE') || trackNorm.includes('ICT')) sectionTrack = 'Technical-Vocational-Livelihood (TVL)';
+        }
 
         setIsSyncing(true);
         let syncCount = 0;
@@ -1427,7 +1724,9 @@ const groupedSections = useMemo(() => {
         return 1;
     }, [selectedTerm]);
 
-    const totalColumns = 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
+    const totalColumns = useMemo(() => {
+        return 1 + subjectColumns.reduce((acc, col) => acc + termColSpan(col.subject), 0) + (showGenAvg ? (showDescriptor ? 3 : 2) : 0);
+    }, [subjectColumns, termColSpan, showGenAvg, showDescriptor]);
     
     const tableMinWidth = useMemo(() => {
         const nameColWidth = learnerNameColumnWidth;
@@ -1438,6 +1737,29 @@ const groupedSections = useMemo(() => {
         const estimatedWidth = (subjectCols * subjectColWidth) + nameColWidth + avgColsWidth;
         return Math.max(selectedTerm === 'all' ? 1200 : 900, estimatedWidth);
     }, [subjectColumns, selectedTerm, showGenAvg, learnerNameColumnWidth, subjectColumnWidth, termColSpan]);
+
+    useEffect(() => {
+        setSheetWidth(null);
+        
+        let active = true;
+        requestAnimationFrame(() => {
+            if (!active || !containerRef.current) return;
+            const sheets = containerRef.current.querySelectorAll('.consolidated-sheet');
+            if (sheets.length > 0) {
+                let maxWidth = 0;
+                sheets.forEach(sheet => {
+                    maxWidth = Math.max(maxWidth, sheet.clientWidth);
+                });
+                if (maxWidth > 0) {
+                    setSheetWidth(maxWidth);
+                }
+            }
+        });
+        
+        return () => {
+            active = false;
+        };
+    }, [selectedSection, selectedTerm, showGenAvg, showDescriptor, subjectColumns, sectionStudents]);
 
     const handlePrintConsolidated = () => {
         const sectionName = sectionObj?.section_name || 'Record';
@@ -1451,15 +1773,547 @@ const groupedSections = useMemo(() => {
         const sectionName = sectionObj?.section_name || 'Record';
         const filename = `ConsolidatedGrades_${schoolProfile.name || 'School'}_${sectionName}_${activeSchoolYear}.pdf`;
 
-        try {
-            if (window.electronAPI?.printToPDF) {
+        // If in Electron, print to PDF natively (generates multiple vector pages natively)
+        if (window.electronAPI?.printToPDF) {
+            try {
                 await window.electronAPI.printToPDF({ defaultFilename: filename, autoSave: true });
-            } else {
-                console.warn('PDF download not available in this environment');
+                showNotification('Grade sheet downloaded successfully!', 'success');
+            } catch (err) {
+                console.error('Download failed via Electron:', err);
+                showNotification('Failed to download PDF. Please try again.', 'error');
             }
-        } catch (error) {
-            console.error('Failed to download PDF:', error);
+            return;
         }
+
+        // Web browser html2canvas + jsPDF fallback (multiple pages supported)
+        const el = document.getElementById('printable-consolidated-grades');
+        if (!el) {
+            showNotification('Nothing to download. Please select a section first.', 'error');
+            return;
+        }
+
+        setIsDownloading(true);
+        const originalHeights: string[] = [];
+        const pagesToRestore: HTMLElement[] = [];
+
+        try {
+            const html2canvas = (await import('html2canvas-pro')).default;
+            const { jsPDF } = await import('jspdf');
+
+            // Find zoom shell and reset zoom temporarily for clean capture
+            const zoomShell = el.querySelector('.consolidated-zoom-shell') as HTMLElement | null;
+            const prevTransform = zoomShell?.style.transform || '';
+            const prevTransition = zoomShell?.style.transition || '';
+            if (zoomShell) {
+                zoomShell.style.transition = 'none';
+                zoomShell.style.transform = 'none';
+                // Force a layout reflow to apply the transition/transform change synchronously
+                void zoomShell.offsetHeight;
+            }
+
+            // Get all sheet pages to download
+            const pages = Array.from(el.querySelectorAll('.consolidated-sheet')) as HTMLElement[];
+            if (pages.length === 0) {
+                const sheetEl = el.querySelector('.consolidated-sheet') as HTMLElement | null || el;
+                pages.push(sheetEl);
+            }
+
+            // Set up landscape PDF format (Folio for 'all' terms, Legal for single terms)
+            const pdfFormat = selectedTerm === 'all' ? [330.2, 215.9] : [355.6, 215.9];
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: pdfFormat
+            });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 4;
+            const usableW = pageW - margin * 2;
+            const usableH = pageH - margin * 2;
+            const pdfRatio = usableW / usableH;
+
+            // Measure the tallest sheet to ensure uniform page size
+            const maxHeight = Math.max(...pages.map(p => p.clientHeight));
+            const targetHeight = Math.max(maxHeight, Math.round(tableMinWidth / pdfRatio));
+            
+            pages.forEach(p => {
+                originalHeights.push(p.style.height);
+                pagesToRestore.push(p);
+                p.style.height = `${targetHeight}px`;
+                p.style.boxSizing = 'border-box';
+            });
+            
+            // Force a layout reflow
+            if (pages.length > 0) {
+                void pages[0].offsetHeight;
+            }
+
+            for (let i = 0; i < pages.length; i++) {
+                if (i > 0) {
+                    pdf.addPage(pdfFormat, 'landscape');
+                }
+                const pageEl = pages[i];
+                
+                const canvas = await html2canvas(pageEl, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    onclone: (clonedDoc, clonedPageEl) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+
+                        // Swap inputs to static spans to capture dynamic values (if any are present)
+                        const origInputs = pageEl.querySelectorAll('input');
+                        const clonedInputs = clonedPageEl.querySelectorAll('input');
+                        origInputs.forEach((origInput, idx) => {
+                            const clonedInput = clonedInputs[idx];
+                            if (clonedInput) {
+                                const val = (origInput as HTMLInputElement).value || '';
+                                const span = clonedDoc.createElement('span');
+                                span.textContent = val;
+                                span.className = clonedInput.className;
+                                span.style.cssText = clonedInput.style.cssText;
+                                span.style.display = 'flex';
+                                span.style.alignItems = 'center';
+                                span.style.justifyContent = 'center';
+                                span.style.width = '100%';
+                                span.style.height = '100%';
+                                if (clonedInput.parentNode) {
+                                    clonedInput.parentNode.replaceChild(span, clonedInput);
+                                }
+                            }
+                        });
+
+                        // Remove select elements to avoid rendering native select controls as gray bars in PDF
+                        const clonedSelects = clonedPageEl.querySelectorAll('select');
+                        clonedSelects.forEach(select => {
+                            select.remove();
+                        });
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Preserve aspect ratio and fit proportionally in the PDF page, centering the content
+                const canvasRatio = canvas.width / canvas.height;
+                const pdfRatio = usableW / usableH;
+                
+                let imgW = usableW;
+                let imgH = usableH;
+                let xOffset = margin;
+                let yOffset = margin;
+                
+                if (canvasRatio > pdfRatio) {
+                    // Canvas is wider than PDF aspect ratio, fit to width and center vertically
+                    imgW = usableW;
+                    imgH = usableW / canvasRatio;
+                    yOffset = margin + (usableH - imgH) / 2;
+                } else {
+                    // Canvas is taller than PDF aspect ratio, fit to height and center horizontally
+                    imgH = usableH;
+                    imgW = usableH * canvasRatio;
+                    xOffset = margin + (usableW - imgW) / 2;
+                }
+                
+                pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgW, imgH);
+            }
+
+            // Restore zoom
+            if (zoomShell) {
+                zoomShell.style.transition = prevTransition;
+                zoomShell.style.transform = prevTransform;
+            }
+
+            pdf.save(filename);
+            showNotification('Grade sheet downloaded successfully!', 'success');
+        } catch (err) {
+            console.error('Download failed:', err);
+            showNotification('Failed to download grade sheet. Please try again.', 'error');
+        } finally {
+            // Restore original heights
+            pagesToRestore.forEach((p, idx) => {
+                p.style.height = originalHeights[idx] || '';
+            });
+            setIsDownloading(false);
+        }
+    };
+
+    const renderHeaderAndMetadata = (titleSuffix: string) => {
+        const isSummary = titleSuffix === 'SUMMARY OF REPORTS';
+        return (
+            <div className={`consolidated-header ${isSummary ? 'mb-2' : 'mb-4'}`}>
+                <div className={`flex justify-between items-center ${isSummary ? 'mb-2' : 'mb-6'} px-2`}>
+                    <img 
+                        src="/deped_logo_left.png" 
+                        alt="DepEd Left" 
+                        className={`consolidated-logo-left ${isSummary ? 'w-14 h-14' : 'w-20 h-20'} object-contain`} 
+                        onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_left.png` }} 
+                    />
+                    <div className="text-center">
+                        <h1 className={`consolidated-title ${isSummary ? 'text-lg' : (isElementary ? 'text-xl' : 'text-2xl')} font-bold uppercase text-black`}>
+                            Summary of Grades for {selectedTerm === 'all' ? 'Final & General Average' : (TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'Master Sheet')}
+                            {titleSuffix ? ` - ${titleSuffix}` : ''}
+                        </h1>
+                    </div>
+                    <img 
+                        src="/deped_logo_right.png" 
+                        alt="DepEd Right" 
+                        className={`consolidated-logo-right ${isSummary ? 'w-28 h-14' : 'w-36 h-20'} object-contain`} 
+                        onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_right.png` }} 
+                    />
+                </div>
+
+                {/* Metadata Grid - Boxed Style */}
+                <div className={`grid grid-cols-3 gap-0 ${isSummary ? 'text-[9.5px]' : 'text-[11px]'} border-t border-l border-black`}>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2`}>
+                        <span className="font-bold whitespace-nowrap">REGION :</span>
+                        <span className="uppercase text-left">{schoolProfile.region || 'XXX'}</span>
+                    </div>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2`}>
+                        <span className="font-bold whitespace-nowrap">DIVISION :</span>
+                        <span className="uppercase text-left">{schoolProfile.division || 'MATATAG DIVISION'}</span>
+                    </div>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2`}>
+                        <span className="font-bold whitespace-nowrap">SCHOOL YEAR :</span>
+                        <span className="text-left">{activeSchoolYear}</span>
+                    </div>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2 min-w-0`}>
+                        <span className="font-bold whitespace-nowrap">SCHOOL NAME :</span>
+                        <span className="uppercase text-left min-w-0 wrap-break-word">{schoolProfile.name}</span>
+                    </div>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2 min-w-0`}>
+                        <span className="font-bold whitespace-nowrap">GRADE & SECTION :</span>
+                        <span className="uppercase text-left min-w-0 wrap-break-word">{sectionObj?.section_grade_level} - {selectedSection}</span>
+                    </div>
+                    <div className={`${isSummary ? 'p-0.5 px-2' : 'p-1 px-3'} border-r border-b border-black flex items-center justify-start gap-2 min-w-0`}>
+                        <span className="font-bold whitespace-nowrap">SCHOOL ID :</span>
+                        <span className="text-left min-w-0 wrap-break-word">{schoolProfile.school_id}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderGradesTable = (studentsList: typeof maleStudents, startRowIdx: number, genderLabel: string) => {
+        return (
+            <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
+                <colgroup>
+                    <col style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }} />
+                    {subjectColumns.map((column, index) => {
+                        if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH') {
+                            return (
+                                <Fragment key={`col-group-mapeh-${column.baseId}-${index}`}>
+                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
+                                </Fragment>
+                            );
+                        }
+                        if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name)) {
+                            return (
+                                <Fragment key={`col-group-ecmk-${column.baseId}-${index}`}>
+                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
+                                    <col style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }} />
+                                </Fragment>
+                            );
+                        }
+                        return (
+                            <Fragment key={`col-group-std-${column.baseId}-${index}`}>
+                                {(selectedTerm === 'q1' || selectedTerm === 'all') && (
+                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                )}
+                                {(selectedTerm === 'q2' || selectedTerm === 'all') && (
+                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                )}
+                                {(selectedTerm === 'q3' || selectedTerm === 'all') && (
+                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                )}
+                                {selectedTerm === 'all' && (
+                                    <col style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px` }} />
+                                )}
+                            </Fragment>
+                        );
+                    })}
+                    {showGenAvg && (
+                        <>
+                            <col style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px` }} />
+                            <col style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }} />
+                            {showDescriptor && (
+                                <col style={{ width: `100px`, minWidth: `100px` }} />
+                            )}
+                        </>
+                    )}
+                </colgroup>
+                <thead>
+                    {isSHSSection ? (
+                        <>
+                            {/* Row 1: SHS Categories */}
+                            <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
+                                <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                                {subjectColumns.map((column, index) => {
+                                    const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
+                                    const parts = cat.split(' (');
+                                    return (
+                                        <th
+                                            key={`subject-type-${column.baseId}-${index}`}
+                                            colSpan={termColSpan(column.subject)}
+                                            className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
+                                        >
+                                            {parts.length > 1 ? (
+                                                <>
+                                                    {parts[0]}<br />({parts[1]}
+                                                </>
+                                            ) : (
+                                                cat
+                                            )}
+                                        </th>
+                                    );
+                                })}
+                                {showGenAvg && (
+                                    <>
+                                        <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                        <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                        {showDescriptor && (
+                                            <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                        )}
+                                    </>
+                                )}
+                            </tr>
+                            {/* Row 2: Subject Names */}
+                            <tr className="">
+                                {subjectColumns.map((column, index) => (
+                                    selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
+                                        <th
+                                            key={`subject-column-${column.baseId}-${index}`}
+                                            rowSpan={2}
+                                            className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                            title={column.subject.subject_name}
+                                            style={getSubjectHeaderStyle(column.subject)}
+                                        >
+                                            {selectedTerm === 'q1' ? (
+                                                <div className="relative w-full">
+                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                        {column.subject.subject_name}
+                                                    </span>
+                                                    <select
+                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                        onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                    >
+                                                        <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
+                                                        {selectableSubjects.map((option) => (
+                                                            <option key={option.id} value={option.id}>
+                                                                {option.subject_name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                    {column.subject.subject_name}
+                                                </span>
+                                            )}
+                                        </th>
+                                    ) : (
+                                        <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                            {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                                column.subject.subject_name
+                                            ) : (
+                                                selectedTerm === 'q1' ? (
+                                                    <div className="relative w-full">
+                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                            {column.subject.subject_name}
+                                                        </span>
+                                                        <select
+                                                            value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                            onChange={(e) => {
+                                                                const nextId = e.target.value;
+                                                                setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
+                                                            }}
+                                                            className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
+                                                            aria-label={`Select subject for column ${index + 1}`}
+                                                        >
+                                                            {selectableSubjects.map((option) => (
+                                                                <option key={option.id} value={option.id}>
+                                                                    {option.subject_name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                        {column.subject.subject_name}
+                                                    </span>
+                                                )
+                                            )}
+                                        </th>
+                                    )
+                                ))}
+                            </tr>
+                        </>
+                    ) : (
+                        /* Row 1: JHS/Elementary Subject Names (Categories omitted) */
+                        <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
+                            <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
+                            {subjectColumns.map((column, index) => (
+                                selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
+                                    <th
+                                        key={`subject-column-${column.baseId}-${index}`}
+                                        rowSpan={2}
+                                        className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
+                                        title={column.subject.subject_name}
+                                        style={getSubjectHeaderStyle(column.subject)}
+                                    >
+                                        {selectedTerm === 'q1' ? (
+                                            <div className="relative w-full">
+                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                    {column.subject.subject_name}
+                                                </span>
+                                                <select
+                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                    onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                >
+                                                    <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
+                                                    {selectableSubjects.map((option) => (
+                                                        <option key={option.id} value={option.id}>
+                                                            {option.subject_name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                {column.subject.subject_name}
+                                            </span>
+                                        )}
+                                    </th>
+                                ) : (
+                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
+                                        {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                            column.subject.subject_name
+                                        ) : (
+                                            selectedTerm === 'q1' ? (
+                                                <div className="relative w-full">
+                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
+                                                        {column.subject.subject_name}
+                                                    </span>
+                                                    <select
+                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
+                                                        onChange={(e) => {
+                                                            const nextId = e.target.value;
+                                                            setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
+                                                        }}
+                                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
+                                                        aria-label={`Select subject for column ${index + 1}`}
+                                                    >
+                                                        {selectableSubjects.map((option) => (
+                                                            <option key={option.id} value={option.id}>
+                                                                {option.subject_name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
+                                                    {column.subject.subject_name}
+                                                </span>
+                                            )
+                                        )}
+                                    </th>
+                                )
+                            ))}
+                            {showGenAvg && (
+                                <>
+                                    <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
+                                    <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
+                                    {showDescriptor && (
+                                        <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
+                                    )}
+                                </>
+                            )}
+                        </tr>
+                    )}
+
+                    {/* Row 3: Subheaders (T1, T2, T3, Final, Music, Arts, etc.) */}
+                    <tr className="">
+                        {subjectColumns.map((column, index) => (
+                            <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
+                                {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && (
+                                    <>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
+                                    </>
+                                )}
+                                {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
+                                    <>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Effective<br/>Communication</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Mabisang<br/>Komunikasyon</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
+                                    </>
+                                )}
+                                
+                                {selectedTerm === 'all' && (
+                                    <>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T1</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T2</th>
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T3</th>
+                                        {showLegacyQuarter4 && <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal bg-gray-50" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>LQ4</th>}
+                                        <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>Final</th>
+                                    </>
+                                )}
+                            </Fragment>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">{genderLabel}</td></tr>
+                    {studentsList.map((student, idx) => {
+                        const data = gradesData[student.lrn] || {};
+                        const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
+                            ? selectedTerm
+                            : null;
+                        const studentRow = startRowIdx + idx;
+                        
+                        return (
+                            <StudentGradeRow
+                                key={student.lrn}
+                                student={student}
+                                studentRow={studentRow}
+                                data={data}
+                                activeQuarterTerm={activeQuarterTerm}
+                                isElementary={isElementary}
+                                learnerNameColumnWidth={learnerNameColumnWidth}
+                                subjectColumns={subjectColumns}
+                                selectedTerm={selectedTerm}
+                                activeSchoolYear={activeSchoolYear}
+                                subjects={subjects}
+                                sectionObj={sectionObj}
+                                updateGradingSheetRecord={updateGradingSheetRecord}
+                                subjectColumnWidth={subjectColumnWidth}
+                                showGenAvg={showGenAvg}
+                                showDescriptor={showDescriptor}
+                                descriptorGradeLevel={sectionObj?.section_grade_level || ""}
+                            />
+                        );
+                    })}
+                </tbody>
+            </table>
+        );
     };
 
     return (
@@ -1475,11 +2329,25 @@ const groupedSections = useMemo(() => {
                     appearance: textfield;
                 }
 
+                .consolidated-grades-table {
+                    table-layout: fixed !important;
+                    width: 100%;
+                }
+
                 @media print {
                     @page { size: ${selectedTerm === 'all' ? 'folio landscape' : 'legal landscape'}; margin: 6mm; }
                     #printable-consolidated-grades { width: auto !important; min-width: fit-content !important; margin: 0 !important; }
-                    .consolidated-zoom-shell { transform: none !important; }
+                    .consolidated-zoom-shell { transform: none !important; display: flex !important; flex-direction: column !important; gap: 0 !important; }
                     .no-print { display: none !important; }
+                    select { display: none !important; }
+                    .consolidated-sheet {
+                        page-break-after: always !important;
+                        break-after: page !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
                 }
             `}</style>
             {/* TIER 2: Page Context Header */}
@@ -1637,10 +2505,11 @@ const groupedSections = useMemo(() => {
 
                             <button
                                 onClick={handleDownloadConsolidated}
-                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-green-600 dark:bg-green-500 text-white dark:text-white hover:bg-green-700 dark:hover:bg-green-600 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0"
+                                disabled={isDownloading}
+                                className="flex items-center gap-1 h-8 px-2.5 sm:px-4 rounded-md bg-green-600 dark:bg-green-500 text-white dark:text-white hover:bg-green-700 dark:hover:bg-green-600 transition-all font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 ml-0.5 whitespace-nowrap shrink-0 disabled:opacity-50"
                             >
                                 <Download className="w-3 h-3" />
-                                <span className="hidden sm:inline">Download</span>
+                                <span className="hidden sm:inline">{isDownloading ? 'Downloading...' : 'Download'}</span>
                             </button>
                         </>
                     )}
@@ -1655,907 +2524,301 @@ const groupedSections = useMemo(() => {
                         <p className="font-medium">Please select a section to view the grade sheet.</p>
                     </div>
                 ) : (
-                    <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
-                    <div
-                        className="consolidated-zoom-shell origin-top transition-all duration-300"
-                        style={{ transform: `scale(${zoom})` }}
-                    >
-                    <div className="consolidated-sheet mx-auto bg-white p-4" style={{ minWidth: `${tableMinWidth}px` }}>
-                        {/* Header Section */}
-                        <div className="consolidated-header mb-4">
-                            <div className="flex justify-between items-center mb-6 px-2">
-                                <img src="/deped_logo_left.png" alt="DepEd Left" className="consolidated-logo-left w-20 h-20 object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_left.png` }} />
-                                <div className="text-center">
-                                    <h1 className={`consolidated-title ${isElementary ? 'text-xl' : 'text-2xl'} font-bold uppercase text-black`}>
-                                        Summary of Grades for {selectedTerm === 'all' ? 'Final & General Average' : (TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || 'Master Sheet')}
-                                    </h1>
-                                </div>
-                                <img src="/deped_logo_right.png" alt="DepEd Right" className="consolidated-logo-right w-24 h-24 object-contain" onError={(e) => { (e.target as HTMLImageElement).src = `${import.meta.env.BASE_URL}deped_logo_right.png` }} />
+                    <div className="w-full min-h-full flex justify-center overflow-x-auto py-2 bg-slate-100 dark:bg-slate-900/40 rounded-xl">
+                        <div
+                            ref={containerRef}
+                            className="consolidated-zoom-shell origin-top flex flex-col gap-8 transition-all duration-300"
+                            style={{ transform: `scale(${zoom})`, width: 'fit-content' }}
+                        >
+                            {/* Page 1: Male Table */}
+                            <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                                {renderHeaderAndMetadata('MALE')}
+                                {renderGradesTable(maleStudents, 0, 'MALE')}
                             </div>
 
-                            {/* Metadata Grid - Boxed Style */}
-                            <div className="grid grid-cols-3 gap-0 text-[11px] border-t border-l border-black">
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2">
-                                    <span className="font-bold whitespace-nowrap">REGION :</span>
-                                    <span className="uppercase text-left">{schoolProfile.region || 'XXX'}</span>
-                                </div>
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2">
-                                    <span className="font-bold whitespace-nowrap">DIVISION :</span>
-                                    <span className="uppercase text-left">{schoolProfile.division || 'MATATAG DIVISION'}</span>
-                                </div>
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2">
-                                    <span className="font-bold whitespace-nowrap">SCHOOL YEAR :</span>
-                                    <span className="text-left">{activeSchoolYear}</span>
-                                </div>
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
-                                    <span className="font-bold whitespace-nowrap">SCHOOL NAME :</span>
-                                    <span className="uppercase text-left min-w-0 wrap-break-word">{schoolProfile.name}</span>
-                                </div>
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
-                                    <span className="font-bold whitespace-nowrap">GRADE & SECTION :</span>
-                                    <span className="uppercase text-left min-w-0 wrap-break-word">{sectionObj?.section_grade_level} - {selectedSection}</span>
-                                </div>
-                                <div className="border-r border-b border-black p-1 px-3 flex items-center justify-start gap-2 min-w-0">
-                                    <span className="font-bold whitespace-nowrap">SCHOOL ID :</span>
-                                    <span className="text-left min-w-0 wrap-break-word">{schoolProfile.school_id}</span>
-                                </div>
+                            {/* Page 2: Female Table */}
+                            <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                                {renderHeaderAndMetadata('FEMALE')}
+                                {renderGradesTable(femaleStudents, maleStudents.length, 'FEMALE')}
                             </div>
-                        </div>
-                        {/* Table Section */}
-                        <table className={`consolidated-print-table consolidated-grades-table w-full border-collapse border border-black ${isElementary ? 'text-[7px]' : 'text-[8px]'}`}>
-                            <thead>
-                                {isSHSSection ? (
-                                    <>
-                                        {/* Row 1: SHS Categories */}
-                                        <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                                            <th rowSpan={3} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
-                                            {subjectColumns.map((column, index) => {
-                                                const cat = getSubjectCategory(column.subject.subject_name, sectionObj?.section_grade_level || '');
-                                                const parts = cat.split(' (');
-                                                return (
-                                                    <th
-                                                        key={`subject-type-${column.baseId}-${index}`}
-                                                        colSpan={termColSpan(column.subject)}
-                                                        className="border border-black p-1 text-center font-black text-[7px] leading-tight bg-gray-100"
-                                                    >
-                                                        {parts.length > 1 ? (
-                                                            <>
-                                                                {parts[0]}<br />({parts[1]}
-                                                            </>
+
+                            {/* Page 3: Summary Reports */}
+                            {showDescriptor && (
+                                <div className="consolidated-sheet mx-auto bg-white p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] rounded-md border border-slate-200/80 mb-6 print:mb-0 print:border-none print:shadow-none" style={{ width: sheetWidth ? `${sheetWidth}px` : 'auto', minWidth: `${tableMinWidth}px` }}>
+                                    {renderHeaderAndMetadata('SUMMARY OF REPORTS')}
+                                    
+                                    <div className="flex flex-col gap-3 w-full no-print-break-inside text-[9px]">
+                                        {/* Two Columns Layout */}
+                                        <div className="mt-2 flex flex-col md:flex-row gap-6 items-start justify-start w-full print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                            {/* Column A: Left Column */}
+                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-[550px]">
+                                                {/* Learning Progress and Achievement */}
+                                                <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                                    <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
+                                                        Learning Progress and Achievement
+                                                    </div>
+                                                    <table className="w-full text-center text-[9px] border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-gray-100 border-b border-black font-bold">
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Descriptors & Grading Scale</th>
+                                                                <th className="p-1.5 border-r border-black w-20 uppercase">REMARKS</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">MALE</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">FEMALE</th>
+                                                                <th className="p-1.5 w-14 uppercase">TOTAL</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {[
+                                                                { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100 },
+                                                                { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89 },
+                                                                { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79 },
+                                                                { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74 },
+                                                                { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64 }
+                                                            ].map((level, idx) => {
+                                                                const getCounts = (studentsList: typeof maleStudents) => {
+                                                                    return studentsList.filter(s => {
+                                                                        const isQuarter = selectedTerm !== 'all';
+                                                                        const rawAvg = isQuarter ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                                        if (!rawAvg || rawAvg === '') return false;
+                                                                        const avg = Number(rawAvg);
+                                                                        return avg >= level.min && avg <= level.max;
+                                                                    }).length;
+                                                                };
+                                                                const mCount = getCounts(maleStudents);
+                                                                const fCount = getCounts(femaleStudents);
+                                                                const total = mCount + fCount;
+                                                                
+                                                                return (
+                                                                    <tr key={idx} className="border-b border-black">
+                                                                        <td className="p-1 border-r border-black text-left pl-3 font-medium">{level.desc}</td>
+                                                                        <td className={`p-1 border-r border-black font-bold ${level.min < 75 ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
+                                                                        <td className="p-1 border-r border-black tabular-nums font-medium">{mCount || '-'}</td>
+                                                                        <td className="p-1 border-r border-black tabular-nums font-medium">{fCount || '-'}</td>
+                                                                        <td className="p-1 bg-gray-50 tabular-nums font-bold">{total || '-'}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                            <tr className="bg-gray-200 font-bold border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3" colSpan={2}>TOTAL</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{maleStudents.filter(s => {
+                                                                    const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                                    return rawAvg !== '' && Number(rawAvg) > 0;
+                                                                }).length}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{femaleStudents.filter(s => {
+                                                                    const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                                    return rawAvg !== '' && Number(rawAvg) > 0;
+                                                                }).length}</td>
+                                                                <td className="p-1 tabular-nums bg-gray-300">{sectionStudents.filter(s => {
+                                                                    const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
+                                                                    return rawAvg !== '' && Number(rawAvg) > 0;
+                                                                }).length}</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {/* Academic Excellence Awards Summary */}
+                                                <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                                    <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
+                                                        Academic Excellence Awards (Honor Roll) Summary
+                                                    </div>
+                                                    <table className="w-full text-center text-[9px] border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-gray-100 border-b border-black font-bold">
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Award Category</th>
+                                                                <th className="p-1.5 border-r border-black w-20 uppercase">Grading Scale</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">MALE</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">FEMALE</th>
+                                                                <th className="p-1.5 w-14 uppercase">TOTAL</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr className="border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3 font-bold text-deped-blue">🏆 Academic Excellence Award</td>
+                                                                <td className="p-1 border-r border-black font-medium text-slate-600">90.00 - 100.00</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{academicExcellenceStats.male || '-'}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{academicExcellenceStats.female || '-'}</td>
+                                                                <td className="p-1 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.total || '-'}</td>
+                                                            </tr>
+                                                            <tr className="bg-gray-200 font-bold border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3" colSpan={2}>TOTAL EXCELLENCE AWARDEES</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{academicExcellenceStats.male || '-'}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{academicExcellenceStats.female || '-'}</td>
+                                                                <td className="p-1 tabular-nums bg-gray-300">{academicExcellenceStats.total || '-'}</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                    <div className="p-2 bg-slate-50 border-t border-black text-[8px] leading-relaxed">
+                                                        <div className="font-bold uppercase tracking-wider mb-1 text-slate-800 border-b border-slate-200 pb-0.5">Awardees Roster (No final grades below 80)</div>
+                                                        {academicExcellenceStats.total === 0 ? (
+                                                            <div className="italic text-slate-500 text-center py-0.5">No awardees for this term. (Average 90.00+ and no grade below 80 required)</div>
                                                         ) : (
-                                                            cat
-                                                        )}
-                                                    </th>
-                                                );
-                                            })}
-                                            {showGenAvg && (
-                                                <>
-                                                    <th rowSpan={3} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                                    <th rowSpan={3} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
-                                                    {showDescriptor && (
-                                                        <th rowSpan={3} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
-                                                    )}
-                                                </>
-                                            )}
-                                        </tr>
-                                        {/* Row 2: Subject Names */}
-                                        <tr className="bg-gray-50/80">
-                                            {subjectColumns.map((column, index) => (
-                                                selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
-                                                    <th
-                                                        key={`subject-column-${column.baseId}-${index}`}
-                                                        rowSpan={2}
-                                                        className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
-                                                        title={column.subject.subject_name}
-                                                        style={getSubjectHeaderStyle(column.subject)}
-                                                    >
-                                                        {selectedTerm === 'q1' ? (
-                                                            <div className="relative w-full">
-                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                                    {column.subject.subject_name}
-                                                                </span>
-                                                                <select
-                                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                                    onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                                >
-                                                                    <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
-                                                                    {selectableSubjects.map((option) => (
-                                                                        <option key={option.id} value={option.id}>
-                                                                            {option.subject_name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                                {column.subject.subject_name}
-                                                            </span>
-                                                        )}
-                                                    </th>
-                                                ) : (
-                                                    <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                                        {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
-                                                            column.subject.subject_name
-                                                        ) : (
-                                                            selectedTerm === 'q1' ? (
-                                                                <div className="relative w-full">
-                                                                    <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                                        {column.subject.subject_name}
-                                                                    </span>
-                                                                    <select
-                                                                        value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                                        onChange={(e) => {
-                                                                            const nextId = e.target.value;
-                                                                            setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                                        }}
-                                                                        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                                        aria-label={`Select subject for column ${index + 1}`}
-                                                                    >
-                                                                        {selectableSubjects.map((option) => (
-                                                                            <option key={option.id} value={option.id}>
-                                                                                {option.subject_name}
-                                                                            </option>
-                                                                        ))}
-                                                                    </select>
+                                                            <div className="space-y-0.5 max-h-20 overflow-y-auto custom-scrollbar">
+                                                                <div>
+                                                                    <span className="font-bold text-deped-blue">Awardees (Alphabetical):</span>{' '}
+                                                                    <span className="text-slate-700">{academicExcellenceStats.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
                                                                 </div>
-                                                            ) : (
-                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                                    {column.subject.subject_name}
-                                                                </span>
-                                                            )
-                                                        )}
-                                                    </th>
-                                                )
-                                            ))}
-                                        </tr>
-                                    </>
-                                ) : (
-                                    /* Row 1: JHS/Elementary Subject Names (Categories omitted) */
-                                    <tr className="bg-gray-100/90 text-center font-bold text-[8px] uppercase tracking-wider h-8">
-                                        <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
-                                        {subjectColumns.map((column, index) => (
-                                            selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
-                                                <th
-                                                    key={`subject-column-${column.baseId}-${index}`}
-                                                    rowSpan={2}
-                                                    className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50"
-                                                    title={column.subject.subject_name}
-                                                    style={getSubjectHeaderStyle(column.subject)}
-                                                >
-                                                    {selectedTerm === 'q1' ? (
-                                                        <div className="relative w-full">
-                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                                {column.subject.subject_name}
-                                                            </span>
-                                                            <select
-                                                                value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                                onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
-                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                            >
-                                                                <option value={column.baseId}>{column.subject.subject_name} (Default)</option>
-                                                                {selectableSubjects.map((option) => (
-                                                                    <option key={option.id} value={option.id}>
-                                                                        {option.subject_name}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                            {column.subject.subject_name}
-                                                        </span>
-                                                    )}
-                                                </th>
-                                            ) : (
-                                                <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                                    {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
-                                                        column.subject.subject_name
-                                                    ) : (
-                                                        selectedTerm === 'q1' ? (
-                                                            <div className="relative w-full">
-                                                                <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5 pointer-events-none">
-                                                                    {column.subject.subject_name}
-                                                                </span>
-                                                                <select
-                                                                    value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                                    onChange={(e) => {
-                                                                        const nextId = e.target.value;
-                                                                        setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                                    }}
-                                                                    className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-                                                                    aria-label={`Select subject for column ${index + 1}`}
-                                                                >
-                                                                    {selectableSubjects.map((option) => (
-                                                                        <option key={option.id} value={option.id}>
-                                                                            {option.subject_name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
                                                             </div>
-                                                        ) : (
-                                                            <span className="block whitespace-normal wrap-break-word text-center font-bold uppercase text-[6px] leading-tight px-0.5">
-                                                                {column.subject.subject_name}
-                                                            </span>
-                                                        )
-                                                    )}
-                                                </th>
-                                            )
-                                        ))}
-                                        {showGenAvg && (
-                                            <>
-                                                <th rowSpan={2} className="consolidated-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>AVERAGE</th>
-                                                <th rowSpan={2} className="consolidated-general-average-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>GENERAL AVERAGE</th>
-                                                {showDescriptor && (
-                                                    <th rowSpan={2} className="consolidated-descriptor-col border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-100" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>DESCRIPTOR</th>
-                                                )}
-                                            </>
-                                        )}
-                                    </tr>
-                                )}
-
-                                {/* Row 3: Subheaders (T1, T2, T3, Final, Music, Arts, etc.) */}
-                                <tr className="bg-gray-50/80">
-                                    {subjectColumns.map((column, index) => (
-                                        <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
-                                            {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && (
-                                                <>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
-                                                </>
-                                            )}
-                                            {selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && (
-                                                <>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Effective<br/>Communication</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1]" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>Mabisang<br/>Komunikasyon</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold text-[6px] leading-[1.1] bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>FINAL<br/>GRADE</th>
-                                                </>
-                                            )}
-                                            
-                                            {selectedTerm === 'all' && (
-                                                <>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T1</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T2</th>
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>T3</th>
-                                                    {showLegacyQuarter4 && <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>LQ4</th>}
-                                                    <th className="consolidated-subject-col border border-black p-0.5 text-center font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>Final</th>
-                                                </>
-                                            )}
-                                        </Fragment>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">MALE</td></tr>
-                                {(() => {
-                                    let globalRowIndex = 0;
-                                    return (
-                                        <>
-                                            {maleStudents.map((student) => {
-                                                const data = gradesData[student.lrn] || {};
-                                                const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
-                                                    ? selectedTerm
-                                                    : null;
-                                                const studentRow = globalRowIndex++;
-                                                let inputColIndex = 0;
-                                                
-                                                return (
-                                                    <tr key={student.lrn} className="hover:bg-blue-50/20">
-                                                        <td className={`consolidated-learner-name border border-black ${isElementary ? 'p-0.5 pl-1.5' : 'p-1 pl-2'} font-medium truncate whitespace-nowrap uppercase`} style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
-                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px] text-center font-bold tracking-tighter">
-                                                                {studentRow + 1}
-                                                            </span> 
-                                                            {formatLearnerName(student)}
-                                                        </td>
-                                                        {subjectColumns.map((column, index) => {
-                                                            const sData = data[column.subject.id] || {};
-                                                            const currentCol = inputColIndex;
-                                                            
-                                                            if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && column.subject._mapehGroups) {
-                                                                inputColIndex += 2;
-                                                            } else if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && column.subject._ecmkGroups) {
-                                                                inputColIndex += 2;
-                                                            } else if (selectedTerm !== 'all') {
-                                                                inputColIndex += 1;
-                                                            }
-                                                            return (
-                                                                <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
-                                                                    {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
-                                                                        <>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._mapehGroups.musicArts[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.musicArts}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._mapehGroups.peHealth[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol + 1}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
-                                                                        </>
-                                                                    ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
-                                                                        <>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol + 1}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            {(selectedTerm === 'q1' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q1' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={1} 
-                                                                                            value={sData.q1} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {(selectedTerm === 'q2' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q2' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={2} 
-                                                                                            value={sData.q2} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {(selectedTerm === 'q3' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q3' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={3} 
-                                                                                            value={sData.q3} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
-                                                                        </>
-                                                                    )}
-                                                                </Fragment>
-                                                            );
-                                                        })}
-                                                        {showGenAvg && (
-                                                            <>
-                                                                <td className={`consolidated-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-50/50 tabular-nums`} style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
-                                                                <td className={`consolidated-general-average-col border border-black ${isElementary ? 'p-0.5' : 'p-1'} text-center font-bold bg-gray-100/50 tabular-nums`} style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
-                                                                {showDescriptor && (
-                                                                    <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
-                                                                        {data.generalAverage ? getDescriptor(Number(data.generalAverage), sectionObj?.section_grade_level || "") : ''}
-                                                                    </td>
-                                                                )}
-                                                            </>
                                                         )}
-                                                    </tr>
-                                                );
-                                            })}
-
-                                            <tr className="bg-gray-200"><td colSpan={totalColumns} className="border border-black p-1 font-bold pl-2 text-[10px] uppercase bg-gray-200">FEMALE</td></tr>
-                                            {femaleStudents.map((student) => {
-                                                const data = gradesData[student.lrn] || {};
-                                                const activeQuarterTerm = selectedTerm === 'q1' || selectedTerm === 'q2' || selectedTerm === 'q3'
-                                                    ? selectedTerm
-                                                    : null;
-                                                const studentRow = globalRowIndex++;
-                                                let inputColIndex = 0;
-                                                return (
-                                                    <tr key={student.lrn} className="hover:bg-blue-50/20">
-                                                        <td className="consolidated-learner-name border border-black p-1 pl-2 font-medium truncate whitespace-nowrap uppercase" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>
-                                                            <span className="inline-block w-4 text-gray-500 mr-1 text-[7px]">{studentRow + 1}</span> 
-                                                            {formatLearnerName(student)}
-                                                        </td>
-                                                        {subjectColumns.map((column, index) => {
-                                                            const sData = data[column.subject.id] || {};
-                                                            const currentCol = inputColIndex;
-
-                                                            if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && column.subject._mapehGroups) {
-                                                                inputColIndex += 2;
-                                                            } else if (selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) && column.subject._ecmkGroups) {
-                                                                inputColIndex += 2;
-                                                            } else if (selectedTerm !== 'all') {
-                                                                inputColIndex += 1;
-                                                            }
-
-                                                            return (
-                                                                <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
-                                                                    {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
-                                                                        <>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._mapehGroups.musicArts[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.musicArts}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._mapehGroups?.peHealth[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._mapehGroups.peHealth[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.peHealth}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        
-                                                                                        row={studentRow} col={currentCol + 1}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
-                                                                        </>
-                                                                    ) : selectedTerm !== 'all' && isEcmkParent(column.subject.subject_name) ? (
-                                                                        <>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.effectiveComm[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._ecmkGroups.effectiveComm[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.effectiveComm}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>
-                                                                                {activeQuarterTerm && column.subject._ecmkGroups?.mabisangKom[0] && (
-                                                                                    <GradeInput
-                                                                                        studentLrn={student.lrn}
-                                                                                        subjectId={column.subject._ecmkGroups.mabisangKom[0].id}
-                                                                                        quarter={parseInt(activeQuarterTerm.replace('q', ''))}
-                                                                                        value={getQuarterGradeDetail(sData[activeQuarterTerm])?.mabisangKom}
-                                                                                        activeSchoolYear={activeSchoolYear}
-                                                                                        subjects={subjects}
-                                                                                        sectionObj={sectionObj}
-                                                                                        updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                        row={studentRow} col={currentCol + 1}
-                                                                                    />
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-semibold bg-gray-200" style={{ width: `${ECMK_SUBCOLUMN_WIDTH}px`, minWidth: `${ECMK_SUBCOLUMN_WIDTH}px`, maxWidth: `${ECMK_SUBCOLUMN_WIDTH}px` }}>{activeQuarterTerm ? (getQuarterGradeValue(sData[activeQuarterTerm]) || '') : ''}</td>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            {(selectedTerm === 'q1' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q1' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={1} 
-                                                                                            value={sData.q1} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q1), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {(selectedTerm === 'q2' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q2' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={2} 
-                                                                                            value={sData.q2} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q2), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {(selectedTerm === 'q3' || selectedTerm === 'all') && (
-                                                                                <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums font-medium" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>
-                                                                                    {selectedTerm === 'q3' ? (
-                                                                                        <GradeInput 
-                                                                                            studentLrn={student.lrn} 
-                                                                                            subjectId={column.subject.id} 
-                                                                                            quarter={3} 
-                                                                                            value={sData.q3} 
-                                                                                            activeSchoolYear={activeSchoolYear}
-                                                                                            subjects={subjects}
-                                                                                            sectionObj={sectionObj}
-                                                                                            updateGradingSheetRecord={updateGradingSheetRecord}
-                                                                                            
-                                                                                            row={studentRow} col={currentCol}
-                                                                                        />
-                                                                                        ) : (formatGradeForDisplay(getQuarterGradeValue(sData.q3), sectionObj?.section_grade_level || '') || '')}
-                                                                                </td>
-                                                                            )}
-                                                                            {selectedTerm === 'all' && <td className="consolidated-subject-col border border-black p-1 text-center tabular-nums font-bold bg-gray-200" style={{ width: `${subjectColumnWidth}px`, minWidth: `${subjectColumnWidth}px`, maxWidth: `${subjectColumnWidth}px` }}>{formatGradeForDisplay(sData.final, sectionObj?.section_grade_level || '') || ''}</td>}
-                                                                        </>
-                                                                    )}
-                                                                </Fragment>
-                                                            );
-                                                        })}
-                                                        {showGenAvg && (
-                                                            <>
-                                                                <td className="consolidated-average-col border border-black p-1 text-center font-bold bg-gray-50/50 tabular-nums" style={{ width: `${AVERAGE_COLUMN_WIDTH}px`, minWidth: `${AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${AVERAGE_COLUMN_WIDTH}px` }}>{data.termAverage || ''}</td>
-                                                                <td className="consolidated-general-average-col border border-black p-1 text-center font-bold bg-gray-100/50 tabular-nums" style={{ width: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, minWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px`, maxWidth: `${GENERAL_AVERAGE_COLUMN_WIDTH}px` }}>{data.generalAverage || ''}</td>
-                                                                {showDescriptor && (
-                                                                    <td className="consolidated-descriptor-col border border-black p-1 text-center font-bold bg-gray-200 text-[6px] leading-tight uppercase" style={{ width: `100px`, minWidth: `100px`, maxWidth: `100px` }}>
-                                                                        {data.generalAverage ? getDescriptor(Number(data.generalAverage), sectionObj?.section_grade_level || "") : ''}
-                                                                    </td>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </tr>
-                                                );
-                                            })}
-                                        </>
-                                    );
-                                })()}
-                            </tbody>
-                        </table>
-                        {/* Summary of Grades - Learning Progress & DepEd Promotion Stats */}
-                        {showDescriptor && (
-                            <div className="flex flex-col gap-6 w-full no-print-break-inside">
-                                {/* First Row: Learning Progress and Summary of Promotion */}
-                                <div className="mt-8 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-10 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
-                                    {/* Left Side: Learning Progress and Achievement */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
-                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                            Learning Progress and Achievement
-                                        </div>
-                                        <table className="w-full text-center text-[10px] border-collapse">
-                                            <thead>
-                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Descriptors & Grading Scale</th>
-                                                    <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
-                                                    <th className="p-2 w-16 uppercase">TOTAL</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {[
-                                                    { desc: 'Advancing (90-100)', remark: 'Passed', min: 90, max: 100 },
-                                                    { desc: 'Benchmarking (80-89)', remark: 'Passed', min: 80, max: 89 },
-                                                    { desc: 'Connecting (75-79)', remark: 'Passed', min: 75, max: 79 },
-                                                    { desc: 'Developing (65-74)', remark: 'Failed', min: 65, max: 74 },
-                                                    { desc: 'Emerging (0-64)', remark: 'Failed', min: 0, max: 64 }
-                                                ].map((level, idx) => {
-                                                    const getCounts = (studentsList: typeof maleStudents) => {
-                                                        return studentsList.filter(s => {
-                                                            const isQuarter = selectedTerm !== 'all';
-                                                            const rawAvg = isQuarter ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
-                                                            if (!rawAvg || rawAvg === '') return false;
-                                                            const avg = Number(rawAvg);
-                                                            return avg >= level.min && avg <= level.max;
-                                                        }).length;
-                                                    };
-                                                    const mCount = getCounts(maleStudents);
-                                                    const fCount = getCounts(femaleStudents);
-                                                    const total = mCount + fCount;
-                                                    
-                                                    return (
-                                                        <tr key={idx} className="border-b border-black">
-                                                            <td className="p-2 border-r border-black text-left pl-4 font-medium">{level.desc}</td>
-                                                            <td className={`p-2 border-r border-black font-bold ${level.min < 75 ? 'text-red-600' : 'text-green-700'}`}>{level.remark}</td>
-                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{mCount || '-'}</td>
-                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{fCount || '-'}</td>
-                                                            <td className="p-2 bg-gray-50 tabular-nums font-bold">{total || '-'}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                                <tr className="bg-gray-200 font-bold border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{maleStudents.filter(s => {
-                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
-                                                        return rawAvg !== '' && Number(rawAvg) > 0;
-                                                    }).length}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{femaleStudents.filter(s => {
-                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
-                                                        return rawAvg !== '' && Number(rawAvg) > 0;
-                                                    }).length}</td>
-                                                    <td className="p-2 tabular-nums bg-gray-300">{sectionStudents.filter(s => {
-                                                        const rawAvg = selectedTerm !== 'all' ? gradesData[s.lrn]?.termAverage : gradesData[s.lrn]?.generalAverage;
-                                                        return rawAvg !== '' && Number(rawAvg) > 0;
-                                                    }).length}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Right Side: Summary of Promotion & Class Performance */}
-                                    <div className="flex flex-col gap-4 flex-1 w-full max-w-137.5">
-                                        {/* Summary of Promotion */}
-                                        <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm">
-                                            <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                                Summary of Promotion (General Performance)
-                                            </div>
-                                            <table className="w-full text-center text-[10px] border-collapse">
-                                                <thead>
-                                                    <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Promotion Status</th>
-                                                        <th className="p-2 border-r border-black w-24 uppercase">REMARKS</th>
-                                                        <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
-                                                        <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
-                                                        <th className="p-2 w-16 uppercase">TOTAL</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr className="border-b border-black">
-                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">Passed (Promoted)</td>
-                                                        <td className="p-2 border-r border-black font-bold text-green-700">PROMOTED</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.passed.male || '-'}</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.passed.female || '-'}</td>
-                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{promotionStats.passed.male + promotionStats.passed.female || '-'}</td>
-                                                    </tr>
-                                                    <tr className="border-b border-black">
-                                                        <td className="p-2 border-r border-black text-left pl-4 font-medium">Failed (Retained)</td>
-                                                        <td className="p-2 border-r border-black font-bold text-red-600">RETAINED</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.failed.male || '-'}</td>
-                                                        <td className="p-2 border-r border-black tabular-nums font-medium">{promotionStats.failed.female || '-'}</td>
-                                                        <td className="p-2 bg-gray-50 tabular-nums font-bold">{promotionStats.failed.male + promotionStats.failed.female || '-'}</td>
-                                                    </tr>
-                                                    <tr className="bg-gray-200 font-bold border-b border-black">
-                                                        <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL</td>
-                                                        <td className="p-2 border-r border-black tabular-nums">{promotionStats.passed.male + promotionStats.failed.male || '-'}</td>
-                                                        <td className="p-2 border-r border-black tabular-nums">{promotionStats.passed.female + promotionStats.failed.female || '-'}</td>
-                                                        <td className="p-2 tabular-nums bg-gray-300">{promotionStats.classCount || '-'}</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-                                        {/* Class Performance Metrics */}
-                                        <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm bg-slate-50 p-3">
-                                            <div className="font-bold text-[10px] uppercase border-b border-black pb-1 mb-2 tracking-wide text-slate-800">
-                                                Class Achievement Analytics
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]">
-                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
-                                                    <span className="text-slate-600 font-medium">Total Enrolled Learners:</span>
-                                                    <span className="font-bold text-slate-900">{sectionStudents.length}</span>
-                                                </div>
-                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
-                                                    <span className="text-slate-600 font-medium">Class General Average:</span>
-                                                    <span className="font-bold text-slate-900">{promotionStats.classCount > 0 ? (promotionStats.classSum / promotionStats.classCount).toFixed(2) : '-'}</span>
-                                                </div>
-                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
-                                                    <span className="text-slate-600 font-medium">Highest General Average:</span>
-                                                    <span className="font-bold text-green-700">{promotionStats.classCount > 0 ? promotionStats.highest : '-'}</span>
-                                                </div>
-                                                <div className="flex justify-between border-b border-slate-200 pb-0.5">
-                                                    <span className="text-slate-600 font-medium">Lowest General Average:</span>
-                                                    <span className="font-bold text-red-600">{promotionStats.classCount > 0 ? promotionStats.lowest : '-'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Second Row: Academic Excellence and Subject Performance Profile */}
-                                <div className="mt-6 flex flex-col md:flex-row gap-8 items-start justify-start w-full print:mt-8 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
-                                    {/* Left Side: Academic Excellence Awards (Honor Roll) Summary */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
-                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                            Academic Excellence Awards (Honor Roll) Summary
-                                        </div>
-                                        <table className="w-full text-center text-[10px] border-collapse">
-                                            <thead>
-                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Award Category</th>
-                                                    <th className="p-2 border-r border-black w-24 uppercase">Grading Scale</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">MALE</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">FEMALE</th>
-                                                    <th className="p-2 w-16 uppercase">TOTAL</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr className="border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4 font-bold text-deped-blue">🏆 Academic Excellence Award</td>
-                                                    <td className="p-2 border-r border-black font-medium text-slate-600">90.00 - 100.00</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums font-medium">{academicExcellenceStats.female || '-'}</td>
-                                                    <td className="p-2 bg-gray-50 tabular-nums font-bold">{academicExcellenceStats.total || '-'}</td>
-                                                </tr>
-                                                <tr className="bg-gray-200 font-bold border-b border-black">
-                                                    <td className="p-2 border-r border-black text-left pl-4" colSpan={2}>TOTAL EXCELLENCE AWARDEES</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.male || '-'}</td>
-                                                    <td className="p-2 border-r border-black tabular-nums">{academicExcellenceStats.female || '-'}</td>
-                                                    <td className="p-2 tabular-nums bg-gray-300">{academicExcellenceStats.total || '-'}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                        <div className="p-3 bg-slate-50 border-t border-black text-[9px] leading-relaxed">
-                                            <div className="font-bold uppercase tracking-wider mb-2 text-slate-800 border-b border-slate-200 pb-0.5">Awardees Roster (No final grades below 80)</div>
-                                            {academicExcellenceStats.total === 0 ? (
-                                                <div className="italic text-slate-500 text-center py-1">No awardees for this term. (Average 90.00+ and no grade below 80 required)</div>
-                                            ) : (
-                                                <div className="space-y-1.5 max-h-30 overflow-y-auto custom-scrollbar">
-                                                    <div>
-                                                        <span className="font-bold text-deped-blue">Awardees (Alphabetical):</span>{' '}
-                                                        <span className="text-slate-700">{academicExcellenceStats.students.map(st => `${st.name} (${st.average})`).join(', ')}</span>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Right Side: Learning Area (Subject) Performance Profile */}
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm flex-1 w-full max-w-137.5">
-                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                            Learning Area (Subject) Performance Profile
-                                        </div>
-                                        <table className="w-full text-center text-[10px] border-collapse">
-                                            <thead>
-                                                <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                    <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Learning Area (Subject)</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">Graded</th>
-                                                    <th className="p-2 border-r border-black w-24 uppercase">Mean Grade</th>
-                                                    <th className="p-2 border-r border-black w-16 uppercase">Failed</th>
-                                                    <th className="p-2 w-24 uppercase">Passing Rate</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {subjectPerformanceStats.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={5} className="p-4 italic text-slate-500 text-center">No graded subject columns present.</td>
-                                                    </tr>
-                                                ) : (
-                                                    subjectPerformanceStats.map((item, idx) => {
-                                                        const rate = Number(item.passRate);
-                                                        const rateColor = rate < 75.0 ? 'text-red-600 font-bold' : rate >= 90.0 ? 'text-green-700 font-bold' : 'text-slate-800 font-medium';
-                                                        return (
-                                                            <tr key={idx} className="border-b border-black">
-                                                                <td className="p-2 border-r border-black text-left pl-4 font-semibold uppercase">{item.name}</td>
-                                                                <td className="p-2 border-r border-black tabular-nums font-medium">{item.total}</td>
-                                                                <td className="p-2 border-r border-black tabular-nums font-bold">{item.mean}</td>
-                                                                <td className={`p-2 border-r border-black tabular-nums ${item.failed > 0 ? 'text-red-600 font-bold' : 'text-slate-500 font-medium'}`}>{item.failed || '-'}</td>
-                                                                <td className={`p-2 bg-gray-50 tabular-nums ${rateColor}`}>{item.passRate}%</td>
-                                                            </tr>
-                                                        );
-                                                    })
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Third Row: Learner Intervention & Remediation Roster */}
-                                <div className="mt-6 mb-4 w-full print:mt-8 print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
-                                    <div className="border-2 border-black overflow-hidden rounded-sm shadow-sm w-full">
-                                        <div className="bg-gray-200 p-2 font-bold text-xs border-b-2 border-black text-center uppercase tracking-wider">
-                                            Learner Intervention & Remediation Roster
-                                        </div>
-                                        {remediationRoster.length === 0 ? (
-                                            <div className="p-6 bg-green-50 border-t border-green-200 text-center flex flex-col items-center justify-center gap-2">
-                                                <span className="text-2xl">🎉</span>
-                                                <div className="font-bold text-green-800 text-[12px] uppercase tracking-wide">Excellent Class Performance</div>
-                                                <div className="text-green-700 text-[10px] font-medium">100% of the class has met or exceeded academic expectations for this period. No learners require intervention or remediation.</div>
                                             </div>
-                                        ) : (
-                                            <table className="w-full text-center text-[10px] border-collapse">
-                                                <thead>
-                                                    <tr className="bg-gray-100 border-b-2 border-black font-bold">
-                                                        <th className="p-2 border-r border-black w-24 uppercase">LRN</th>
-                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Learner Name</th>
-                                                        <th className="p-2 border-r border-black w-16 uppercase">Gender</th>
-                                                        <th className="p-2 border-r border-black text-left pl-4 uppercase tracking-tight">Subjects Requiring Remediation (Failing Grade)</th>
-                                                        <th className="p-2 w-32 uppercase">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {remediationRoster.map((student, idx) => (
-                                                        <tr key={idx} className="border-b border-black">
-                                                            <td className="p-2 border-r border-black tabular-nums font-medium">{student.lrn}</td>
-                                                            <td className="p-2 border-r border-black text-left pl-4 font-bold uppercase">{student.name}</td>
-                                                            <td className="p-2 border-r border-black uppercase font-medium">{student.gender}</td>
-                                                            <td className="p-2 border-r border-black text-left pl-4 text-red-600 font-semibold leading-tight">
-                                                                {student.failedSubjects.map((sub: any) => `${sub.name} (${sub.grade})`).join(', ')}
-                                                            </td>
-                                                            <td className="p-2 bg-red-50/50 font-bold text-red-700 text-[9px] tracking-wide uppercase">
-                                                                <span className="px-2 py-0.5 border border-red-300 rounded bg-white">For Intervention</span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        )}
+
+                                            {/* Column B: Right Column */}
+                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-[550px]">
+                                                {/* Summary of Promotion */}
+                                                <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                                    <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
+                                                        Summary of Promotion (General Performance)
+                                                    </div>
+                                                    <table className="w-full text-center text-[9px] border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-gray-100 border-b border-black font-bold">
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Promotion Status</th>
+                                                                <th className="p-1.5 border-r border-black w-20 uppercase">REMARKS</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">MALE</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">FEMALE</th>
+                                                                <th className="p-1.5 w-14 uppercase">TOTAL</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr className="border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3 font-medium">Passed (Promoted)</td>
+                                                                <td className="p-1 border-r border-black font-bold text-green-700">PROMOTED</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{promotionStats.passed.male || '-'}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{promotionStats.passed.female || '-'}</td>
+                                                                <td className="p-1 bg-gray-50 tabular-nums font-bold">{promotionStats.passed.male + promotionStats.passed.female || '-'}</td>
+                                                            </tr>
+                                                            <tr className="border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3 font-medium">Failed (Retained)</td>
+                                                                <td className="p-1 border-r border-black font-bold text-red-600">RETAINED</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{promotionStats.failed.male || '-'}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums font-medium">{promotionStats.failed.female || '-'}</td>
+                                                                <td className="p-1 bg-gray-50 tabular-nums font-bold">{promotionStats.failed.male + promotionStats.failed.female || '-'}</td>
+                                                            </tr>
+                                                            <tr className="bg-gray-200 font-bold border-b border-black">
+                                                                <td className="p-1 border-r border-black text-left pl-3" colSpan={2}>TOTAL</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{promotionStats.passed.male + promotionStats.failed.male || '-'}</td>
+                                                                <td className="p-1 border-r border-black tabular-nums">{promotionStats.passed.female + promotionStats.failed.female || '-'}</td>
+                                                                <td className="p-1 tabular-nums bg-gray-300">{promotionStats.passed.male + promotionStats.passed.female + promotionStats.failed.male + promotionStats.failed.female || '-'}</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {/* Class Performance Metrics */}
+                                                <div className="border border-black overflow-hidden rounded-sm shadow-sm bg-slate-50 p-2 w-full text-[8.5px]">
+                                                    <div className="font-bold text-[9px] uppercase border-b border-black pb-0.5 mb-1.5 tracking-wide text-slate-800">
+                                                        Class Achievement Analytics
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                        <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                            <span className="text-slate-600 font-medium">Total Enrolled Learners:</span>
+                                                            <span className="font-bold text-slate-900">{sectionStudents.length}</span>
+                                                        </div>
+                                                        <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                            <span className="text-slate-600 font-medium">Class General Average:</span>
+                                                            <span className="font-bold text-slate-900">{promotionStats.classCount > 0 ? (promotionStats.classSum / promotionStats.classCount).toFixed(2) : '-'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                            <span className="text-slate-600 font-medium">Highest General Average:</span>
+                                                            <span className="font-bold text-green-700">{promotionStats.classCount > 0 ? promotionStats.highest : '-'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between border-b border-slate-200 pb-0.5">
+                                                            <span className="text-slate-600 font-medium">Lowest General Average:</span>
+                                                            <span className="font-bold text-red-600">{promotionStats.classCount > 0 ? promotionStats.lowest : '-'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Learning Area (Subject) Performance Profile */}
+                                                <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                                    <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
+                                                        Learning Area (Subject) Performance Profile
+                                                    </div>
+                                                    <table className="w-full text-center text-[9px] border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-gray-100 border-b border-black font-bold">
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Learning Area (Subject)</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">Graded</th>
+                                                                <th className="p-1.5 border-r border-black w-20 uppercase">Mean Grade</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">Failed</th>
+                                                                <th className="p-1.5 w-20 uppercase">Passing Rate</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {subjectPerformanceStats.length === 0 ? (
+                                                                <tr>
+                                                                    <td colSpan={5} className="p-2 italic text-slate-500 text-center">No graded subject columns present.</td>
+                                                                </tr>
+                                                            ) : (
+                                                                subjectPerformanceStats.map((item, idx) => {
+                                                                    const rate = Number(item.passRate);
+                                                                    const rateColor = rate < 75.0 ? 'text-red-600 font-bold' : rate >= 90.0 ? 'text-green-700 font-bold' : 'text-slate-800 font-medium';
+                                                                    return (
+                                                                        <tr key={idx} className="border-b border-black">
+                                                                            <td className="p-1 border-r border-black text-left pl-3 font-semibold uppercase">{item.name}</td>
+                                                                            <td className="p-1 border-r border-black tabular-nums font-medium">{item.total}</td>
+                                                                            <td className="p-1 border-r border-black tabular-nums font-bold">{item.mean}</td>
+                                                                            <td className={`p-1 border-r border-black tabular-nums ${item.failed > 0 ? 'text-red-600 font-bold' : 'text-slate-500 font-medium'}`}>{item.failed || '-'}</td>
+                                                                            <td className={`p-1 bg-gray-50 tabular-nums ${rateColor}`}>{item.passRate}%</td>
+                                                                        </tr>
+                                                                    );
+                                                                })
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Third Row: Learner Intervention & Remediation Roster */}
+                                        <div className="mt-2 mb-1 w-full print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
+                                            <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
+                                                <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
+                                                    Remediation & Intervention Roster
+                                                </div>
+                                                {remediationRoster.length === 0 ? (
+                                                    <div className="p-4 bg-green-50 border-t border-green-200 text-center flex flex-col items-center justify-center gap-1">
+                                                        <span className="text-xl">🎉</span>
+                                                        <div className="font-bold text-green-800 text-[10px] uppercase tracking-wide">Excellent Class Performance</div>
+                                                        <div className="text-green-700 text-[9px] font-medium">100% of the class has met or exceeded academic expectations for this period. No learners require intervention or remediation.</div>
+                                                    </div>
+                                                ) : (
+                                                    <table className="w-full text-center text-[9px] border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-gray-100 border-b border-black font-bold">
+                                                                <th className="p-1.5 border-r border-black w-24 uppercase">LRN</th>
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Learner Name</th>
+                                                                <th className="p-1.5 border-r border-black w-14 uppercase">Gender</th>
+                                                                <th className="p-1.5 border-r border-black text-left pl-3 uppercase tracking-tight">Subjects Requiring Remediation (Failing Grade)</th>
+                                                                <th className="p-1.5 w-28 uppercase">Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {remediationRoster.map((student, idx) => (
+                                                                <tr key={idx} className="border-b border-black">
+                                                                    <td className="p-1 border-r border-black tabular-nums font-medium">{student.lrn}</td>
+                                                                    <td className="p-1 border-r border-black text-left pl-3 font-bold uppercase">{student.name}</td>
+                                                                    <td className="p-1 border-r border-black uppercase font-medium">{student.gender}</td>
+                                                                    <td className="p-1 border-r border-black text-left pl-3 text-red-600 font-semibold leading-tight">
+                                                                        {student.failedSubjects.map((sub: any) => `${sub.name} (${sub.grade})`).join(', ')}
+                                                                    </td>
+                                                                    <td className="p-1 bg-red-50/50 font-bold text-red-700 text-[8px] tracking-wide uppercase">
+                                                                        <span className="px-1.5 py-0.5 border border-red-300 rounded bg-white">For Intervention</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-    
+                            )}
+                        </div>
                     </div>
-                        </div>
-                        </div>
                 )}
             </div>
         </div>

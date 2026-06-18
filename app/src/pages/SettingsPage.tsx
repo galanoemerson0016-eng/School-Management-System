@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore } from '../stores';
 import { db } from '../services/database';
 import { Database, User, Shield, Upload, History } from 'lucide-react';
+import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
 import { canPurgeMaintenance } from '../lib/rbac';
 import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
@@ -37,6 +38,70 @@ export function SettingsPage() {
         updateSubject,
     } = useAppStore();
     const canPurge = canPurgeMaintenance(user);
+
+    const [autoBackups, setAutoBackups] = useState<AutomatedBackupEntry[]>([]);
+
+    const loadAutoBackups = async () => {
+        try {
+            const list = await AutoBackupManager.getAutomatedBackups();
+            setAutoBackups(list);
+        } catch (error) {
+            console.error('Failed to load automated backups:', error);
+        }
+    };
+
+    useEffect(() => {
+        loadAutoBackups();
+    }, []);
+
+    const handleManualAutoBackup = async () => {
+        try {
+            await AutoBackupManager.triggerBackup();
+            alert('New automated backup snapshot generated successfully!');
+            loadAutoBackups();
+        } catch (err) {
+            alert('Failed to create backup: ' + err);
+        }
+    };
+
+    const handleRestoreAutoBackup = (backupId: string, label: string) => {
+        setPendingConfirmation({
+            title: 'Restore Automated Backup?',
+            message: `Are you sure you want to restore the system state from the snapshot "${label}"?`,
+            details: 'This will replace all current students, sections, subjects, grades, and attendance data with the backup snapshot. Current unsaved changes will be overwritten.',
+            confirmLabel: 'Restore Snapshot',
+            intent: 'warning',
+            onConfirm: async () => {
+                try {
+                    await AutoBackupManager.restoreFromBackup(backupId);
+                    await initializeAppStore();
+                    alert('Database state successfully restored from automated backup!');
+                    loadAutoBackups();
+                } catch (err) {
+                    alert('Restore failed: ' + err);
+                }
+            }
+        });
+    };
+
+    const handleDeleteAutoBackup = (backupId: string, label: string) => {
+        setPendingConfirmation({
+            title: 'Delete Automated Backup?',
+            message: `Are you sure you want to permanently delete the backup snapshot "${label}"?`,
+            details: 'This action is irreversible.',
+            confirmLabel: 'Delete Backup',
+            intent: 'danger',
+            onConfirm: async () => {
+                try {
+                    await AutoBackupManager.deleteBackup(backupId);
+                    alert('Backup snapshot deleted.');
+                    loadAutoBackups();
+                } catch (err) {
+                    alert('Failed to delete backup: ' + err);
+                }
+            }
+        });
+    };
 
     type MaintenanceProgress = {
         active: boolean;
@@ -202,7 +267,7 @@ export function SettingsPage() {
             );
 
             // Validate backup integrity
-            const validation = validateBackup(backup);
+            const validation = await validateBackup(backup);
             if (!validation.isValid) {
                 const issuesList = validation.issues.join('\n- ');
                 alert(`⚠️ Backup validation found issues:\n- ${issuesList}\n\nPlease review before exporting.`);
@@ -229,6 +294,7 @@ export function SettingsPage() {
             let filename = `SMS_Backup_Comprehensive_${timestamp}`;
 
             // Handle encryption
+            let fileExt = '.json';
             if (options.encrypt && options.password) {
                 const { encrypted, iv, salt } = await encryptBackup(backupJson, options.password);
                 const encryptedFile = createEncryptedBackupFile(
@@ -239,6 +305,7 @@ export function SettingsPage() {
                 );
                 exportData = JSON.stringify(encryptedFile, null, 2);
                 filename += '_ENCRYPTED';
+                fileExt = '.febackup';
             }
 
             // Download backup file
@@ -246,7 +313,7 @@ export function SettingsPage() {
             const backupUrl = URL.createObjectURL(backupBlob);
             const backupLink = document.createElement('a');
             backupLink.href = backupUrl;
-            backupLink.download = `${filename}.json`;
+            backupLink.download = `${filename}${fileExt}`;
             document.body.appendChild(backupLink);
             backupLink.click();
             document.body.removeChild(backupLink);
@@ -299,7 +366,7 @@ export function SettingsPage() {
                 `• Announcements: ${currentBackup.summary.announcements}\n` +
                 `• School Years: ${currentBackup.summary.schoolYears}\n` +
                 `• Users: ${currentBackup.summary.users}\n` +
-                `• Local Storage Keys (Signatories, Anecdotal, Calendar): ${Object.keys(currentBackup.payload.localStorageData || {}).length}\n\n` +
+                `• Local Storage Keys (Signatories, Calendar): ${Object.keys(currentBackup.payload.localStorageData || {}).length}\n\n` +
                 `📏 File Sizes:\n` +
                 `• Original: ${sizes.original}\n` +
                 `• Minified: ${sizes.minified}\n\n` +
@@ -946,6 +1013,75 @@ export function SettingsPage() {
                     </div>
 
                     <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <History className="h-5 w-5 text-indigo-600" />
+                                <h3 className="text-lg font-bold text-slate-900">Automated Snapshots</h3>
+                            </div>
+                            <button
+                                onClick={handleManualAutoBackup}
+                                className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
+                            >
+                                Back Up Now
+                            </button>
+                        </div>
+                        <p className="mb-4 text-sm text-slate-500">
+                            Automatic daily backups are stored locally in your browser's offline storage. Only the 5 most recent snapshots are kept.
+                        </p>
+                        <div className="space-y-3">
+                            {autoBackups.length > 0 ? (
+                                autoBackups.map((snap) => (
+                                    <div key={snap.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-slate-150 bg-slate-50 gap-4">
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-bold text-slate-800">{snap.label}</p>
+                                            <p className="text-xs text-slate-400 font-medium">
+                                                Created: {new Date(snap.timestamp).toLocaleString()} | Size: {(snap.fileSize / 1024).toFixed(1)} KB
+                                            </p>
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                <span className="text-[9px] font-bold bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded">
+                                                    👥 Students: {snap.recordCounts.students}
+                                                </span>
+                                                <span className="text-[9px] font-bold bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded">
+                                                    🏫 Sections: {snap.recordCounts.sections}
+                                                </span>
+                                                <span className="text-[9px] font-bold bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded">
+                                                    📚 Subjects: {snap.recordCounts.subjects}
+                                                </span>
+                                                <span className="text-[9px] font-bold bg-slate-200/80 text-slate-600 px-1.5 py-0.5 rounded">
+                                                    📝 Grades: {snap.recordCounts.classRecords + snap.recordCounts.gradingSheetRecords}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => handleRestoreAutoBackup(snap.id, snap.label)}
+                                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
+                                            >
+                                                Restore
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteAutoBackup(snap.id, snap.label)}
+                                                className="p-1.5 border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                                aria-label="Delete"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M3 6h18" />
+                                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs font-medium">
+                                    No automated snapshots created yet.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6">
                         <div className="mb-4 flex items-center gap-2">
                             <History className="h-5 w-5 text-emerald-600" />
                             <h3 className="text-lg font-bold text-slate-900">Version History</h3>
@@ -953,12 +1089,25 @@ export function SettingsPage() {
                         <p className="mb-4 text-sm text-slate-500">View recent updates, feature rollouts, and version summaries.</p>
                         
                         <div className="space-y-4">
-                            {/* Version 2.2.6 */}
+                            {/* Version 2.2.7 */}
                             <div className="relative pl-5 border-l-2 border-slate-200">
                                 <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.6</span>
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.7</span>
                                     <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5">Latest</span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
+                                <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">
+                                    <li>Fixed a discrepancy in the section teaching load subject list by filtering out other sections' subjects and deduplicating by exact subject name (preserving unique parenthesized electives).</li>
+                                    <li>Replaced the non-operational Academic Health card on the dashboard with a functional 'Class Sections & Subject Loads' card tracking active sections and teaching loads.</li>
+                                </ul>
+                            </div>
+
+                            {/* Version 2.2.6 */}
+                            <div className="relative pl-5 border-l-2 border-slate-200">
+                                <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-extrabold text-slate-900">Version 2.2.6</span>
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium mt-0.5">June 14, 2026</p>
                                 <ul className="mt-2 space-y-1.5 text-xs text-slate-600 font-medium list-disc list-inside">

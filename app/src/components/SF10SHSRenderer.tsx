@@ -1,59 +1,7 @@
 import React from 'react';
+import { AutoShrinkText, asString, type BoundData, type SF10RendererProps } from './SF10Shared';
 
-interface BoundData {
-    [key: string]: unknown;
-}
-
-interface SF10SHSRendererProps {
-    pageNumber: number;
-    data: BoundData;
-    onUpdate?: (path: string, value: string) => void;
-}
-
-const asString = (value: unknown): string => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    return '';
-};
-
-const AutoShrinkText: React.FC<{ text: string; minScale?: number; align?: 'left' | 'center' | 'right' }> = ({ text, minScale = 0.5, align = 'center' }) => {
-    const [scale, setScale] = React.useState(1);
-    const textRef = React.useRef<HTMLSpanElement>(null);
-    const containerRef = React.useRef<HTMLDivElement>(null);
-
-    React.useLayoutEffect(() => {
-        if (textRef.current && containerRef.current) {
-            const textWidth = textRef.current.scrollWidth;
-            const containerWidth = containerRef.current.clientWidth;
-            if (textWidth > containerWidth && containerWidth > 0) {
-                setScale(Math.max(minScale, containerWidth / textWidth));
-            } else {
-                setScale(1);
-            }
-        }
-    }, [text, minScale]);
-
-    const justifyClass = align === 'left' ? 'justify-start' : align === 'right' ? 'justify-end' : 'justify-center';
-    const originX = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
-
-    return (
-        <div ref={containerRef} className={`w-full h-full flex items-end ${justifyClass} overflow-hidden relative`}>
-            <span 
-                ref={textRef} 
-                className="inline-block whitespace-nowrap"
-                style={{ 
-                    transform: `scaleX(${scale})`, 
-                    transformOrigin: `${originX} bottom`,
-                }}
-            >
-                {text}
-            </span>
-        </div>
-    );
-};
-
-export const SF10SHSRenderer: React.FC<SF10SHSRendererProps> = ({ pageNumber, data, onUpdate }) => {
+export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
     const getRaw = (path: string): unknown => {
         if (!path) return '';
         if (data[path] !== undefined) return data[path];
@@ -224,7 +172,7 @@ export const SF10SHSRenderer: React.FC<SF10SHSRendererProps> = ({ pageNumber, da
         return (
             <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
                 <div className="page w-[8.5in] h-[12.95in] bg-white p-[15pt_0.35in_0.15in_0.35in] flex flex-col justify-between box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
-                    <style dangerouslySetInnerHTML={{ __html: `
+                    <style>{`
                         @page { size: 8.5in 13in; margin: 0in; }
                         body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
                         .fill-blank { 
@@ -245,7 +193,7 @@ export const SF10SHSRenderer: React.FC<SF10SHSRendererProps> = ({ pageNumber, da
                         .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 2px; font-size: 10px; }
                         .border-thick { border: 1.2pt solid black !important; }
                         .border-thick-b { border-bottom: 1.2pt solid black !important; }
-                    ` }} />
+                    `}</style>
 
                     <div className="flex flex-col h-full justify-start">
                         <div>
@@ -323,7 +271,7 @@ export const SF10SHSRenderer: React.FC<SF10SHSRendererProps> = ({ pageNumber, da
     return (
         <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
             <div className="page w-[8.5in] h-[12.95in] bg-white p-[15pt_0.35in_0.15in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.05]">
-                <style dangerouslySetInnerHTML={{ __html: `
+                <style>{`
                     @page { size: 8.5in 13in; margin: 0in; }
                     body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
                     .fill-blank { border-bottom: 1px solid black !important; display: inline-flex; align-items: flex-end; justify-content: center !important; white-space: nowrap; overflow: hidden; padding-bottom: -1px; font-family: inherit; font-stretch: condensed; font-weight: bold !important; text-align: center !important; }
@@ -332,7 +280,7 @@ export const SF10SHSRenderer: React.FC<SF10SHSRendererProps> = ({ pageNumber, da
                     .excel-table th, .excel-table td { border: 1px solid black !important; padding: 0px 4px; height: 16px; min-height: 16px; font-size: 10px; }
                     .border-thick { border: 1.5pt solid black !important; }
                     .border-thick-b { border-bottom: 1.5pt solid black !important; }
-                ` }} />
+                `}</style>
 
                 <div className="grow">
                     <div className="flex items-start mb-0 relative h-16">

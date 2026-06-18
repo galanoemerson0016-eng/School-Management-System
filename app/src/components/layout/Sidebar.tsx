@@ -24,7 +24,9 @@ import {
 import { canAccessView, type AppView } from '../../lib/rbac';
 
 export function Sidebar() {
-    const { currentView, setCurrentView, schoolProfile } = useAppStore();
+    const currentView = useAppStore(state => state.currentView);
+    const setCurrentView = useAppStore(state => state.setCurrentView);
+    const schoolProfile = useAppStore(state => state.schoolProfile);
     const { logout, user } = useAuthStore();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);

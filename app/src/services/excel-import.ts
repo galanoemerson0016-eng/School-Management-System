@@ -7,11 +7,19 @@ import * as XLSX from 'xlsx';
 import { db } from './database';
 import type { Student, Section, Subject } from '../types';
 
+const MAX_IMPORT_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+function assertValidXlsx(buffer: ArrayBuffer): void {
+  const bytes = new Uint8Array(buffer, 0, 4);
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+  if (!isZip) throw new Error('File does not appear to be a valid Excel (.xlsx) file.');
+}
+
 interface ImportResult {
   success: number;
   failed: number;
   errors: string[];
-  records: any[];
+  records: unknown[];
 }
 
 /**
@@ -20,11 +28,17 @@ interface ImportResult {
  */
 export async function importStudentsFromExcel(file: File): Promise<ImportResult> {
   return new Promise((resolve, reject) => {
+    if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      reject(new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 20 MB.`));
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (event) => {
       try {
         const data = event.target?.result;
+        assertValidXlsx(data as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -38,7 +52,7 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
         };
 
         for (let i = 0; i < rows.length; i++) {
-          const row = rows[i] as Record<string, any>;
+          const row = rows[i] as Record<string, unknown>;
 
           try {
             const student: Student = {
@@ -56,9 +70,13 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
               student_section: String(row['Section'] || row['student_section'] || '').trim() || undefined,
             };
 
-            // Validate required fields
+            // Validate required fields and formats
             if (!student.lrn || !student.first_name || !student.last_name) {
               throw new Error('Missing required fields: LRN, First Name, Last Name');
+            }
+
+            if (!/^\d{12}$/.test(student.lrn) && !student.lrn.startsWith('TEMP-')) {
+              throw new Error(`Invalid LRN: "${student.lrn}". LRN must be exactly 12 numeric digits or start with "TEMP-".`);
             }
 
             // Check for duplicates
@@ -95,11 +113,17 @@ export async function importStudentsFromExcel(file: File): Promise<ImportResult>
  */
 export async function importSectionsFromExcel(file: File): Promise<ImportResult> {
   return new Promise((resolve, reject) => {
+    if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      reject(new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 20 MB.`));
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (event) => {
       try {
         const data = event.target?.result;
+        assertValidXlsx(data as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -113,7 +137,7 @@ export async function importSectionsFromExcel(file: File): Promise<ImportResult>
         };
 
         for (let i = 0; i < rows.length; i++) {
-          const row = rows[i] as Record<string, any>;
+          const row = rows[i] as Record<string, unknown>;
 
           try {
             const section: Section = {
@@ -154,11 +178,17 @@ export async function importSectionsFromExcel(file: File): Promise<ImportResult>
  */
 export async function importSubjectsFromExcel(file: File): Promise<ImportResult> {
   return new Promise((resolve, reject) => {
+    if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      reject(new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 20 MB.`));
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (event) => {
       try {
         const data = event.target?.result;
+        assertValidXlsx(data as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -172,7 +202,7 @@ export async function importSubjectsFromExcel(file: File): Promise<ImportResult>
         };
 
         for (let i = 0; i < rows.length; i++) {
-          const row = rows[i] as Record<string, any>;
+          const row = rows[i] as Record<string, unknown>;
 
           try {
             const subject: Subject = {
@@ -214,7 +244,7 @@ export async function importSubjectsFromExcel(file: File): Promise<ImportResult>
  */
 export async function exportDataToExcel(dataType: 'students' | 'sections' | 'subjects' | 'all') {
   try {
-    const data: Record<string, any> = {};
+    const data: Record<string, unknown[]> = {};
 
     if (dataType === 'students' || dataType === 'all') {
       data.Students = await db.getAllRecords('students');

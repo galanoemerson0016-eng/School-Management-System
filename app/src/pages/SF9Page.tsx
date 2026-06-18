@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useTransition, useCallback } from 'react';
-import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font, usePDF } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font } from '@react-pdf/renderer';
 Font.registerHyphenationCallback(word => [word]);
 
 const base = import.meta.env.BASE_URL || '/';
@@ -1849,7 +1849,18 @@ export function SF9BatchDocument({
 
 export function SF9Page() {
 
-    const { students, sections, schoolProfile, activeSchoolYear, gradingSheetRecords, subjects, observedValues, sf2Sheets: storeSf2Sheets, setSF2Sheets, updateObservedValue, setCurrentView, teachers } = useAppStore();
+    const students = useAppStore(state => state.students);
+    const sections = useAppStore(state => state.sections);
+    const schoolProfile = useAppStore(state => state.schoolProfile);
+    const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
+    const gradingSheetRecords = useAppStore(state => state.gradingSheetRecords);
+    const subjects = useAppStore(state => state.subjects);
+    const observedValues = useAppStore(state => state.observedValues);
+    const storeSf2Sheets = useAppStore(state => state.sf2Sheets);
+    const setSF2Sheets = useAppStore(state => state.setSF2Sheets);
+    const updateObservedValue = useAppStore(state => state.updateObservedValue);
+    const setCurrentView = useAppStore(state => state.setCurrentView);
+    const teachers = useAppStore(state => state.teachers);
     const { user } = useAuthStore();
     const [hydratedSf2Sheets, setHydratedSf2Sheets] = useState<SF2Sheet[]>([]);
 
@@ -1865,20 +1876,18 @@ export function SF9Page() {
     const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
     const [showCompletionModal, setShowCompletionModal] = useState(false);
     const [isStabilizing, setIsStabilizing] = useState(false);
-    const [isPending, startTransition] = useTransition();
+    const [isPending] = useTransition();
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
     const [printMode, setPrintMode] = useState<SF9PrintMode>('full');
     const [suggestionTab, setSuggestionTab] = useState<'academic' | 'behavior' | 'growth'>('academic');
     const [suggestionMode, setSuggestionMode] = useState<'replace' | 'append'>('append');
     const [suggestionTone, setSuggestionTone] = useState<'positive' | 'neutral' | 'negative'>('positive');
-    const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const stabilizationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Local state for Evaluated Values to prevent lag
     const [pendingChanges, setPendingChanges] = useState<Record<number, Record<string, string>>>({});
 
-    // Optimized PDF Generation Hook
-    const [batchInstance, updateBatchInstance] = usePDF({ document: undefined });
+    // Local state for batch PDF blob URL
+    const [batchBlobUrl, setBatchBlobUrl] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -2214,40 +2223,58 @@ export function SF9Page() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [singleDocument, selectedStudent, handlePrint]);
 
-    const handlePrintBatch = () => {
-        if (!batchInstance.url) return;
-        const win = window.open(batchInstance.url, '_blank');
-        if (win) {
-            win.addEventListener('load', () => {
-                win.print();
-            });
+    const generateBatchPDF = async () => {
+        setIsGeneratingBatch(true);
+        setBatchProgress(2);
+        if (batchBlobUrl) {
+            URL.revokeObjectURL(batchBlobUrl);
+            setBatchBlobUrl(null);
         }
-    };
+        
+        try {
+            const { PDFDocument } = await import('pdf-lib');
+            const { pdf } = await import('@react-pdf/renderer');
+            
+            if (!selectedSectionObj) {
+                useAppStore.getState().showNotification('Please select a section first.', 'error');
+                setIsGeneratingBatch(false);
+                setBatchProgress(0);
+                return;
+            }
 
-    const batchDocument = useMemo(() => {
-        if (!isGeneratingBatch || !selectedSectionObj || sectionStudents.length === 0) return null;
-        const sortedStudents = [...males, ...females].filter(student => {
-            if (printMode === 'full') return true;
-            const q = printMode === 'term1' ? 1 : printMode === 'term2' ? 2 : 3;
-            const comment = observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
-            return comment.trim() !== '';
-        });
-        return (
-            <Document title={`SF9 Batch - ${selectedSectionObj.section_name}`}>
-                {sortedStudents.map((student) => {
-                    const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
-                    const values = computeStudentValues(student, observedValues, activeSchoolYear);
-                    const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj);
-                    
-                    const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
-                    const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+            const sortedStudents = [...males, ...females].filter(student => {
+                if (printMode === 'full') return true;
+                const q = printMode === 'term1' ? 1 : printMode === 'term2' ? 2 : 3;
+                const comment = observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                return comment.trim() !== '';
+            });
 
-                    const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
-                    const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
+            if (sortedStudents.length === 0) {
+                useAppStore.getState().showNotification('No students found to generate.', 'error');
+                setIsGeneratingBatch(false);
+                setBatchProgress(0);
+                return;
+            }
 
-                    return (
+            const mergedPdf = await PDFDocument.create();
+            const total = sortedStudents.length;
+
+            for (let idx = 0; idx < total; idx++) {
+                const student = sortedStudents[idx];
+                
+                // Map student data
+                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const values = computeStudentValues(student, observedValues, activeSchoolYear);
+                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj);
+                const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
+                const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+                const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
+
+                // Create individual student PDF document react element
+                const studentDoc = (
+                    <Document title={`SF9 - ${student.last_name}`}>
                         <SF9PagesMemo 
-                            key={student.lrn}
                             student={student}
                             schoolName={schoolProfile.name}
                             schoolYear={activeSchoolYear}
@@ -2268,57 +2295,52 @@ export function SF9Page() {
                             schoolProfile={schoolProfile}
                             printMode={printMode}
                         />
-                    );
-                })}
-            </Document>
-        );
-    }, [isGeneratingBatch, sectionStudents, selectedSectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviserName, pageSize, sections, males, females, currentSubjectSelections, printMode]);
+                    </Document>
+                );
 
-    useEffect(() => {
-        if (isGeneratingBatch && batchDocument) {
-            updateBatchInstance(batchDocument);
-        }
-    }, [isGeneratingBatch, batchDocument, updateBatchInstance]);
-
-    // Handle Generation Progress & Completion
-    useEffect(() => {
-        if (isGeneratingBatch) {
-            if (batchInstance.loading && batchProgress === 0) {
-                if (!progressTimerRef.current) {
-                    progressTimerRef.current = setInterval(() => {
-                        setBatchProgress(prev => {
-                            if (prev >= 95) return prev;
-                            if (prev < 20) return prev + 1;
-                            return prev + (Math.random() * 0.3);
-                        });
-                    }, 200);
-                }
-            } else if (!batchInstance.loading && batchInstance.url && batchProgress > 0 && !isStabilizing && !showCompletionModal) {
-                setTimeout(() => {
-                    setIsStabilizing(true);
-                    setBatchProgress(98);
-                }, 0);
+                // Generate blob
+                const blob = await pdf(studentDoc).toBlob();
                 
-                if (progressTimerRef.current) {
-                    clearInterval(progressTimerRef.current);
-                    progressTimerRef.current = null;
-                }
+                // Load and copy pages into merged document
+                const arrayBuffer = await blob.arrayBuffer();
+                const pdfDoc = await PDFDocument.load(arrayBuffer);
+                const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
 
-                if (!stabilizationTimerRef.current) {
-                    stabilizationTimerRef.current = setTimeout(() => {
-                        setBatchProgress(100);
-                        setShowCompletionModal(true);
-                        setIsStabilizing(false);
-                        stabilizationTimerRef.current = null;
-                    }, 800); 
-                }
+                // Update progress
+                setBatchProgress(Math.round(((idx + 1) / total) * 95));
+                
+                // Yield main thread to keep UI responsive
+                await new Promise(resolve => setTimeout(resolve, 30));
             }
-        } else {
-            // Immediate cleanup
-            if (batchProgress !== 0) setTimeout(() => setBatchProgress(0), 0);
-            if (isStabilizing) setTimeout(() => setIsStabilizing(false), 0);
+
+            setIsStabilizing(true);
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const mergedPdfBytes = await mergedPdf.save();
+            const mergedBlob = new Blob([mergedPdfBytes as unknown as BlobPart], { type: 'application/pdf' });
+            const mergedUrl = URL.createObjectURL(mergedBlob);
+
+            setBatchBlobUrl(mergedUrl);
+            setBatchProgress(100);
+            setShowCompletionModal(true);
+        } catch (error) {
+            console.error('Batch generation failed:', error);
+            useAppStore.getState().showNotification('Batch generation failed: ' + (error as Error).message, 'error');
+            setBatchProgress(0);
+        } finally {
+            setIsGeneratingBatch(false);
+            setIsStabilizing(false);
         }
-    }, [batchInstance.loading, batchInstance.url, isGeneratingBatch, batchProgress, isStabilizing, showCompletionModal]);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (batchBlobUrl) {
+                URL.revokeObjectURL(batchBlobUrl);
+            }
+        };
+    }, [batchBlobUrl]);
 
     const handleCommitValues = async () => {
         if (!selectedStudent || Object.keys(pendingChanges).length === 0) {
@@ -2765,10 +2787,7 @@ export function SF9Page() {
                                     initial={{ y: 20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     onClick={() => {
-                                        startTransition(() => {
-                                            setIsGeneratingBatch(true);
-                                        });
-                                        setBatchProgress(5);
+                                        void generateBatchPDF();
                                     }}
                                     disabled={isPending}
                                     className={`px-8 py-3.5 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl transition-all flex items-center gap-3 mt-4 ${isPending ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-blue-500/30'}`}
@@ -3315,11 +3334,18 @@ export function SF9Page() {
                             </div>
 
                             <div className="pt-4 flex flex-col gap-3">
-                                {batchInstance.url && (
+                                {batchBlobUrl && (
                                     <div className="flex flex-col gap-3">
                                         <button
                                             onClick={() => {
-                                                handlePrintBatch();
+                                                if (batchBlobUrl) {
+                                                    const win = window.open(batchBlobUrl, '_blank');
+                                                    if (win) {
+                                                        win.addEventListener('load', () => {
+                                                            win.print();
+                                                        });
+                                                    }
+                                                }
                                                 setShowCompletionModal(false);
                                                 setIsGeneratingBatch(false);
                                                 setBatchProgress(0);
@@ -3330,7 +3356,7 @@ export function SF9Page() {
                                             Print Official Batch
                                         </button>
                                         <a
-                                            href={batchInstance.url}
+                                            href={batchBlobUrl}
                                             download={`SF9_BATCH_${selectedSectionObj?.section_name || 'Record'}_${activeSchoolYear}.pdf`}
                                             onClick={() => {
                                                 setShowCompletionModal(false);

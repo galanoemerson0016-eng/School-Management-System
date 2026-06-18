@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Printer, CloudUpload, Plus, Minus, Download, FileText } from 'lucide-react';
@@ -177,26 +177,263 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
     return 'Academic Elective (All Other Electives)';
 };
 
+interface DebouncedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+    value: string | number;
+    onChange: (val: string) => void;
+    debounceMs?: number;
+}
+
+function DebouncedInput({
+    value: initialValue,
+    onChange,
+    debounceMs = 300,
+    ...props
+}: DebouncedInputProps) {
+    const [value, setValue] = useState(initialValue);
+
+    useEffect(() => {
+        setValue(initialValue);
+    }, [initialValue]);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            if (value !== initialValue) {
+                onChange(String(value));
+            }
+        }, debounceMs);
+
+        return () => clearTimeout(timeout);
+    }, [value, onChange, initialValue, debounceMs]);
+
+    const handleBlur = () => {
+        if (value !== initialValue) {
+            onChange(String(value));
+        }
+    };
+
+    return (
+        <input
+            {...props}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={handleBlur}
+        />
+    );
+}
+
+interface StudentGradeRowProps {
+    student: any;
+    idx: number;
+    sectionIdx: number;
+    maleStudentsCount: number;
+    hps: { ww: any[]; pt: any[]; qa: any[] };
+    currentWeights: any;
+    currentCluster: any;
+    activeSchoolYear: string;
+    sectionGradeLevel: string;
+    optimalNameColumnWidth: number;
+    record: any;
+    updateGrade: (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => void;
+    handleKeyDown: (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => void;
+    formatStudentFullName: (student: any) => string;
+}
+
+const StudentGradeRow = memo(({
+    student,
+    idx,
+    sectionIdx,
+    maleStudentsCount,
+    hps,
+    currentWeights,
+    currentCluster,
+    activeSchoolYear,
+    sectionGradeLevel,
+    optimalNameColumnWidth,
+    record,
+    updateGrade,
+    handleKeyDown,
+    formatStudentFullName,
+    isFieldExposure,
+}: StudentGradeRowProps & { isFieldExposure: boolean }) => {
+    const summary = useMemo(() => {
+        const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
+            written_works: Array(5).fill(''),
+            performance_tasks: Array(3).fill(''),
+            quarterly_exam: ''
+        };
+
+        const wwScores = normalizeScores(sGrades.written_works, 5).map(s => {
+            const n = Number(s);
+            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
+        });
+        const ptScores = normalizeScores(sGrades.performance_tasks, 3).map(s => {
+            const n = Number(s);
+            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
+        });
+        const rawQaRec = (record as any)?.summative_tests;
+        const qaScores = normalizeScores(rawQaRec, 3).map(s => {
+            const n = Number(s);
+            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
+        });
+
+        if (qaScores[2] === '' && sGrades.quarterly_exam !== '' && sGrades.quarterly_exam !== 0 && sGrades.quarterly_exam !== '0') {
+            qaScores[2] = Number(sGrades.quarterly_exam);
+        }
+
+        const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
+        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
+        const wwWS = wwPS * (currentWeights.written_works || 0);
+
+        const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
+        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
+        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+
+        const qaScore = qaScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+        const qaHPS = hps.qa.reduce<number>((a, b) => a + Number(b), 0);
+        
+        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : 0;
+        const st1HPS = Number(hps.qa[0]) || 0;
+        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : 0;
+        const st2HPS = Number(hps.qa[1]) || 0;
+        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : 0;
+        const teHPS = Number(hps.qa[2]) || 0;
+
+        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
+
+        const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+
+        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
+        const hasScores =
+            wwScores.some(isValidScore) ||
+            ptScores.some(isValidScore) ||
+            qaScores.some(isValidScore);
+
+        const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
+
+        return {
+            ww: wwScores,
+            pt: ptScores,
+            qa: qaScores,
+            hasScores,
+            wwTotalScore, wwTotalHPS, wwPS, wwWS,
+            ptTotalScore, ptTotalHPS, ptPS, ptWS,
+            qaScore, qaHPS, qaPS, qaWS,
+            initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
+            quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
+        };
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear]);
+
+    const descriptor = useMemo(() => {
+        if (!summary.hasScores || summary.quarterlyGrade <= 0) return '';
+        return getGradeDescriptorWithFilipino(summary.quarterlyGrade, sectionGradeLevel, activeSchoolYear);
+    }, [summary.quarterlyGrade, summary.hasScores, sectionGradeLevel, activeSchoolYear]);
+
+    const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
+
+    return (
+        <tr className="hover:bg-gray-50 h-6.5 text-[9px]">
+            <td className="border border-black p-1 text-left text-[10px] leading-none whitespace-nowrap font-bold uppercase truncate" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+                {idx + 1}. {formatStudentFullName(student)}
+            </td>
+            {summary.ww.map((score, i) => (
+                <td key={`ww-${i}`} className="border border-black p-0">
+                    <DebouncedInput
+                        type="number"
+                        value={score === '' ? '' : score}
+                        onChange={(v) => updateGrade(student.lrn, 'ww', i, v)}
+                        onKeyDown={(e) => handleKeyDown(e, rowNum, i)}
+                        data-row={rowNum}
+                        data-col={i}
+                        className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                </td>
+            ))}
+            <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
+            <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-blue-100/50 font-semibold">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
+            {summary.pt.map((score, i) => (
+                <td key={`pt-${i}`} className="border border-black p-0">
+                    <DebouncedInput
+                        type="number"
+                        value={score === '' ? '' : score}
+                        onChange={(v) => updateGrade(student.lrn, 'pt', i, v)}
+                        onKeyDown={(e) => handleKeyDown(e, rowNum, 5 + i)}
+                        data-row={rowNum}
+                        data-col={5 + i}
+                        className="w-full h-full text-center outline-none p-0 focus:bg-green-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                </td>
+            ))}
+            <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
+            <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-green-100/50 font-semibold">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
+            {summary.qa
+                .map((score, i) => ({ score, i }))
+                .filter(({ i }) => !isFieldExposure || i === 2)
+                .map(({ score, i }) => (
+                    <td key={`qa-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 8 + i)}
+                            data-row={rowNum}
+                            data-col={8 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))
+            }
+            <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaScore : ''}</td>
+            <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-100/50 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-slate-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
+            <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[9.5px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+                {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
+            </td>
+            <td className="border border-black bg-blue-50 font-bold text-[9px] text-deped-blue leading-tight whitespace-normal wrap-break-word px-1">
+                {descriptor}
+            </td>
+        </tr>
+    );
+}, (prev, next) => {
+    return (
+        prev.student.lrn === next.student.lrn &&
+        prev.student.first_name === next.student.first_name &&
+        prev.student.last_name === next.student.last_name &&
+        prev.idx === next.idx &&
+        prev.sectionIdx === next.sectionIdx &&
+        prev.maleStudentsCount === next.maleStudentsCount &&
+        prev.activeSchoolYear === next.activeSchoolYear &&
+        prev.sectionGradeLevel === next.sectionGradeLevel &&
+        prev.record === next.record &&
+        prev.hps === next.hps &&
+        prev.currentWeights === next.currentWeights &&
+        prev.currentCluster === next.currentCluster &&
+        prev.isFieldExposure === next.isFieldExposure
+    );
+});
 
 export function ShsEClassRecord() {
-    const {
-        students,
-        sections,
-        subjects,
-        selectedSection: globalSection,
-        selectedSubject: globalSubject,
-        schoolProfile,
-        activeSchoolYear,
-        classRecords,
-        updateClassRecord,
-        deleteClassRecord,
-        hpsRecords,
-        updateHPSRecord,
-        setSelectedSection: setGlobalSection,
-        setSelectedSubject: setGlobalSubject,
-        showNotification,
-        teachers
-    } = useAppStore();
+    const students = useAppStore(state => state.students);
+    const sections = useAppStore(state => state.sections);
+    const subjects = useAppStore(state => state.subjects);
+    const globalSection = useAppStore(state => state.selectedSection);
+    const globalSubject = useAppStore(state => state.selectedSubject);
+    const schoolProfile = useAppStore(state => state.schoolProfile);
+    const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
+    const classRecords = useAppStore(state => state.classRecords);
+    const updateClassRecord = useAppStore(state => state.updateClassRecord);
+    const deleteClassRecord = useAppStore(state => state.deleteClassRecord);
+    const hpsRecords = useAppStore(state => state.hpsRecords);
+    const updateHPSRecord = useAppStore(state => state.updateHPSRecord);
+    const setGlobalSection = useAppStore(state => state.setSelectedSection);
+    const setGlobalSubject = useAppStore(state => state.setSelectedSubject);
+    const showNotification = useAppStore(state => state.showNotification);
+    const teachers = useAppStore(state => state.teachers);
     const { user } = useAuthStore();
 
     const [selectedSection, setSelectedSection] = useState(globalSection || '');
@@ -206,10 +443,10 @@ export function ShsEClassRecord() {
     const [paperSize, setPaperSize] = useState<PaperSize>('folio');
     const [isDownloading, setIsDownloading] = useState(false);
 
-    const formatStudentFullName = (student: typeof students[number]) => {
+    const formatStudentFullName = useCallback((student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
         return `${student.last_name}, ${student.first_name}${middleName ? ` ${middleName}` : ''}`.toUpperCase();
-    };
+    }, []);
 
     // Sync store with local state
     useEffect(() => {
@@ -226,7 +463,7 @@ export function ShsEClassRecord() {
 
     // Get the selected section's grade level
     const selectedSectionObj = useMemo(() => {
-        return sections.find(s => s.section_name === selectedSection);
+        return sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
     }, [sections, selectedSection]);
 
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
@@ -386,6 +623,22 @@ export function ShsEClassRecord() {
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
+        if (selectedSectionObj?.track) {
+            const tr = selectedSectionObj.track;
+            if (tr === 'Academic') {
+                if (selectedSectionObj.strand) {
+                    return `Academic - ${selectedSectionObj.strand}`;
+                }
+                return 'Academic Track';
+            }
+            if (tr === 'TechPro') {
+                return 'TechPro Track';
+            }
+            if (tr === 'TVL') {
+                return 'Technical-Vocational-Livelihood (TVL)';
+            }
+            return `${tr} Track`;
+        }
         if (!selectedSection) return '';
         const norm = selectedSection.toUpperCase();
         if (norm.includes('STEM')) return 'Academic - STEM';
@@ -394,7 +647,7 @@ export function ShsEClassRecord() {
         if (norm.includes('GAS')) return 'Academic - GAS';
         if (norm.includes('TVL') || norm.includes('TECHPRO') || norm.includes('HE') || norm.includes('ICT')) return 'Technical-Vocational-Livelihood (TVL)';
         return 'Academic Track';
-    }, [selectedSection]);
+    }, [selectedSection, selectedSectionObj]);
 
     const currentCluster = useMemo(() => {
         return getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
@@ -662,13 +915,17 @@ export function ShsEClassRecord() {
         return { st1: results[0], st2: results[1], te: results[2] };
     }, [maleStudents, femaleStudents, hps.qa, getStudentSummary]);
 
-    const updateHPS = (type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
+    const updateHPS = useCallback((type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!effectiveSubjectId) return;
 
         const numVal: number | string = value === '' ? '' : Number(value);
         if (typeof numVal === 'number' && isNaN(numVal)) return;
 
-        const existingRecord = hpsRecords.find(r =>
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isSummaryMode) return;
+
+        const stateHpsRecords = useAppStore.getState().hpsRecords;
+        const existingRecord = stateHpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === (quarter as number)
@@ -686,7 +943,7 @@ export function ShsEClassRecord() {
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
         const currentQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT);
-
+        
         if (type === 'qa') {
             currentQa[index] = numVal;
             hpsWithSummative.summative_tests = currentQa;
@@ -702,12 +959,16 @@ export function ShsEClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-    };
+    }, [effectiveSubjectId, activeSchoolYear, quarter, updateHPSRecord]);
 
-    const updateGrade = (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
+    const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
 
-        const existingRecord = classRecords.find(r =>
+        const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
+        if (isSummaryMode) return;
+
+        const stateClassRecords = useAppStore.getState().classRecords;
+        const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
             r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === (quarter as number)
@@ -716,7 +977,7 @@ export function ShsEClassRecord() {
         const record: ClassRecord = existingRecord ? { ...existingRecord } : {
             id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
-            section_id: sections.find(s => s.section_name === selectedSection)?.id || '',
+            section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
@@ -811,9 +1072,9 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         }
-    };
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
 
-    const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
+    const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
             let nextRow = rowIndex;
             let nextCol = colIndex;
@@ -831,7 +1092,7 @@ export function ShsEClassRecord() {
                 nextInput.select();
             }
         }
-    };
+    }, []);
 
     const handlePrint = () => {
         const originalTitle = document.title;
@@ -894,6 +1155,41 @@ export function ShsEClassRecord() {
                     allowTaint: true,
                     backgroundColor: '#ffffff',
                     logging: false,
+                    onclone: (clonedDoc, clonedPageEl) => {
+                        const style = clonedDoc.createElement('style');
+                        style.innerHTML = `
+                            ::-webkit-scrollbar {
+                                display: none !important;
+                            }
+                            * {
+                                scrollbar-width: none !important;
+                                -ms-overflow-style: none !important;
+                            }
+                        `;
+                        clonedDoc.head.appendChild(style);
+
+                        // Swap inputs to static spans to capture values
+                        const origInputs = pageEl.querySelectorAll('input');
+                        const clonedInputs = clonedPageEl.querySelectorAll('input');
+                        origInputs.forEach((origInput, idx) => {
+                            const clonedInput = clonedInputs[idx];
+                            if (clonedInput) {
+                                const val = (origInput as HTMLInputElement).value || '';
+                                const span = clonedDoc.createElement('span');
+                                span.textContent = val;
+                                span.className = clonedInput.className;
+                                span.style.cssText = clonedInput.style.cssText;
+                                span.style.display = 'flex';
+                                span.style.alignItems = 'center';
+                                span.style.justifyContent = 'center';
+                                span.style.width = '100%';
+                                span.style.height = '100%';
+                                if (clonedInput.parentNode) {
+                                    clonedInput.parentNode.replaceChild(span, clonedInput);
+                                }
+                            }
+                        });
+                    }
                 });
 
                 const imgData = canvas.toDataURL('image/png');
@@ -1387,8 +1683,8 @@ export function ShsEClassRecord() {
 
                             <table className="w-full table-fixed border-collapse border-2 border-black text-[10px] text-center bg-white text-black font-sans">
                                 <thead>
-                                    <tr className="bg-gray-100 h-10">
-                                        <th rowSpan={2} className="border border-black p-1 align-middle text-[9px] tracking-wide font-black" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
+                                    <tr className="h-10">
+                                        <th rowSpan={2} className="bg-gray-100 border border-black p-1 align-middle text-[9px] tracking-wide font-black" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
                                         <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-blue-50/50">WRITTEN / ORAL WORKS ({Math.round(currentWeights.written_works * 100)}%)</th>
                                         <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-green-50/50 leading-tight">
                                             <span>PRODUCT / PERFORMANCE</span><br />
@@ -1402,30 +1698,30 @@ export function ShsEClassRecord() {
                                         <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TRANSMUTED GRADE</th>
                                         <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
                                     </tr>
-                                    <tr className="bg-gray-50 h-7 text-[8px]">
-                                        {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 font-bold">{i}</th>)}
+                                    <tr className="h-7 text-[8px]">
+                                        {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="bg-gray-50 border border-black w-6 font-bold">{i}</th>)}
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        {[1, 2, 3].map(i => <th key={`pt-${i}`} className="border border-black w-6 font-bold">{i}</th>)}
+                                        {[1, 2, 3].map(i => <th key={`pt-${i}`} className="bg-gray-50 border border-black w-6 font-bold">{i}</th>)}
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        {!isFieldExposure && <th className="border border-black w-10 font-bold">ST1 (30%)</th>}
-                                        {!isFieldExposure && <th className="border border-black w-10 font-bold">ST2 (30%)</th>}
-                                        <th className="border border-black w-10 font-bold">{teHeaderLabel}</th>
+                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-10 font-bold">ST1 (30%)</th>}
+                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-10 font-bold">ST2 (30%)</th>}
+                                        <th className="bg-gray-50 border border-black w-10 font-bold">{teHeaderLabel}</th>
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
                                     </tr>
-                                    <tr className="bg-blue-50/40 font-bold h-8 text-[8px]">
+                                    <tr className="font-bold h-8 text-[8px]">
                                         <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[9px] font-black uppercase bg-slate-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                         {hps.ww.map((val, i) => (
-                                            <td key={`hps-ww-${i}`} className="border border-black p-0">
-                                                <input
+                                            <td key={`hps-ww-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                                <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
-                                                    onChange={(e) => updateHPS('ww', i, e.target.value)}
+                                                    onChange={(v) => updateHPS('ww', i, v)}
                                                     onKeyDown={(e) => handleKeyDown(e, 0, i)}
                                                     data-row={0}
                                                     data-col={i}
@@ -1437,11 +1733,11 @@ export function ShsEClassRecord() {
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.written_works * 100)}%</td>
                                         {hps.pt.map((val, i) => (
-                                            <td key={`hps-pt-${i}`} className="border border-black p-0">
-                                                <input
+                                            <td key={`hps-pt-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                                <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
-                                                    onChange={(e) => updateHPS('pt', i, e.target.value)}
+                                                    onChange={(v) => updateHPS('pt', i, v)}
                                                     onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
                                                     data-row={0}
                                                     data-col={5 + i}
@@ -1456,11 +1752,11 @@ export function ShsEClassRecord() {
                                             .map((val, i) => ({ val, i }))
                                             .filter(({ i }) => !isFieldExposure || i === 2)
                                             .map(({ val, i }) => (
-                                                <td key={`hps-qa-${i}`} className="border border-black p-0">
-                                                    <input
+                                                <td key={`hps-qa-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                                    <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
-                                                        onChange={(e) => updateHPS('qa', i, e.target.value)}
+                                                        onChange={(v) => updateHPS('qa', i, v)}
                                                         onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
                                                         data-row={0}
                                                         data-col={8 + i}
@@ -1479,73 +1775,30 @@ export function ShsEClassRecord() {
                                         <td colSpan={isFieldExposure ? 22 : 24} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
-                                        const summary = getStudentSummary(student);
-                                        const descriptor = getGradeDescriptor(summary.quarterlyGrade, summary.hasScores);
+                                        const record = classRecords.find(r =>
+                                            r.student_lrn === student.lrn &&
+                                            r.subject_id === effectiveSubjectId &&
+                                            Number(r.quarter) === quarter
+                                        );
                                         return (
-                                            <tr key={student.lrn} className="hover:bg-gray-50 h-6.5 text-[9px]">
-                                                <td className="border border-black p-1 text-left text-[10px] leading-none whitespace-nowrap font-bold uppercase truncate" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
-                                                    {idx + 1}. {formatStudentFullName(student)}
-                                                </td>
-                                                {summary.ww.map((score, i) => (
-                                                    <td key={`ww-${i}`} className="border border-black p-0">
-                                                        <input
-                                                            type="number"
-                                                            value={score === '' ? '' : score}
-                                                            onChange={(e) => updateGrade(student.lrn, 'ww', i, e.target.value)}
-                                                            onKeyDown={(e) => handleKeyDown(e, (sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx, i)}
-                                                            data-row={(sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx}
-                                                            data-col={i}
-                                                            className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                        />
-                                                    </td>
-                                                ))}
-                                                <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
-                                                <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
-                                                <td className="border border-black bg-blue-100/50 font-semibold">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
-                                                {summary.pt.map((score, i) => (
-                                                    <td key={`pt-${i}`} className="border border-black p-0">
-                                                        <input
-                                                            type="number"
-                                                            value={score === '' ? '' : score}
-                                                            onChange={(e) => updateGrade(student.lrn, 'pt', i, e.target.value)}
-                                                            onKeyDown={(e) => handleKeyDown(e, (sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx, 5 + i)}
-                                                            data-row={(sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx}
-                                                            data-col={5 + i}
-                                                            className="w-full h-full text-center outline-none p-0 focus:bg-green-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                        />
-                                                    </td>
-                                                ))}
-                                                <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
-                                                <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
-                                                <td className="border border-black bg-green-100/50 font-semibold">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
-                                                {summary.qa
-                                                    .map((score, i) => ({ score, i }))
-                                                    .filter(({ i }) => !isFieldExposure || i === 2)
-                                                    .map(({ score, i }) => (
-                                                        <td key={`qa-${i}`} className="border border-black p-0">
-                                                            <input
-                                                                type="number"
-                                                                value={score === '' ? '' : score}
-                                                                onChange={(e) => updateGrade(student.lrn, 'qa', i, e.target.value)}
-                                                                onKeyDown={(e) => handleKeyDown(e, (sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx, 8 + i)}
-                                                                data-row={(sectionIdx === 0 ? 1 : maleStudents.length + 1) + idx}
-                                                                data-col={8 + i}
-                                                                className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                            />
-                                                        </td>
-                                                    ))
-                                                }
-                                                <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaScore : ''}</td>
-                                                <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
-                                                <td className="border border-black bg-yellow-100/50 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-                                                <td className="border border-black bg-slate-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
-                                                <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[9.5px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
-                                                    {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
-                                                </td>
-                                                <td className="border border-black bg-blue-50 font-bold text-[9px] text-deped-blue leading-tight whitespace-normal wrap-break-word px-1">
-                                                    {descriptor}
-                                                </td>
-                                            </tr>
+                                            <StudentGradeRow
+                                                key={student.lrn}
+                                                student={student}
+                                                idx={idx}
+                                                sectionIdx={sectionIdx}
+                                                maleStudentsCount={maleStudents.length}
+                                                hps={hps}
+                                                currentWeights={currentWeights}
+                                                currentCluster={currentCluster}
+                                                activeSchoolYear={activeSchoolYear}
+                                                sectionGradeLevel={sectionGradeLevel}
+                                                optimalNameColumnWidth={optimalNameColumnWidth}
+                                                record={record}
+                                                updateGrade={updateGrade}
+                                                handleKeyDown={handleKeyDown}
+                                                formatStudentFullName={formatStudentFullName}
+                                                isFieldExposure={isFieldExposure}
+                                            />
                                         );
                                     })}
                                 </tbody>

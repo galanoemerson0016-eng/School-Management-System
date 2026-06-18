@@ -457,7 +457,7 @@ export function LIRPage() {
                 </div>
              </div>
 
-             <style dangerouslySetInnerHTML={{ __html: `
+             <style>{`
                 @media print {
                     @page {
                         size: ${paperSize === 'a4' ? '210mm 297mm' : paperSize === 'letter' ? '8.5in 11in' : '8.5in 13in'};
@@ -484,7 +484,7 @@ export function LIRPage() {
                         box-shadow: none !important;
                     }
                 }
-             ` }} />
+             `}</style>
         </div>
     );
 }
