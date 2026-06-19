@@ -303,6 +303,14 @@ export function SubjectsPage() {
     useEffect(() => {
         if (!subjects || subjects.length === 0) return;
         
+        let alreadyMigrated = false;
+        try {
+            alreadyMigrated = localStorage.getItem('formease_shs_subjects_migrated_v2') === 'true';
+        } catch (e) {
+            console.warn(e);
+        }
+        if (alreadyMigrated) return;
+        
         const shsSubjectsToFix = subjects.filter(subject => {
             const grade = subject.grade_level || '';
             const isSHS = grade.includes('11') || grade.includes('12');
@@ -341,8 +349,19 @@ export function SubjectsPage() {
                         console.error('Failed to migrate subject:', subject.subject_name, err);
                     }
                 }
+                try {
+                    localStorage.setItem('formease_shs_subjects_migrated_v2', 'true');
+                } catch (e) {
+                    console.warn(e);
+                }
             };
             void runMigration();
+        } else {
+            try {
+                localStorage.setItem('formease_shs_subjects_migrated_v2', 'true');
+            } catch (e) {
+                console.warn(e);
+            }
         }
     }, [subjects, updateSubject]);
 
