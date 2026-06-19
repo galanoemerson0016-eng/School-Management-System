@@ -440,47 +440,33 @@ export const SPECIAL_SUBJECTS = {
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
 export function getDefaultTermForSubject(subjectName: string, gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
-    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+    const gl = gradeLevel.toLowerCase();
+    
+    // For Grade 12, all subjects default to 'none' (user must choose offering term manually)
+    if (gl.includes('12')) {
+        return 'none';
+    }
+
+    const isSHS = gl.includes('11') || gl.includes('12');
     if (!isSHS) {
         return 'all';
     }
     
-    // For SHS, check if it's a core subject
+    // For Grade 11, Core subjects are offered in all terms; electives are per term (default none)
     const normalized = subjectName.trim().toLowerCase();
-    
-    // General Mathematics in Grade 12 is not offered by default
-    if (gradeLevel.includes('12') && normalized.includes('general mathematics')) {
-        return 'none';
-    }
-
-    const cores = [
+    const g11Cores = [
         'effective communication',
         'mabisang komunikasyon',
         'general mathematics',
         'general science',
         'life and career skills',
         'pag-aaral ng kasaysayan at lipunang pilipino',
-        'kasaysayan at lipunang pilipino',
-        // Grade 12 new core subjects
-        '21st century literature',
-        'contemporary philippine arts',
-        'disaster readiness',
-        'earth and life science',
-        'earth science',
-        'introduction to philosophy',
-        'komunikasyon at pananaliksik',
-        'media and information literacy',
-        'oral communication',
-        'pagbasa at pagsusuri',
-        'personal development',
-        'physical education and health',
-        'physical science',
-        'reading and writing',
-        'statistics and probability',
-        'understanding culture'
+        'kasaysayan at lipunang pilipino'
     ];
-    if (cores.some(c => normalized.includes(c))) {
+    
+    if (g11Cores.some(c => normalized.includes(c))) {
         return 'all';
     }
+    
     return 'none';
 }

@@ -92,7 +92,7 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | 
 
 
 export function StudentForm({ student, onClose, initialData, isSimplified = false }: StudentFormProps) {
-    const { addStudent, updateStudent, sections } = useAppStore();
+    const { addStudent, updateStudent, sections, students } = useAppStore();
     const [isLoading, setIsLoading] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [pendingProfile, setPendingProfile] = useState<Student | null>(null);
@@ -354,14 +354,31 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         setIsLoading(true);
         setSaveStatus('saving');
 
-        let finalLrn = formData.lrn || '';
-        if (isSimplified && !finalLrn) {
-            finalLrn = '99' + Math.floor(1000000000 + Math.random() * 9000000000).toString();
+        let finalLrn = (formData.lrn || '').trim();
+
+        // If LRN is empty (bypassed)
+        if (!finalLrn) {
+            if (student) {
+                // Keep the existing LRN if we're editing
+                finalLrn = student.lrn;
+            } else {
+                // Generate a temporary LRN for a new student
+                finalLrn = `TEMP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            }
         }
 
         // Validate LRN (allow 12 digits or TEMP- format)
-        if (!finalLrn || (!/^\d{12}$/.test(finalLrn) && !finalLrn.startsWith('TEMP-'))) {
+        if (!/^\d{12}$/.test(finalLrn) && !finalLrn.startsWith('TEMP-')) {
             alert('LRN must be exactly 12 digits');
+            setIsLoading(false);
+            setSaveStatus('idle');
+            return;
+        }
+
+        // Check for duplicates (prevent multiple students from having the same LRN)
+        const duplicate = students.find((s) => s.lrn === finalLrn);
+        if (duplicate && (!student || student.lrn !== finalLrn)) {
+            alert(`A student named ${duplicate.first_name} ${duplicate.last_name} already has the LRN ${finalLrn}.`);
             setIsLoading(false);
             setSaveStatus('idle');
             return;
@@ -453,6 +470,16 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             setIsLoading(false);
         }
     };
+    const isLrnEditable = !student || student.lrn?.startsWith('TEMP-') || (student.lrn?.startsWith('99') && student.lrn?.length === 12);
+
+    const getLrnDisplayValue = () => {
+        if (!formData.lrn) return '';
+        const isTemp = formData.lrn.startsWith('TEMP-') || (formData.lrn.startsWith('99') && formData.lrn.length === 12);
+        if (isTemp) {
+            return isLrnEditable && student ? '' : (isLrnEditable && !student ? formData.lrn : 'TEMP (Bypassed)');
+        }
+        return formData.lrn;
+    };
 
     const gradeInt = parseInt(formData.grade_level?.match(/\d+/)?.[0] || '0');
     const isElementary = gradeInt >= 1 && gradeInt <= 6;
@@ -479,26 +506,26 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                     <div>
                         <h4 className="text-lg font-bold text-deped-blue mb-4">Personal Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {!isSimplified && (
-                                <div>
-                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">LRN (12 digits) *</label>
-                                    <input
-                                        type="text"
-                                        name="lrn"
-                                        value={formData.lrn?.startsWith('TEMP-') ? 'TEMP (Bypassed)' : formData.lrn}
-                                        onChange={handleChange}
-                                        onBlur={() => {
-                                            void tryHydrateFromHistory();
-                                        }}
-                                        pattern={formData.lrn?.startsWith('TEMP-') ? undefined : "[0-9]{12}"}
-                                        maxLength={formData.lrn?.startsWith('TEMP-') ? undefined : 12}
-                                        disabled={!!student}
-                                        required
-                                        placeholder="123456789012"
-                                        className={`form-input ${student ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                    />
-                                </div>
-                            )}
+                            <div>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue">LRN (12 digits)</label>
+                                <input
+                                    type="text"
+                                    name="lrn"
+                                    value={getLrnDisplayValue()}
+                                    onChange={handleChange}
+                                    onBlur={() => {
+                                        void tryHydrateFromHistory();
+                                    }}
+                                    pattern={!isLrnEditable || !formData.lrn ? undefined : (formData.lrn?.startsWith('TEMP-') || formData.lrn?.startsWith('99') ? undefined : "[0-9]{12}")}
+                                    maxLength={!isLrnEditable || (formData.lrn?.startsWith('TEMP-') || formData.lrn?.startsWith('99')) ? undefined : 12}
+                                    disabled={!isLrnEditable}
+                                    placeholder="123456789012 (Leave blank to bypass)"
+                                    className={`form-input ${!isLrnEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                />
+                                {isLrnEditable && (
+                                    <p className="mt-1 text-xs text-gray-500 font-medium">Leave blank to automatically bypass and generate a temporary LRN.</p>
+                                )}
+                            </div>
 
                             {pendingProfile && (
                                 <ConfirmationModal

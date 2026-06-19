@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
+import { getDefaultTermForSubject } from '../lib/curriculum';
 import type { Subject } from '../types';
 
 type QuarterGrades = {
@@ -1050,13 +1051,19 @@ const groupedSections = useMemo(() => {
         // 2. Get all actual subject records for this section or grade level from the database
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
-        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && s.term !== 'none');
+        
+        const getEffectiveTerm = (s: Subject) => {
+            if (s.term !== undefined && s.term !== null) return s.term;
+            return getDefaultTermForSubject(s.subject_name, s.grade_level);
+        };
+
+        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && getEffectiveTerm(s) !== 'none');
         
         // If no section-specific subjects exist, look for grade-level templates
         if (sectionDbSubjects.length === 0) {
             sectionDbSubjects = subjects.filter(s => {
                 const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum && s.term !== 'none';
+                return !s.section_id && subjectGradeNum === sectionGradeNum && getEffectiveTerm(s) !== 'none';
             });
         }
 
@@ -1064,7 +1071,10 @@ const groupedSections = useMemo(() => {
         if (selectedTerm !== 'all') {
             const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
             if (termNum !== null) {
-                sectionDbSubjects = sectionDbSubjects.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === termNum);
+                sectionDbSubjects = sectionDbSubjects.filter(s => {
+                    const effTerm = getEffectiveTerm(s);
+                    return effTerm === 'all' || Number(effTerm) === termNum;
+                });
             }
         }
 
@@ -1111,7 +1121,20 @@ const groupedSections = useMemo(() => {
             }
         } else {
             // Fallback to intended curriculum (Standard/Custom config)
-            baseList = intendedSubjects.map(intended => ({
+            const virtualSubjects = intendedSubjects.filter(intended => {
+                const defaultTerm = getDefaultTermForSubject(intended.name, sectionObj.section_grade_level);
+                if (defaultTerm === 'none') return false;
+                
+                if (selectedTerm !== 'all') {
+                    const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
+                    if (termNum !== null) {
+                        return defaultTerm === 'all' || Number(defaultTerm) === termNum;
+                    }
+                }
+                return true;
+            });
+
+            baseList = virtualSubjects.map(intended => ({
                 id: `virtual-${normalizeSubjectName(intended.name)}-${sectionObj.id}`,
                 subject_name: intended.name,
                 section_id: sectionObj.id,

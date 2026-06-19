@@ -265,10 +265,147 @@ export const useAppStore = create<AppState>((set, get) => ({
       const existing = get().students.find((s) => s.lrn === lrn);
       if (!existing) throw new Error('Student not found');
 
-      const updated = { ...existing, ...updates };
-      set((state) => ({
-        students: state.students.map((s) => (s.lrn === lrn ? updated : s)),
-      }));
+      let updated = { ...existing, ...updates };
+      const lrnChanged = updated.lrn !== lrn;
+
+      if (lrnChanged) {
+        // Cascade update in AwardEvaluations (nested array in Student object)
+        if (updated.awardEvaluations) {
+          updated = {
+            ...updated,
+            awardEvaluations: updated.awardEvaluations.map((ae) => ({
+              ...ae,
+              student_lrn: updated.lrn,
+              id: ae.id.replace(lrn, updated.lrn),
+            })),
+          };
+        }
+
+        // 1. Database (IndexedDB) Updates
+        // Delete old student record
+        await db.deleteRecord('students', lrn);
+
+        // Cascade to enrollments
+        const allEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+        const enrollmentsToUpdate = allEnrollments.filter((e) => e.student_lrn === lrn);
+        for (const e of enrollmentsToUpdate) {
+          await db.deleteRecord('enrollments', e.id);
+          const newId = e.id.replace(lrn, updated.lrn);
+          const newE = { ...e, id: newId, student_lrn: updated.lrn };
+          await db.putRecord('enrollments', newE);
+        }
+
+        // Cascade to classRecords
+        const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+        const classRecordsToUpdate = allClassRecords.filter((r) => r.student_lrn === lrn);
+        for (const r of classRecordsToUpdate) {
+          await db.deleteRecord('classRecords', r.id);
+          const newId = r.id.replace(lrn, updated.lrn);
+          const newR = { ...r, id: newId, student_lrn: updated.lrn };
+          await db.putRecord('classRecords', newR);
+        }
+
+        // Cascade to gradingSheetRecords
+        const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+        const gradingSheetRecordsToUpdate = allGradingSheetRecords.filter((r) => r.student_lrn === lrn);
+        for (const r of gradingSheetRecordsToUpdate) {
+          await db.deleteRecord('gradingSheetRecords', r.id);
+          const newId = r.id.replace(lrn, updated.lrn);
+          const newR = { ...r, id: newId, student_lrn: updated.lrn };
+          await db.putRecord('gradingSheetRecords', newR);
+        }
+
+        // Cascade to attendanceRecords
+        const allAttendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+        const attendanceRecordsToUpdate = allAttendanceRecords.filter((r) => r.student_lrn === lrn);
+        for (const r of attendanceRecordsToUpdate) {
+          await db.deleteRecord('attendanceRecords', r.id);
+          const newId = r.id.replace(lrn, updated.lrn);
+          const newR = { ...r, id: newId, student_lrn: updated.lrn };
+          await db.putRecord('attendanceRecords', newR);
+        }
+
+        // Cascade to observedValues
+        const allObservedValues = await db.getAllRecords<ObservedValues>('observedValues');
+        const observedValuesToUpdate = allObservedValues.filter((v) => v.student_lrn === lrn);
+        for (const v of observedValuesToUpdate) {
+          await db.deleteRecord('observedValues', v.id);
+          const newId = v.id.replace(lrn, updated.lrn);
+          const newV = { ...v, id: newId, student_lrn: updated.lrn };
+          await db.putRecord('observedValues', newV);
+        }
+
+        // Cascade to sf2Sheets
+        const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+        for (const sheet of allSf2Sheets) {
+          let changed = false;
+          const attendance = { ...sheet.attendance };
+          const remarks = { ...sheet.remarks };
+          if (attendance[lrn]) {
+            attendance[updated.lrn] = attendance[lrn];
+            delete attendance[lrn];
+            changed = true;
+          }
+          if (remarks[lrn]) {
+            remarks[updated.lrn] = remarks[lrn];
+            delete remarks[lrn];
+            changed = true;
+          }
+          if (changed) {
+            const newSheet = { ...sheet, attendance, remarks };
+            await db.putRecord('sf2Sheets', newSheet);
+          }
+        }
+
+        // 2. Zustand Store State Updates
+        set((state) => ({
+          students: state.students.map((s) => (s.lrn === lrn ? updated : s)),
+          studentProfiles: state.studentProfiles.map((s) => (s.lrn === lrn ? updated : s)),
+          enrollments: state.enrollments.map((e) =>
+            e.student_lrn === lrn ? { ...e, id: e.id.replace(lrn, updated.lrn), student_lrn: updated.lrn } : e
+          ),
+          classRecords: state.classRecords.map((r) =>
+            r.student_lrn === lrn ? { ...r, id: r.id.replace(lrn, updated.lrn), student_lrn: updated.lrn } : r
+          ),
+          gradingSheetRecords: state.gradingSheetRecords.map((r) =>
+            r.student_lrn === lrn ? { ...r, id: r.id.replace(lrn, updated.lrn), student_lrn: updated.lrn } : r
+          ),
+          attendanceRecords: state.attendanceRecords.map((r) =>
+            r.student_lrn === lrn ? { ...r, id: r.id.replace(lrn, updated.lrn), student_lrn: updated.lrn } : r
+          ),
+          observedValues: state.observedValues.map((v) =>
+            v.student_lrn === lrn ? { ...v, id: v.id.replace(lrn, updated.lrn), student_lrn: updated.lrn } : v
+          ),
+        }));
+
+        // Update activeSF2Sheet if it is currently loaded in store and matches
+        const activeSheet = get().activeSF2Sheet;
+        if (activeSheet) {
+          let changed = false;
+          const attendance = { ...activeSheet.attendance };
+          const remarks = { ...activeSheet.remarks };
+          if (attendance[lrn]) {
+            attendance[updated.lrn] = attendance[lrn];
+            delete attendance[lrn];
+            changed = true;
+          }
+          if (remarks[lrn]) {
+            remarks[updated.lrn] = remarks[lrn];
+            delete remarks[lrn];
+            changed = true;
+          }
+          if (changed) {
+            set({ activeSF2Sheet: { ...activeSheet, attendance, remarks } });
+          }
+        }
+      } else {
+        // Normal update (no LRN change)
+        set((state) => ({
+          students: state.students.map((s) => (s.lrn === lrn ? updated : s)),
+          studentProfiles: state.studentProfiles.map((s) => (s.lrn === lrn ? updated : s)),
+        }));
+      }
+
       await db.putRecord('students', updated);
       get().showNotification('Student updated', 'success');
     } catch (error) {
@@ -314,18 +451,145 @@ export const useAppStore = create<AppState>((set, get) => ({
         const existing = matchByLrn || matchByName;
 
         if (existing) {
-          // If LRN is being upgraded from TEMP- to a real LRN, delete the old TEMP- record from IndexedDB
+          // If LRN is being upgraded from TEMP- to a real LRN, delete the old TEMP- record from IndexedDB and cascade LRN update
           if (existing.lrn.startsWith('TEMP-') && !student.lrn.startsWith('TEMP-')) {
-            await db.deleteRecord('students', existing.lrn);
+            const oldLrn = existing.lrn;
+            const newLrn = student.lrn;
+
+            await db.deleteRecord('students', oldLrn);
+
+            // Cascade to enrollments
+            const allEnrollments = await db.getAllRecords<Enrollment>('enrollments');
+            const enrollmentsToUpdate = allEnrollments.filter((e) => e.student_lrn === oldLrn);
+            for (const e of enrollmentsToUpdate) {
+              await db.deleteRecord('enrollments', e.id);
+              const newId = e.id.replace(oldLrn, newLrn);
+              const newE = { ...e, id: newId, student_lrn: newLrn };
+              await db.putRecord('enrollments', newE);
+            }
+
+            // Cascade to classRecords
+            const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
+            const classRecordsToUpdate = allClassRecords.filter((r) => r.student_lrn === oldLrn);
+            for (const r of classRecordsToUpdate) {
+              await db.deleteRecord('classRecords', r.id);
+              const newId = r.id.replace(oldLrn, newLrn);
+              const newR = { ...r, id: newId, student_lrn: newLrn };
+              await db.putRecord('classRecords', newR);
+            }
+
+            // Cascade to gradingSheetRecords
+            const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+            const gradingSheetRecordsToUpdate = allGradingSheetRecords.filter((r) => r.student_lrn === oldLrn);
+            for (const r of gradingSheetRecordsToUpdate) {
+              await db.deleteRecord('gradingSheetRecords', r.id);
+              const newId = r.id.replace(oldLrn, newLrn);
+              const newR = { ...r, id: newId, student_lrn: newLrn };
+              await db.putRecord('gradingSheetRecords', newR);
+            }
+
+            // Cascade to attendanceRecords
+            const allAttendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+            const attendanceRecordsToUpdate = allAttendanceRecords.filter((r) => r.student_lrn === oldLrn);
+            for (const r of attendanceRecordsToUpdate) {
+              await db.deleteRecord('attendanceRecords', r.id);
+              const newId = r.id.replace(oldLrn, newLrn);
+              const newR = { ...r, id: newId, student_lrn: newLrn };
+              await db.putRecord('attendanceRecords', newR);
+            }
+
+            // Cascade to observedValues
+            const allObservedValues = await db.getAllRecords<ObservedValues>('observedValues');
+            const observedValuesToUpdate = allObservedValues.filter((v) => v.student_lrn === oldLrn);
+            for (const v of observedValuesToUpdate) {
+              await db.deleteRecord('observedValues', v.id);
+              const newId = v.id.replace(oldLrn, newLrn);
+              const newV = { ...v, id: newId, student_lrn: newLrn };
+              await db.putRecord('observedValues', newV);
+            }
+
+            // Cascade to sf2Sheets
+            const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+            for (const sheet of allSf2Sheets) {
+              let changed = false;
+              const attendance = { ...sheet.attendance };
+              const remarks = { ...sheet.remarks };
+              if (attendance[oldLrn]) {
+                attendance[newLrn] = attendance[oldLrn];
+                delete attendance[oldLrn];
+                changed = true;
+              }
+              if (remarks[oldLrn]) {
+                remarks[newLrn] = remarks[oldLrn];
+                delete remarks[oldLrn];
+                changed = true;
+              }
+              if (changed) {
+                const newSheet = { ...sheet, attendance, remarks };
+                await db.putRecord('sf2Sheets', newSheet);
+              }
+            }
+
+            // Update local state arrays for this student to keep UI fully in sync
+            set((state) => ({
+              enrollments: state.enrollments.map((e) =>
+                e.student_lrn === oldLrn ? { ...e, id: e.id.replace(oldLrn, newLrn), student_lrn: newLrn } : e
+              ),
+              classRecords: state.classRecords.map((r) =>
+                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
+              ),
+              gradingSheetRecords: state.gradingSheetRecords.map((r) =>
+                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
+              ),
+              attendanceRecords: state.attendanceRecords.map((r) =>
+                r.student_lrn === oldLrn ? { ...r, id: r.id.replace(oldLrn, newLrn), student_lrn: newLrn } : r
+              ),
+              observedValues: state.observedValues.map((v) =>
+                v.student_lrn === oldLrn ? { ...v, id: v.id.replace(oldLrn, newLrn), student_lrn: newLrn } : v
+              ),
+            }));
+
+            const activeSheet = get().activeSF2Sheet;
+            if (activeSheet) {
+              let changed = false;
+              const attendance = { ...activeSheet.attendance };
+              const remarks = { ...activeSheet.remarks };
+              if (attendance[oldLrn]) {
+                attendance[newLrn] = attendance[oldLrn];
+                delete attendance[oldLrn];
+                changed = true;
+              }
+              if (remarks[oldLrn]) {
+                remarks[newLrn] = remarks[oldLrn];
+                delete remarks[oldLrn];
+                changed = true;
+              }
+              if (changed) {
+                set({ activeSF2Sheet: { ...activeSheet, attendance, remarks } });
+              }
+            }
           }
 
           // Merge: Keep all existing details, only update grade and section (and LRN if upgraded)
-          const merged = {
+          let merged = {
             ...existing,
             lrn: student.lrn,
             grade_level: student.grade_level,
             student_section: student.student_section
           };
+
+          // If nested awardEvaluations exist, update their IDs/LRNs as well
+          if (existing.lrn.startsWith('TEMP-') && !student.lrn.startsWith('TEMP-') && merged.awardEvaluations) {
+            merged = {
+              ...merged,
+              awardEvaluations: merged.awardEvaluations.map((ae) => ({
+                ...ae,
+                student_lrn: merged.lrn,
+                id: ae.id.replace(existing.lrn, merged.lrn),
+              })),
+            };
+          }
+
           await db.putRecord('students', merged);
         } else {
           // Brand new student: write as is
@@ -848,7 +1112,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Reload all data collections to keep the UI in sync
       const students = await db.getAllRecords<Student>('students');
       const sections = await db.getAllRecords<Section>('sections');
-      const subjects = await db.getAllRecords<Subject>('subjects');
+      const rawSubjects = await db.getAllRecords<Subject>('subjects');
+      const subjects: Subject[] = rawSubjects.map(s => ({
+        ...s,
+        term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+      }));
       const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
       const gradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
       const hpsRecords = await db.getAllRecords<HPSRecord>('hpsRecords');
@@ -911,12 +1179,17 @@ export async function initializeAppStore() {
 
   try {
     // Phase 1: load data needed before making decisions, all in parallel
-    const [students, sections, subjects, allProfiles] = await Promise.all([
+    const [students, sections, rawSubjects, allProfiles] = await Promise.all([
       loadStore<Student>('students'),
       loadStore<Section>('sections'),
       loadStore<Subject>('subjects'),
       db.getAllRecords<SchoolProfile>('schoolProfile'),
     ]);
+
+    const subjects: Subject[] = rawSubjects.map(s => ({
+      ...s,
+      term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+    }));
 
     // Load the school profile by fetching all records.
     // We do NOT use the hardcoded default school_id as the lookup key because
