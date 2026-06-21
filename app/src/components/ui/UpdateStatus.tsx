@@ -1,62 +1,51 @@
-import { useState, useEffect } from 'react';
-import { DownloadCloud, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { useUpdateStore } from '../../stores/update-store';
+import { DownloadCloud, RefreshCw, AlertCircle } from 'lucide-react';
 
 export function UpdateStatus() {
-  const [status, setStatus] = useState<string>('');
-  const [isChecking, setIsChecking] = useState(false);
+  const { updateStep, updateInfo, errorMessage, downloadProgress, checkForUpdates } = useUpdateStore();
 
-  useEffect(() => {
-    // Listen for update messages from the main process
-    if ((window as any).electronAPI && (window as any).electronAPI.onUpdateMessage) {
-      (window as any).electronAPI.onUpdateMessage((data: any) => {
-        const message = typeof data === 'object' ? data.text : data;
-        const msgStatus = typeof data === 'object' ? data.status : 'info';
-        
-        setStatus(message);
-        setIsChecking(message.includes('Checking') || message.includes('Downloading') || msgStatus === 'downloading' || msgStatus === 'progress');
-        
-        // Clear success/error messages after a while
-        if (message.includes('up to date') || message.includes('Error') || msgStatus === 'error') {
-          setTimeout(() => {
-            setStatus('');
-            setIsChecking(false);
-          }, 5000);
-        }
-      });
-    }
-  }, []);
+  const isChecking = updateStep === 'checking' || updateStep === 'health-checks' || updateStep === 'backup' || updateStep === 'simulation';
+  const isDownloading = updateStep === 'downloading';
+  const isReady = updateStep === 'ready-to-install' || updateStep === 'ready-to-start';
+  const isFailed = updateStep === 'failed';
 
   const handleCheckForUpdates = () => {
-    if (isChecking) return;
-    setStatus('Checking for updates...');
-    setIsChecking(true);
-    if ((window as any).electronAPI && (window as any).electronAPI.checkForUpdates) {
-      (window as any).electronAPI.checkForUpdates();
+    if (isChecking || isDownloading) return;
+    if (window.electronAPI) {
+      checkForUpdates();
     } else {
-      setStatus('Updates only available in desktop app.');
-      setTimeout(() => setStatus(''), 3000);
-      setIsChecking(false);
+      alert('Updates are only available in the desktop application.');
     }
   };
+
+  let status = '';
+  if (updateStep === 'checking') status = 'Checking for updates...';
+  else if (updateStep === 'health-checks') status = 'Running update health checks...';
+  else if (updateStep === 'backup') status = 'Creating system backup...';
+  else if (updateStep === 'simulation') status = 'Simulating database migration...';
+  else if (updateStep === 'downloading') status = `Downloading update: ${downloadProgress.percent}%`;
+  else if (updateStep === 'ready-to-start') status = `New version v${updateInfo?.version} available!`;
+  else if (updateStep === 'ready-to-install') status = 'Update ready to install and restart.';
+  else if (updateStep === 'failed') status = errorMessage || 'Update check failed.';
 
   return (
     <div className="relative group flex items-center">
       <button
         onClick={handleCheckForUpdates}
-        disabled={isChecking}
+        disabled={isChecking || isDownloading}
         className={`relative p-2 rounded-2xl bg-white/50 dark:bg-black/40 border border-white/60 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 transition-all duration-300 shadow-sm flex items-center gap-2 ${
-          isChecking ? 'opacity-80 cursor-wait' : ''
+          isChecking || isDownloading ? 'opacity-80 cursor-wait' : ''
         }`}
         title="Check for Updates"
       >
         {isChecking ? (
           <RefreshCw className="w-5 h-5 text-emerald-500 animate-spin" />
-        ) : status.includes('available') || status.includes('downloaded') ? (
+        ) : isDownloading ? (
+          <RefreshCw className="w-5 h-5 text-indigo-500 animate-spin" />
+        ) : isReady ? (
           <DownloadCloud className="w-5 h-5 text-blue-500 animate-bounce" />
-        ) : status.includes('Error') ? (
+        ) : isFailed ? (
           <AlertCircle className="w-5 h-5 text-red-500" />
-        ) : status.includes('up to date') ? (
-          <CheckCircle className="w-5 h-5 text-emerald-500" />
         ) : (
           <DownloadCloud className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         )}
@@ -73,3 +62,4 @@ export function UpdateStatus() {
     </div>
   );
 }
+

@@ -15,6 +15,21 @@ import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
 
+export interface ProfileDiffItem {
+  fieldName: string;
+  label: string;
+  currentValue: string;
+  incomingValue: string;
+  keepIncoming: boolean;
+}
+
+export interface ProfileMergeConflict {
+  studentName: string;
+  lrn: string;
+  diffItems: ProfileDiffItem[];
+  resolve: (mergedFields: Record<string, string> | null) => void;
+}
+
 const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
 const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
 
@@ -138,6 +153,11 @@ interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
   cloudSyncEnabled: boolean;
   setCloudSyncEnabled: (enabled: boolean) => void;
 
+  // Merge Conflicts Visual Diff
+  pendingConflicts: ProfileMergeConflict[];
+  addMergeConflict: (conflict: ProfileMergeConflict) => void;
+  resolveMergeConflict: (mergedFields: Record<string, string> | null) => void;
+
   // Backup & Restore
   createBackup: (label?: string) => Promise<void>;
   restoreFromFile: (file: File) => Promise<void>;
@@ -242,6 +262,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   legacySchoolYear: '2026-2027',
   setLegacySchoolYear: (sy) => set({ legacySchoolYear: sy }),
+
+  // ==================== MERGE CONFLICTS ====================
+  pendingConflicts: [],
+  addMergeConflict: (conflict) => set((state) => ({ pendingConflicts: [...state.pendingConflicts, conflict] })),
+  resolveMergeConflict: (mergedFields) => {
+    const current = get().pendingConflicts[0];
+    if (current) {
+      current.resolve(mergedFields);
+      set((state) => ({ pendingConflicts: state.pendingConflicts.slice(1) }));
+    }
+  },
 
   // ==================== STUDENTS ====================
   students: [],
@@ -439,8 +470,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         // 1. Check if LRN already exists
         const matchByLrn = existingStudents.find(s => s.lrn === student.lrn);
         
-        // 2. Check if Name + Gender matches
+        // 2. Check if Name + Gender matches (but ONLY if the existing record in database has a temporary LRN)
         const matchByName = existingStudents.find(s => 
+          s.lrn.startsWith('TEMP-') &&
           s.last_name?.trim().toUpperCase() === student.last_name?.trim().toUpperCase() &&
           s.first_name?.trim().toUpperCase() === student.first_name?.trim().toUpperCase() &&
           (s.middle_name || '').trim().toUpperCase() === (student.middle_name || '').trim().toUpperCase() &&
@@ -449,12 +481,63 @@ export const useAppStore = create<AppState>((set, get) => ({
         );
 
         const existing = matchByLrn || matchByName;
+        let resolvedStudent = { ...student };
 
         if (existing) {
-          // If LRN is being upgraded from TEMP- to a real LRN, delete the old TEMP- record from IndexedDB and cascade LRN update
-          if (existing.lrn.startsWith('TEMP-') && !student.lrn.startsWith('TEMP-')) {
+          // Compare fields to see if we have differences
+          const diffItems: ProfileDiffItem[] = [];
+          const fieldsToCompare = [
+            { field: 'first_name', label: 'First Name' },
+            { field: 'middle_name', label: 'Middle Name' },
+            { field: 'last_name', label: 'Last Name' },
+            { field: 'name_extension', label: 'Name Extension' },
+            { field: 'gender', label: 'Gender' },
+            { field: 'birth_date', label: 'Birth Date' },
+            { field: 'address', label: 'Address' },
+            { field: 'contact_number', label: 'Contact Number' },
+            { field: 'guardian_name', label: 'Guardian/Parent Name' }
+          ];
+
+          for (const item of fieldsToCompare) {
+            const currentVal = String((existing as unknown as Record<string, unknown>)[item.field] || '').trim();
+            const incomingVal = String((student as unknown as Record<string, unknown>)[item.field] || '').trim();
+            if (currentVal !== incomingVal) {
+              diffItems.push({
+                fieldName: item.field,
+                label: item.label,
+                currentValue: currentVal,
+                incomingValue: incomingVal,
+                keepIncoming: true
+              });
+            }
+          }
+
+          if (diffItems.length > 0) {
+            const mergedFields = await new Promise<Record<string, string> | null>((resolve) => {
+              get().addMergeConflict({
+                studentName: `${student.first_name} ${student.last_name}`,
+                lrn: student.lrn,
+                diffItems,
+                resolve
+              });
+            });
+
+            if (mergedFields === null) {
+              // User chose to skip importing this student entirely
+              continue;
+            }
+
+            // Apply selected merged fields
+            resolvedStudent = {
+              ...student,
+              ...mergedFields
+            };
+          }
+
+          // If LRN has changed (e.g. upgraded from TEMP- or corrected), delete the old record from IndexedDB and cascade LRN update
+          if (existing.lrn !== resolvedStudent.lrn) {
             const oldLrn = existing.lrn;
-            const newLrn = student.lrn;
+            const newLrn = resolvedStudent.lrn;
 
             await db.deleteRecord('students', oldLrn);
 
@@ -570,22 +653,23 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
           }
 
-          // Merge: Keep all existing details, only update grade and section (and LRN if upgraded)
+          // Merge: Keep custom fields from existing, but update all profile fields from the imported student
           let merged = {
             ...existing,
-            lrn: student.lrn,
-            grade_level: student.grade_level,
-            student_section: student.student_section
+            ...resolvedStudent,
+            lrn: resolvedStudent.lrn,
+            grade_level: resolvedStudent.grade_level,
+            student_section: resolvedStudent.student_section
           };
 
           // If nested awardEvaluations exist, update their IDs/LRNs as well
-          if (existing.lrn.startsWith('TEMP-') && !student.lrn.startsWith('TEMP-') && merged.awardEvaluations) {
+          if (existing.lrn !== resolvedStudent.lrn && existing.awardEvaluations) {
             merged = {
               ...merged,
-              awardEvaluations: merged.awardEvaluations.map((ae) => ({
+              awardEvaluations: existing.awardEvaluations.map((ae) => ({
                 ...ae,
-                student_lrn: merged.lrn,
-                id: ae.id.replace(existing.lrn, merged.lrn),
+                student_lrn: resolvedStudent.lrn,
+                id: ae.id.replace(existing.lrn, resolvedStudent.lrn),
               })),
             };
           }
@@ -593,7 +677,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           await db.putRecord('students', merged);
         } else {
           // Brand new student: write as is
-          await db.putRecord('students', student);
+          await db.putRecord('students', resolvedStudent);
         }
         count++;
       }

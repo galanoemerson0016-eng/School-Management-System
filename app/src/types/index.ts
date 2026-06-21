@@ -339,7 +339,7 @@ export interface SF2Sheet {
     school_year: string;
     month: string; // e.g., "JUNE"
     date_labels: Record<number, string>; // { 1: "3", 2: "4", ... }
-    attendance: Record<string, Record<number, string>>; // { "LRN123": { 1: "absent", 2: "tardy" } }
+    attendance: Record<string, Record<string | number, string>>; // { "LRN123": { 1: "absent", 2: "tardy" } }
     remarks: Record<string, string>; // { "LRN123": "NLS - reasons..." }
     updated_at: string;
 }

@@ -10,7 +10,7 @@ import type { Section, Student, SF2Sheet, CalendarEvent } from '../types';
 
 
 type AttendanceDayStatus = string;
-type AttendanceMonthData = Record<string, Record<number, AttendanceDayStatus>>;
+type AttendanceMonthData = Record<string, Record<string | number, AttendanceDayStatus>>;
 type DateLabels = Record<number, string>;
  
 const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
@@ -27,8 +27,95 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
     APRIL: [1, 2, 5, 6, 7, 8],
 };
 
-const TOTAL_COLUMNS = 25; // 5 weeks × 5 days (Mon-Fri)
-const DAYS = Array.from({ length: TOTAL_COLUMNS }, (_, i) => i + 1);
+function getActiveWeeks(month: string, schoolYear: string, includeSaturdays: boolean): number[] {
+    const monthMap: Record<string, number> = {
+        'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+        'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+    };
+    const monthIndex = monthMap[month];
+    if (monthIndex === undefined) return [0, 1, 2, 3];
+
+    const [startYear, endYear] = schoolYear.split('-').map(Number);
+    const year = monthIndex >= 5 ? startYear : endYear;
+
+    const limitDow = includeSaturdays ? 6 : 5;
+    const firstDateOfMonth = new Date(year, monthIndex, 1);
+    const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+
+    let calendarDays: number[] = [];
+    if (schoolYear === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
+        calendarDays = [...SCHOOL_CALENDAR_2026_2027[month]];
+        if (includeSaturdays && calendarDays.length > 0) {
+            const firstSchoolDay = calendarDays[0];
+            const lastSchoolDay = calendarDays[calendarDays.length - 1];
+            let holidays: string[] = [];
+            try {
+                const storedEvents = localStorage.getItem('school_calendar_events');
+                if (storedEvents) {
+                    const parsedEvents = JSON.parse(storedEvents);
+                    if (Array.isArray(parsedEvents)) {
+                        holidays = parsedEvents
+                            .filter((e: CalendarEvent) => e.type === 'holiday')
+                            .flatMap((e: CalendarEvent) => {
+                                const dates: string[] = [];
+                                try {
+                                    const curr = new Date(e.date + 'T00:00:00');
+                                    const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
+                                    if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
+                                        while (curr <= end) {
+                                            dates.push(curr.toISOString().split('T')[0]);
+                                            curr.setDate(curr.getDate() + 1);
+                                        }
+                                    }
+                                } catch (dateErr) {
+                                    console.error('Error parsing date range for event:', e, dateErr);
+                                }
+                                return dates;
+                            });
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load holidays for active weeks', e);
+            }
+
+            for (let d = firstSchoolDay; d <= lastSchoolDay; d++) {
+                const dateObj = new Date(year, monthIndex, d);
+                if (dateObj.getDay() === 6) {
+                    const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    if (!holidays.includes(dateStr) && !calendarDays.includes(d)) {
+                        calendarDays.push(d);
+                    }
+                }
+            }
+            calendarDays.sort((a, b) => a - b);
+        }
+    } else {
+        const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            calendarDays.push(d);
+        }
+    }
+
+    const activeWeekSet = new Set<number>();
+    calendarDays.forEach(d => {
+        const dateObj = new Date(year, monthIndex, d);
+        const dow = dateObj.getDay();
+        if (dow >= 1 && dow <= limitDow) {
+            const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+            const weekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+            activeWeekSet.add(weekIndex);
+        }
+    });
+
+    const activeWeeks = Array.from(activeWeekSet).sort((a, b) => a - b);
+    if (activeWeeks.length === 0) return [0, 1, 2, 3];
+    return activeWeeks;
+}
+
+function getSf2TotalColumns(month: string, schoolYear: string, includeSaturdays: boolean): number {
+    const activeWeeks = getActiveWeeks(month, schoolYear, includeSaturdays);
+    return activeWeeks.length * (includeSaturdays ? 6 : 5);
+}
 
 const getHeaderBoxFontSize = (text: string = ''): string => {
     const len = String(text).length;
@@ -113,6 +200,9 @@ export function AttendancePage() {
     const [isDownloading, setIsDownloading] = useState(false);
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
+    const [includeSaturdays, setIncludeSaturdays] = useState(() => {
+        return localStorage.getItem('formease_sf2_include_saturdays') === 'true';
+    });
 
     // Pagination: how many body rows fit on one printed page, with vs.
     // without the Guidelines/Summary/Signatures footer block.
@@ -128,8 +218,10 @@ export function AttendancePage() {
     const [monthDateLabels, setMonthDateLabels] = useState<Record<string, DateLabels>>({});
     const [remarksData, setRemarksData] = useState<Record<string, Record<string, string>>>({});
 
-    const days = DAYS;
-    const totalColumns = TOTAL_COLUMNS;
+    const totalColumns = useMemo(() => {
+        return getSf2TotalColumns(selectedMonth || 'JUNE', activeSchoolYear, includeSaturdays);
+    }, [selectedMonth, activeSchoolYear, includeSaturdays]);
+    const days = useMemo(() => Array.from({ length: totalColumns }, (_, i) => i + 1), [totalColumns]);
 
     const lastLoadedIdRef = useRef<string | null>(null);
 
@@ -145,13 +237,77 @@ export function AttendancePage() {
                 if (!active) return;
 
                 if (sheet) {
+                    const dateLabels = sheet.date_labels || {};
+                    const rawAttendance = sheet.attendance || {};
+
+                    // Correct/reposition date labels to correct columns based on the calendar month
+                    const monthMap: Record<string, number> = {
+                        'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+                        'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+                    };
+                    const monthIndex = monthMap[selectedMonth];
+                    const [startYear, endYear] = activeSchoolYear.split('-').map(Number);
+                    const year = monthIndex >= 5 ? startYear : endYear;
+                    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+                    const firstDateOfMonth = new Date(year, monthIndex, 1);
+                    const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+                    const limitDow = includeSaturdays ? 6 : 5;
+                    const weekMultiplier = includeSaturdays ? 6 : 5;
+                    const activeWeeks = getActiveWeeks(selectedMonth, activeSchoolYear, includeSaturdays);
+
+                    const correctedLabels: Record<number, string> = {};
+                    for (let c = 1; c <= totalColumns; c++) {
+                        correctedLabels[c] = '';
+                    }
+
+                    Object.values(dateLabels).forEach(dateVal => {
+                        if (dateVal && dateVal.trim()) {
+                            const d = Number(dateVal.trim());
+                            if (!isNaN(d) && d >= 1 && d <= daysInMonth) {
+                                const dateObj = new Date(year, monthIndex, d);
+                                const dow = dateObj.getDay();
+                                if (dow >= 1 && dow <= limitDow) {
+                                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                                    if (weekIndex !== -1) {
+                                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                                        const colNum = colIndex + 1;
+                                        if (colNum >= 1 && colNum <= totalColumns) {
+                                            correctedLabels[colNum] = dateVal.trim();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Migrate column-index keys (1..30) to prefixed date-string keys on load
+                    const migratedAttendance: AttendanceMonthData = {};
+                    Object.keys(rawAttendance).forEach(studentId => {
+                        migratedAttendance[studentId] = {};
+                        Object.keys(rawAttendance[studentId]).forEach(key => {
+                            const colIdx = Number(key);
+                            if (!isNaN(colIdx) && colIdx >= 1 && colIdx <= 30) {
+                                const dateVal = dateLabels[colIdx];
+                                if (dateVal && dateVal.trim()) {
+                                    migratedAttendance[studentId][`date_${dateVal.trim()}`] = rawAttendance[studentId][key];
+                                } else {
+                                    migratedAttendance[studentId][key] = rawAttendance[studentId][key];
+                                }
+                            } else {
+                                migratedAttendance[studentId][key] = rawAttendance[studentId][key];
+                            }
+                        });
+                    });
+
                     setAttendanceData(prev => ({
                         ...prev,
-                        [selectedMonth]: sheet.attendance || {}
+                        [selectedMonth]: migratedAttendance
                     }));
                     setMonthDateLabels(prev => ({
                         ...prev,
-                        [selectedMonth]: sheet.date_labels || {}
+                        [selectedMonth]: correctedLabels
                     }));
                     setRemarksData(prev => ({
                         ...prev,
@@ -183,7 +339,7 @@ export function AttendancePage() {
         return () => {
             active = false;
         };
-    }, [selectedSection, selectedMonth, activeSchoolYear]);
+    }, [selectedSection, selectedMonth, activeSchoolYear, includeSaturdays, totalColumns]);
 
     // Persistence: Debounced Save
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -326,9 +482,12 @@ export function AttendancePage() {
         return canEditAttendanceSection(user, selectedSectionObj);
     }, [user, selectedSectionObj]);
 
-    const buildAutoFilledDateLabels = useCallback((month: string): DateLabels => {
+    const buildAutoFilledDateLabels = useCallback((month: string, saturdaysOverride?: boolean): DateLabels => {
         const sy = activeSchoolYear;
         const filled: Record<number, string> = {};
+        const activeSaturdays = saturdaysOverride !== undefined ? saturdaysOverride : includeSaturdays;
+        const totalCols = getSf2TotalColumns(month, sy, activeSaturdays);
+        const colDays = Array.from({ length: totalCols }, (_, i) => i + 1);
 
         const monthMap: Record<string, number> = {
             'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
@@ -369,82 +528,94 @@ export function AttendancePage() {
             console.error('Failed to load/parse calendar events for holiday filter', e);
         }
 
+        const limitDow = activeSaturdays ? 6 : 5;
+        const weekMultiplier = activeSaturdays ? 6 : 5;
+
+        const activeWeeks = getActiveWeeks(month, sy, activeSaturdays);
+
         if (sy === '2026-2027' && SCHOOL_CALENDAR_2026_2027[month]) {
-            // Use Hardcoded Calendar for SY 2026-2027 with Accurate Week Positioning
-            const calendarDays = SCHOOL_CALENDAR_2026_2027[month];
+            const calendarDays = [...SCHOOL_CALENDAR_2026_2027[month]];
+            if (calendarDays.length === 0) return filled;
             
+            const firstSchoolDay = calendarDays[0];
+            const lastSchoolDay = calendarDays[calendarDays.length - 1];
+
             // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
             const firstDateOfMonth = new Date(year, monthIndex, 1);
             const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
+
+            if (activeSaturdays) {
+                // Find all Saturdays in the month and add them if not already present and not holidays
+                // Restrict Saturdays to be within the active school days range (>= firstSchoolDay and <= lastSchoolDay)
+                for (let d = firstSchoolDay; d <= lastSchoolDay; d++) {
+                    const dateObj = new Date(year, monthIndex, d);
+                    if (dateObj.getDay() === 6) { // Saturday
+                        const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        if (!holidays.includes(dateStr) && !calendarDays.includes(d)) {
+                            calendarDays.push(d);
+                        }
+                    }
+                }
+                calendarDays.sort((a, b) => a - b);
+            }
 
             calendarDays.forEach((d) => {
                 const dateObj = new Date(year, monthIndex, d);
                 const dow = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
                 
-                if (dow >= 1 && dow <= 5) {
+                if (dow >= 1 && dow <= limitDow) {
                     const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                     if (holidays.includes(dateStr)) {
                         return; // Skip holiday
                     }
 
-                    // Calculate which week of the month this date falls into
-                    // (d + offset - 1) / 7 gives the 0-indexed week number
                     const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
-                    const weekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
-                    
-                    // Column index logic: (weekIndex * 5) + (Mon=0..Fri=4)
-                    const colIndex = (weekIndex * 5) + (dow - 1);
-                    
-                    if (colIndex >= 0 && colIndex < totalColumns) {
-                        filled[days[colIndex]] = d.toString();
+                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                    if (weekIndex !== -1) {
+                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                        if (colIndex >= 0 && colIndex < totalCols) {
+                            filled[colDays[colIndex]] = d.toString();
+                        }
                     }
                 }
             });
         } else {
-            // Fallback to Dynamic Mon-Fri logic for other years
+            // Fallback to Dynamic logic for other years
             const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-            let firstSchoolDayDate = 0;
-            let firstSchoolDayDow = 0;
+            // Calculate day of week for the 1st of the month (Monday=0 ... Sunday=6)
+            const firstDateOfMonth = new Date(year, monthIndex, 1);
+            const firstDayOffset = firstDateOfMonth.getDay() === 0 ? 6 : firstDateOfMonth.getDay() - 1;
 
-            // Find first school day (1..5)
-            for (let d = 1; d <= 7; d++) {
-                const date = new Date(year, monthIndex, d);
-                const dow = date.getDay();
-                if (dow >= 1 && dow <= 5) {
-                    firstSchoolDayDate = d;
-                    firstSchoolDayDow = dow;
-                    break;
-                }
-            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, monthIndex, d);
+                const dow = dateObj.getDay();
 
-            if (firstSchoolDayDate === 0) return filled; // No school days?
-
-            let currentIndex = firstSchoolDayDow - 1; // 1(Mon)->0, 2(Tue)->1...
-
-            for (let d = firstSchoolDayDate; d <= daysInMonth; d++) {
-                const date = new Date(year, monthIndex, d);
-                const dow = date.getDay();
-
-                if (dow >= 1 && dow <= 5) {
+                if (dow >= 1 && dow <= limitDow) {
                     const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                     if (holidays.includes(dateStr)) {
                         continue; // Skip holiday
                     }
 
-                    if (currentIndex < totalColumns) {
-                        filled[days[currentIndex]] = d.toString();
-                        currentIndex++;
+                    const totalDaysFromMondayOfFirstWeek = d + firstDayOffset - 1;
+                    const calendarWeekIndex = Math.floor(totalDaysFromMondayOfFirstWeek / 7);
+                    const weekIndex = activeWeeks.indexOf(calendarWeekIndex);
+                    if (weekIndex !== -1) {
+                        const colIndex = (weekIndex * weekMultiplier) + (dow - 1);
+                        if (colIndex >= 0 && colIndex < totalCols) {
+                            filled[colDays[colIndex]] = d.toString();
+                        }
                     }
                 }
             }
         }
 
         return filled;
-    }, [activeSchoolYear, days, totalColumns]);
+    }, [activeSchoolYear, includeSaturdays]);
 
-    const applyAutoFillDates = useCallback((month: string, immediate = false) => {
-        const filled = buildAutoFilledDateLabels(month);
+    const applyAutoFillDates = useCallback((month: string, immediate = false, saturdaysOverride?: boolean) => {
+        const filled = buildAutoFilledDateLabels(month, saturdaysOverride);
 
         setMonthDateLabels(prev => ({
             ...prev,
@@ -490,7 +661,12 @@ export function AttendancePage() {
         return { males, females };
     }, [sectionStudents]);
 
-    const dayLetters = ['M', 'T', 'W', 'TH', 'F'];
+    const getColumnDayLetter = (colIndex: number) => {
+        const pattern = includeSaturdays 
+            ? ['M', 'T', 'W', 'TH', 'F', 'S']
+            : ['M', 'T', 'W', 'TH', 'F'];
+        return pattern[colIndex % pattern.length];
+    };
 
     const toggleAttendance = (studentId: string, day: number) => {
         if (!canEditCurrentSection) return;
@@ -498,18 +674,27 @@ export function AttendancePage() {
         setAttendanceData(prev => {
             const monthData = prev[selectedMonth] || {};
             const studentRecord = monthData[studentId] || {};
-            const currentStatus = studentRecord[day];
+            const dateVal = currentDateLabels[day];
+            const key = (dateVal && dateVal.trim()) ? `date_${dateVal.trim()}` : day;
+
+            const currentStatus = studentRecord[key] ?? studentRecord[day];
             let newStatus = '';
             if (!currentStatus) newStatus = 'absent';
             else if (currentStatus === 'absent') newStatus = 'tardy';
             else if (currentStatus === 'tardy') newStatus = 'cutting';
             else if (currentStatus === 'cutting') newStatus = '';
 
+            const newRecord = { ...studentRecord };
+            newRecord[key] = newStatus;
+            if (key !== day && newRecord[day] !== undefined) {
+                delete newRecord[day];
+            }
+
             const newData = {
                 ...prev,
                 [selectedMonth]: {
                     ...monthData,
-                    [studentId]: { ...studentRecord, [day]: newStatus }
+                    [studentId]: newRecord
                 }
             };
 
@@ -529,7 +714,8 @@ export function AttendancePage() {
 
     const getBorderClass = (i: number) => {
         let cls = '';
-        if (i % 5 === 4) cls += ' border-r-2 border-r-black';
+        const limit = includeSaturdays ? 6 : 5;
+        if (i % limit === limit - 1) cls += ' border-r-2 border-r-black';
         return cls;
     };
 
@@ -551,8 +737,14 @@ export function AttendancePage() {
             const record = currentAttendance[student.lrn] || {};
             let absentCount = 0;
             
-            for (let day = 1; day <= totalColumns; day++) {
-                if (record[day] === 'absent') {
+            for (let colIdx = 1; colIdx <= totalColumns; colIdx++) {
+                const dateVal = currentDateLabels[colIdx];
+                const dateKey = (dateVal && dateVal.trim()) ? `date_${dateVal.trim()}` : '';
+                const status = dateKey
+                    ? (record[dateKey] !== undefined ? record[dateKey] : record[colIdx])
+                    : record[colIdx];
+                
+                if (status === 'absent') {
                     absentCount++;
                 }
             }
@@ -562,7 +754,7 @@ export function AttendancePage() {
             };
         });
         return stats;
-    }, [currentAttendance, filledDaysCount, sectionStudents, totalColumns]);
+    }, [currentAttendance, currentDateLabels, filledDaysCount, sectionStudents, totalColumns]);
 
     // Pre-calculate daily present count to avoid O(D * N) rendering operations
     const dailyPresentCounts = useMemo(() => {
@@ -574,9 +766,15 @@ export function AttendancePage() {
                 continue;
             }
 
+            const dateVal = currentDateLabels[day];
+            const dateKey = (dateVal && dateVal.trim()) ? `date_${dateVal.trim()}` : '';
+
             let maleCount = 0;
             displayStudents.males.forEach(student => {
-                const status = currentAttendance[student.lrn]?.[day];
+                const record = currentAttendance[student.lrn] || {};
+                const status = dateKey
+                    ? (record[dateKey] !== undefined ? record[dateKey] : record[day])
+                    : record[day];
                 if (status !== 'absent') {
                     maleCount++;
                 }
@@ -584,7 +782,10 @@ export function AttendancePage() {
 
             let femaleCount = 0;
             displayStudents.females.forEach(student => {
-                const status = currentAttendance[student.lrn]?.[day];
+                const record = currentAttendance[student.lrn] || {};
+                const status = dateKey
+                    ? (record[dateKey] !== undefined ? record[dateKey] : record[day])
+                    : record[day];
                 if (status !== 'absent') {
                     femaleCount++;
                 }
@@ -1104,7 +1305,7 @@ export function AttendancePage() {
             <tr className="bg-slate-50">
                 {days.map((d, i) => (
                     <th key={d} className={`border border-black bg-slate-50 p-1 text-center font-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
-                        {dayLetters[i % 5]}
+                        {getColumnDayLetter(i)}
                     </th>
                 ))}
             </tr>
@@ -1129,6 +1330,16 @@ export function AttendancePage() {
         return style;
     };
 
+    const getStudentStatus = useCallback((studentId: string, colIdx: number) => {
+        const record = currentAttendance[studentId] || {};
+        const dateVal = currentDateLabels[colIdx];
+        if (dateVal && dateVal.trim()) {
+            const dateKey = `date_${dateVal.trim()}`;
+            if (record[dateKey] !== undefined) return record[dateKey];
+        }
+        return record[colIdx];
+    }, [currentAttendance, currentDateLabels]);
+
     const renderStudentRow = (student: Student, displayIdx: number, key: string | number, ref?: Ref<HTMLTableRowElement>) => (
         <tr key={key} ref={ref} className="h-5.5 bg-white">
             <td className={`border border-black text-center font-black text-black p-0 ${layoutConfig.tableTextSize}`}>{displayIdx}</td>
@@ -1141,7 +1352,7 @@ export function AttendancePage() {
             {days.map((d, i) => (
                 <td key={d} className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
                     onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
-                    {getStatusSymbol(currentAttendance[student.lrn]?.[d])}
+                    {getStatusSymbol(getStudentStatus(student.lrn, d))}
                 </td>
             ))}
             <td className={`border border-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
@@ -1541,6 +1752,25 @@ export function AttendancePage() {
                             </select>
                             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                         </div>
+
+                        <label className="flex items-center gap-1.5 h-8 px-2 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-lg cursor-pointer transition-all duration-200 select-none text-[8px] lg:text-[9px] font-black text-slate-900 shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={includeSaturdays}
+                                onChange={(e) => {
+                                    const val = e.target.checked;
+                                    setIncludeSaturdays(val);
+                                    localStorage.setItem('formease_sf2_include_saturdays', String(val));
+                                    if (selectedSection && selectedMonth) {
+                                        if (confirm("Saturdays setting changed. Would you like to reset and sync the date headers for the current month now?")) {
+                                            applyAutoFillDates(selectedMonth, true, val);
+                                        }
+                                    }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 focus:ring-2"
+                            />
+                            <span>Saturdays</span>
+                        </label>
 
                         {canEditCurrentSection && (
                             <button

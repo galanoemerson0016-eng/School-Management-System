@@ -146,7 +146,7 @@ export function Sidebar() {
                 )}
             </div>
 
-            <nav className="flex-1 overflow-hidden px-2.5 py-1.5 space-y-1">
+            <nav className="flex-1 overflow-y-auto custom-scrollbar px-2.5 py-1.5 space-y-1">
                 {visibleMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentView === item.id;
@@ -157,7 +157,7 @@ export function Sidebar() {
                             onClick={() => handleNavClick(item.id)}
                             data-tour={`sidebar-${item.id}`}
                             title={isCollapsed ? item.label : undefined}
-                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
+                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
                                 ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                                 : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                                 }`}
@@ -178,7 +178,7 @@ export function Sidebar() {
                         onClick={() => handleNavClick('settings')}
                         data-tour="sidebar-settings"
                         title={isCollapsed ? 'Settings' : undefined}
-                        className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
+                        className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
                             ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                             : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                             }`}
@@ -195,7 +195,7 @@ export function Sidebar() {
                     onClick={() => handleNavClick('about')}
                     data-tour="sidebar-about"
                     title={isCollapsed ? 'About' : undefined}
-                    className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-2 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
+                    className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
                         ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
                         : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
                         }`}

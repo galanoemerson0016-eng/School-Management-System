@@ -24,6 +24,7 @@ import { RestoreStrategyPanel } from './RestoreStrategyPanel';
 import type { RestoreStrategy } from '../utils/restore-options';
 import type { ComprehensiveBackup } from '../utils/backup-restore';
 import { useAppStore } from '../stores';
+import { decryptBackup } from '../utils/backup-encryption';
 
 interface RestoreSummary {
     strategy: RestoreStrategy;
@@ -32,6 +33,7 @@ interface RestoreSummary {
         students: number;
         sections: number;
         subjects: number;
+        preparedEnrollments?: number; // make counts optional or align with summary
         enrollments: number;
         classRecords: number;
         gradingSheetRecords: number;
@@ -49,6 +51,16 @@ interface RestoreSummary {
     completedAt: string;
 }
 
+interface EncryptedBackupPayload {
+    version: '2.0.0-encrypted';
+    data: {
+        encrypted: string;
+        salt: string;
+        iv: string;
+        originalSize?: number;
+    };
+}
+
 interface RestoreState {
     file: File | null;
     backup: ComprehensiveBackup | null;
@@ -59,6 +71,9 @@ interface RestoreState {
     currentStep: 'upload' | 'preview' | 'confirm' | 'complete';
     restoreStrategy: RestoreStrategy;
     restoreSummary: RestoreSummary | null;
+    isEncrypted: boolean;
+    backupPassword: string;
+    encryptedPayload: EncryptedBackupPayload | null;
 }
 
 export function BackupRestoreModal({
@@ -98,6 +113,9 @@ export function BackupRestoreModal({
         currentStep: 'upload',
         restoreStrategy: 'merge',
         restoreSummary: null,
+        isEncrypted: false,
+        backupPassword: '',
+        encryptedPayload: null,
     });
 
     const downloadRestoreReport = (summary: RestoreSummary) => {
@@ -115,7 +133,7 @@ export function BackupRestoreModal({
             `- Enrollments: ${summary.prepared.enrollments}`,
             `- Subject Grades: ${summary.prepared.classRecords}`,
             `- Consolidated Grades: ${summary.prepared.gradingSheetRecords}`,
-            `- Core Values: ${summary.prepared.observedValues}`,
+            `- Teacher's Comments/Remarks: ${summary.prepared.observedValues}`,
             `- Attendance Records: ${summary.prepared.attendanceRecords}`,
             `- SF2 Attendance Sheets: ${summary.prepared.sf2Sheets}`,
             `- Highest Possible Score Records: ${summary.prepared.hpsRecords}`,
@@ -152,7 +170,7 @@ export function BackupRestoreModal({
 
         try {
             // Validate file
-            const isComprehensive = file.name.includes('SMS_Backup_Comprehensive');
+            const isComprehensive = file.name.includes('SMS_Backup_Comprehensive') || file.name.endsWith('.febackup');
             const isStandard = file.name.includes('FormEase_Backup');
             const isAuto = file.name.includes('autobackup') || file.name.includes('logoutbackup');
 
@@ -167,6 +185,19 @@ export function BackupRestoreModal({
             // Parse backup
             const text = await file.text();
             const rawData = JSON.parse(text);
+
+            if (rawData && rawData.version === '2.0.0-encrypted') {
+                setState(prev => ({
+                    ...prev,
+                    file,
+                    isEncrypted: true,
+                    encryptedPayload: rawData,
+                    isProcessing: false,
+                    error: null,
+                }));
+                return;
+            }
+
             let backup: ComprehensiveBackup;
 
             // Handle Standard/Auto to Comprehensive conversion
@@ -235,6 +266,43 @@ export function BackupRestoreModal({
             setState(prev => ({
                 ...prev,
                 error: `Failed to load backup: ${message}`,
+                isProcessing: false,
+            }));
+        }
+    };
+
+    const handleDecryptAndValidate = async () => {
+        if (!state.encryptedPayload) return;
+        setState(prev => ({ ...prev, isProcessing: true, error: null }));
+
+        try {
+            const decryptedJson = await decryptBackup(
+                state.encryptedPayload.data.encrypted,
+                state.backupPassword,
+                state.encryptedPayload.data.salt,
+                state.encryptedPayload.data.iv
+            );
+            const decryptedData = JSON.parse(decryptedJson);
+
+            // Validate decrypted backup
+            const validation = validateRestoreBackup(decryptedData);
+
+            setState(prev => ({
+                ...prev,
+                backup: decryptedData,
+                validationResult: validation,
+                currentStep: 'preview',
+                isProcessing: false,
+                isEncrypted: false,
+                backupPassword: '',
+                encryptedPayload: null,
+                error: null,
+            }));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            setState(prev => ({
+                ...prev,
+                error: `Decryption failed: ${message}`,
                 isProcessing: false,
             }));
         }
@@ -310,7 +378,7 @@ export function BackupRestoreModal({
                 `• Enrollments: ${prepared.enrollments.length}\n` +
                 `• Subject Grades: ${prepared.classRecords.length}\n` +
                 `• Consolidated Grades: ${prepared.gradingSheetRecords.length}\n` +
-                `• Core Values: ${prepared.observedValues.length}\n` +
+                `• Teacher's Comments/Remarks: ${prepared.observedValues.length}\n` +
                 `• Attendance Records: ${prepared.attendanceRecords.length}\n` +
                 `• SF2 Attendance Sheets: ${prepared.sf2Sheets.length}\n` +
                 `• Highest Possible Score Records: ${prepared.hpsRecords.length}\n\n` +
@@ -455,46 +523,97 @@ export function BackupRestoreModal({
                                 </button>
                             )}
                         </div>
-                    )}
-
-                    {/* UPLOAD STEP */}
+                    )}                    {/* UPLOAD STEP */}
                     {state.currentStep === 'upload' && (
                         <div className="space-y-4">
-                            <p className="text-gray-600">
-                                Select a backup file to preview and restore. No changes will be made until you confirm.
-                            </p>
+                            {state.isEncrypted ? (
+                                <div className="border border-blue-100 rounded-xl p-6 bg-blue-50/30 text-center space-y-4">
+                                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                                        <Lock className="w-6 h-6" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h3 className="font-semibold text-gray-800">Encrypted Backup Detected</h3>
+                                        <p className="text-xs text-gray-500 font-mono">
+                                            {state.file?.name}
+                                        </p>
+                                    </div>
+                                    <div className="max-w-xs mx-auto">
+                                        <input
+                                            type="password"
+                                            value={state.backupPassword}
+                                            onChange={(e) => setState(prev => ({ ...prev, backupPassword: e.target.value }))}
+                                            placeholder="Enter backup password..."
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                                            disabled={state.isProcessing}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleDecryptAndValidate();
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-center max-w-xs mx-auto">
+                                        <button
+                                            onClick={() => setState(prev => ({
+                                                ...prev,
+                                                isEncrypted: false,
+                                                backupPassword: '',
+                                                encryptedPayload: null,
+                                                file: null,
+                                                error: null
+                                            }))}
+                                            disabled={state.isProcessing}
+                                            className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleDecryptAndValidate}
+                                            disabled={state.isProcessing || !state.backupPassword}
+                                            className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                                        >
+                                            {state.isProcessing ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : 'Decrypt'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-gray-600">
+                                        Select a backup file to preview and restore. No changes will be made until you confirm.
+                                    </p>
 
-                            <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
-                                <input
-                                    type="file"
-                                    accept=".json"
-                                    onChange={handleFileSelect}
-                                    disabled={state.isProcessing}
-                                    className="hidden"
-                                    id="backup-file"
-                                />
-                                <label htmlFor="backup-file" className="cursor-pointer">
-                                    <div className="text-4xl mb-2">📦</div>
-                                    <p className="font-semibold text-gray-700">
-                                        Click to select backup file
-                                    </p>
-                                    <p className="text-sm text-gray-500 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
-                                        FormEase_Backup_*.json
-                                    </p>
-                                    <p className="text-[10px] text-gray-400 mt-2 italic">
-                                        (Also supports SMS_Backup_Comprehensive files)
-                                    </p>
-                                </label>
-                            </div>
+                                    <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+                                        <input
+                                            type="file"
+                                            accept=".json,.febackup"
+                                            onChange={handleFileSelect}
+                                            disabled={state.isProcessing}
+                                            className="hidden"
+                                            id="backup-file"
+                                        />
+                                        <label htmlFor="backup-file" className="cursor-pointer">
+                                            <div className="text-4xl mb-2">📦</div>
+                                            <p className="font-semibold text-gray-700">
+                                                Click to select backup file
+                                            </p>
+                                            <p className="text-sm text-gray-500 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
+                                                FormEase_Backup_*.json / *.febackup
+                                            </p>
+                                            <p className="text-[10px] text-gray-400 mt-2 italic">
+                                                (Also supports SMS_Backup_Comprehensive files)
+                                            </p>
+                                        </label>
+                                    </div>
 
-                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                <p className="text-sm text-blue-800">
-                                    💡 <strong>Tip:</strong> You can also drag and drop a file here
-                                </p>
-                            </div>
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <p className="text-sm text-blue-800">
+                                            💡 <strong>Tip:</strong> You can also drag and drop a file here
+                                        </p>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
-
                     {/* PREVIEW STEP */}
                     {state.currentStep === 'preview' && state.backup && (
                         <div className="space-y-4">
@@ -563,7 +682,7 @@ export function BackupRestoreModal({
                                         },
                                         {
                                             id: 'observedValues',
-                                            label: '⭐ Core Values',
+                                            label: '💬 Teacher\'s Comments/Remarks',
                                             count: state.backup.summary.observedValues || 0,
                                         },
                                         {
@@ -733,7 +852,7 @@ export function BackupRestoreModal({
                                             <p>Enrollments: {state.restoreSummary.prepared.enrollments}</p>
                                             <p>Subject Grades: {state.restoreSummary.prepared.classRecords}</p>
                                             <p>Consolidated Grades: {state.restoreSummary.prepared.gradingSheetRecords}</p>
-                                            <p>Core Values: {state.restoreSummary.prepared.observedValues}</p>
+                                            <p>Teacher's Comments/Remarks: {state.restoreSummary.prepared.observedValues}</p>
                                             <p>Strategy: {state.restoreSummary.strategy}</p>
                                         </div>
                                     </div>

@@ -239,7 +239,7 @@ ipcMain.handle('db:read-salt', async () => {
     return safeStorage.decryptString(buf);
   } catch (err) {
     log.error('db:read-salt failed:', err);
-    return null;
+    return 'DECRYPTION_FAILED';
   }
 });
 
@@ -272,35 +272,20 @@ if (autoUpdater) {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
-    sendStatusToWindow('Checking for update...');
+    sendStatusToWindow({ type: 'checking-for-update' });
   });
 
   autoUpdater.on('update-available', (info) => {
-    const { dialog } = require('electron');
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Update Available',
-      message: `A new version (${info.version}) of FormEase Pro is available. Would you like to download it now?`,
-      buttons: ['Download Now', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(result => {
-      if (result.response === 0) {
-        autoUpdater.downloadUpdate();
-        sendStatusToWindow('Downloading update...', 'downloading');
-      } else {
-        sendStatusToWindow('Update postponed.');
-      }
-    });
+    sendStatusToWindow({ type: 'update-available', info });
   });
 
   autoUpdater.on('update-not-available', (info) => {
-    sendStatusToWindow('App is up to date.');
+    sendStatusToWindow({ type: 'update-not-available', info });
   });
 
   autoUpdater.on('error', (err) => {
     console.error('Auto-updater error:', err);
-    sendStatusToWindow('App is up to date.');
+    sendStatusToWindow({ type: 'update-error', message: err.message || String(err) });
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
@@ -309,31 +294,37 @@ if (autoUpdater) {
     const transferredMB = (progressObj.transferred / (1024 * 1024)).toFixed(1);
     const totalMB = (progressObj.total / (1024 * 1024)).toFixed(1);
 
-    const message = `Downloading: ${percent}% (${transferredMB}MB / ${totalMB}MB) @ ${speedMB} MB/s`;
-    sendStatusToWindow(message, 'progress');
+    sendStatusToWindow({
+      type: 'download-progress',
+      percent,
+      speedMB,
+      transferredMB,
+      totalMB,
+      bytesPerSecond: progressObj.bytesPerSecond
+    });
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    const { dialog } = require('electron');
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Update Ready',
-      message: 'The update has been downloaded and is ready to install. The app will restart now.',
-      buttons: ['Install and Restart', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(result => {
-      if (result.response === 0) {
-        isQuitting = true;
-        autoUpdater.quitAndInstall();
-      } else {
-        sendStatusToWindow('Update ready to install on next launch.');
-      }
-    });
+    sendStatusToWindow({ type: 'update-downloaded', info });
   });
 
   ipcMain.on('check-for-updates', () => {
     autoUpdater.checkForUpdatesAndNotify();
+  });
+
+  ipcMain.handle('download-update', () => {
+    if (autoUpdater) {
+      autoUpdater.downloadUpdate();
+      return { success: true };
+    }
+    return { success: false, error: 'Auto-updater not available' };
+  });
+
+  ipcMain.on('quit-and-install', () => {
+    if (autoUpdater) {
+      isQuitting = true;
+      autoUpdater.quitAndInstall();
+    }
   });
 }
 
@@ -428,3 +419,582 @@ ipcMain.handle('print-to-pdf', async (event, { defaultFilename, autoSave = false
     return { success: false, error: error.message };
   }
 });
+
+// --- Pre-Update Validation & Reconciliation IPC ---
+const PRE_UPDATE_STATE_FILE = 'formease-pre-update-state.json';
+
+ipcMain.handle('db:verify-disk-space', async () => {
+  try {
+    if (fs.statfsSync) {
+      const stats = fs.statfsSync(app.getPath('userData'));
+      const freeBytes = stats.bfree * stats.bsize;
+      return { success: true, freeBytes };
+    }
+    return { success: true, freeBytes: 10 * 1024 * 1024 * 1024 }; // Fallback 10GB
+  } catch (err) {
+    console.error('Disk space verification failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('db:write-pre-update-state', async (event, stateData) => {
+  try {
+    const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
+    fs.writeFileSync(filePath, JSON.stringify(stateData, null, 2));
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to write pre-update state:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('db:read-pre-update-state', async () => {
+  try {
+    const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
+    if (!fs.existsSync(filePath)) return null;
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (err) {
+    console.error('Failed to read pre-update state:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('db:clear-pre-update-state', async () => {
+  try {
+    const filePath = path.join(app.getPath('userData'), PRE_UPDATE_STATE_FILE);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to clear pre-update state:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// --- Recovery Center Filesystem Backups IPC ---
+ipcMain.handle('list-fs-backups', async () => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const backupDir = path.join(userDataPath, 'backups');
+    if (!fs.existsSync(backupDir)) return [];
+    
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => {
+        const filePath = path.join(backupDir, f);
+        const stats = fs.statSync(filePath);
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const data = JSON.parse(content);
+          return {
+            filename: f,
+            path: filePath,
+            size: stats.size,
+            mtime: stats.mtime.getTime(),
+            metadata: data.metadata || {},
+            summary: data.summary || {
+              activeSchoolYear: data.data?.activeSchoolYear || 'Unknown',
+              students: data.data?.students?.length || 0,
+              sections: data.data?.sections?.length || 0,
+              subjects: data.data?.subjects?.length || 0,
+              grades: data.data?.classRecords?.length || 0,
+            }
+          };
+        } catch (e) {
+          return {
+            filename: f,
+            path: filePath,
+            size: stats.size,
+            mtime: stats.mtime.getTime(),
+            metadata: { note: 'Raw JSON or invalid metadata' },
+            summary: { activeSchoolYear: 'Unknown', students: 0, sections: 0, subjects: 0, grades: 0 }
+          };
+        }
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    return files;
+  } catch (error) {
+    console.error('Failed to list filesystem backups:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('read-fs-backup-content', async (event, filename) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const filePath = path.join(userDataPath, 'backups', filename);
+    if (!fs.existsSync(filePath)) throw new Error('Backup file not found');
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Failed to read backup content:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-fs-backup', async (event, filename) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const filePath = path.join(userDataPath, 'backups', filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete backup:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// --- Google Drive Loopback & REST API Native handlers ---
+
+const http = require('http');
+const crypto = require('crypto');
+const { shell } = require('electron');
+
+const getGdriveAuthPath = () => path.join(app.getPath('userData'), 'gdrive_auth.json');
+
+const storeGdriveRefreshToken = (refreshToken, clientId, clientSecret, email) => {
+  const authPath = getGdriveAuthPath();
+  const currentAuth = getGdriveAuth() || {};
+  fs.writeFileSync(authPath, JSON.stringify({
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
+    email: email || currentAuth.email || null
+  }, null, 2), 'utf-8');
+};
+
+const getGdriveAuth = () => {
+  const authPath = getGdriveAuthPath();
+  if (!fs.existsSync(authPath)) return null;
+  try {
+    const content = fs.readFileSync(authPath, 'utf-8');
+    return JSON.parse(content);
+  } catch (e) {
+    return null;
+  }
+};
+
+const generatePKCE = () => {
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+};
+
+const exchangeCodeForTokens = async (code, verifier, redirectUri, clientId, clientSecret) => {
+  const params = new URLSearchParams();
+  params.append('client_id', clientId);
+  if (clientSecret) {
+    params.append('client_secret', clientSecret);
+  }
+  params.append('code', code);
+  params.append('code_verifier', verifier);
+  params.append('grant_type', 'authorization_code');
+  params.append('redirect_uri', redirectUri);
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Token exchange failed');
+  }
+  return data;
+};
+
+const fetchUserEmail = async (accessToken) => {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.email || null;
+  } catch (e) {
+    console.error('[GDrive] Failed to fetch user email:', e);
+    return null;
+  }
+};
+
+const refreshAccessToken = async (refreshToken, clientId, clientSecret) => {
+  const params = new URLSearchParams();
+  params.append('client_id', clientId);
+  if (clientSecret) {
+    params.append('client_secret', clientSecret);
+  }
+  params.append('refresh_token', refreshToken);
+  params.append('grant_type', 'refresh_token');
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Token refresh failed');
+  }
+  return data;
+};
+
+const getGoogleAccessToken = async () => {
+  const auth = getGdriveAuth();
+  if (!auth || !auth.refresh_token || !auth.client_id) return null;
+  try {
+    const data = await refreshAccessToken(auth.refresh_token, auth.client_id, auth.client_secret);
+    
+    // If the access token was refreshed and we don't have the email cached, fetch and save it!
+    if (data.access_token && !auth.email) {
+      const email = await fetchUserEmail(data.access_token);
+      if (email) {
+        storeGdriveRefreshToken(auth.refresh_token, auth.client_id, auth.client_secret, email);
+      }
+    }
+
+    return data.access_token;
+  } catch (e) {
+    console.error('[GDrive] Failed to refresh access token:', e);
+    if (e.message && e.message.includes('invalid_grant')) {
+      const authPath = getGdriveAuthPath();
+      if (fs.existsSync(authPath)) {
+        fs.unlinkSync(authPath);
+      }
+    }
+    return null;
+  }
+};
+
+const findFolderId = async (token, folderName) => {
+  const q = encodeURIComponent(`name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) throw new Error('Failed to search Google Drive folders.');
+  const data = await res.json();
+  return data.files && data.files.length > 0 ? data.files[0].id : null;
+};
+
+const createFolder = async (token, folderName) => {
+  const metadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder'
+  };
+  const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(metadata)
+  });
+  if (!res.ok) throw new Error('Failed to create folder on Google Drive.');
+  const data = await res.json();
+  return data.id;
+};
+
+const uploadFileToFolder = async (token, parentFolderId, filename, content) => {
+  const metadata = {
+    name: filename,
+    parents: [parentFolderId]
+  };
+  
+  const boundary = 'foo_bar_boundary';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+  
+  const multipartRequestBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: application/json\r\n\r\n' +
+    content +
+    closeDelimiter;
+
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body: multipartRequestBody
+  });
+
+  if (!res.ok) throw new Error('Failed to upload backup JSON file to Google Drive.');
+  const data = await res.json();
+  return data.id;
+};
+
+ipcMain.handle('gdrive:auth-start', async (event, { clientId, clientSecret } = {}) => {
+  if (!clientId) {
+    throw new Error('Google OAuth Client ID is required.');
+  }
+
+  const { verifier, challenge } = generatePKCE();
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file email';
+
+  return new Promise((resolve, reject) => {
+    let port = 0;
+    const server = http.createServer(async (req, res) => {
+      try {
+        const query = new URL(req.url || '/', `http://127.0.0.1:${port}`).searchParams;
+        const code = query.get('code');
+        const err = query.get('error');
+
+        if (code) {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(`
+            <html>
+              <head>
+                <title>Authentication Successful</title>
+                <style>
+                  body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #FAFAFA; color: #111827; }
+                  .card { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 16px; padding: 2rem; text-align: center; box-shadow: 0 4px 24px rgba(17,24,39,0.06); }
+                  h2 { margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #4F46E5; }
+                  p { margin: 0; color: #6B7280; font-size: 0.95rem; }
+                </style>
+              </head>
+              <body>
+                <div class="card">
+                  <h2>Authentication Successful!</h2>
+                  <p>Google Drive has been linked to FormEase Pro.</p>
+                  <p>You can close this tab and return to the application.</p>
+                </div>
+                <script>
+                  setTimeout(() => { window.close(); }, 3000);
+                </script>
+              </body>
+            </html>
+          `);
+          server.close();
+
+          try {
+            const redirectUri = `http://127.0.0.1:${port}`;
+            const tokens = await exchangeCodeForTokens(code, verifier, redirectUri, clientId, clientSecret);
+            
+            let email = null;
+            if (tokens.access_token) {
+              email = await fetchUserEmail(tokens.access_token);
+            }
+
+            const tokenToStore = tokens.refresh_token || tokens.access_token || '';
+            storeGdriveRefreshToken(tokenToStore, clientId, clientSecret, email);
+
+            resolve({ success: true, email: email || 'school-admin@gmail.com' });
+          } catch (e) {
+            reject(e);
+          }
+        } else if (err) {
+          res.writeHead(400, { 'Content-Type': 'text/html' });
+          res.end(`<html><body><h2>Authentication failed</h2><p>${err}</p></body></html>`);
+          server.close();
+          reject(new Error(`OAuth error: ${err}`));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<html><body><h2>Waiting for authentication...</h2></body></html>');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      port = server.address().port;
+      const redirectUri = `http://127.0.0.1:${port}`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&code_challenge=${challenge}&code_challenge_method=S256&access_type=offline&prompt=consent`;
+      shell.openExternal(authUrl);
+    });
+
+    server.on('error', reject);
+
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      server.close();
+      reject(new Error('Authentication timed out. Please try again.'));
+    }, 5 * 60 * 1000);
+  });
+});
+
+ipcMain.handle('gdrive:status', async () => {
+  const auth = getGdriveAuth();
+  if (!auth || !auth.refresh_token) {
+    return { connected: false, email: null };
+  }
+  return { connected: true, email: auth.email || 'school-admin@gmail.com' };
+});
+
+ipcMain.handle('gdrive:disconnect', async () => {
+  const authPath = getGdriveAuthPath();
+  if (fs.existsSync(authPath)) {
+    fs.unlinkSync(authPath);
+  }
+  return { success: true };
+});
+
+ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }) => {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    if (!accessToken) throw new Error('Not connected to Google Drive.');
+
+    let folderId = await findFolderId(accessToken, 'FormEase_Backups');
+    if (!folderId) {
+      folderId = await createFolder(accessToken, 'FormEase_Backups');
+    }
+
+    const fileId = await uploadFileToFolder(accessToken, folderId, filename, backupJsonStr);
+    return { success: true, fileId };
+  } catch (error) {
+    console.error('[GDrive] Upload failed:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('gdrive:list-backups', async () => {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    if (!accessToken) throw new Error('Not connected to Google Drive.');
+
+    const folderId = await findFolderId(accessToken, 'FormEase_Backups');
+    if (!folderId) return [];
+
+    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&fields=files(id,name,size,createdTime)`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) throw new Error('Failed to list backups from Google Drive.');
+    const data = await res.json();
+    return data.files || [];
+  } catch (error) {
+    console.error('[GDrive] list-backups failed:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('gdrive:download-backup', async (event, fileId) => {
+  try {
+    const accessToken = await getGoogleAccessToken();
+    if (!accessToken) throw new Error('Not connected to Google Drive.');
+
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) throw new Error('Failed to download file from Google Drive.');
+    return await res.text();
+  } catch (error) {
+    console.error('[GDrive] download-backup failed:', error);
+    throw error;
+  }
+});
+
+
+const os = require('os');
+
+async function saveHtmlAsPdf(payload) {
+  const tmpFile = path.join(os.tmpdir(), `html-export-${Date.now()}.html`);
+  let pdfWin = null;
+
+  const windowSizes = {
+    letter: { width: 1056, height: 816 },
+    a4: { width: 1123, height: 794 },
+    folio: { width: 1248, height: 816 },
+  };
+  const size = windowSizes[payload.paperSize] || windowSizes.letter;
+  const winW = payload.pageWidthPx || size.width;
+  const winH = payload.pageHeightPx || size.height;
+  const { dialog } = require('electron');
+  const dialogParent = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+
+  try {
+    if (!payload.html || !payload.html.trim()) {
+      throw new Error('PDF export HTML is empty');
+    }
+
+    fs.writeFileSync(tmpFile, payload.html, 'utf8');
+
+    pdfWin = new BrowserWindow({
+      show: false,
+      width: winW,
+      height: winH,
+      useContentSize: true,
+      webPreferences: {
+        offscreen: false,
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+
+    pdfWin.webContents.setZoomFactor(1);
+    await pdfWin.loadFile(tmpFile);
+    await pdfWin.webContents.executeJavaScript(`
+      Promise.all([
+        document.fonts.ready,
+        ...Array.from(document.images).map((img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+              })
+        ),
+      ])
+    `);
+
+    if (payload.postLoadScript) {
+      await pdfWin.webContents.executeJavaScript(payload.postLoadScript);
+    }
+
+    const pdfBuffer = await pdfWin.webContents.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true,
+      margins: { marginType: 'none' },
+    });
+
+    const defaultName = payload.defaultFilename.endsWith('.pdf')
+      ? payload.defaultFilename
+      : `${payload.defaultFilename}.pdf`;
+
+    const saveDialogOptions = {
+      defaultPath: defaultName,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    };
+    const { filePath, canceled } = dialogParent
+      ? await dialog.showSaveDialog(dialogParent, saveDialogOptions)
+      : await dialog.showSaveDialog(saveDialogOptions);
+
+    if (canceled || !filePath) {
+      return { success: false, cancelled: true };
+    }
+
+    fs.writeFileSync(filePath, pdfBuffer);
+    return { success: true, filePath };
+  } finally {
+    if (pdfWin && !pdfWin.isDestroyed()) {
+      pdfWin.destroy();
+    }
+    try {
+      if (fs.existsSync(tmpFile)) {
+        fs.unlinkSync(tmpFile);
+      }
+    } catch (e) {
+      /* temp file may already be gone */
+    }
+  }
+}
+
+ipcMain.handle('app:export-html-pdf', async (event, payload) => {
+  try {
+    return await saveHtmlAsPdf(payload);
+  } catch (err) {
+    console.error('[IPC] exportHtmlPdf error:', err);
+    throw new Error(err.message || 'Failed to export PDF');
+  }
+});
+
+

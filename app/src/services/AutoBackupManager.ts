@@ -70,6 +70,17 @@ export const AutoBackupManager = {
       // Save to IndexedDB store
       await db.putRecord('automated_backups', backupEntry);
       
+      // Also save to local filesystem backups if running in Electron
+      if (window.electronAPI?.saveAutoBackup) {
+        try {
+          const timestampStr = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
+          const fsFilename = `snapshot_backup_${timestampStr}.json`;
+          await window.electronAPI.saveAutoBackup(data, fsFilename);
+        } catch (fsErr) {
+          console.error('Failed to write backup snapshot to local drive:', fsErr);
+        }
+      }
+      
       // Update localStorage timestamp
       localStorage.setItem('formease_last_autobackup_time', timestamp.toString());
 

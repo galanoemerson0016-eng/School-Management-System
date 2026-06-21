@@ -43,26 +43,7 @@ function fromHex(hex: string): Uint8Array {
 export async function getDbSalt(): Promise<Uint8Array> {
   const api = (window as Window & { electronAPI?: { readDbSalt?: () => Promise<string | null>; storeDbSalt?: (h: string) => Promise<boolean> } }).electronAPI;
 
-  // --- safeStorage path ---
-  if (api?.readDbSalt) {
-    try {
-      const hex = await api.readDbSalt();
-      if (hex) return fromHex(hex);
-
-      // First run: generate and persist
-      const salt = crypto.getRandomValues(new Uint8Array(32));
-      const ok = await api.storeDbSalt?.(toHex(salt));
-      if (!ok) {
-        // safeStorage unavailable despite API existing; mirror to localStorage so key persists
-        localStorage.setItem(SALT_FALLBACK_KEY, toBase64(salt));
-      }
-      return salt;
-    } catch (e) {
-      console.warn('safeStorage salt IPC failed, falling back to localStorage', e);
-    }
-  }
-
-  // --- localStorage fallback (dev browser / Linux without libsecret) ---
+  // 1. Check localStorage first (silent, no OS keychain prompts)
   try {
     const stored = localStorage.getItem(SALT_FALLBACK_KEY);
     if (stored) return fromBase64(stored);
@@ -70,12 +51,41 @@ export async function getDbSalt(): Promise<Uint8Array> {
     console.warn('Failed to read db salt from localStorage', e);
   }
 
+  // 2. If not in localStorage, check safeStorage (migration path for existing users)
+  if (api?.readDbSalt) {
+    try {
+      const hex = await api.readDbSalt();
+      if (hex && hex !== 'DECRYPTION_FAILED') {
+        const salt = fromHex(hex);
+        // Persist to localStorage so we never prompt for Keychain again
+        try {
+          localStorage.setItem(SALT_FALLBACK_KEY, toBase64(salt));
+        } catch (err) {
+          console.warn('Failed to save migrated salt to localStorage', err);
+        }
+        return salt;
+      }
+    } catch (e) {
+      console.warn('safeStorage salt IPC failed, falling back to localStorage', e);
+    }
+  }
+
+  // 3. First run / fallback: generate new salt and persist to both
   const salt = crypto.getRandomValues(new Uint8Array(32));
   try {
     localStorage.setItem(SALT_FALLBACK_KEY, toBase64(salt));
   } catch (e) {
-    console.warn('Failed to save db salt to localStorage', e);
+    console.warn('Failed to save new db salt to localStorage', e);
   }
+
+  if (api?.storeDbSalt) {
+    try {
+      await api.storeDbSalt(toHex(salt));
+    } catch (e) {
+      console.warn('Failed to save new db salt to safeStorage', e);
+    }
+  }
+
   return salt;
 }
 

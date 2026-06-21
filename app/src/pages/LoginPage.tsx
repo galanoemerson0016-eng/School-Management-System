@@ -787,6 +787,12 @@ export const LoginPage = () => {
                                             <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{getSecurityQuestion()}</p>
                                         </div>
 
+                                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                            <p className="text-xs font-bold leading-relaxed">
+                                                ⚠️ Warning: Resetting your password will render all your locally stored school data (students, grades, attendance) unreadable/inaccessible, as the database is encrypted using your password. You will need to restore from a backup JSON file afterward.
+                                            </p>
+                                        </div>
+
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Your Answer</label>
                                             <input

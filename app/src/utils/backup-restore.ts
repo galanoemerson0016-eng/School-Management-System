@@ -124,7 +124,8 @@ export async function createComprehensiveBackup(
             const key = localStorage.key(i);
             if (key && (
                 key.startsWith('formease_sf8_signatories_') ||
-                key === 'school_calendar_events'
+                key === 'school_calendar_events' ||
+                key === 'system_login_announcement'
             )) {
                 const value = localStorage.getItem(key);
                 if (value) {
@@ -205,7 +206,7 @@ export function generateBackupReport(backup: ComprehensiveBackup): string {
         `Subjects: ${backup.summary.subjects}`,
         `Subject Grades: ${backup.summary.grades}`,
         `Consolidated Grades: ${backup.summary.gradingSheetRecords}`,
-        `Core Values: ${backup.summary.observedValues}`,
+        `Teacher's Comments/Remarks: ${backup.summary.observedValues}`,
         `Announcements: ${backup.summary.announcements}`,
         `Attendance Records: ${backup.summary.attendanceRecords ?? 0}`,
     ].join('\n');

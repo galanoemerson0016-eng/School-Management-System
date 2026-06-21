@@ -30,6 +30,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printToPDF: (options) => ipcRenderer.invoke('print-to-pdf', options),
   readDbSalt: () => ipcRenderer.invoke('db:read-salt'),
   storeDbSalt: (saltHex) => ipcRenderer.invoke('db:store-salt', saltHex),
+  verifyDiskSpace: () => ipcRenderer.invoke('db:verify-disk-space'),
+  writePreUpdateState: (state) => ipcRenderer.invoke('db:write-pre-update-state', state),
+  readPreUpdateState: () => ipcRenderer.invoke('db:read-pre-update-state'),
+  clearPreUpdateState: () => ipcRenderer.invoke('db:clear-pre-update-state'),
+  listFsBackups: () => ipcRenderer.invoke('list-fs-backups'),
+  readFsBackupContent: (filename) => ipcRenderer.invoke('read-fs-backup-content', filename),
+  deleteFsBackup: (filename) => ipcRenderer.invoke('delete-fs-backup', filename),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  quitAndInstall: () => ipcRenderer.send('quit-and-install'),
+  gdriveAuthStart: (payload) => ipcRenderer.invoke('gdrive:auth-start', payload),
+  gdriveStatus: () => ipcRenderer.invoke('gdrive:status'),
+  gdriveDisconnect: () => ipcRenderer.invoke('gdrive:disconnect'),
+  gdriveUploadBackup: (payload) => ipcRenderer.invoke('gdrive:upload-backup', payload),
+  gdriveListBackups: () => ipcRenderer.invoke('gdrive:list-backups'),
+  gdriveDownloadBackup: (fileId) => ipcRenderer.invoke('gdrive:download-backup', fileId),
+  exportHtmlPdf: (data) => ipcRenderer.invoke('app:export-html-pdf', data),
 });
 
 // Setup dynamic keyboard and mouse scroll zoom controls

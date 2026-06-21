@@ -12,7 +12,7 @@
  */
 
 import { create } from 'zustand';
-import type { User } from '../types';
+import type { User, Student, ClassRecord, Enrollment, AttendanceRecord, SF2Sheet, ObservedValues } from '../types';
 import { auth } from '../lib/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { hashSecret, verifySecret } from '../utils/password-crypto';
@@ -313,6 +313,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (input.username && input.username.trim().length < 3) {
       throw new Error('Username must be at least 3 characters');
+    }
+
+    if (input.newPassword) {
+      try {
+        // 1. Load all decrypted records using the old key
+        const students = await db.getAllRecords<Student>('students');
+        const classRecords = await db.getAllRecords<ClassRecord>('classRecords');
+        const enrollments = await db.getAllRecords<Enrollment>('enrollments');
+        const attendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
+        const sf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+        const gradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
+        const observedValues = await db.getAllRecords<ObservedValues>('observedValues');
+        const automatedBackups = await db.getAllRecords<any>('automated_backups');
+
+        // 2. Derive the new key
+        const salt = await getDbSalt();
+        const newKey = await deriveDbKey(input.newPassword, salt);
+
+        // 3. Set the new key in the database service
+        db.setDatabaseEncryptionKey(newKey);
+
+        // 4. Overwrite all records under the new key
+        await db.putRecordsBulk('students', students);
+        await db.putRecordsBulk('classRecords', classRecords);
+        await db.putRecordsBulk('enrollments', enrollments);
+        await db.putRecordsBulk('attendanceRecords', attendanceRecords);
+        await db.putRecordsBulk('sf2Sheets', sf2Sheets);
+        await db.putRecordsBulk('gradingSheetRecords', gradingSheetRecords);
+        await db.putRecordsBulk('observedValues', observedValues);
+        await db.putRecordsBulk('automated_backups', automatedBackups);
+      } catch (err) {
+        console.error('Failed to rotate database encryption key:', err);
+        throw new Error('Database re-encryption failed. Password was not changed.');
+      }
     }
 
     const updated: StoredAuthV2 = {

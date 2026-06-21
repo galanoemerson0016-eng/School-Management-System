@@ -34,6 +34,9 @@ let dbKey: CryptoKey | null = null;
 
 export function setDatabaseEncryptionKey(key: CryptoKey | null) {
   dbKey = key;
+  if (key) {
+    void migrateDatabaseForIndexing();
+  }
 }
 
 const ENCRYPTED_STORES = new Set([
@@ -53,6 +56,10 @@ interface EncryptedEnvelope {
   iv: string;
   ciphertext: string;
   is_encrypted: boolean;
+  // Projected index fields for indexing
+  student_lrn?: string;
+  subject_id?: string;
+  school_year?: string;
 }
 
 async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T | EncryptedEnvelope> {
@@ -75,6 +82,12 @@ async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T
     ciphertext,
     is_encrypted: true
   } as unknown as EncryptedEnvelope;
+
+  // Project selected index fields in plain text on the envelope
+  const rec = record as Record<string, unknown>;
+  if (rec.student_lrn) envelope.student_lrn = rec.student_lrn as string;
+  if (rec.subject_id) envelope.subject_id = rec.subject_id as string;
+  if (rec.school_year) envelope.school_year = rec.school_year as string;
   
   return envelope;
 }
@@ -96,7 +109,7 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 interface BackupMetadata {
   id: string;
@@ -118,6 +131,7 @@ let dbInstance: IDBDatabase | null = null;
 
 let activeWrites = 0;
 const writeListeners = new Set<(activeCount: number) => void>();
+const changeListeners = new Set<(storeName: string, type: 'put' | 'delete') => void>();
 
 export function onDatabaseWriteChange(listener: (activeCount: number) => void): () => void {
   writeListeners.add(listener);
@@ -128,6 +142,13 @@ export function onDatabaseWriteChange(listener: (activeCount: number) => void): 
   };
 }
 
+export function onDatabaseChange(listener: (storeName: string, type: 'put' | 'delete') => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
 function notifyWriteChange(change: number) {
   activeWrites += change;
   writeListeners.forEach(listener => {
@@ -135,6 +156,16 @@ function notifyWriteChange(change: number) {
       listener(activeWrites);
     } catch (e) {
       console.error('Error in database write listener:', e);
+    }
+  });
+}
+
+function notifyChange(storeName: string, type: 'put' | 'delete') {
+  changeListeners.forEach(listener => {
+    try {
+      listener(storeName, type);
+    } catch (e) {
+      console.error('Error in database change listener:', e);
     }
   });
 }
@@ -192,6 +223,24 @@ function openDatabase(): Promise<IDBDatabase> {
           db.createObjectStore(store, { keyPath });
         }
       }
+
+      // Create compound indexes if version is upgraded
+      if (db.objectStoreNames.contains('classRecords') && transaction) {
+        const classRecordsStore = transaction.objectStore('classRecords');
+        if (!classRecordsStore.indexNames.contains('by-student-subject-sy')) {
+          classRecordsStore.createIndex('by-student-subject-sy', ['student_lrn', 'subject_id', 'school_year'], { unique: false });
+        }
+        if (!classRecordsStore.indexNames.contains('by-student-sy')) {
+          classRecordsStore.createIndex('by-student-sy', ['student_lrn', 'school_year'], { unique: false });
+        }
+      }
+
+      if (db.objectStoreNames.contains('gradingSheetRecords') && transaction) {
+        const gradingSheetRecordsStore = transaction.objectStore('gradingSheetRecords');
+        if (!gradingSheetRecordsStore.indexNames.contains('by-student-subject-sy')) {
+          gradingSheetRecordsStore.createIndex('by-student-subject-sy', ['student_lrn', 'subject_id', 'school_year'], { unique: false });
+        }
+      }
     };
   });
 }
@@ -239,7 +288,7 @@ async function putRecord<T>(
   try {
     const encrypted = await encryptRecordIfNeeded(storeName, record);
     const db = await openDatabase();
-    return await new Promise((resolve, reject) => {
+    const result = await new Promise<string>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
       const request = store.put(encrypted);
@@ -247,6 +296,8 @@ async function putRecord<T>(
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result as string);
     });
+    notifyChange(storeName, 'put');
+    return result;
   } finally {
     notifyWriteChange(-1);
   }
@@ -277,6 +328,7 @@ async function putRecordsBulk<T>(
         store.put(record);
       }
     });
+    notifyChange(storeName, 'put');
   } finally {
     notifyWriteChange(-1);
   }
@@ -297,6 +349,7 @@ async function deleteRecord(storeName: string, key: string): Promise<void> {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve();
     });
+    notifyChange(storeName, 'delete');
   } finally {
     notifyWriteChange(-1);
   }
@@ -375,7 +428,8 @@ async function exportAllData() {
       const key = localStorage.key(i);
       if (key && (
         key.startsWith('formease_sf8_signatories_') ||
-        key === 'school_calendar_events'
+        key === 'school_calendar_events' ||
+        key === 'system_login_announcement'
       )) {
         const value = localStorage.getItem(key);
         if (value) {
@@ -571,8 +625,55 @@ async function addActivityEntry<T extends { id: string }>(entry: T): Promise<voi
   }
 }
 
+async function getRecordsByIndex<T>(
+  storeName: string,
+  indexName: string,
+  keyRangeValue: IDBValidKey | IDBKeyRange
+): Promise<T[]> {
+  const db = await openDatabase();
+  const rawList = await new Promise<unknown[]>((resolve, reject) => {
+    const transaction = db.transaction(storeName, 'readonly');
+    const store = transaction.objectStore(storeName);
+    const index = store.index(indexName);
+    const request = index.getAll(keyRangeValue);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+  return Promise.all(rawList.map(raw => decryptRecordIfNeeded<T>(storeName, raw)));
+}
+
+async function migrateDatabaseForIndexing(): Promise<void> {
+  const isMigrated = localStorage.getItem('formease_db_indexing_migrated_v10') === 'true';
+  if (isMigrated) return;
+
+  try {
+    console.log('🔄 Running database indexing projection migration...');
+    const classRecords = await getAllRecords<ClassRecord>('classRecords');
+    if (classRecords.length > 0) {
+      await putRecordsBulk('classRecords', classRecords);
+    }
+
+    const gradingSheetRecords = await getAllRecords<ClassRecord>('gradingSheetRecords');
+    if (gradingSheetRecords.length > 0) {
+      await putRecordsBulk('gradingSheetRecords', gradingSheetRecords);
+    }
+
+    const enrollments = await getAllRecords<Enrollment>('enrollments');
+    if (enrollments.length > 0) {
+      await putRecordsBulk('enrollments', enrollments);
+    }
+
+    localStorage.setItem('formease_db_indexing_migrated_v10', 'true');
+    console.log('✅ Database indexing migration complete.');
+  } catch (err) {
+    console.error('❌ Database indexing migration failed:', err);
+  }
+}
+
 export const db = {
   setDatabaseEncryptionKey,
+  onDatabaseChange,
   getAllRecords,
   getRecord,
   putRecord,
@@ -588,6 +689,8 @@ export const db = {
   getPaginatedRecords,
   getActivityLog,
   addActivityEntry,
+  getRecordsByIndex,
+  migrateDatabaseForIndexing,
   nukeDatabase: async (): Promise<void> => {
     // Clear localStorage first
     localStorage.clear();

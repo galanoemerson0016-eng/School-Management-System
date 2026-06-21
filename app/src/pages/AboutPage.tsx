@@ -1,12 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Zap, 
-    Wand2, 
     FilePieChart, 
-    Puzzle, 
     LayoutGrid,
     CheckCircle2,
-    Bolt,
     Brain,
     Facebook,
     Mail,
@@ -21,32 +18,42 @@ import {
     Shield,
     Users,
     Heart,
-    Sparkles,
     GraduationCap,
     Lightbulb,
     Lock,
     Cloud,
     Key,
-    Bot,
-    Terminal,
     Database,
     FileText,
     CheckSquare
 } from 'lucide-react';
 import { useState } from 'react';
+import { LegalDocsModal } from '../components/LegalDocsModal';
+
+
+interface Certification {
+    title: string;
+    org: string;
+    issued: string;
+    expires: string;
+    desc: string;
+    image: string;
+    id: string;
+}
 
 export function AboutPage() {
     const [activeTab, setActiveTab] = useState<'app' | 'innovator'>('innovator');
-    const [selectedCert, setSelectedCert] = useState<any>(null);
+    const [selectedCert, setSelectedCert] = useState<Certification | null>(null);
+    const [activeLegalTab, setActiveLegalTab] = useState<'terms' | 'privacy' | null>(null);
 
     const fadeInUp = {
         initial: { opacity: 0, y: 15 },
         whileInView: { opacity: 1, y: 0 },
         viewport: { once: true },
-        transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as any }
+        transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }
     };
 
-    const certifications = [
+    const certifications: Certification[] = [
         {
             title: "Google for Education Certified Educator 1",
             org: "Google for Education",
@@ -130,43 +137,6 @@ export function AboutPage() {
         }
     ];
 
-    const platforms = [
-        {
-            name: "FormEase Main Platform",
-            desc: "An ecosystem designed to automate curriculum creation and school documentation through AI.",
-            icon: Rocket,
-            color: "from-blue-600 to-indigo-600",
-            tags: ["AI-Powered", "Enterprise"]
-        },
-        {
-            name: "AI DLL Generator",
-            desc: "DepEd-Aligned tools that save hours of manual planning. Automated DLL/DLP systems.",
-            icon: Wand2,
-            color: "from-purple-600 to-pink-600",
-            tags: ["DepEd", "Automation"]
-        },
-        {
-            name: "Lesson → PowerPoint",
-            desc: "Transform planning logs into presentation-ready teaching slides in minutes.",
-            icon: FilePieChart,
-            color: "from-orange-600 to-amber-600",
-            tags: ["PPTX", "Interactive"]
-        },
-        {
-            name: "Activity & Worksheet Gen",
-            desc: "Interactive exercises and subject-specific activities tailored to objectives.",
-            icon: Puzzle,
-            color: "from-emerald-600 to-teal-600",
-            tags: ["Assessment", "LAS"]
-        },
-        {
-            name: "SMS Automation",
-            desc: "Student Management System Automation: Data Handling, Forms, and Records.",
-            icon: LayoutGrid,
-            color: "from-slate-700 to-slate-900",
-            tags: ["Records", "Efficiency"]
-        }
-    ];
 
     return (
         <div className="h-full overflow-y-auto custom-scrollbar bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30">
@@ -176,7 +146,7 @@ export function AboutPage() {
                     {['app', 'innovator'].map((tab) => (
                         <button
                             key={tab}
-                            onClick={() => setActiveTab(tab as any)}
+                            onClick={() => setActiveTab(tab as 'app' | 'innovator')}
                             className={`px-6 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 ${
                                 activeTab === tab
                                     ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]'
@@ -201,8 +171,8 @@ export function AboutPage() {
                         {/* APP HERO */}
                         <section className="relative min-h-[60vh] flex items-center justify-center overflow-hidden px-6 text-center">
                             <div className="absolute inset-0 z-0">
-                                <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#0f172a]" />
-                                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
+                                <div className="absolute inset-0 bg-linear-to-b from-[#0f172a] via-[#1e293b] to-[#0f172a]" />
+                                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
                             </div>
 
                             <div className="relative z-10 max-w-4xl space-y-6">
@@ -215,7 +185,7 @@ export function AboutPage() {
                                     {...fadeInUp}
                                     className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.1] text-white"
                                 >
-                                    FormEase: The Future of <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">School Administration.</span>
+                                    FormEase: The Future of <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-400 via-indigo-400 to-emerald-400">School Administration.</span>
                                 </motion.h1>
                                 <motion.p 
                                     {...fadeInUp}
@@ -302,7 +272,7 @@ export function AboutPage() {
                                     { icon: Zap, label: 'Ultra-Fast', desc: 'Instant form generation.' }
                                 ].map((h, i) => (
                                     <motion.div key={i} {...fadeInUp} className="flex items-center gap-4 p-5 bg-[#1e293b]/40 border border-white/5 rounded-2xl">
-                                        <h.icon className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                                        <h.icon className="w-5 h-5 text-blue-500 shrink-0" />
                                         <div>
                                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-200">{h.label}</p>
                                             <p className="text-[10px] text-slate-500 font-medium">{h.desc}</p>
@@ -341,7 +311,7 @@ export function AboutPage() {
                                 </div>
 
                                 <div className="relative inline-block py-4">
-                                    <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full blur-2xl opacity-10" />
+                                    <div className="absolute -inset-4 bg-linear-to-r from-blue-500 to-emerald-500 rounded-full blur-2xl opacity-10" />
                                     <div className="relative w-40 h-40 md:w-48 md:h-48 rounded-full overflow-hidden border-4 border-white/5 shadow-2xl">
                                         <img src="innovator/emerson-galano.jpg" alt="Emerson M. Galano" className="w-full h-full object-cover" />
                                     </div>
@@ -537,7 +507,7 @@ export function AboutPage() {
                                         }
                                     ].map((project, i) => (
                                         <div key={i} className="p-8 bg-[#1e293b]/40 border border-white/5 rounded-2xl space-y-4 group">
-                                            <div className={`w-10 h-10 bg-gradient-to-br ${project.color} rounded-lg flex items-center justify-center text-white shadow-lg`}>
+                                            <div className={`w-10 h-10 bg-linear-to-br ${project.color} rounded-lg flex items-center justify-center text-white shadow-lg`}>
                                                 <project.icon className="w-5 h-5" />
                                             </div>
                                             <h4 className="text-lg font-black text-slate-200">{project.name}</h4>
@@ -596,7 +566,7 @@ export function AboutPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm"
+                        className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm"
                         onClick={() => setSelectedCert(null)}
                     >
                         <motion.div 
@@ -664,12 +634,44 @@ export function AboutPage() {
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4">
                     FormEase • The Teaching Operating System • © 2026
                 </p>
-                <div className="flex justify-center gap-8">
-                    {['Docs', 'Privacy', 'Support'].map(link => (
-                        <button key={link} className="text-[9px] font-black text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest">{link}</button>
-                    ))}
+                <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 px-4">
+                    <a
+                        href="https://form-ease-app.web.app/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[9px] font-black text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest flex items-center gap-1"
+                    >
+                        Docs
+                        <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                    <button
+                        onClick={() => setActiveLegalTab('terms')}
+                        className="text-[9px] font-black text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest cursor-pointer"
+                    >
+                        Terms & Conditions
+                    </button>
+                    <button
+                        onClick={() => setActiveLegalTab('privacy')}
+                        className="text-[9px] font-black text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest cursor-pointer"
+                    >
+                        Privacy Policy
+                    </button>
+                    <a
+                        href="mailto:galanoemerson0014@gmail.com?subject=FormEase%20Pro%20Support%20Request"
+                        className="text-[9px] font-black text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest flex items-center gap-1"
+                    >
+                        Support
+                        <Mail className="w-2.5 h-2.5" />
+                    </a>
                 </div>
             </footer>
+
+            {/* LEGAL MODAL */}
+            <LegalDocsModal
+                isOpen={!!activeLegalTab}
+                initialTab={activeLegalTab || 'terms'}
+                onClose={() => setActiveLegalTab(null)}
+            />
         </div>
     );
 }

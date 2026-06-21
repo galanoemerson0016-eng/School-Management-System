@@ -6,8 +6,13 @@ import { Sidebar, Header } from './components/layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AutoBackupManager } from './components/AutoBackupManager';
 import { AutoBackupManager as AutoBackupService } from './services/AutoBackupManager';
+import { IncrementalBackupService } from './services/IncrementalBackupService';
 import { Toast } from './components/ui/Toast';
 import { AnimatePresence } from 'framer-motion';
+import { UpdateCenterModal } from './components/updates/UpdateCenterModal';
+import { ReconciliationReportModal } from './components/updates/ReconciliationReportModal';
+import { ProfileDiffModal } from './components/ProfileDiffModal';
+import { useUpdateStore } from './stores/update-store';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -114,6 +119,9 @@ function App() {
   const isSyncReady = useAppStore(state => state.isSyncReady);
   const selectedSection = useAppStore(state => state.selectedSection);
   const sections = useAppStore(state => state.sections);
+  const pendingConflicts = useAppStore(state => state.pendingConflicts);
+  const resolveMergeConflict = useAppStore(state => state.resolveMergeConflict);
+  const currentConflict = pendingConflicts[0];
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [licenseVerdict, setLicenseVerdict] = useState<LicenseVerdict>(
     window.electronAPI?.licenseStatus ? 'pending' : 'legacy'
@@ -219,6 +227,14 @@ function App() {
         await initializeAppStore();
         await initializeAuthStore();
         void AutoBackupService.init();
+        IncrementalBackupService.init();
+        
+        // Check for post-update data reconciliation
+        if (window.electronAPI) {
+          const updateStore = useUpdateStore.getState();
+          void updateStore.checkForPostUpdateReconciliation();
+        }
+        
         console.log('✅ Application initialization complete');
 
         const state = useAppStore.getState();
@@ -457,6 +473,21 @@ function App() {
           <OnboardingWizard onClose={() => setShowOnboarding(false)} />
         )}
       </AnimatePresence>
+
+      {/* Global Update Modals */}
+      <UpdateCenterModal />
+      <ReconciliationReportModal />
+      
+      {currentConflict && (
+        <ProfileDiffModal
+          open={!!currentConflict}
+          studentName={currentConflict.studentName}
+          lrn={currentConflict.lrn}
+          diffItems={currentConflict.diffItems}
+          onConfirm={(mergedFields) => resolveMergeConflict(mergedFields)}
+          onCancel={() => resolveMergeConflict(null)}
+        />
+      )}
 
       <div className="relative z-10 flex w-full h-full p-0 gap-0 box-border print:p-0 print:block">
         <div className="print:hidden h-full flex flex-col">

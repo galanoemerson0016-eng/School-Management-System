@@ -1,5 +1,7 @@
 export {};
 
+type SafeAny = Parameters<typeof console.log>[number];
+
 declare global {
   interface Window {
     // Present only in the Electron desktop build; undefined in the web build
@@ -8,7 +10,7 @@ declare global {
       version: string;
       getMachineId: () => Promise<string>;
       checkForUpdates: () => void;
-      onUpdateMessage: (callback: (message: string) => void) => void;
+      onUpdateMessage: (callback: (message: SafeAny) => void) => void;
       saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;
       logError: (payload: { kind: string; message: string; stack?: string }) => void;
       licenseStatus: () => Promise<{
@@ -39,7 +41,30 @@ declare global {
       onCloseRequested: (callback: () => void) => void;
       minimizeApp: () => void;
       maximizeApp: () => void;
-      printToPDF: (options: { defaultFilename?: string; autoSave?: boolean; landscape?: boolean; pageSize?: any }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      printToPDF: (options: { defaultFilename?: string; autoSave?: boolean; landscape?: boolean; pageSize?: SafeAny }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      verifyDiskSpace: () => Promise<{ success: boolean; freeBytes?: number; error?: string }>;
+      writePreUpdateState: (state: SafeAny) => Promise<{ success: boolean; error?: string }>;
+      readPreUpdateState: () => Promise<SafeAny>;
+      clearPreUpdateState: () => Promise<{ success: boolean; error?: string }>;
+      listFsBackups: () => Promise<SafeAny>;
+      readFsBackupContent: (filename: string) => Promise<SafeAny>;
+      deleteFsBackup: (filename: string) => Promise<{ success: boolean; error?: string }>;
+      downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+      quitAndInstall: () => void;
+      gdriveAuthStart: (payload: { clientId: string; clientSecret: string }) => Promise<{ success: boolean; email?: string }>;
+      gdriveStatus: () => Promise<{ connected: boolean; email: string | null }>;
+      gdriveDisconnect: () => Promise<{ success: boolean }>;
+      gdriveUploadBackup: (payload: { backupJsonStr: string; filename: string }) => Promise<{ success: boolean; fileId?: string }>;
+      gdriveListBackups: () => Promise<SafeAny>;
+      gdriveDownloadBackup: (fileId: string) => Promise<string>;
+      exportHtmlPdf: (payload: {
+        html: string;
+        defaultFilename: string;
+        paperSize: 'letter' | 'a4' | 'folio';
+        pageWidthPx?: number;
+        pageHeightPx?: number;
+        postLoadScript?: string;
+      }) => Promise<{ success: boolean; filePath?: string; cancelled?: boolean; error?: string }>;
     };
   }
   const __APP_VERSION__: string;

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, ArrowRight, CheckCircle2, Loader2, AlertCircle, Zap, Monitor, Apple } from 'lucide-react';
 import { useAppStore, useAuthStore } from '../stores';
 import { getMachineId } from '../utils/machine-id';
+import { TERMS_AND_CONDITIONS, PRIVACY_POLICY } from '../data/legalDocs';
 
 async function hashMachineId(machineId: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(machineId));
@@ -14,8 +15,12 @@ export function ActivationPage() {
   const [key, setKey] = useState('');
   const [fullName, setFullName] = useState(schoolProfile.adviser_name || '');
   const [machineId, setMachineId] = useState('Detecting Hardware...');
-  const [status, setStatus] = useState<'idle' | 'activating' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'activating' | 'eula' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [pendingProfile, setPendingProfile] = useState<Partial<typeof schoolProfile> | null>(null);
+  const [eulaTab, setEulaTab] = useState<'terms' | 'privacy'>('terms');
   const [currentPlatform, setCurrentPlatform] = useState<'windows' | 'mac'>('windows');
   const redirectTimerRef = useRef<number | null>(null);
 
@@ -131,8 +136,7 @@ export function ActivationPage() {
             throw new Error('Could not establish secure cloud trial session. Please check your internet connection.');
         }
 
-        await updateSchoolProfile({
-            ...schoolProfile,
+        setPendingProfile({
             is_activated: true,
             is_trial: true,
             trial_activated_at: now.toISOString(),
@@ -141,12 +145,8 @@ export function ActivationPage() {
             adviser_name: 'Trial User'
         });
 
-        setStatus('success');
-        showNotification('Trial Started! You have 1 hour.', 'success');
-
-        redirectTimerRef.current = window.setTimeout(async () => {
-            await useAuthStore.getState().logout();
-        }, 2500);
+        setStatus('eula');
+        showNotification('Activation key verified. Please review the terms of service.', 'info');
 
     } catch (error) {
         setStatus('error');
@@ -183,8 +183,7 @@ export function ActivationPage() {
 
         // Profile fields are display/metadata only — the activation verdict
         // itself comes from the main process.
-        await updateSchoolProfile({
-          ...schoolProfile,
+        setPendingProfile({
           is_activated: true,
           is_trial: false,
           activation_key: serial,
@@ -193,18 +192,8 @@ export function ActivationPage() {
           adviser_name: fullName.trim()
         });
 
-        try {
-          localStorage.removeItem('formease-license-offline-limit');
-        } catch { /* ignore */ }
-
-        setStatus('success');
-        showNotification('Activation Successful!', 'success');
-
-        redirectTimerRef.current = window.setTimeout(async () => {
-          await useAuthStore.getState().logout();
-          // Tell App to re-query the main-process license verdict
-          window.dispatchEvent(new Event('formease-license-changed'));
-        }, 2500);
+        setStatus('eula');
+        showNotification('Activation key verified. Please review the terms of service.', 'info');
         return;
       }
 
@@ -256,32 +245,56 @@ export function ActivationPage() {
         });
       }
 
-      setStatus('success');
-      showNotification('Activation Successful!', 'success');
-
-      // Persist the profile after the success animation so the activation
-      // gate doesn't switch screens mid-animation (the gate reacts to
-      // is_activated in the web build).
-      redirectTimerRef.current = window.setTimeout(async () => {
-        await updateSchoolProfile({
-          ...schoolProfile,
-          is_activated: true,
-          is_trial: false, // Reset trial flag on full activation
-          activation_key: serial,
-          activated_at: new Date().toISOString(),
-          subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          adviser_name: fullName.trim()
-        });
-        try {
-          localStorage.removeItem('formease-license-offline-limit');
-        } catch { /* ignore */ }
-        await useAuthStore.getState().logout();
-      }, 2500);
+      setPendingProfile({
+        is_activated: true,
+        is_trial: false, // Reset trial flag on full activation
+        activation_key: serial,
+        activated_at: new Date().toISOString(),
+        subscription_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        adviser_name: fullName.trim()
+      });
+      setStatus('eula');
+      showNotification('Activation key verified. Please review the terms of service.', 'info');
 
     } catch (error) {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Verification failed.');
     }
+  };
+
+  const handleAcceptEula = async () => {
+    if (!agreeTerms || !agreePrivacy || !pendingProfile) return;
+
+    setStatus('success');
+    try {
+      await updateSchoolProfile({
+        ...schoolProfile,
+        ...pendingProfile
+      });
+
+      try {
+        localStorage.removeItem('formease-license-offline-limit');
+      } catch { /* ignore */ }
+
+      redirectTimerRef.current = window.setTimeout(async () => {
+        await useAuthStore.getState().logout();
+        if (!pendingProfile.is_trial) {
+          // Tell App to re-query the main-process license verdict
+          window.dispatchEvent(new Event('formease-license-changed'));
+        }
+      }, 2500);
+    } catch {
+      setStatus('error');
+      setErrorMessage('Failed to finalize activation profile.');
+    }
+  };
+
+  const handleDeclineEula = () => {
+    setStatus('error');
+    setErrorMessage('Activation cancelled. You must read and accept the Terms and Conditions and Privacy Policy to activate the application.');
+    setPendingProfile(null);
+    setAgreeTerms(false);
+    setAgreePrivacy(false);
   };
 
   const handleReset = async () => {
@@ -317,10 +330,101 @@ export function ActivationPage() {
                   <CheckCircle2 className="w-12 h-12 text-white" />
                 </div>
                 <h2 className="text-3xl font-black text-white mb-2">Success!</h2>
-                <p className="text-slate-400 font-medium">{schoolProfile.is_trial ? 'Trial started. You have 1 hour.' : 'FormEase Pro is now unlocked.'}</p>
+                <p className="text-slate-400 font-medium">{pendingProfile?.is_trial ? 'Trial started. You have 1 hour.' : 'FormEase Pro is now unlocked.'}</p>
                 <div className="mt-8 flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-widest animate-pulse">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Restarting app...
+                </div>
+              </motion.div>
+            ) : status === 'eula' ? (
+              <motion.div key="eula" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col h-full space-y-5">
+                <div className="text-center">
+                  <h2 className="text-2xl font-black text-white leading-tight">License Agreement</h2>
+                  <p className="text-xs text-slate-400 font-medium mt-1">Please read and accept the terms to finalize activation.</p>
+                </div>
+
+                {/* Doc Content Box */}
+                <div className="bg-slate-950/40 border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[320px]">
+                  {/* Tab Selector */}
+                  <div className="bg-slate-900 flex border-b border-white/5 p-1 gap-1 shrink-0">
+                    <button
+                      onClick={() => setEulaTab('terms')}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                        eulaTab === 'terms' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Terms & Conditions
+                    </button>
+                    <button
+                      onClick={() => setEulaTab('privacy')}
+                      className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                        eulaTab === 'privacy' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Privacy Policy
+                    </button>
+                  </div>
+
+                  {/* Scrollable text */}
+                  <div className="flex-1 overflow-y-auto p-4 custom-scrollbar text-left space-y-4 bg-slate-950/20">
+                    {(eulaTab === 'terms' ? TERMS_AND_CONDITIONS : PRIVACY_POLICY).map(sec => (
+                      <div key={sec.id} className="space-y-1.5">
+                        <h4 className="text-xs font-black text-white">{sec.title}</h4>
+                        {sec.content.map((p, idx) => (
+                          <p key={idx} className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                            {p}
+                          </p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Checkboxes */}
+                <div className="space-y-3 pt-2">
+                  <label className="flex items-start gap-3 cursor-pointer group text-left">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      className="mt-0.5 w-4.5 h-4.5 rounded bg-white/5 border border-white/10 text-blue-600 focus:ring-0 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-slate-300 font-bold group-hover:text-white transition-colors leading-relaxed">
+                      I agree to the FormEase Pro Terms and Conditions
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer group text-left">
+                    <input
+                      type="checkbox"
+                      checked={agreePrivacy}
+                      onChange={(e) => setAgreePrivacy(e.target.checked)}
+                      className="mt-0.5 w-4.5 h-4.5 rounded bg-white/5 border border-white/10 text-emerald-600 focus:ring-0 cursor-pointer"
+                    />
+                    <span className="text-[11px] text-slate-300 font-bold group-hover:text-white transition-colors leading-relaxed">
+                      I agree to the FormEase Pro Privacy Policy
+                    </span>
+                  </label>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleDeclineEula}
+                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={handleAcceptEula}
+                    disabled={!agreeTerms || !agreePrivacy}
+                    className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all ${
+                      agreeTerms && agreePrivacy
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-xl cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Accept & Proceed
+                  </button>
                 </div>
               </motion.div>
             ) : (
