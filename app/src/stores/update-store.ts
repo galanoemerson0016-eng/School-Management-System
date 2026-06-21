@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../services/database';
-import type { Student, Section, Subject, ClassRecord, Enrollment, AttendanceRecord, SF2Sheet, ObservedValues, HPSRecord } from '../types';
+import type { Student } from '../types';
 
 export interface UpdateChecklist {
   dbAccess: 'pending' | 'success' | 'failed';
@@ -60,28 +60,71 @@ const initialChecklist: UpdateChecklist = {
   simulation: 'pending'
 };
 
+interface UpdateMessage {
+  text?: UpdateMessage;
+  status?: string;
+  type?: string;
+  info?: {
+    version: string;
+    releaseDate?: string;
+    releaseNotes?: string | string[];
+  };
+  percent?: number;
+  speedMB?: string;
+  transferredMB?: string;
+  totalMB?: string;
+  message?: string;
+}
+
+let updateTimeout: ReturnType<typeof setTimeout> | null = null;
+
 export const useUpdateStore = create<UpdateState>((set, get) => {
   // Listen for Electron update IPC notifications
   if (window.electronAPI?.onUpdateMessage) {
-    window.electronAPI.onUpdateMessage((msg: any) => {
-      console.log('📬 Received update IPC message:', msg);
-      if (!msg || !msg.type) return;
+    window.electronAPI.onUpdateMessage((msg: UpdateMessage) => {
+      // Unpack the message if wrapped in { text, status } format from main process
+      const payload = (msg && msg.text && typeof msg.text === 'object') ? msg.text : msg;
+      console.log('📬 Received update IPC message:', payload);
+      if (!payload || !payload.type) return;
 
-      switch (msg.type) {
+      // Clear the timeout upon receiving any valid response from the main process
+      if (payload.type !== 'checking-for-update' && updateTimeout) {
+        clearTimeout(updateTimeout);
+        updateTimeout = null;
+      }
+
+      switch (payload.type) {
+        case 'checking-for-update':
+          // Only establish the timeout safeguard if the check was manually initiated
+          if (get().updateStep === 'checking') {
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+              if (get().updateStep === 'checking') {
+                set({
+                  updateStep: 'failed',
+                  errorMessage: 'Update server check timed out. The update server is unresponsive or unreachable.'
+                });
+              }
+            }, 12000);
+          }
+          break;
+
         case 'update-available':
-          set({
-            updateAvailable: true,
-            updateInfo: {
-              version: msg.info.version,
-              releaseDate: msg.info.releaseDate,
-              notes: Array.isArray(msg.info.releaseNotes) 
-                ? msg.info.releaseNotes 
-                : typeof msg.info.releaseNotes === 'string'
-                  ? [msg.info.releaseNotes]
-                  : []
-            },
-            updateStep: 'ready-to-start'
-          });
+          if (payload.info) {
+            set({
+              updateAvailable: true,
+              updateInfo: {
+                version: payload.info.version,
+                releaseDate: payload.info.releaseDate,
+                notes: Array.isArray(payload.info.releaseNotes) 
+                  ? payload.info.releaseNotes 
+                  : typeof payload.info.releaseNotes === 'string'
+                    ? [payload.info.releaseNotes]
+                    : []
+              },
+              updateStep: 'ready-to-start'
+            });
+          }
           break;
 
         case 'update-not-available':
@@ -92,10 +135,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           set({
             updateStep: 'downloading',
             downloadProgress: {
-              percent: msg.percent,
-              speedMB: msg.speedMB,
-              transferredMB: msg.transferredMB,
-              totalMB: msg.totalMB
+              percent: payload.percent ?? 0,
+              speedMB: payload.speedMB ?? '0.00',
+              transferredMB: payload.transferredMB ?? '0.0',
+              totalMB: payload.totalMB ?? '0.0'
             }
           });
           break;
@@ -105,10 +148,15 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           break;
 
         case 'update-error':
-          set({
-            updateStep: 'failed',
-            errorMessage: msg.message || 'Auto-updater experienced an error'
-          });
+          // Only show error status in UI if we were actively checking or downloading
+          if (get().updateStep === 'checking' || get().updateStep === 'downloading') {
+            set({
+              updateStep: 'failed',
+              errorMessage: payload.message || 'Auto-updater experienced an error'
+            });
+          } else {
+            set({ updateStep: 'idle' });
+          }
           break;
       }
     });
@@ -132,6 +180,17 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
       if (window.electronAPI?.checkForUpdates) {
         set({ updateStep: 'checking', errorMessage: null });
         window.electronAPI.checkForUpdates();
+
+        // Start a 12-second timeout safeguard for the manual update check
+        if (updateTimeout) clearTimeout(updateTimeout);
+        updateTimeout = setTimeout(() => {
+          if (get().updateStep === 'checking') {
+            set({
+              updateStep: 'failed',
+              errorMessage: 'Update server check timed out. The update server is unresponsive or unreachable.'
+            });
+          }
+        }, 12000);
       }
     },
 
@@ -150,7 +209,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         try {
           await db.getStoreCount('students');
           activeChecklist.dbAccess = 'success';
-        } catch (dbErr) {
+        } catch {
           activeChecklist.dbAccess = 'failed';
           set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: 'Database not accessible or corrupted.' });
           return false;
@@ -200,9 +259,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           } else {
             throw new Error(result.error || 'Filesystem write failed');
           }
-        } catch (backupErr: any) {
+        } catch (backupErr) {
           activeChecklist.backup = 'failed';
-          set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: `Pre-update backup failed: ${backupErr.message}` });
+          const errMsg = backupErr instanceof Error ? backupErr.message : String(backupErr);
+          set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: `Pre-update backup failed: ${errMsg}` });
           return false;
         }
         set({ checklist: { ...activeChecklist } });
@@ -216,9 +276,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             throw new Error(`${corrupted.length} corrupted student records detected.`);
           }
           activeChecklist.simulation = 'success';
-        } catch (simErr: any) {
+        } catch (simErr) {
           activeChecklist.simulation = 'failed';
-          set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: `Readiness simulation failed: ${simErr.message}` });
+          const errMsg = simErr instanceof Error ? simErr.message : String(simErr);
+          set({ checklist: { ...activeChecklist }, updateStep: 'failed', errorMessage: `Readiness simulation failed: ${errMsg}` });
           return false;
         }
         set({ checklist: { ...activeChecklist } });
@@ -251,8 +312,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
 
         // Success!
         return true;
-      } catch (err: any) {
-        set({ updateStep: 'failed', errorMessage: err.message || 'Pipeline process error.' });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Pipeline process error.';
+        set({ updateStep: 'failed', errorMessage: errMsg });
         return false;
       }
     },
@@ -295,7 +357,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const details = Object.entries(preState.counts).map(([table, beforeCount]: [string, any]) => {
+        const counts = (preState.counts || {}) as Record<string, number>;
+        const details = Object.entries(counts).map(([table, beforeCount]) => {
           const afterCount = currentCounts[table as keyof typeof currentCounts] ?? 0;
           return {
             table,
@@ -337,8 +400,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         await db.importFromBackup(backupData.data || backupData);
         set({ reconciliationReport: null });
         alert('🔄 Rollback successful! System restored to pre-update state.');
-      } catch (err: any) {
-        alert(`❌ Rollback failed: ${err.message}`);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        alert(`❌ Rollback failed: ${errMsg}`);
       }
     },
 
