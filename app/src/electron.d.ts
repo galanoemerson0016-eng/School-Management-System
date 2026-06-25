@@ -60,10 +60,11 @@ declare global {
       exportHtmlPdf: (payload: {
         html: string;
         defaultFilename: string;
-        paperSize: 'letter' | 'a4' | 'folio';
+        paperSize: 'letter' | 'a4' | 'folio' | 'cr80';
         pageWidthPx?: number;
         pageHeightPx?: number;
         postLoadScript?: string;
+        landscape?: boolean;
       }) => Promise<{ success: boolean; filePath?: string; cancelled?: boolean; error?: string }>;
     };
   }

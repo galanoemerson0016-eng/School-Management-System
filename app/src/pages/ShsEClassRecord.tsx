@@ -599,7 +599,13 @@ export function ShsEClassRecord() {
         const record = hpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter
+            Number(r.quarter) === quarter &&
+            r.section_id === selectedSection
+        ) || hpsRecords.find(r =>
+            r.subject_id === effectiveSubjectId &&
+            r.school_year === activeSchoolYear &&
+            Number(r.quarter) === quarter &&
+            !r.section_id
         );
 
         const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
@@ -619,7 +625,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
@@ -928,20 +934,37 @@ export function ShsEClassRecord() {
         const existingRecord = stateHpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
-            Number(r.quarter) === (quarter as number)
+            Number(r.quarter) === (quarter as number) &&
+            r.section_id === selectedSection
         );
 
+        const legacyRecord = !existingRecord ? stateHpsRecords.find(r =>
+            r.subject_id === effectiveSubjectId &&
+            r.school_year === activeSchoolYear &&
+            Number(r.quarter) === (quarter as number) &&
+            !r.section_id
+        ) : null;
+
         const newRecord: HPSRecord = existingRecord ? { ...existingRecord } : {
-            id: `hps_${effectiveSubjectId}_Q${quarter}_${activeSchoolYear}`,
+            id: `hps_${effectiveSubjectId}_${selectedSection}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: Array(WW_COUNT).fill(''),
-            performance_tasks: Array(PT_COUNT).fill(''),
-            quarterly_exam: ''
+            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(WW_COUNT).fill(''),
+            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(PT_COUNT).fill(''),
+            quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
+            section_id: selectedSection
         };
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
+        
+        if (legacyRecord) {
+            const legacyWithSummative = legacyRecord as HPSRecord & { summative_tests?: (number | string)[] };
+            if (legacyWithSummative.summative_tests) {
+                hpsWithSummative.summative_tests = [...legacyWithSummative.summative_tests];
+            }
+        }
+
         const currentQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT);
         
         if (type === 'qa') {
@@ -959,7 +982,7 @@ export function ShsEClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-    }, [effectiveSubjectId, activeSchoolYear, quarter, updateHPSRecord]);
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;

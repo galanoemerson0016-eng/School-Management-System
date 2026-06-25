@@ -19,7 +19,8 @@ import {
     ChevronLeft,
     ClipboardList,
     Layers,
-    Gamepad2
+    Gamepad2,
+    IdCard
 } from 'lucide-react';
 import { canAccessView, type AppView } from '../../lib/rbac';
 
@@ -113,6 +114,7 @@ export function Sidebar() {
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
         { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
         { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
+        { id: 'student-id-generator', label: 'Student ID Generator', icon: IdCard },
         { id: 'calendar', label: 'School Calendar', icon: Calendar },
         { id: 'announcements', label: 'Announcements', icon: Megaphone },
         { id: 'reports', label: 'Reports', icon: BarChart3 },

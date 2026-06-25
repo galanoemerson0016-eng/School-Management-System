@@ -27,6 +27,7 @@ export type AppView =
     | 'about'
     | 'lir'
     | 'tgs'
+    | 'student-id-generator'
     | 'games-tools';
 
 export type SubjectArea =
@@ -102,6 +103,18 @@ export function canManagePublicPosts(user: User | null | undefined): boolean {
 }
 
 export function canManageCalendarEvents(user: User | null | undefined): boolean {
+    return !!user;
+}
+
+// Student ID Generator. Any authenticated user can issue/print IDs (advisers are
+// scoped to their advisory sections via the existing section filters). Editing the
+// school-wide template/branding goes through canManageIdTemplates — both return
+// !!user today and act as the enforcement seam if multi-user mode is added later.
+export function canGenerateStudentIds(user: User | null | undefined): boolean {
+    return !!user;
+}
+
+export function canManageIdTemplates(user: User | null | undefined): boolean {
     return !!user;
 }
 

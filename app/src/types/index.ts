@@ -48,6 +48,42 @@ export interface SchoolProfile {
     activated_at?: string;
     trial_activated_at?: string;
     subscription_end_date?: string;
+    id_card_config?: IdCardConfig;
+}
+
+// Preset DepEd-style student ID layouts + per-school branding overrides.
+// Persisted as a single JSON field on the (unencrypted) schoolProfile record —
+// no IndexedDB version bump required (only object stores/indexes are versioned).
+export type IdCardTemplate = 'standard' | 'compact' | 'lanyard' | 'modern' | 'corporate' | 'academic' | 'minimalist' | 'playful' | 'eco' | 'glass' | 'badges' | 'aurora';
+
+export interface IdCardConfig {
+    template: IdCardTemplate;
+    primaryColor?: string;   // header band / accents (defaults to DepEd blue)
+    accentColor?: string;
+    show: {
+        qr: boolean;
+        barcode: boolean;
+        gradeSection: boolean;
+        signature: boolean;
+        address: boolean;
+        slot?: boolean;
+    };
+    emergencyText?: string;            // back-of-card guardian/emergency block
+    signatoryName?: string;            // defaults to schoolProfile.head_name
+    signatoryPosition?: string;        // defaults to schoolProfile.head_position
+    serialPrefix?: string;             // e.g. "2026-"
+    bgImageUrl?: string;               // base64 compressed custom background image
+    bgImageOpacity?: number;           // 0 to 1, default 1
+    bgImageSize?: 'cover' | 'contain' | 'stretch' | 'actual'; // default 'cover'
+    bgImagePositionX?: number;         // 0 to 100 (%), default 50
+    bgImagePositionY?: number;         // 0 to 100 (%), default 50
+    bgImageScale?: number;             // 50 to 200 (%), default 100
+    bgImageBlur?: number;              // 0 to 10 (px), default 0
+    bgImageBrightness?: number;        // 50 to 150 (%), default 100
+    bgImageApplyToBack?: boolean;      // default true
+    headerTextColor?: string;          // custom header text color, default white (#ffffff)
+    headerFontFamily?: 'sans-serif' | 'serif' | 'monospace'; // custom header font family
+    headerFontSizeScale?: number;      // custom header font size multiplier, default 1.0
 }
 
 export interface SchoolYear {
@@ -85,7 +121,9 @@ export interface Student {
     remarks?: string;
     enrollment_date?: string;
     photo_url?: string;
-    
+    id_serial?: string;        // Student ID Generator: issued card serial number
+    id_issued_at?: string;     // Student ID Generator: ISO timestamp of last issuance
+
     // Checklist of requirements for advisory class
     req_report_card?: boolean;
     req_birth_cert?: boolean;
@@ -331,6 +369,7 @@ export interface HPSRecord {
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;
+    section_id?: string;
 }
 
 export interface SF2Sheet {

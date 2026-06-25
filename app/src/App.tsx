@@ -44,6 +44,7 @@ const ActivationPage = lazy(() => import('./pages/ActivationPage').then(m => ({ 
 const LIRPage = lazy(() => import('./pages/LIRPage').then(m => ({ default: m.LIRPage })));
 const TemporaryGradeSlipPage = lazy(() => import('./pages/TemporaryGradeSlipPage').then(m => ({ default: m.TemporaryGradeSlipPage })));
 const GamesAndToolsPage = lazy(() => import('./pages/GamesAndToolsPage').then(m => ({ default: m.GamesAndToolsPage })));
+const StudentIDGeneratorPage = lazy(() => import('./pages/StudentIDGeneratorPage').then(m => ({ default: m.StudentIDGeneratorPage })));
 
 function ContentLoading() {
   return (
@@ -450,6 +451,8 @@ function App() {
         return <TemporaryGradeSlipPage />;
       case 'games-tools':
         return <GamesAndToolsPage />;
+      case 'student-id-generator':
+        return <StudentIDGeneratorPage />;
       default:
         return <Dashboard />;
     }

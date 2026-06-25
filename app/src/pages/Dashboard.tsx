@@ -1701,13 +1701,13 @@ export function Dashboard() {
                                                 
                                                 if (rank === 1) {
                                                     rankBadge = <span className="text-xl">🥇</span>;
-                                                    avatarBg = 'bg-gradient-to-tr from-yellow-100 via-amber-200 to-yellow-300 text-amber-900 dark:from-yellow-950 dark:to-amber-800';
+                                                    avatarBg = 'bg-linear-to-tr from-yellow-100 via-amber-200 to-yellow-300 text-amber-900 dark:from-yellow-950 dark:to-amber-800';
                                                 } else if (rank === 2) {
                                                     rankBadge = <span className="text-xl">🥈</span>;
-                                                    avatarBg = 'bg-gradient-to-tr from-slate-100 via-slate-200 to-slate-300 text-slate-900 dark:from-slate-900 dark:to-slate-700';
+                                                    avatarBg = 'bg-linear-to-tr from-slate-100 via-slate-200 to-slate-300 text-slate-900 dark:from-slate-900 dark:to-slate-700';
                                                 } else if (rank === 3) {
                                                     rankBadge = <span className="text-xl">🥉</span>;
-                                                    avatarBg = 'bg-gradient-to-tr from-orange-100 via-orange-200 to-amber-300 text-orange-950 dark:from-orange-950 dark:to-amber-900';
+                                                    avatarBg = 'bg-linear-to-tr from-orange-100 via-orange-200 to-amber-300 text-orange-950 dark:from-orange-950 dark:to-amber-900';
                                                 } else {
                                                     rankBadge = <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{rank}</span>;
                                                 }

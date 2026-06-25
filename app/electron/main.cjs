@@ -54,7 +54,7 @@ if (!gotTheLock) {
       height: height,
       minWidth: 1024,
       minHeight: 768,
-      fullscreen: true,
+      fullscreen: false,
       icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
       webPreferences: {
         nodeIntegration: false,
@@ -64,6 +64,8 @@ if (!gotTheLock) {
       title: "FormEase Pro",
       autoHideMenuBar: true
     });
+
+    mainWindow.maximize();
 
     // Hide the menu bar completely
     mainWindow.setMenuBarVisibility(false);
@@ -950,11 +952,15 @@ async function saveHtmlAsPdf(payload) {
       await pdfWin.webContents.executeJavaScript(payload.postLoadScript);
     }
 
-    const pdfBuffer = await pdfWin.webContents.printToPDF({
+    const printOptions = {
       printBackground: true,
       preferCSSPageSize: true,
       margins: { marginType: 'none' },
-    });
+    };
+    if (payload.landscape !== undefined) {
+      printOptions.landscape = payload.landscape;
+    }
+    const pdfBuffer = await pdfWin.webContents.printToPDF(printOptions);
 
     const defaultName = payload.defaultFilename.endsWith('.pdf')
       ? payload.defaultFilename

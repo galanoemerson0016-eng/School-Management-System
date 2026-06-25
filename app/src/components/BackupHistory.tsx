@@ -134,7 +134,7 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
     if (error) {
         return (
             <div className="bg-red-50 p-6 rounded-xl border border-red-200 flex items-center gap-3">
-                <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
                 <div>
                     <p className="text-red-800 font-semibold">{error}</p>
                     <button
@@ -153,7 +153,7 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
             {/* Statistics Card */}
             {statistics && (
                 <div
-                    className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-200 cursor-pointer hover:shadow-md transition-shadow"
+                    className="bg-linear-to-r from-purple-50 to-blue-50 p-4 rounded-xl border border-purple-200 cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setShowStats(!showStats)}
                 >
                     <div className="flex items-center justify-between">
@@ -173,7 +173,7 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
 
                     {showStats && (
                         <div className="mt-4 pt-4 border-t border-purple-200 text-sm space-y-2">
-                            <pre className="bg-white p-3 rounded-lg font-mono text-xs overflow-auto text-gray-700 whitespace-pre-wrap break-words max-h-96">
+                            <pre className="bg-white p-3 rounded-lg font-mono text-xs overflow-auto text-gray-700 whitespace-pre-wrap wrap-break-word max-h-96">
                                 {report}
                             </pre>
                         </div>
