@@ -117,6 +117,8 @@ export interface IdCardViewModel {
     bgImageApplyToBack: boolean;
     signatoryName: string;
     signatoryPosition: string;
+    deptName: string;
+    validityText: string;
     emergencyText: string;
     emergencyName: string;
     emergencyAddress: string;
@@ -139,6 +141,7 @@ export function buildIdCardModel(
     student: Student,
     profile: SchoolProfile,
     rawConfig?: IdCardConfig | null,
+    activeSchoolYear?: string,
 ): IdCardViewModel {
     const config = resolveIdCardConfig(rawConfig);
     const gradeLevel = (student.grade_level || '').trim();
@@ -158,9 +161,9 @@ export function buildIdCardModel(
         photoUrl: student.photo_url,
         schoolName: profile.name || '',
         schoolId: profile.school_id || '',
-        region: profile.region || '',
-        division: profile.division || '',
-        district: profile.district || '',
+        region: config.regionName?.trim() || profile.region || 'Region III',
+        division: config.divisionName?.trim() || profile.division || 'SCHOOLS DIVISION OF TARLAC PROVINCE',
+        district: config.districtName?.trim() || profile.district || 'VICTORIA EAST DISTRICT',
         schoolAddress: addressParts.join(', '),
         municipality: profile.municipality || profile.city || '',
         province: profile.province || '',
@@ -177,7 +180,9 @@ export function buildIdCardModel(
         bgImageApplyToBack: config.bgImageApplyToBack ?? true,
         signatoryName: config.signatoryName?.trim() || profile.head_name || '',
         signatoryPosition: config.signatoryPosition?.trim() || profile.head_position || 'School Head',
-        emergencyText: config.emergencyText || '',
+        deptName: config.deptName?.trim() || 'Department of Education',
+        validityText: config.validityText?.trim() || (activeSchoolYear ? `S.Y. ${activeSchoolYear}` : 'S.Y. 2026-2027'),
+        emergencyText: config.emergencyText?.trim() || 'In Case of Emergency Please Notify:',
         emergencyName: student.guardian_name?.trim() || student.parent_name?.trim() || student.father_name?.trim() || student.mother_name?.trim() || 'Parent\'s Name',
         emergencyAddress: student.address?.trim() || 'Brgy. Municipality, Province',
         emergencyContact: student.parent_contact?.trim() || student.contact_number?.trim() || '0912-345-6789',

@@ -512,16 +512,16 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                 />
                 <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1 }}>
                     <div style={{ fontSize: `${1.43 * model.headerFontSizeScale}mm`, fontWeight: 600, opacity: 0.95 }}>
-                        Department of Education
+                        {model.deptName}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        Region III
+                        {model.region}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, whiteSpace: 'nowrap' }}>
-                        SCHOOLS DIVISION OF TARLAC PROVINCE
+                        {model.division}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        VICTORIA EAST DISTRICT
+                        {model.district}
                     </div>
                     <div style={{ fontSize: `${2.0 * model.headerFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', whiteSpace: 'nowrap' }}>
                         {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}

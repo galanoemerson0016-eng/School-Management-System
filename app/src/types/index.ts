@@ -84,6 +84,11 @@ export interface IdCardConfig {
     headerTextColor?: string;          // custom header text color, default white (#ffffff)
     headerFontFamily?: 'sans-serif' | 'serif' | 'monospace'; // custom header font family
     headerFontSizeScale?: number;      // custom header font size multiplier, default 1.0
+    deptName?: string;                 // custom Department name override
+    regionName?: string;               // custom Region name override
+    divisionName?: string;             // custom Division name override
+    districtName?: string;             // custom District name override
+    validityText?: string;             // custom Validity Period override (e.g. S.Y. 2026-2027)
 }
 
 export interface SchoolYear {
@@ -132,6 +137,9 @@ export interface Student {
     req_beef?: boolean;
     req_eccd?: boolean;
     req_undertaking?: boolean;
+    req_1st_term?: boolean;
+    req_2nd_term?: boolean;
+    req_3rd_term?: boolean;
     
     // Elementary Enrolment Eligibility (SF10-ES)
     kinder_progress_report?: boolean;
@@ -188,6 +196,18 @@ export interface Student {
     mother_name?: string;
     guardian_name?: string;
     guardian_relationship?: string;
+    
+    // Additional profile mapping fields
+    is_4ps?: boolean;
+    household_id?: string;
+    enrollment_type?: 'Regular' | 'Irregular' | 'Transferee' | 'ALS';
+    is_als?: boolean;
+    als_center_address?: string;
+    first_day_attendance?: string;
+    first_day_attendance_sem?: string;
+    req_homeroom_guidance?: boolean;
+    req_brigada_eskwela?: boolean;
+
     awardEvaluations?: AwardEvaluation[];
 }
 

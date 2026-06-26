@@ -37,7 +37,7 @@ interface ExportJob {
 }
 
 export function StudentIDGeneratorPage() {
-    const { students, sections, schoolProfile, updateStudent, updateSchoolProfile, showNotification, setCurrentView } = useAppStore();
+    const { students, sections, schoolProfile, updateStudent, updateSchoolProfile, showNotification, setCurrentView, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
 
     const canGenerate = canGenerateStudentIds(user);
@@ -363,14 +363,14 @@ export function StudentIDGeneratorPage() {
             setPreviewModel(null);
             return;
         }
-        const model = buildIdCardModel(selectedStudent, schoolProfile, config);
+        const model = buildIdCardModel(selectedStudent, schoolProfile, config, activeSchoolYear);
         (async () => {
             if (model.show.qr) model.qrDataUrl = await generateQrDataUrl(model.qrPayload, { size: 256 });
             if (model.show.barcode) model.barcodeDataUrl = await generateBarcodeDataUrl(model.lrn || model.serial);
             if (!cancelled) setPreviewModel({ ...model });
         })();
         return () => { cancelled = true; };
-    }, [selectedStudent, schoolProfile, config]);
+    }, [selectedStudent, schoolProfile, config, activeSchoolYear]);
 
     const targets = useMemo<Student[]>(() => {
         if (mode === 'individual') return selectedStudent ? [selectedStudent] : [];
@@ -396,6 +396,7 @@ export function StudentIDGeneratorPage() {
         try {
             const models = await prepareModels(targets, schoolProfile, config, (done, total) =>
                 setProgress(Math.round((done / total) * 80)),
+                activeSchoolYear
             );
             const layout: ExportLayout = mode === 'individual' ? 'per-card' : exportLayout;
             setExportJob({ models, layout, paper: exportPaper });

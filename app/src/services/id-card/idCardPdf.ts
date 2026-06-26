@@ -26,6 +26,7 @@ export async function prepareModels(
     profile: SchoolProfile,
     config: IdCardConfig,
     onProgress?: (done: number, total: number) => void,
+    activeSchoolYear?: string,
 ): Promise<IdCardViewModel[]> {
     const models: IdCardViewModel[] = [];
     const batches = chunk(students, 20);
@@ -34,7 +35,7 @@ export async function prepareModels(
     for (const batch of batches) {
         const built = await Promise.all(
             batch.map(async (student) => {
-                const model = buildIdCardModel(student, profile, config);
+                const model = buildIdCardModel(student, profile, config, activeSchoolYear);
                 if (model.show.qr) {
                     model.qrDataUrl = await generateQrDataUrl(model.qrPayload, { size: 256 });
                 }

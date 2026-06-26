@@ -451,8 +451,9 @@
     /* -------------------------------------------------
        ROOT RESET
     ------------------------------------------------- */
-    html,
-    body {
+    /* Conditional print resets for normal pages vs print profile modal */
+    html:not(.print-profile-html),
+    body:not(.print-profile-mode) {
       width: auto !important;
       height: auto !important;
       min-height: 0 !important;
@@ -464,8 +465,8 @@
       text-rendering: auto !important;
     }
 
-    #root,
-    .app-container {
+    html:not(.print-profile-html) #root,
+    html:not(.print-profile-html) .app-container {
       display: block !important;
       width: auto !important;
       height: auto !important;
@@ -474,6 +475,28 @@
       background: transparent !important;
       margin: 0 !important;
       padding: 0 !important;
+    }
+
+    /* Print resets when print profile modal is open (guarantees exactly 1 page) */
+    html.print-profile-html,
+    body.print-profile-mode {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+    }
+
+    html.print-profile-html body.print-profile-mode #root,
+    html.print-profile-html body.print-profile-mode .app-container,
+    html.print-profile-html body.print-profile-mode #headlessui-portal-root,
+    html.print-profile-html body.print-profile-mode [id^="headlessui-portal-root"],
+    html.print-profile-html body.print-profile-mode [id^="radix-"] {
+      display: none !important;
+      height: 0 !important;
+      overflow: hidden !important;
     }
 
     /* -------------------------------------------------

@@ -3,6 +3,7 @@ import { useAppStore } from '../../stores';
 import type { Student } from '../../types';
 import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { PhotoUploadCrop } from '../id-card/PhotoUploadCrop';
 
 interface StudentFormProps {
     student: Student | null;
@@ -175,7 +176,32 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         shs_pept_date: '',
         shs_als_rating: '',
         shs_als_clc_name_address: '',
-        shs_other_credentials: '',
+        photo_url: '',
+        father_name: '',
+        mother_name: '',
+        guardian_name: '',
+        guardian_relationship: '',
+        parent_contact: '',
+        parent_email: '',
+        parent_name: '',
+        is_4ps: false,
+        household_id: '',
+        enrollment_type: 'Regular',
+        is_als: false,
+        als_center_address: '',
+        first_day_attendance: '',
+        first_day_attendance_sem: '1st Semester',
+        req_birth_cert: false,
+        req_report_card: false,
+        req_sf10: false,
+        req_good_moral: false,
+        req_homeroom_guidance: false,
+        req_brigada_eskwela: false,
+        req_beef: false,
+        req_undertaking: false,
+        req_1st_term: false,
+        req_2nd_term: false,
+        req_3rd_term: false,
         ...initialData
     });
 
@@ -212,6 +238,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                 shs_als_rating: student.shs_als_rating ?? '',
                 shs_als_clc_name_address: student.shs_als_clc_name_address ?? '',
                 shs_other_credentials: student.shs_other_credentials ?? '',
+                // Profile mapping details
+                is_4ps: student.is_4ps ?? false,
+                household_id: student.household_id ?? '',
+                enrollment_type: student.enrollment_type ?? 'Regular',
+                is_als: student.is_als ?? false,
+                als_center_address: student.als_center_address ?? '',
+                first_day_attendance: student.first_day_attendance ?? '',
+                first_day_attendance_sem: student.first_day_attendance_sem ?? '1st Semester',
+                req_birth_cert: student.req_birth_cert ?? false,
+                req_report_card: student.req_report_card ?? false,
+                req_sf10: student.req_sf10 ?? false,
+                req_good_moral: student.req_good_moral ?? false,
+                req_homeroom_guidance: student.req_homeroom_guidance ?? false,
+                req_brigada_eskwela: student.req_brigada_eskwela ?? false,
+                req_beef: student.req_beef ?? false,
+                req_undertaking: student.req_undertaking ?? false,
+                req_1st_term: student.req_1st_term ?? false,
+                req_2nd_term: student.req_2nd_term ?? false,
+                req_3rd_term: student.req_3rd_term ?? false,
             });
         } else if (initialData) {
             const mappedStrand = STRAND_MAPPING[initialData.strand || ''] || initialData.strand || '';
@@ -298,7 +343,30 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             }
         }
 
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        if (name === 'enrollment_type') {
+            setFormData(prev => ({ 
+                ...prev, 
+                enrollment_type: value as Student['enrollment_type'],
+                is_als: value === 'ALS' ? true : prev.is_als,
+                is_als_passer: value === 'ALS' ? true : prev.is_als_passer
+            }));
+            return;
+        }
+
+        setFormData((prev) => {
+            const nextState = { ...prev, [name]: value };
+            if (name === 'als_center_address') {
+                nextState.testing_center = value;
+                nextState.shs_als_clc_name_address = value;
+            } else if (name === 'testing_center') {
+                nextState.als_center_address = value;
+                nextState.shs_als_clc_name_address = value;
+            } else if (name === 'shs_als_clc_name_address') {
+                nextState.als_center_address = value;
+                nextState.testing_center = value;
+            }
+            return nextState;
+        });
 
         // Auto-calculate age from birthday
         if (name === 'birthday' && value) {
@@ -439,6 +507,34 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             shs_als_rating: formData.shs_als_rating || '',
             shs_als_clc_name_address: formData.shs_als_clc_name_address || '',
             shs_other_credentials: formData.shs_other_credentials || '',
+            // Parent / Guardian & Photo Info
+            photo_url: formData.photo_url || '',
+            father_name: formData.father_name || '',
+            mother_name: formData.mother_name || '',
+            guardian_name: formData.guardian_name || '',
+            guardian_relationship: formData.guardian_relationship || '',
+            parent_contact: formData.parent_contact || '',
+            parent_email: formData.parent_email || '',
+            parent_name: formData.parent_name || formData.guardian_name || formData.father_name || formData.mother_name || '',
+            // Profile mapping details
+            is_4ps: !!formData.is_4ps,
+            household_id: formData.is_4ps ? formData.household_id || '' : '',
+            enrollment_type: formData.enrollment_type || 'Regular',
+            is_als: !!formData.is_als,
+            als_center_address: formData.is_als ? formData.als_center_address || '' : '',
+            first_day_attendance: formData.first_day_attendance || '',
+            first_day_attendance_sem: formData.first_day_attendance_sem || '1st Semester',
+            req_birth_cert: !!formData.req_birth_cert,
+            req_report_card: !!formData.req_report_card,
+            req_sf10: !!formData.req_sf10,
+            req_good_moral: !!formData.req_good_moral,
+            req_homeroom_guidance: !!formData.req_homeroom_guidance,
+            req_brigada_eskwela: !!formData.req_brigada_eskwela,
+            req_beef: !!formData.req_beef,
+            req_undertaking: !!formData.req_undertaking,
+            req_1st_term: !!formData.req_1st_term,
+            req_2nd_term: !!formData.req_2nd_term,
+            req_3rd_term: !!formData.req_3rd_term,
         };
 
         try {
@@ -507,7 +603,9 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                         <h4 className="text-lg font-bold text-deped-blue mb-4">Personal Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">LRN (12 digits)</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue">
+                                    LRN (12 digits) {isSimplified && <span className="text-xs font-normal text-slate-400">(Optional)</span>}
+                                </label>
                                 <input
                                     type="text"
                                     name="lrn"
@@ -523,7 +621,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     className={`form-input ${!isLrnEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                 />
                                 {isLrnEditable && (
-                                    <p className="mt-1 text-xs text-gray-500 font-medium">Leave blank to automatically bypass and generate a temporary LRN.</p>
+                                    <p className="mt-1 text-xs text-gray-500 font-medium">
+                                        {isSimplified 
+                                            ? "Leave blank for subject-only/names-only enrollment (auto-generates temp ID)." 
+                                            : "Leave blank to automatically bypass and generate a temporary LRN."}
+                                    </p>
                                 )}
                             </div>
 
@@ -593,6 +695,19 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
                             {!isSimplified && (
                                 <>
+                                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col sm:flex-row items-center gap-4 mb-2">
+                                        <div className="shrink-0">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Student Photo</label>
+                                            <PhotoUploadCrop
+                                                value={formData.photo_url}
+                                                onChange={(dataUrl) => setFormData(prev => ({ ...prev, photo_url: dataUrl }))}
+                                                onRemove={() => setFormData(prev => ({ ...prev, photo_url: undefined }))}
+                                            />
+                                        </div>
+                                        <div className="text-xs text-slate-500 font-medium leading-relaxed">
+                                            Upload/crop a student photo for generating IDs. Fixed 1:1 square crop. Compressed to save disk space and backups.
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="block text-sm font-semibold mb-2 text-deped-blue">Birthday *</label>
                                         <input
@@ -652,6 +767,79 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
                     {!isSimplified && (
                         <>
+                            {/* Parent & Guardian Information */}
+                            <div>
+                                <h4 className="text-lg font-bold text-deped-blue mb-4">Parent & Guardian Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-150 mb-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Father's Full Name</label>
+                                        <input
+                                            type="text"
+                                            name="father_name"
+                                            value={formData.father_name || ''}
+                                            onChange={handleChange}
+                                            placeholder="First Middle Last"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Mother's Maiden Name</label>
+                                        <input
+                                            type="text"
+                                            name="mother_name"
+                                            value={formData.mother_name || ''}
+                                            onChange={handleChange}
+                                            placeholder="First Middle Last"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Guardian's Full Name</label>
+                                        <input
+                                            type="text"
+                                            name="guardian_name"
+                                            value={formData.guardian_name || ''}
+                                            onChange={handleChange}
+                                            placeholder="First Middle Last"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Guardian Relationship</label>
+                                        <input
+                                            type="text"
+                                            name="guardian_relationship"
+                                            value={formData.guardian_relationship || ''}
+                                            onChange={handleChange}
+                                            placeholder="e.g. Grandparent, Aunt"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Parent/Guardian Contact No.</label>
+                                        <input
+                                            type="tel"
+                                            name="parent_contact"
+                                            value={formData.parent_contact || ''}
+                                            onChange={handleChange}
+                                            placeholder="09XX-XXX-XXXX"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Parent/Guardian Email</label>
+                                        <input
+                                            type="email"
+                                            name="parent_email"
+                                            value={formData.parent_email || ''}
+                                            onChange={handleChange}
+                                            placeholder="email@example.com"
+                                            className="form-input bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Academic Information */}
                             <div>
                                 <h4 className="text-lg font-bold text-deped-blue mb-4">Academic Information</h4>
@@ -971,7 +1159,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     type="checkbox" 
                                                     name="is_als_passer"
                                                     checked={!!formData.is_als_passer}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_als_passer: e.target.checked }))}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, is_als_passer: e.target.checked, is_als: e.target.checked ? true : prev.is_als }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
                                                 <span className="font-bold text-gray-800">ALS A&E Passer ***</span>
@@ -1061,7 +1249,14 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         <input 
                                                             type="checkbox" 
                                                             checked={!!formData[item.id as keyof Student]}
-                                                            onChange={(e) => setFormData(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                                            onChange={(e) => setFormData(prev => {
+                                                                const nextState = { ...prev, [item.id]: e.target.checked };
+                                                                if (item.id === 'is_als_passer') {
+                                                                    nextState.is_als = e.target.checked ? true : prev.is_als;
+                                                                    nextState.enrollment_type = e.target.checked ? 'ALS' : prev.enrollment_type;
+                                                                }
+                                                                return nextState;
+                                                            })}
                                                             className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         />
                                                         <span className="text-sm font-bold text-gray-700 group-hover:text-blue-700">{item.label}</span>
@@ -1124,8 +1319,270 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </div>
                                 </>
                             )}
-                        </>
-                    )}
+
+                            {/* Section: Credentials Checklist */}
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-4">
+                                        <h4 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
+                                            Document Credentials Checklist
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-white rounded-lg border border-gray-200">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_birth_cert"
+                                                    checked={!!formData.req_birth_cert} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_birth_cert: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">PSA Birth Certificate</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_report_card"
+                                                    checked={!!formData.req_report_card} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_report_card: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Final Report Card (SF9)</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_sf10"
+                                                    checked={!!formData.req_sf10} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_sf10: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Form 137 / SF10</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_good_moral"
+                                                    checked={!!formData.req_good_moral} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_good_moral: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Good Moral Certificate</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_homeroom_guidance"
+                                                    checked={!!formData.req_homeroom_guidance} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_homeroom_guidance: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Homeroom Guidance Form</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_brigada_eskwela"
+                                                    checked={!!formData.req_brigada_eskwela} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_brigada_eskwela: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Brigada Eskwela Slip</span>
+                                            </label>
+
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="req_beef"
+                                                    checked={!!formData.req_beef} 
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, req_beef: e.target.checked }))}
+                                                    className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                />
+                                                <span className="text-sm font-semibold text-gray-700">Enrolment Form (Annex 1)</span>
+                                            </label>
+
+                                            {isSHS && (
+                                                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        name="req_undertaking"
+                                                        checked={!!formData.req_undertaking} 
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, req_undertaking: e.target.checked }))}
+                                                        className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                    />
+                                                    <span className="text-sm font-semibold text-gray-700">Confirmation Slip</span>
+                                                </label>
+                                            )}
+
+                                            <div className="col-span-1 md:col-span-2 border-t border-slate-200/60 my-2 pt-2">
+                                                <p className="text-xs font-bold text-deped-blue mb-2 uppercase tracking-wider">Enrollment Terms</p>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            name="req_1st_term"
+                                                            checked={!!formData.req_1st_term} 
+                                                            onChange={(e) => setFormData(prev => ({ ...prev, req_1st_term: e.target.checked }))}
+                                                            className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                        />
+                                                        <span className="text-sm font-semibold text-gray-700">1st Term</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            name="req_2nd_term"
+                                                            checked={!!formData.req_2nd_term} 
+                                                            onChange={(e) => setFormData(prev => ({ ...prev, req_2nd_term: e.target.checked }))}
+                                                            className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                        />
+                                                        <span className="text-sm font-semibold text-gray-700">2nd Term</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            name="req_3rd_term"
+                                                            checked={!!formData.req_3rd_term} 
+                                                            onChange={(e) => setFormData(prev => ({ ...prev, req_3rd_term: e.target.checked }))}
+                                                            className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                        />
+                                                        <span className="text-sm font-semibold text-gray-700">3rd Term</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Section: Additional Information */}
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-4">
+                                        <h4 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                                            <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
+                                            Additional Profile Mapping Details
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-4 rounded-lg border border-gray-200">
+                                            {/* 4Ps Beneficiary Info */}
+                                            <div className="space-y-3 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
+                                                <span className="block text-sm font-semibold text-deped-blue">4Ps Beneficiary?</span>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, is_4ps: true }))}
+                                                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all border ${
+                                                            formData.is_4ps 
+                                                                ? 'bg-deped-blue text-white border-deped-blue shadow-xs' 
+                                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        Yes
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, is_4ps: false, household_id: '' }))}
+                                                        className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all border ${
+                                                            !formData.is_4ps 
+                                                                ? 'bg-deped-blue text-white border-deped-blue shadow-xs' 
+                                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        No
+                                                    </button>
+                                                </div>
+                                                {formData.is_4ps && (
+                                                    <div className="pt-2 animate-fade-in space-y-1">
+                                                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Household ID Number</label>
+                                                        <input 
+                                                            type="text" 
+                                                            name="household_id"
+                                                            value={formData.household_id || ''} 
+                                                            onChange={handleChange}
+                                                            placeholder="Enter 4Ps Household ID"
+                                                            className="form-input text-sm focus:ring-deped-blue"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Enrollment Type & Status */}
+                                            <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
+                                                <div>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">Enrollment Type</label>
+                                                    <select 
+                                                        name="enrollment_type" 
+                                                        value={formData.enrollment_type || 'Regular'} 
+                                                        onChange={handleChange}
+                                                        className="form-input bg-white text-sm focus:ring-deped-blue"
+                                                    >
+                                                        <option value="Regular">Regular</option>
+                                                        <option value="Irregular">Irregular</option>
+                                                        <option value="Transferee">Transferee</option>
+                                                        <option value="ALS">Alternative Learning System (ALS)</option>
+                                                    </select>
+                                                </div>
+
+                                                {(formData.enrollment_type === 'ALS' || formData.is_als) && (
+                                                    <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-3 animate-fade-in mt-2">
+                                                        <label className="flex items-center gap-3 cursor-pointer">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                name="is_als"
+                                                                checked={formData.is_als || formData.enrollment_type === 'ALS'} 
+                                                                onChange={(e) => setFormData(prev => ({ ...prev, is_als: e.target.checked, is_als_passer: e.target.checked ? true : prev.is_als_passer }))}
+                                                                className="w-4 h-4 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
+                                                            />
+                                                            <span className="font-semibold text-gray-800 text-xs">Confirm ALS Enrolled Status</span>
+                                                        </label>
+                                                        <div>
+                                                            <label className="block text-[11px] font-semibold mb-1 text-deped-blue">ALS Center Address</label>
+                                                            <input 
+                                                                type="text" 
+                                                                name="als_center_address"
+                                                                value={formData.als_center_address || ''} 
+                                                                onChange={handleChange}
+                                                                placeholder="CLC Name/Address"
+                                                                className="form-input text-xs bg-white focus:ring-deped-blue"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* First Day of Attendance */}
+                                            <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
+                                                <div>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">First Day of Attendance</label>
+                                                    <input 
+                                                        type="date" 
+                                                        name="first_day_attendance"
+                                                        value={formData.first_day_attendance || ''} 
+                                                        onChange={handleChange}
+                                                        className="form-input text-sm bg-white focus:ring-deped-blue"
+                                                    />
+                                                </div>
+
+                                                {isSHS && (
+                                                    <div className="space-y-3 pt-3 border-t border-slate-200 mt-2">
+                                                        <label className="block text-xs font-semibold text-deped-blue">Term / Semester</label>
+                                                        <select 
+                                                            name="first_day_attendance_sem" 
+                                                            value={formData.first_day_attendance_sem || '1st Semester'} 
+                                                            onChange={handleChange}
+                                                            className="form-input bg-white text-sm focus:ring-deped-blue"
+                                                        >
+                                                            <option value="1st Semester">1st Semester</option>
+                                                            <option value="2nd Semester">2nd Semester</option>
+                                                        </select>
+                                                        <p className="text-[10px] text-gray-500 font-medium">
+                                                            Select term for SHS attendance tracking.
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                     {/* Action Buttons */}
                     <div className="flex justify-end space-x-3 pt-4 border-t sticky bottom-0 bg-white">

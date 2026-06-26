@@ -196,7 +196,73 @@ export function IdTemplateSettings({ config, onChange, canEdit, logoUrl, signatu
                 </div>
             </div>
 
-
+            <div className="border-t border-slate-100 pt-3.5 space-y-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">School Identity & Year Overrides</span>
+                <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Department</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. Department of Education"
+                            value={config.deptName || ''}
+                            onChange={(e) => set('deptName', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Region</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. Region III"
+                            value={config.regionName || ''}
+                            onChange={(e) => set('regionName', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Schools Division</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. Schools Division of..."
+                            value={config.divisionName || ''}
+                            onChange={(e) => set('divisionName', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">District</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. Victoria East District"
+                            value={config.districtName || ''}
+                            onChange={(e) => set('districtName', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Validity (back)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. S.Y. 2026-2027"
+                            value={config.validityText || ''}
+                            onChange={(e) => set('validityText', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Emergency Header (back)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. In Case of Emergency..."
+                            value={config.emergencyText || ''}
+                            onChange={(e) => set('emergencyText', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded-md placeholder:text-slate-400 bg-white"
+                        />
+                    </div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-2.5">
                 <div>

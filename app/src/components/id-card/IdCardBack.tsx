@@ -449,16 +449,16 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                 />
                 <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1 }}>
                     <div style={{ fontSize: `${1.43 * model.headerFontSizeScale}mm`, fontWeight: 600, opacity: 0.95 }}>
-                        Department of Education
+                        {model.deptName}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        Region III
+                        {model.region}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, whiteSpace: 'nowrap' }}>
-                        SCHOOLS DIVISION OF TARLAC PROVINCE
+                        {model.division}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        VICTORIA EAST DISTRICT
+                        {model.district}
                     </div>
                     <div style={{ fontSize: `${2.0 * model.headerFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', whiteSpace: 'nowrap' }}>
                         {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}
@@ -500,7 +500,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                     marginBottom: model.show.slot ? '0.6mm' : '1.0mm',
                     fontFamily: cardFontFamily 
                 }}>
-                    VALIDITY: S.Y. 2026-2027
+                    VALIDITY: {model.validityText}
                 </div>
 
                 {/* Emergency block */}
@@ -514,7 +514,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                         marginBottom: '1.0mm',
                         fontFamily: cardFontFamily 
                     }}>
-                        In Case of Emergency Please Notify:
+                        {model.emergencyText}
                     </div>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: model.show.slot ? '0.8mm' : '1.2mm' }}>
@@ -584,7 +584,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                     padding: '0 2mm', 
                     fontFamily: cardFontFamily 
                 }}>
-                    This certifies that the bearer whose picture appears on this card is a student of <strong style={{ color: primaryColor }}>CALIBUNGAN HIGH SCHOOL</strong>
+                    This certifies that the bearer whose picture appears on this card is a student of <strong style={{ color: primaryColor }}>{model.schoolName}</strong>
                 </div>
 
                 {/* Signature and non-transferable footer */}

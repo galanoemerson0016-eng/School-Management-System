@@ -164,6 +164,33 @@ export const DiagnosticEngine = {
         });
       }
 
+      // --- 5. Corrupted or Unreadable Student Records ---
+      const corruptedStudentLrns: string[] = [];
+      for (const student of students) {
+        if (!student.lrn || typeof student.last_name !== 'string' || !student.first_name) {
+          corruptedStudentLrns.push(student.lrn || 'missing-lrn');
+        }
+      }
+
+      if (corruptedStudentLrns.length > 0) {
+        issues.push({
+          id: 'corrupted_student_records',
+          category: 'orphan_grades',
+          severity: 'error',
+          description: `${corruptedStudentLrns.length} corrupted or unreadable student record(s) detected.`,
+          details: 'These profiles have missing LRNs, non-string names, or could not be decrypted due to key mismatches. Deleting them will resolve update blocks.',
+          affectedIds: corruptedStudentLrns,
+          repairAction: async () => {
+            for (const student of students) {
+              if (!student.lrn || typeof student.last_name !== 'string' || !student.first_name) {
+                const key = student.lrn || '';
+                await db.deleteRecord('students', key);
+              }
+            }
+          }
+        });
+      }
+
       console.log(`🩺 Diagnostics complete. Found ${issues.length} issue(s).`);
     } catch (err) {
       console.error('❌ Diagnostic engine scan aborted due to error:', err);

@@ -103,6 +103,53 @@ describe('buildIdCardModel', () => {
         expect(model.signatoryPosition).toBe('OIC');
     });
 
+    it('honors custom identity, validity, and emergency text overrides from config', () => {
+        const cfg = {
+            ...getDefaultIdCardConfig(),
+            deptName: 'Custom Department',
+            regionName: 'NCR',
+            divisionName: 'Manila Division',
+            districtName: 'District X',
+            validityText: 'VALIDITY UNTIL 2028',
+            emergencyText: 'CONTACT IMMEDIATELY:',
+        };
+        const model = buildIdCardModel(student, profile, cfg);
+        expect(model.deptName).toBe('Custom Department');
+        expect(model.region).toBe('NCR');
+        expect(model.division).toBe('Manila Division');
+        expect(model.district).toBe('District X');
+        expect(model.validityText).toBe('VALIDITY UNTIL 2028');
+        expect(model.emergencyText).toBe('CONTACT IMMEDIATELY:');
+    });
+
+    it('falls back to schoolProfile or activeSchoolYear or system defaults when config is empty', () => {
+        // Test fallbacks using profile values
+        const modelWithProfile = buildIdCardModel(student, profile, undefined, '2026-2027');
+        expect(modelWithProfile.deptName).toBe('Department of Education');
+        expect(modelWithProfile.region).toBe('Region IV-A'); // from profile
+        expect(modelWithProfile.division).toBe('Cavite'); // from profile
+        expect(modelWithProfile.district).toBe('District 1'); // from profile
+        expect(modelWithProfile.validityText).toBe('S.Y. 2026-2027'); // from activeSchoolYear
+        expect(modelWithProfile.emergencyText).toBe('In Case of Emergency Please Notify:');
+
+        // Test fallbacks when profile values are missing
+        const emptyProfile: SchoolProfile = {
+            school_id: '',
+            name: '',
+            region: '',
+            division: '',
+            district: '',
+            head_name: '',
+            head_position: '',
+            grade_levels_offered: '',
+        };
+        const modelEmpty = buildIdCardModel(student, emptyProfile, undefined, undefined);
+        expect(modelEmpty.region).toBe('Region III'); // default fallback
+        expect(modelEmpty.division).toBe('SCHOOLS DIVISION OF TARLAC PROVINCE'); // default fallback
+        expect(modelEmpty.district).toBe('VICTORIA EAST DISTRICT'); // default fallback
+        expect(modelEmpty.validityText).toBe('S.Y. 2026-2027'); // default fallback when no active school year is passed
+    });
+
     it('builds a human-readable QR payload with name, LRN, and grade/section', () => {
         const model = buildIdCardModel(student, profile, undefined);
         expect(model.qrPayload).toContain('Name: JUAN SANTOS DELA CRUZ JR');

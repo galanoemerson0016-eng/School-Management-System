@@ -13,8 +13,9 @@ import {
 import { useAppStore, useAuthStore } from '../stores';
 import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
+import { StudentProfilePrintModal } from '../components/students/StudentProfilePrintModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles } from 'lucide-react';
+import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles, Printer, LayoutGrid, List } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
@@ -35,6 +36,7 @@ export function StudentsPage() {
     const isAdmin = user?.role === 'admin';
 
     const [viewMode, setViewMode] = useState<'overview' | 'section_detail'>('overview');
+    const [listMode, setListMode] = useState<'table' | 'grid'>('table');
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
     const [overviewSearch, setOverviewSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -47,6 +49,8 @@ export function StudentsPage() {
     const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [printingStudent, setPrintingStudent] = useState<Student | null>(null);
     const [formDataForModal, setFormDataForModal] = useState<Partial<Student> | undefined>(undefined);
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
     const [isImporting, setIsImporting] = useState(false);
@@ -507,6 +511,16 @@ export function StudentsPage() {
                     header: '',
                     cell: ({ row }) => (
                         <div className="flex gap-1 transition-opacity">
+                            <button
+                                onClick={() => {
+                                    setPrintingStudent(row.original);
+                                    setIsPrintModalOpen(true);
+                                }}
+                                className="p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
+                                title="Print Profile Form"
+                            >
+                                <Printer className="w-4 h-4" />
+                            </button>
                             <button onClick={() => handleEdit(row.original)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Edit">
                                 <Edit3 className="w-4 h-4" />
                             </button>
@@ -1131,6 +1145,32 @@ export function StudentsPage() {
                                 <p className="text-sm text-gray-500 font-medium">
                                     Showing <span className="font-bold text-gray-800">{displayedStudents.length}</span> students
                                 </p>
+
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                        onClick={() => setListMode('table')}
+                                        className={`p-1 px-1.5 rounded-md transition-all cursor-pointer ${
+                                            listMode === 'table' 
+                                                ? 'bg-white text-slate-800 shadow-3xs' 
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                        title="Table View"
+                                    >
+                                        <List className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={() => setListMode('grid')}
+                                        className={`p-1 px-1.5 rounded-md transition-all cursor-pointer ${
+                                            listMode === 'grid' 
+                                                ? 'bg-white text-slate-800 shadow-3xs' 
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                        title="Photo Grid View"
+                                    >
+                                        <LayoutGrid className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+
                                 {hasActiveFilters && (
                                     <button
                                         onClick={resetDetailFilters}
@@ -1158,6 +1198,161 @@ export function StudentsPage() {
                                     >
                                         Clear Filters
                                     </button>
+                                )}
+                            </div>
+                        ) : listMode === 'grid' ? (
+                            <div className="flex flex-col">
+                                <div className="p-6">
+                                    <motion.div 
+                                        variants={containerVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                                    >
+                                        {table.getRowModel().rows.map((row) => {
+                                            const student = row.original;
+                                            const fullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name.charAt(0) + '.' : ''}`;
+                                            const initials = `${student.first_name.charAt(0)}${student.last_name.charAt(0)}`.toUpperCase();
+                                            const displayLrn = student.lrn.startsWith('TEMP-') ? '' : student.lrn;
+                                            
+                                            return (
+                                                <motion.div
+                                                    key={student.lrn}
+                                                    variants={cardVariants}
+                                                    whileHover={{ y: -4 }}
+                                                    className="group bg-white rounded-2xl border border-slate-200/80 hover:border-deped-blue/30 shadow-2xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col justify-between"
+                                                >
+                                                    {/* Card Header & Photo */}
+                                                    <div className="p-4 flex flex-col items-center text-center">
+                                                        {/* Photo Frame */}
+                                                        <div className="w-18 h-18 rounded-full border-2 border-slate-100 bg-slate-50 flex items-center justify-center relative overflow-hidden mb-3 shadow-inner shrink-0">
+                                                            {student.photo_url ? (
+                                                                <img 
+                                                                    src={student.photo_url} 
+                                                                    alt={fullName} 
+                                                                    className="w-full h-full object-cover" 
+                                                                />
+                                                            ) : (
+                                                                <div className={`w-full h-full flex items-center justify-center text-sm font-black ${
+                                                                    student.gender === 'Male' ? 'bg-blue-50/70 text-blue-600' : 'bg-pink-50/70 text-pink-600'
+                                                                }`}>
+                                                                    {initials}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Name and LRN */}
+                                                        <h5 className="font-extrabold text-xs text-slate-800 uppercase tracking-tight line-clamp-1 mb-1" title={fullName}>
+                                                            {fullName}
+                                                        </h5>
+                                                        
+                                                        {displayLrn ? (
+                                                            <span className="font-mono text-[9px] text-slate-400 font-bold mb-2">
+                                                                {displayLrn}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] text-transparent select-none font-bold mb-2">-</span>
+                                                        )}
+
+                                                        {/* Badges */}
+                                                        <div className="flex items-center gap-1 flex-wrap justify-center mb-1">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
+                                                                student.gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                                                            }`}>
+                                                                {student.gender}
+                                                            </span>
+                                                            {student.age && (
+                                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[8px] font-black rounded-full uppercase tracking-wider">
+                                                                    {student.age} yrs
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Birthday & Address */}
+                                                        <div className="text-[10px] text-slate-500 font-medium space-y-0.5 mt-2 w-full truncate">
+                                                            {student.birthday && (
+                                                                <p className="truncate text-left flex items-center justify-center gap-1">
+                                                                    <span className="text-slate-400">🎂</span>
+                                                                    <span className="font-semibold text-slate-600">
+                                                                        {(() => {
+                                                                            const parts = student.birthday.split('-');
+                                                                            if (parts.length === 3) {
+                                                                                const [y, m, d] = parts;
+                                                                                return `${m}/${d}/${y}`;
+                                                                            }
+                                                                            return student.birthday;
+                                                                        })()}
+                                                                    </span>
+                                                                </p>
+                                                            )}
+                                                            {student.address && (
+                                                                <p className="truncate text-left flex items-center justify-center gap-1" title={student.address}>
+                                                                    <span className="text-slate-400">📍</span>
+                                                                    <span className="font-semibold text-slate-600">{student.address.split(',')[0]}</span>
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Action Bar */}
+                                                    <div className="bg-slate-50/50 border-t border-slate-100 px-3 py-1.5 flex items-center justify-center gap-0.5">
+                                                        <button
+                                                            onClick={() => {
+                                                                setPrintingStudent(student);
+                                                                setIsPrintModalOpen(true);
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors cursor-pointer"
+                                                            title="Print Profile Form"
+                                                        >
+                                                            <Printer className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        {canEdit && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => handleEdit(student)} 
+                                                                    className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors cursor-pointer" 
+                                                                    title="Edit"
+                                                                >
+                                                                    <Edit3 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleDelete(student)} 
+                                                                    className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors cursor-pointer" 
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </motion.div>
+                                </div>
+
+                                {table.getPageCount() > 1 && (
+                                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+                                        <span className="text-xs text-slate-500 font-medium">
+                                            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => table.previousPage()}
+                                                disabled={!table.getCanPreviousPage()}
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                onClick={() => table.nextPage()}
+                                                disabled={!table.getCanNextPage()}
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         ) : (
@@ -1289,6 +1484,17 @@ export function StudentsPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {isPrintModalOpen && printingStudent && (
+                <StudentProfilePrintModal
+                    student={printingStudent}
+                    section={sections.find(s => s.section_name === printingStudent.student_section || s.id === printingStudent.student_section) || null}
+                    onClose={() => {
+                        setIsPrintModalOpen(false);
+                        setPrintingStudent(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

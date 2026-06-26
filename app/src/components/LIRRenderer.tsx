@@ -407,8 +407,16 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
 
                         {/* Student Info Section */}
                         <div className="flex gap-4 items-start w-full mt-2">
-                            <div className="border-2 flex flex-col items-center justify-center text-center bg-white shrink-0" style={{ width: 1.0 * scale + 'in', height: 1.0 * scale + 'in', borderColor: outlineColor }}>
-                                <span className="font-bold leading-tight" style={{ fontSize: 0.7 * scale + 'rem' }}>1 X 1<br />PHOTO</span>
+                            <div className="border-2 flex flex-col items-center justify-center text-center bg-white shrink-0 overflow-hidden" style={{ width: 1.0 * scale + 'in', height: 1.0 * scale + 'in', borderColor: outlineColor }}>
+                                {student.photo_url ? (
+                                    <img
+                                        src={student.photo_url}
+                                        alt="1x1 Learner Photo"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="font-bold leading-tight" style={{ fontSize: 0.7 * scale + 'rem' }}>1 X 1<br />PHOTO</span>
+                                )}
                             </div>
 
                             <div className="grow flex flex-col gap-1 overflow-hidden">

@@ -1,5 +1,5 @@
 import { useUpdateStore } from '../../stores/update-store';
-import { Shield, CheckCircle, XCircle, Loader2, ArrowRight, Download, RefreshCw } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Loader2, ArrowRight, Download, RefreshCw, X } from 'lucide-react';
 
 export function UpdateCenterModal() {
   const { 
@@ -38,6 +38,16 @@ export function UpdateCenterModal() {
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-100 p-4 animate-in fade-in duration-300">
       <div className="relative bg-white dark:bg-[#0d1225] border border-slate-200 dark:border-white/10 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Close Button */}
+        {(updateStep === 'ready-to-start' || updateStep === 'failed') && (
+          <button
+            onClick={() => useUpdateStore.setState({ updateStep: 'idle' })}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all cursor-pointer z-50 flex items-center justify-center"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         {/* Banner header */}
         <div className="bg-linear-to-r from-indigo-600 via-blue-600 to-indigo-700 p-6 text-white text-center shrink-0">
           <Shield className="w-12 h-12 mx-auto mb-3 text-white/95 drop-shadow-md animate-pulse" />
@@ -72,13 +82,21 @@ export function UpdateCenterModal() {
               <p className="text-sm text-slate-600 dark:text-gray-400 font-medium leading-relaxed">
                 A critical application update is ready. Before downloading, FormEase will run a system validation check and create an automatic full backup to local storage.
               </p>
-              <button
-                onClick={handleStartUpdate}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-              >
-                Start Update Pipeline
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleStartUpdate}
+                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  Start Update
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => useUpdateStore.setState({ updateStep: 'idle' })}
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-black text-[13px] uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+                >
+                  Later
+                </button>
+              </div>
             </div>
           )}
 
@@ -171,13 +189,21 @@ export function UpdateCenterModal() {
                   {errorMessage || 'An error occurred during verification.'}
                 </p>
               </div>
-              <button
-                onClick={checkForUpdates}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Retry Update Check
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={checkForUpdates}
+                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Retry Check
+                </button>
+                <button
+                  onClick={() => useUpdateStore.setState({ updateStep: 'idle' })}
+                  className="flex-1 py-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white font-black text-[13px] uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+                >
+                  Close & Continue
+                </button>
+              </div>
             </div>
           )}
         </div>
