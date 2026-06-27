@@ -1,8 +1,0 @@
-{
-  "Description": "\"Define isGrade1to10 in SF9Page component and use it to hide the Values button for Grade 1-10 students.\"",
-  "Instruction": "\"Define isGrade1to10 and hide Values button conditionally.\"",
-  "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":1708,\"ReplacementContent\":\"        return num === 11 || num === 12;\\n    }, [selectedSectionObj?.section_grade_level]);\\n\\n    const isGrade1to10 = useMemo(() => {\\n        if (!selectedStudent) return false;\\n        const gradeNum = parseInt(selectedStudent.grade_level?.replace(/\\\\D/g, '') || '0');\\n        return gradeNum >= 1 && gradeNum <= 10;\\n    }, [selectedStudent]);\\n\\n    useEffect(() => {\",\"StartLine\":1705,\"TargetContent\":\"        return num === 11 || num === 12;\\n    }, [selectedSectionObj?.section_grade_level]);\\n\\n    useEffect(() => {\"},{\"AllowMultiple\":false,\"EndLine\":2167,\"ReplacementContent\":\"                        {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1to10 && (\",\"StartLine\":2165,\"TargetContent\":\"                        {selectedStudent && !isBatchReady && !isShsSf9Section && (\"}]",
-  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
-  "toolAction": "\"Hiding Values button in SF9Page.tsx\"",
-  "toolSummary": "\"Multi-replace hide values\""
-}

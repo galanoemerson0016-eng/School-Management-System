@@ -1,8 +1,0 @@
-{
-  "Description": "\"Restores the inner padding of singleBorderWrapper so the flex layout doesn't collapse, while keeping borderWidth at 0 to remove the outline.\"",
-  "Instruction": "\"Restore padding on singleBorderWrapper but keep borderWidth 0\"",
-  "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":123,\"ReplacementContent\":\"    singleBorderWrapper: { borderWidth: 0, paddingTop: 8, paddingBottom: 8, paddingHorizontal: 12, flex: 1, flexDirection: 'column' },\",\"StartLine\":123,\"TargetContent\":\"    singleBorderWrapper: { borderWidth: 0, paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0, flex: 1, flexDirection: 'column' },\"}]",
-  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
-  "toolAction": "\"Restoring padding on singleBorderWrapper\"",
-  "toolSummary": "\"Restore inner padding for layout\""
-}

@@ -1,8 +1,0 @@
-{
-  "Description": "\"Removes the outline border from the SF9 card wrapper and sets all page margins to 0.5 inches (36pt) as requested.\"",
-  "Instruction": "\"Remove the border from singleBorderWrapper and set page margins to 0.5 inch (36pt) on singlePage\"",
-  "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":123,\"ReplacementContent\":\"    singlePage: { paddingTop: 36, paddingBottom: 36, paddingHorizontal: 36, fontSize: 11.5, fontFamily: 'Times-Roman' },\\n    singleBorderWrapper: { borderWidth: 0, paddingTop: 0, paddingBottom: 0, paddingHorizontal: 0, flex: 1, flexDirection: 'column' },\",\"StartLine\":122,\"TargetContent\":\"    singlePage: { paddingTop: 15, paddingBottom: 15, paddingHorizontal: 15, fontSize: 11.5, fontFamily: 'Times-Roman' },\\n    singleBorderWrapper: { borderWidth: 1, borderColor: '#000', paddingTop: 8, paddingBottom: 8, paddingHorizontal: 12, flex: 1, flexDirection: 'column' },\"}]",
-  "TargetFile": "\"c:\\\\Users\\\\Emerson\\\\Desktop\\\\FormEase Pro\\\\app\\\\src\\\\pages\\\\SF9Page.tsx\"",
-  "toolAction": "\"Editing SF9Page.tsx margins and border\"",
-  "toolSummary": "\"Remove border, set 0.5in margins\""
-}
