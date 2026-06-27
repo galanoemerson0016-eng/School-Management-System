@@ -152,6 +152,7 @@ export interface Student {
     elementary_school?: string;
     elementary_school_id?: string;
     elementary_school_address?: string;
+    elementary_school_type?: 'Public' | 'Private' | '';
     sy_last_attended?: string;
     average_grade?: string;
     citation?: string;
@@ -177,6 +178,7 @@ export interface Student {
     jhs_gen_ave?: string;
     jhs_school_name?: string;
     jhs_school_address?: string;
+    jhs_school_type?: 'Public' | 'Private' | '';
     jhs_graduation_date?: string;
     shs_pept_rating?: string;
     shs_pept_date?: string;
@@ -200,7 +202,7 @@ export interface Student {
     // Additional profile mapping fields
     is_4ps?: boolean;
     household_id?: string;
-    enrollment_type?: 'Regular' | 'Irregular' | 'Transferee' | 'ALS';
+    enrollment_type?: 'Regular' | 'Irregular' | 'Transferee' | 'ALS' | 'Balik-Aral';
     is_als?: boolean;
     als_center_address?: string;
     first_day_attendance?: string;

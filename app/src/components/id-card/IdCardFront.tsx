@@ -854,7 +854,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             display: 'inline-block',
                             marginBottom: model.show.slot ? '0.6mm' : '1.0mm'
                         }}>
-                            CALIBUNGAN
+                            STUDENT
                         </div>
                         <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}

@@ -116,20 +116,32 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
     const dayChars = birthDay.padStart(2, ' ').split('');
     const yearChars = birthYear.padStart(4, ' ').split('');
 
+    // Format First Day of Attendance for grids
+    let attDateStr = student.first_day_attendance || '';
+    if (!attDateStr && student.enrollment_date) {
+        const d = new Date(student.enrollment_date);
+        if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dayVal = String(d.getDate()).padStart(2, '0');
+            attDateStr = `${y}-${m}-${dayVal}`;
+        }
+    }
+    const attParts = attDateStr.split('-');
+    const attYear = attParts[0] || '';
+    const attMonth = attParts[1] || '';
+    const attDay = attParts[2] || '';
+    const attMonthChars = attMonth.padStart(2, ' ').split('');
+    const attDayChars = attDay.padStart(2, ' ').split('');
+    const attYearChars = attYear.padStart(4, ' ').split('');
+
     // Adviser resolution
     const adviserName = section?.adviser_name || 'TBA';
 
     // Address parts
     const currentAddress = student.address || '';
 
-    const formatAttendanceDate = (dateStr?: string) => {
-        if (!dateStr) return '';
-        if (dateStr.includes('-')) {
-            const [y, m, d] = dateStr.split('-');
-            return `${m}/${d}/${y}`;
-        }
-        return dateStr;
-    };
+
 
     // Calculate BMI and Category
     const heightVal = parseFloat(student.height as string) || 0;
@@ -683,37 +695,37 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 )}
 
                                 {/* Student Name Block */}
-                                <div className="grid grid-cols-12 gap-2 items-end mb-2">
-                                    <div className="col-span-1 shrink-0">
-                                        <span className="font-black text-slate-900 uppercase text-[10px]">NAME:</span>
-                                    </div>
-                                    <div className="col-span-3">
-                                        <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.last_name}</span>
-                                        <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Family Name)</span>
-                                    </div>
-                                    <div className="col-span-3">
-                                        <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.first_name}</span>
-                                        <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Given Name)</span>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <span className="font-bold text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.middle_name || ''}</span>
-                                        <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Middle Name)</span>
-                                    </div>
-                                    <div className="col-span-1">
-                                        <span className="font-bold text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.name_extension || ''}</span>
-                                        <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Extension)</span>
-                                    </div>
-                                    <div className="col-span-2 flex justify-end gap-2.5 pb-2">
-                                        <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                            <input type="checkbox" checked={student.gender === 'Male'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
-                                            <span>MALE</span>
-                                        </label>
-                                        <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                            <input type="checkbox" checked={student.gender === 'Female'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
-                                            <span>FEMALE</span>
-                                        </label>
-                                    </div>
-                                </div>
+                                 <div className="flex gap-2 items-end mb-2 text-[10px]">
+                                     <div className="shrink-0 pb-3">
+                                         <span className="font-black text-slate-900 uppercase">NAME:</span>
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.last_name}</span>
+                                         <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Family Name)</span>
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.first_name}</span>
+                                         <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Given Name)</span>
+                                     </div>
+                                     <div className="flex-1 min-w-0">
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.middle_name || ''}</span>
+                                         <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Middle Name)</span>
+                                     </div>
+                                     <div className="w-14 shrink-0">
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.name_extension || ''}</span>
+                                         <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Extension)</span>
+                                     </div>
+                                     <div className="flex gap-2.5 pb-2.5 shrink-0">
+                                         <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                             <input type="checkbox" checked={student.gender === 'Male'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                             <span>MALE</span>
+                                         </label>
+                                         <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                             <input type="checkbox" checked={student.gender === 'Female'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                             <span>FEMALE</span>
+                                         </label>
+                                     </div>
+                                 </div>
 
                                 {/* Date of Birth Grid, Age & LRN Grid */}
                                 <div className="grid grid-cols-12 gap-2 items-center mb-2 text-[10px]">
@@ -792,18 +804,96 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             </div>
                                             <div className="col-span-4 flex justify-end gap-3 pb-0.5">
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={true} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Public'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PUBLIC</span>
                                                 </label>
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={false} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Private'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PRIVATE</span>
                                                 </label>
                                             </div>
                                         </div>
                                     </>
+                                ) : isJHS ? (
+                                    /* JHS - Eligibility for Secondary Enrolment details */
+                                    <>
+                                        <div className="grid grid-cols-12 gap-2 mb-1.5 items-baseline text-[10px] border-t border-dashed border-slate-200 pt-2">
+                                            <div className="col-span-12 font-black text-slate-900 uppercase">
+                                                Eligibility for Secondary Enrolment
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-12 gap-2 mb-2 items-center text-[10px]">
+                                            <div className="col-span-4 font-black text-slate-900 uppercase shrink-0">
+                                                Basis of SF10 Eligibility:
+                                            </div>
+                                            <div className="col-span-8 flex justify-start gap-4">
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={!!student.is_elem_completer} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>Elem. Completer</span>
+                                                </label>
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={!!student.is_pept_passer} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>PEPT Passer</span>
+                                                </label>
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={!!student.is_als_passer} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>ALS A&E Passer</span>
+                                                </label>
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={!!student.is_other_eligibility} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>Others</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
+                                            <div className="col-span-8 flex items-baseline">
+                                                <span className="font-black text-slate-900 uppercase shrink-0">NAME OF ELEMENTARY COMPLETED:</span>
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                    {student.elementary_school || ''}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-4 flex items-baseline">
+                                                <span className="font-black text-slate-900 uppercase shrink-0">School ID:</span>
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                    {student.elementary_school_id || ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
+                                            <div className="col-span-8 flex items-baseline">
+                                                <span className="font-black text-slate-900 uppercase shrink-0">ADDRESS OF SCHOOL:</span>
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                    {student.elementary_school_address || ''}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-4 flex justify-end gap-3 pb-0.5">
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Public'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>PUBLIC</span>
+                                                </label>
+                                                <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Private'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <span>PRIVATE</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
+                                            <div className="col-span-4 flex items-baseline">
+                                                <span className="font-black text-slate-900 uppercase shrink-0">Gen. Average:</span>
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                    {student.average_grade || ''}
+                                                </span>
+                                            </div>
+                                            <div className="col-span-8 flex items-baseline">
+                                                <span className="font-black text-slate-900 uppercase shrink-0">Citation (if any):</span>
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                    {student.citation || ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </>
                                 ) : (
-                                    /* Secondary Levels - Elementary details */
+                                    /* Secondary Levels (SHS) - Elementary details */
                                     <>
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px] border-t border-dashed border-slate-200 pt-2">
                                             <div className="col-span-12 flex items-baseline">
@@ -822,11 +912,11 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             </div>
                                             <div className="col-span-4 flex justify-end gap-3 pb-0.5">
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={student.is_elem_completer || true} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Public'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PUBLIC</span>
                                                 </label>
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={!student.is_elem_completer && false} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.elementary_school_type === 'Private'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PRIVATE</span>
                                                 </label>
                                             </div>
@@ -854,11 +944,11 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             </div>
                                             <div className="col-span-4 flex justify-end gap-3 pb-0.5">
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={student.is_jhs_completer || true} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.jhs_school_type === 'Public'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PUBLIC</span>
                                                 </label>
                                                 <label className="flex items-center gap-1 cursor-pointer font-bold text-[9px] text-slate-900">
-                                                    <input type="checkbox" checked={!student.is_jhs_completer && false} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                                    <input type="checkbox" checked={student.jhs_school_type === 'Private'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                                     <span>PRIVATE</span>
                                                 </label>
                                             </div>
@@ -901,7 +991,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                         {/* PARENT / GUARDIAN INFORMATION */}
                         <div className="mb-4">
                             <div className="bg-slate-950 text-white font-black text-xs px-3 py-1.5 uppercase tracking-wider mb-3 print-border-black">
-                                Parent / Guardian's Information
+                                II. Parent / Guardian's Information
                             </div>
                             <div className="space-y-2">
                                 <div className="grid grid-cols-12 gap-4 mb-1.5 items-baseline text-[10px]">
@@ -974,7 +1064,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                         {/* SECTION II: ATTACHMENT OF DOCUMENTS & PHOTO */}
                         <div className="mb-4">
                             <div className="bg-slate-950 text-white font-black text-xs px-3 py-1.5 uppercase tracking-wider mb-3 print-border-black">
-                                II. Attachment of Personal Documents | Credentials
+                                III. Attachment of Personal Documents | Credentials
                             </div>
                             <div className="grid grid-cols-12 gap-4">
                                 {/* Checkboxes in 3 Columns (col-span-12) */}
@@ -1061,7 +1151,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         )}
 
                                         <label className="flex items-center gap-2 cursor-pointer pt-0.5">
-                                            <input type="checkbox" checked={!!cleanLrn} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                            <input type="checkbox" checked={!!student.req_1st_term || !!student.req_2nd_term || !!student.req_3rd_term} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                             <span>LIS ENROLLED</span>
                                         </label>
                                         
@@ -1087,7 +1177,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                         {/* SECTION III: OTHERS */}
                         <div className="mb-4">
                             <div className="bg-slate-950 text-white font-black text-xs px-3 py-1.5 uppercase tracking-wider mb-3 print-border-black">
-                                III. Others
+                                IV. Others
                             </div>
                             
                             <div className="grid grid-cols-12 gap-4 text-[10px] leading-tight text-slate-950">
@@ -1108,10 +1198,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-12 gap-4 mt-2.5 text-[10px] leading-tight items-baseline">
+                            <div className="grid grid-cols-12 gap-4 mt-2.5 text-[10px] leading-tight items-baseline border-t border-dashed border-slate-200 pt-2.5">
+                                <div className="col-span-12 font-black text-slate-900 uppercase">
+                                    Status of Enrolment:
+                                </div>
                                 {/* Left Column: Regular, Irregular, Transferee details */}
                                 <div className="col-span-7 space-y-2">
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1">
                                         <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
                                             <input type="checkbox" checked={student.enrollment_type === 'Regular' || !student.enrollment_type} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                             <span>Regular</span>
@@ -1124,6 +1217,14 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             <input type="checkbox" checked={student.enrollment_type === 'Transferee'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
                                             <span>Transferee</span>
                                         </label>
+                                        <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
+                                            <input type="checkbox" checked={student.enrollment_type === 'Balik-Aral'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                            <span>Balik-Aral</span>
+                                        </label>
+                                        <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
+                                            <input type="checkbox" checked={student.enrollment_type === 'ALS' || !!student.is_als} readOnly className="w-3.5 h-3.5 accent-slate-900" />
+                                            <span>ALS</span>
+                                        </label>
                                     </div>
                                     <div className="flex items-baseline">
                                         <span className="font-bold text-slate-700 shrink-0">School Last Attended:</span>
@@ -1131,19 +1232,24 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             {!isElem ? student.elementary_school || '' : ''}
                                         </span>
                                     </div>
-                                    <div className="flex items-baseline">
+                                    <div className="flex items-center gap-1.5 mt-1">
                                         <span className="font-bold text-slate-700 shrink-0">First Day of Attendance:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
-                                            {student.first_day_attendance ? formatAttendanceDate(student.first_day_attendance) : (student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('en-US') : '')}
-                                        </span>
+                                        <div className="flex items-center">
+                                            {attMonthChars.map((c, i) => <span key={`am-${i}`} className="grid-cell-box">{c}</span>)}
+                                            <span className="mx-0.5 font-bold text-slate-600">/</span>
+                                            {attDayChars.map((c, i) => <span key={`ad-${i}`} className="grid-cell-box">{c}</span>)}
+                                            <span className="mx-0.5 font-bold text-slate-600">/</span>
+                                            {attYearChars.map((c, i) => <span key={`ay-${i}`} className="grid-cell-box">{c}</span>)}
+                                        </div>
                                     </div>
                                 </div>
                                 
                                 {/* Right Column: ALS, Address and Semesters (SHS only) */}
                                 <div className="col-span-5 border-l border-dashed border-slate-300 pl-4 space-y-2">
-                                    <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
+                                    {/* Removed ALS Enrolled checkbox since ALS is in the main list */}
+                                    <label className="hidden">
                                         <input type="checkbox" checked={student.enrollment_type === 'ALS' || !!student.is_als} readOnly className="w-3.5 h-3.5 accent-slate-900" />
-                                        <span>ALS Enrolled</span>
+                                        <span></span>
                                     </label>
                                     <div className="flex items-baseline">
                                         <span className="font-bold text-slate-700 shrink-0">ALS Center Address:</span>
@@ -1152,26 +1258,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         </span>
                                     </div>
                                     
-                                    {isSHS && (
-                                        <div className="space-y-2 pt-2 border-t border-dotted border-slate-300">
-                                            <div className="flex gap-4">
-                                                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
-                                                    <input type="checkbox" checked={student.first_day_attendance_sem === '1st Semester' || !student.first_day_attendance_sem} readOnly className="w-3.5 h-3.5 accent-slate-900" />
-                                                    <span>1st Semester</span>
-                                                </label>
-                                                <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-950">
-                                                    <input type="checkbox" checked={student.first_day_attendance_sem === '2nd Semester'} readOnly className="w-3.5 h-3.5 accent-slate-900" />
-                                                    <span>2nd Semester</span>
-                                                </label>
-                                            </div>
-                                            <div className="flex items-baseline">
-                                                <span className="font-bold text-slate-700 shrink-0">First Day of Attendance (Sem):</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
-                                                    {student.first_day_attendance ? formatAttendanceDate(student.first_day_attendance) : (student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('en-US') : '')}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
+
                                 </div>
                             </div>
                         </div>

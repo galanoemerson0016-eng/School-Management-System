@@ -143,6 +143,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         elementary_school: '',
         elementary_school_id: '',
         elementary_school_address: '',
+        elementary_school_type: '',
         sy_last_attended: '',
         average_grade: '',
         citation: '',
@@ -171,6 +172,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         jhs_gen_ave: '',
         jhs_school_name: '',
         jhs_school_address: '',
+        jhs_school_type: '',
         jhs_graduation_date: '',
         shs_pept_rating: '',
         shs_pept_date: '',
@@ -190,7 +192,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         is_als: false,
         als_center_address: '',
         first_day_attendance: '',
-        first_day_attendance_sem: '1st Semester',
+        first_day_attendance_sem: '1st Term',
         req_birth_cert: false,
         req_report_card: false,
         req_sf10: false,
@@ -219,6 +221,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             setFormData({
                 ...student,
                 strand: mappedStrand,
+                elementary_school_type: student.elementary_school_type ?? '',
+                jhs_school_type: student.jhs_school_type ?? '',
                 is_elem_completer: student.is_elem_completer ?? !!(student.elementary_school || '').trim(),
                 is_pept_passer: student.is_pept_passer ?? false,
                 is_als_passer: student.is_als_passer ?? false,
@@ -245,7 +249,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                 is_als: student.is_als ?? false,
                 als_center_address: student.als_center_address ?? '',
                 first_day_attendance: student.first_day_attendance ?? '',
-                first_day_attendance_sem: student.first_day_attendance_sem ?? '1st Semester',
+                first_day_attendance_sem: student.first_day_attendance_sem ?? '1st Term',
                 req_birth_cert: student.req_birth_cert ?? false,
                 req_report_card: student.req_report_card ?? false,
                 req_sf10: student.req_sf10 ?? false,
@@ -474,6 +478,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             elementary_school: formData.elementary_school || '',
             elementary_school_id: formData.elementary_school_id || '',
             elementary_school_address: formData.elementary_school_address || '',
+            elementary_school_type: (formData.elementary_school_type as 'Public' | 'Private') || undefined,
             sy_last_attended: formData.sy_last_attended || '',
             average_grade: formData.average_grade || '',
             citation: formData.citation || '',
@@ -501,6 +506,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             jhs_gen_ave: formData.jhs_gen_ave || '',
             jhs_school_name: formData.jhs_school_name || '',
             jhs_school_address: formData.jhs_school_address || '',
+            jhs_school_type: (formData.jhs_school_type as 'Public' | 'Private') || undefined,
             jhs_graduation_date: formData.jhs_graduation_date || '',
             shs_pept_rating: formData.shs_pept_rating || '',
             shs_pept_date: formData.shs_pept_date || '',
@@ -515,7 +521,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             guardian_relationship: formData.guardian_relationship || '',
             parent_contact: formData.parent_contact || '',
             parent_email: formData.parent_email || '',
-            parent_name: formData.parent_name || formData.guardian_name || formData.father_name || formData.mother_name || '',
+            parent_name: formData.guardian_name || formData.father_name || formData.mother_name || '',
             // Profile mapping details
             is_4ps: !!formData.is_4ps,
             household_id: formData.is_4ps ? formData.household_id || '' : '',
@@ -523,7 +529,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             is_als: !!formData.is_als,
             als_center_address: formData.is_als ? formData.als_center_address || '' : '',
             first_day_attendance: formData.first_day_attendance || '',
-            first_day_attendance_sem: formData.first_day_attendance_sem || '1st Semester',
+            first_day_attendance_sem: formData.first_day_attendance_sem || '1st Term',
             req_birth_cert: !!formData.req_birth_cert,
             req_report_card: !!formData.req_report_card,
             req_sf10: !!formData.req_sf10,
@@ -984,8 +990,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="md:col-span-1">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div>
                                             <label className="block text-sm font-semibold mb-2 text-deped-blue">Name of School</label>
                                             <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" placeholder="Enter school name" />
                                         </div>
@@ -994,8 +1000,21 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" placeholder="ID" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-semibold mb-1 text-deped-blue">Address of School</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Address of School</label>
                                             <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" placeholder="Address" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">School Type</label>
+                                            <select 
+                                                name="elementary_school_type" 
+                                                value={formData.elementary_school_type || ''} 
+                                                onChange={handleChange} 
+                                                className="form-input bg-white"
+                                            >
+                                                <option value="">Select Type</option>
+                                                <option value="Public">Public</option>
+                                                <option value="Private">Private</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -1007,6 +1026,48 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </h4>
                                     
                                     <div className="grid grid-cols-1 gap-6">
+                                        {/* Elementary School Completed Card */}
+                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                            <h5 className="font-bold mb-3 uppercase tracking-wider text-xs border-b pb-1.5 text-deped-blue/80">Elementary School Completed</h5>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Name of Elementary Completed</label>
+                                                    <input 
+                                                        type="text" 
+                                                        name="elementary_school" 
+                                                        value={formData.elementary_school || ''} 
+                                                        onChange={handleChange} 
+                                                        className="form-input text-sm"
+                                                        placeholder="Elementary School Name"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Address of School</label>
+                                                    <input 
+                                                        type="text" 
+                                                        name="elementary_school_address" 
+                                                        value={formData.elementary_school_address || ''} 
+                                                        onChange={handleChange} 
+                                                        className="form-input text-sm"
+                                                        placeholder="School Address"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">School Type</label>
+                                                    <select 
+                                                        name="elementary_school_type" 
+                                                        value={formData.elementary_school_type || ''} 
+                                                        onChange={handleChange} 
+                                                        className="form-input text-sm bg-white"
+                                                    >
+                                                        <option value="">Select Type</option>
+                                                        <option value="Public">Public</option>
+                                                        <option value="Private">Private</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         {/* HS Completer Card */}
                                         <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
@@ -1096,7 +1157,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             placeholder="School Name"
                                                         />
                                                     </div>
-                                                    <div className="md:col-span-4">
+                                                    <div className="md:col-span-3">
                                                         <label className="block text-xs font-semibold mb-1 text-deped-blue">School Address</label>
                                                         <input 
                                                             type="text" 
@@ -1106,6 +1167,19 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             className="form-input text-sm"
                                                             placeholder="School Address"
                                                         />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">School Type</label>
+                                                        <select 
+                                                            name="jhs_school_type" 
+                                                            value={formData.jhs_school_type || ''} 
+                                                            onChange={handleChange} 
+                                                            className="form-input text-sm bg-white"
+                                                        >
+                                                            <option value="">Select Type</option>
+                                                            <option value="Public">Public</option>
+                                                            <option value="Private">Private</option>
+                                                        </select>
                                                     </div>
                                                 </div>
                                             )}
@@ -1265,7 +1339,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="md:col-span-1">
+                                            <div>
                                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Previous School Name</label>
                                                 <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" />
                                             </div>
@@ -1274,14 +1348,27 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                 <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-1 text-deped-blue">School Address</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School Address</label>
                                                 <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School Type</label>
+                                                <select 
+                                                    name="elementary_school_type" 
+                                                    value={formData.elementary_school_type || ''} 
+                                                    onChange={handleChange} 
+                                                    className="form-input bg-white"
+                                                >
+                                                    <option value="">Select Type</option>
+                                                    <option value="Public">Public</option>
+                                                    <option value="Private">Private</option>
+                                                </select>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Gen. Average</label>
                                                 <input type="text" name="average_grade" value={formData.average_grade || ''} onChange={handleChange} className="form-input" />
                                             </div>
-                                            <div className="md:col-span-2">
+                                            <div>
                                                 <label className="block text-sm font-semibold mb-2 text-deped-blue">Citation (if any)</label>
                                                 <input type="text" name="citation" value={formData.citation || ''} onChange={handleChange} className="form-input" />
                                             </div>
@@ -1517,6 +1604,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         <option value="Regular">Regular</option>
                                                         <option value="Irregular">Irregular</option>
                                                         <option value="Transferee">Transferee</option>
+                                                        <option value="Balik-Aral">Balik-Aral</option>
                                                         <option value="ALS">Alternative Learning System (ALS)</option>
                                                     </select>
                                                 </div>
@@ -1560,24 +1648,6 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         className="form-input text-sm bg-white focus:ring-deped-blue"
                                                     />
                                                 </div>
-
-                                                {isSHS && (
-                                                    <div className="space-y-3 pt-3 border-t border-slate-200 mt-2">
-                                                        <label className="block text-xs font-semibold text-deped-blue">Term / Semester</label>
-                                                        <select 
-                                                            name="first_day_attendance_sem" 
-                                                            value={formData.first_day_attendance_sem || '1st Semester'} 
-                                                            onChange={handleChange}
-                                                            className="form-input bg-white text-sm focus:ring-deped-blue"
-                                                        >
-                                                            <option value="1st Semester">1st Semester</option>
-                                                            <option value="2nd Semester">2nd Semester</option>
-                                                        </select>
-                                                        <p className="text-[10px] text-gray-500 font-medium">
-                                                            Select term for SHS attendance tracking.
-                                                        </p>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
