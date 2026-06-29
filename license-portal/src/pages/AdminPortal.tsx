@@ -31,6 +31,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [trials, setTrials] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeProduct, setActiveProduct] = useState<'formease-pro' | 'anecdotal-record'>('formease-pro');
   const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement'>('generate');
   const [manageSubTab, setManageSubTab] = useState<'all' | 'windows' | 'mac'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'declined' | 'all'>('pending');
@@ -92,7 +93,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeProduct]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -358,13 +359,33 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       </div>
 
       <nav className="relative z-50 w-full p-6 flex items-center justify-between border-b border-white/10 backdrop-blur-xl bg-white/3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-600 rounded-xl">
-            <Shield className="w-6 h-6 text-white" />
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-600 rounded-xl">
+              <Shield className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white">FormEase <span className="text-blue-500">Console</span></h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Admin Environment</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight text-white">FormEase <span className="text-blue-500">Console</span></h1>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Admin Environment</p>
+          
+          <div className="h-8 w-px bg-white/10 mx-2" />
+          
+          <div className="flex flex-col">
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1.5 ml-1">Select Product Database</label>
+            <select
+              value={activeProduct}
+              onChange={(e) => {
+                const prod = e.target.value as 'formease-pro' | 'anecdotal-record';
+                licenseService.setProduct(prod);
+                setActiveProduct(prod);
+              }}
+              className="bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-black text-white outline-none cursor-pointer hover:bg-white/10 transition-colors"
+            >
+              <option value="formease-pro" className="bg-[#0A192F]">FormEase Pro (Student Management)</option>
+              <option value="anecdotal-record" className="bg-[#0A192F]">ASRS Anecdotal Record</option>
+            </select>
           </div>
         </div>
 

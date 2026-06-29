@@ -12,10 +12,11 @@ import {
   addDoc
 } from 'firebase/firestore';
 
-const COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
-const REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
-const TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
-const DOWNLOADS_DOC_PATH = 'artifacts/g7-special/public/data/downloads_info';
+let activeProduct: 'formease-pro' | 'anecdotal-record' = 'formease-pro';
+let COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
+let REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
+let TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
+let DOWNLOADS_DOC_PATH = 'artifacts/g7-special/public/data/downloads_info';
 
 // Robust date parser for Firestore data
 const parseFirestoreDate = (date: any) => {
@@ -28,6 +29,25 @@ const parseFirestoreDate = (date: any) => {
 };
 
 export const licenseService = {
+  setProduct(product: 'formease-pro' | 'anecdotal-record') {
+    activeProduct = product;
+    if (product === 'formease-pro') {
+      COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
+      REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
+      TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
+      DOWNLOADS_DOC_PATH = 'artifacts/g7-special/public/data/downloads_info';
+    } else {
+      COLLECTION_PATH = 'artifacts/anecdotal-record/public/data/licenses';
+      REQUESTS_PATH = 'artifacts/anecdotal-record/admin/data/purchase_requests';
+      TRIALS_PATH = 'artifacts/anecdotal-record/public/data/trials';
+      DOWNLOADS_DOC_PATH = 'artifacts/anecdotal-record/public/data/downloads_info';
+    }
+  },
+
+  getProduct() {
+    return activeProduct;
+  },
+
   // --- ADMIN METHODS ---
   async getAllLicenses() {
     try {
