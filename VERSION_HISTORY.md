@@ -1,5 +1,17 @@
 # Version History
 
+## v2.4.2 (2026-07-04)
+
+### 🚀 New Features
+- Added native window close interception prompts to prevent closing the application without confirming.
+- Implemented a select dropdown menu with 18 official offerings for Grade Levels Offered.
+
+### ⚡ Improvements
+- Optimized the Institutional Profile edit page dimensions, scaling down image elements and inputs to fit on screen without vertical scrollbars.
+
+### 🐞 Bug Fixes
+- Removed unused helper functions and unused variables (`visibleGrades`, `GRADE_GROUPS`, `displayGroup`, and `parseGradeGroup`) to ensure clean compilation.
+
 ## v2.4.1 (2026-07-04)
 
 ### 🚀 New Features

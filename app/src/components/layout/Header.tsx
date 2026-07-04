@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X, Database, Power, Minus, Square, HelpCircle } from 'lucide-react';
+import { Bell, X, Database, HelpCircle } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
-import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -41,7 +40,6 @@ export function Header() {
     const dbWritePendingCount = useAppStore(state => state.dbWritePendingCount || 0);
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
-    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     // Use announcements as notification source
     const recentNotifications = announcements.slice(0, 5);
@@ -199,54 +197,8 @@ export function Header() {
                         )}
                     </div>
 
-                    {window.electronAPI && (
-                        <>
-                            <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden lg:block mx-1"></div>
-
-                            {/* Minimize App Button */}
-                            <button 
-                                onClick={() => window.electronAPI?.minimizeApp()}
-                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 cursor-pointer transition-colors ml-1" 
-                                title="Minimize Window"
-                            >
-                                <Minus className="w-4 h-4" />
-                            </button>
-
-                            {/* Maximize App Button */}
-                            <button 
-                                onClick={() => window.electronAPI?.maximizeApp()}
-                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-500 cursor-pointer transition-colors ml-1" 
-                                title="Maximize / Restore Window"
-                            >
-                                <Square className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Close App Button */}
-                            <button 
-                                onClick={() => setShowCloseConfirm(true)}
-                                className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 cursor-pointer transition-colors ml-1" 
-                                title="Close Application"
-                            >
-                                <Power className="w-4 h-4" />
-                            </button>
-                        </>
-                    )}
                 </div>
             </div>
-
-            <ConfirmationModal
-                open={showCloseConfirm}
-                title="Close Application"
-                message="Are you sure you want to exit FormEase Pro? Make sure all your class records and advisory lists have been fully finalized."
-                intent="danger"
-                confirmLabel="Yes, Exit App"
-                cancelLabel="Cancel"
-                onConfirm={() => {
-                    setShowCloseConfirm(false);
-                    window.electronAPI?.closeApp();
-                }}
-                onCancel={() => setShowCloseConfirm(false)}
-            />
         </header>
     );
 }

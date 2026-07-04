@@ -1,7 +1,10 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { db } from '../services/database';
+import { ConfirmationModal } from './ui/ConfirmationModal';
 
 export function AutoBackupManager() {
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const performSilentBackup = useCallback(async () => {
     try {
       // 1. Export all data from IndexedDB
@@ -26,6 +29,28 @@ export function AutoBackupManager() {
     }
   }, []);
 
+  const handleConfirmClose = useCallback(async () => {
+    setShowConfirm(false);
+    const electronAPI = window.electronAPI;
+    if (electronAPI) {
+      try {
+        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000));
+        await Promise.race([
+          performSilentBackup(),
+          timeoutPromise
+        ]);
+      } catch (error) {
+        console.error('Error in close-intercept auto-backup:', error);
+      } finally {
+        electronAPI.closeApp(true);
+      }
+    }
+  }, [performSilentBackup]);
+
+  const handleCancelClose = useCallback(() => {
+    setShowConfirm(false);
+  }, []);
+
   useEffect(() => {
     // A. Backup on Mount (App Start)
     // We wait 5 seconds to not slow down the initial boot
@@ -36,18 +61,8 @@ export function AutoBackupManager() {
     // B. Backup on Window Close (Exit)
     const electronAPI = window.electronAPI;
     if (electronAPI && electronAPI.onCloseRequested) {
-      electronAPI.onCloseRequested(async () => {
-        try {
-          const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000));
-          await Promise.race([
-            performSilentBackup(),
-            timeoutPromise
-          ]);
-        } catch (error) {
-          console.error('Error in close-intercept auto-backup:', error);
-        } finally {
-          electronAPI.closeApp(true);
-        }
+      electronAPI.onCloseRequested(() => {
+        setShowConfirm(true);
       });
     }
 
@@ -56,6 +71,16 @@ export function AutoBackupManager() {
     };
   }, [performSilentBackup]);
 
-  // This component doesn't render anything
-  return null;
+  return (
+    <ConfirmationModal
+      open={showConfirm}
+      title="Close Application"
+      message="Are you sure you want to exit FormEase Pro? Make sure all your class records and advisory lists have been fully finalized."
+      intent="danger"
+      confirmLabel="Yes, Exit App"
+      cancelLabel="Cancel"
+      onConfirm={handleConfirmClose}
+      onCancel={handleCancelClose}
+    />
+  );
 }

@@ -18,7 +18,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent } from '../types';
 import { db } from '../services/database';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Plus, Minus, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
@@ -2095,7 +2095,6 @@ export function SF9Page() {
     const [modalQuarter, setModalQuarter] = useState<1 | 2 | 3>(1);
     const teacherList: User[] = teachers;
     const [isBatchReady, setIsBatchReady] = useState(false);
-    const [zoom, setZoom] = useState(1);
     const [batchProgress, setBatchProgress] = useState(0);
     const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
     const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -2756,26 +2755,6 @@ export function SF9Page() {
                             <Settings2 className="w-3 h-3 text-indigo-500" />
                             Layout
                         </button>
-
-                        <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
-                            <button 
-                                onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                                title="Zoom Out"
-                            >
-                                <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-[9px] font-black text-slate-900 w-8 text-center tabular-nums">
-                                {Math.round(zoom * 100)}%
-                            </span>
-                            <button 
-                                onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
-                                title="Zoom In"
-                            >
-                                <Plus className="w-3 h-3" />
-                            </button>
-                        </div>
                     </div>
 
                     {/* Data and Actions (Right) */}
@@ -2930,23 +2909,10 @@ export function SF9Page() {
                             </div>
                         </motion.div>
                     ) : selectedStudent && singleDocument && !isBatchReady ? (
-                        <div
-                            className="transition-all duration-700 ease-out origin-top flex flex-col items-center"
-                            style={{
-                                transform: `scale(${zoom}) translateZ(0)`,
-                                transformOrigin: 'top center',
-                                willChange: 'transform',
-                                backfaceVisibility: 'hidden',
-                                WebkitBackfaceVisibility: 'hidden',
-                                height: 'calc(100vh - 200px)'
-                            }}
-                        >
-                            <div className="w-full h-full min-w-280.5 min-h-198.25 bg-white rounded-sm border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden relative group">
-                                <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-transparent via-indigo-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-1000" />
-                                <PDFViewer width="100%" height="100%" showToolbar={false} className="border-none w-full h-full">
-                                    {singleDocument!}
-                                </PDFViewer>
-                            </div>
+                        <div className="absolute inset-0 bg-white">
+                            <PDFViewer width="100%" height="100%" showToolbar={false} className="border-none w-full h-full">
+                                {singleDocument!}
+                            </PDFViewer>
                         </div>
                     ) : isBatchReady && selectedSectionObj ? (
                         <div className="flex-1 w-full max-w-4xl mx-auto flex flex-col items-center justify-center space-y-8 py-6">

@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore, useAuthStore } from '../stores';
-import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download, ShieldCheck } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 
@@ -18,8 +19,16 @@ export function SF5Page() {
     
     const [selectedSection, setSelectedSection] = useState<string>('');
     const [paperSize, setPaperSize] = useState<'a4' | 'folio'>('a4');
-    const [zoom, setZoom] = useState<number>(1); // Default zoom for preview
+    const [zoom, setZoom] = useState<number>(0.8); // Default zoom for preview
     const [isDownloading, setIsDownloading] = useState<boolean>(false);
+    const [showAdviserSig, setShowAdviserSig] = useState<boolean>(() => {
+        return localStorage.getItem('formease_sf5_show_adviser_sig') !== 'false';
+    });
+    const [showHeadSig, setShowHeadSig] = useState<boolean>(() => {
+        return localStorage.getItem('formease_sf5_show_head_sig') !== 'false';
+    });
+    const [sigDropdownOpen, setSigDropdownOpen] = useState(false);
+    const sigBtnRef = useRef<HTMLButtonElement>(null);
     
     // 1. Sort Sections by Grade Level -> Alphabetical
     const sortedSections = useMemo(() => {
@@ -500,6 +509,60 @@ export function SF5Page() {
                     <div className="flex-1 min-w-3" />
 
                     <div className="flex items-center gap-2 shrink-0">
+                        {/* Signatures Toggle */}
+                        <div className="shrink-0">
+                            <button
+                                ref={sigBtnRef}
+                                onClick={() => setSigDropdownOpen(prev => !prev)}
+                                className="h-8 px-2.5 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-lg text-[8px] lg:text-[9px] font-black text-slate-900 flex items-center gap-1 transition-all duration-200 select-none"
+                            >
+                                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Signatures</span>
+                                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${sigDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {sigDropdownOpen && createPortal(
+                                <>
+                                    <div className="fixed inset-0 z-9998" onClick={() => setSigDropdownOpen(false)} />
+                                    <div
+                                        className="fixed w-44 bg-white border border-slate-200 rounded-lg shadow-xl p-2.5 z-9999 space-y-2"
+                                        style={(() => {
+                                            const rect = sigBtnRef.current?.getBoundingClientRect();
+                                            if (!rect) return { top: 0, left: 0 };
+                                            return { top: rect.bottom + 4, left: Math.max(8, rect.right - 176) };
+                                        })()}
+                                    >
+                                        <label className="flex items-center gap-2 cursor-pointer select-none text-[9px] font-bold text-slate-900">
+                                            <input
+                                                type="checkbox"
+                                                checked={showAdviserSig}
+                                                onChange={(e) => {
+                                                    const val = e.target.checked;
+                                                    setShowAdviserSig(val);
+                                                    localStorage.setItem('formease_sf5_show_adviser_sig', String(val));
+                                                }}
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 focus:ring-2"
+                                            />
+                                            <span>Adviser Signature</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer select-none text-[9px] font-bold text-slate-900">
+                                            <input
+                                                type="checkbox"
+                                                checked={showHeadSig}
+                                                onChange={(e) => {
+                                                    const val = e.target.checked;
+                                                    setShowHeadSig(val);
+                                                    localStorage.setItem('formease_sf5_show_head_sig', String(val));
+                                                }}
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 focus:ring-2"
+                                            />
+                                            <span>School Head Signature</span>
+                                        </label>
+                                    </div>
+                                </>,
+                                document.body
+                            )}
+                        </div>
+
                         {/* Zoom Control */}
                         <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
                             <button
@@ -832,8 +895,17 @@ export function SF5Page() {
                                                     {isLastPage && (
                                                         <div className="flex flex-col gap-3">
                                                             <div className="mt-1 flex flex-col gap-2.5 text-[12px] font-sans pr-2">
-                                                                <div>
+                                                                <div className="relative">
                                                                     <p className="mb-3 text-left">PREPARED BY:</p>
+                                                                    {showAdviserSig && schoolProfile?.adviser_signature_url && (
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[35px] w-24 h-10 flex items-center justify-center pointer-events-none z-10">
+                                                                            <img 
+                                                                                src={schoolProfile.adviser_signature_url} 
+                                                                                alt="Adviser Signature" 
+                                                                                className="max-h-full max-w-full object-contain" 
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                     <div className="text-center font-bold tracking-wide">
                                                                         {resolvedAdviserName.toUpperCase()}
                                                                     </div>
@@ -842,8 +914,17 @@ export function SF5Page() {
                                                                         <span className="text-[11px]">(Name and Signature)</span>
                                                                     </div>
                                                                 </div>
-                                                                <div>
+                                                                <div className="relative">
                                                                     <p className="mb-3 text-left">CERTIFIED CORRECT & SUBMITTED:</p>
+                                                                    {showHeadSig && schoolProfile?.head_signature_url && (
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[35px] w-24 h-10 flex items-center justify-center pointer-events-none z-10">
+                                                                            <img 
+                                                                                src={schoolProfile.head_signature_url} 
+                                                                                alt="School Head Signature" 
+                                                                                className="max-h-full max-w-full object-contain" 
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                     <div className="text-center font-bold tracking-wide">
                                                                     {(schoolProfile.head_name || 'TEST HEAD').toUpperCase()}
                                                                     </div>

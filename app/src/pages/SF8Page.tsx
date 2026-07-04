@@ -166,7 +166,7 @@ export function SF8Page() {
     const { students, sections, schoolProfile, activeSchoolYear, setCurrentView, updateStudent } = useAppStore();
     const [selectedSection, setSelectedSection] = useState('');
     const [paperSize, setPaperSize] = useState<PaperSize>('folio');
-    const [zoom, setZoom] = useState(1);
+    const [zoom, setZoom] = useState(0.8);
     const [isDownloading, setIsDownloading] = useState(false);
 
     const sortedSections = useMemo(() => {
