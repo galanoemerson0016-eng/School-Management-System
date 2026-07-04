@@ -48,6 +48,7 @@ export function InstitutePage() {
         grade_levels_offered: schoolProfile?.grade_levels_offered || '',
         logo_url: schoolProfile?.logo_url || '',
         head_signature_url: schoolProfile?.head_signature_url || '',
+        adviser_signature_url: schoolProfile?.adviser_signature_url || '',
         adviser_name: schoolProfile?.adviser_name || '',
         grade_level: schoolProfile?.grade_level || '',
         section: schoolProfile?.section || '',
@@ -62,6 +63,11 @@ export function InstitutePage() {
     const [isUploading, setIsUploading] = useState(false);
     const adviserFileInputRef = useRef<HTMLInputElement>(null);
     const [isUploadingAdviser, setIsUploadingAdviser] = useState(false);
+
+    const headSignatureFileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploadingHeadSignature, setIsUploadingHeadSignature] = useState(false);
+    const adviserSignatureFileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploadingAdviserSignature, setIsUploadingAdviserSignature] = useState(false);
 
     const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -175,6 +181,56 @@ export function InstitutePage() {
     const handleDeleteAdviserImage = () => {
         if (window.confirm('Are you sure you want to remove the adviser photo?')) {
             setFormData(prev => ({ ...prev, adviser_image_url: '' }));
+        }
+    };
+
+    const handleHeadSignatureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file.');
+            return;
+        }
+        setIsUploadingHeadSignature(true);
+        try {
+            const base64 = await resizeImage(file, 500, 200);
+            setFormData(prev => ({ ...prev, head_signature_url: base64 }));
+        } catch (error) {
+            console.error('Head signature upload failed:', error);
+            alert('Failed to process image.');
+        } finally {
+            setIsUploadingHeadSignature(false);
+        }
+    };
+
+    const handleDeleteHeadSignature = () => {
+        if (window.confirm('Are you sure you want to remove the school head signature?')) {
+            setFormData(prev => ({ ...prev, head_signature_url: '' }));
+        }
+    };
+
+    const handleAdviserSignatureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file.');
+            return;
+        }
+        setIsUploadingAdviserSignature(true);
+        try {
+            const base64 = await resizeImage(file, 500, 200);
+            setFormData(prev => ({ ...prev, adviser_signature_url: base64 }));
+        } catch (error) {
+            console.error('Adviser signature upload failed:', error);
+            alert('Failed to process image.');
+        } finally {
+            setIsUploadingAdviserSignature(false);
+        }
+    };
+
+    const handleDeleteAdviserSignature = () => {
+        if (window.confirm('Are you sure you want to remove the adviser signature?')) {
+            setFormData(prev => ({ ...prev, adviser_signature_url: '' }));
         }
     };
 
@@ -379,64 +435,127 @@ export function InstitutePage() {
                             animate={{ opacity: 1, x: 0 }}
                             className="flex flex-col gap-4 min-h-0"
                         >
-                            {/* Branding Logo Card */}
-                            <div className="bg-white dark:bg-[#0f172a] rounded-[32px] border border-slate-100 dark:border-slate-800/80 shadow-xl shadow-slate-100/50 dark:shadow-none p-5 flex flex-col relative overflow-hidden shrink-0">
-                                <h3 className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-blue-600" /> Branding Logo
+                             {/* Branding & Digital Signatures Card */}
+                            <div className="bg-white dark:bg-[#0f172a] rounded-[32px] border border-slate-100 dark:border-slate-800/80 shadow-xl shadow-slate-100/50 dark:shadow-none p-5 flex flex-col relative overflow-hidden shrink-0 gap-4">
+                                <h3 className="text-[10px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-widest flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-blue-600" /> Branding & Digital Signatures
                                 </h3>
 
-                                <div className="flex items-center gap-5">
-                                    <div className="w-20 h-20 shrink-0 rounded-2xl bg-white border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-center p-2 relative">
-                                        <img
-                                            src={formData.logo_url || `${import.meta.env.BASE_URL}school-logo.png`}
-                                            alt="Preview"
-                                            className="max-w-full max-h-full object-contain"
-                                        />
-                                        {isUploading && (
-                                            <div className="absolute inset-0 bg-white/90 backdrop-blur-xs flex items-center justify-center rounded-2xl">
-                                                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                                            </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {/* Logo Upload */}
+                                    <div className="flex flex-col items-center gap-2 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">School Logo</span>
+                                        <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1.5 relative shadow-xs">
+                                            <img
+                                                src={formData.logo_url || `${import.meta.env.BASE_URL}school-logo.png`}
+                                                alt="Preview"
+                                                className="max-w-full max-h-full object-contain"
+                                            />
+                                            {isUploading && (
+                                                <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center rounded-xl">
+                                                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={isUploading}
+                                            className="w-full py-1 bg-[#1d566e] hover:bg-[#164356] text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+                                        >
+                                            Upload Logo
+                                        </button>
+                                        {formData.logo_url && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteLogo}
+                                                className="text-[7.5px] font-bold text-rose-500 hover:text-rose-600 uppercase tracking-wide cursor-pointer"
+                                            >
+                                                Remove
+                                            </button>
                                         )}
                                     </div>
 
-                                    <div className="flex-1 flex items-center justify-between gap-5">
-                                        <div className="flex flex-col gap-1.5 shrink-0">
-                                            <button
-                                                type="button"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                disabled={isUploading}
-                                                className="w-fit py-1.5 px-2.5 bg-[#1d566e] hover:bg-[#164356] text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-all hover:shadow-md flex items-center justify-center gap-1 cursor-pointer shadow-xs shadow-[#1d566e]/15"
-                                            >
-                                                <ImagePlus className="w-3 h-3" />
-                                                Upload Logo
-                                            </button>
-                                            {formData.logo_url && (
-                                                <button
-                                                    type="button"
-                                                    onClick={handleDeleteLogo}
-                                                    className="w-fit py-1 px-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-[7.5px] font-black uppercase tracking-wider hover:bg-rose-100 transition-all cursor-pointer"
-                                                >
-                                                    Remove Logo
-                                                </button>
+                                    {/* School Head Signature Upload */}
+                                    <div className="flex flex-col items-center gap-2 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">School Head Sign</span>
+                                        <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1.5 relative shadow-xs">
+                                            {formData.head_signature_url ? (
+                                                <img
+                                                    src={formData.head_signature_url}
+                                                    alt="Head Signature"
+                                                    className="max-w-full max-h-full object-contain"
+                                                />
+                                            ) : (
+                                                <span className="text-[8px] text-slate-300 font-bold uppercase">None</span>
+                                            )}
+                                            {isUploadingHeadSignature && (
+                                                <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center rounded-xl">
+                                                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                                                </div>
                                             )}
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => headSignatureFileInputRef.current?.click()}
+                                            disabled={isUploadingHeadSignature}
+                                            className="w-full py-1 bg-[#1d566e] hover:bg-[#164356] text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+                                        >
+                                            Upload Sign
+                                        </button>
+                                        {formData.head_signature_url && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteHeadSignature}
+                                                className="text-[7.5px] font-bold text-rose-500 hover:text-rose-600 uppercase tracking-wide cursor-pointer"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
 
-                                        <div className="flex-1 border-l border-slate-100 dark:border-slate-800/80 pl-4 py-0.5 space-y-1">
-                                            <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">Logo Specs</span>
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[7.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                                                    <span className="w-1 h-1 rounded-full bg-blue-500/80 shrink-0" />
-                                                    PNG or JPG format
-                                                </span>
-                                                <span className="text-[7.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                                                    <span className="w-1 h-1 rounded-full bg-blue-500/80 shrink-0" />
-                                                    1:1 Square aspect
-                                                </span>
-                                            </div>
+                                    {/* Adviser Signature Upload */}
+                                    <div className="flex flex-col items-center gap-2 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Adviser Sign</span>
+                                        <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1.5 relative shadow-xs">
+                                            {formData.adviser_signature_url ? (
+                                                <img
+                                                    src={formData.adviser_signature_url}
+                                                    alt="Adviser Signature"
+                                                    className="max-w-full max-h-full object-contain"
+                                                />
+                                            ) : (
+                                                <span className="text-[8px] text-slate-300 font-bold uppercase">None</span>
+                                            )}
+                                            {isUploadingAdviserSignature && (
+                                                <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center rounded-xl">
+                                                    <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                                                </div>
+                                            )}
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => adviserSignatureFileInputRef.current?.click()}
+                                            disabled={isUploadingAdviserSignature}
+                                            className="w-full py-1 bg-[#1d566e] hover:bg-[#164356] text-white rounded-lg text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+                                        >
+                                            Upload Sign
+                                        </button>
+                                        {formData.adviser_signature_url && (
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteAdviserSignature}
+                                                className="text-[7.5px] font-bold text-rose-500 hover:text-rose-600 uppercase tracking-wide cursor-pointer"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
+
                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                                <input type="file" ref={headSignatureFileInputRef} onChange={handleHeadSignatureChange} accept="image/*" className="hidden" />
+                                <input type="file" ref={adviserSignatureFileInputRef} onChange={handleAdviserSignatureChange} accept="image/*" className="hidden" />
                             </div>
 
                             {/* Advisory Info Locked Card */}
@@ -709,6 +828,33 @@ export function InstitutePage() {
                                 <div>
                                     <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-2">Class Assignment</span>
                                     <div className="text-base font-extrabold text-slate-600 dark:text-slate-350">{displayGradeLevel} • {displaySection}</div>
+                                </div>
+                            </div>
+                            
+                            {/* Digital Signatures Preview */}
+                            <div className="w-full mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                <span className="text-[9.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block text-center mb-3">Registered Digital Signatures</span>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col items-center bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[8px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider mb-1">School Head</span>
+                                        <div className="h-10 w-full bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 rounded-lg flex items-center justify-center p-1">
+                                            {schoolProfile.head_signature_url ? (
+                                                <img src={schoolProfile.head_signature_url} alt="Head Signature" className="max-h-full object-contain" />
+                                            ) : (
+                                                <span className="text-[8px] text-slate-350 dark:text-slate-550 font-bold uppercase">Not Set</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-[8px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider mb-1">Class Adviser</span>
+                                        <div className="h-10 w-full bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 rounded-lg flex items-center justify-center p-1">
+                                            {schoolProfile.adviser_signature_url ? (
+                                                <img src={schoolProfile.adviser_signature_url} alt="Adviser Signature" className="max-h-full object-contain" />
+                                            ) : (
+                                                <span className="text-[8px] text-slate-350 dark:text-slate-550 font-bold uppercase">Not Set</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

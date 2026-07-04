@@ -136,7 +136,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
     const attYearChars = attYear.padStart(4, ' ').split('');
 
     // Adviser resolution
-    const adviserName = section?.adviser_name || 'TBA';
+    const adviserName = section?.adviser_name || '';
 
     // Address parts
     const currentAddress = student.address || '';
@@ -262,7 +262,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                         style={{
                             width: sizeConfigs[pageSize].width,
                             height: sizeConfigs[pageSize].height,
-                            padding: pageSize === 'letter' ? '8mm 10mm' : pageSize === 'a4' ? '10mm 12mm' : '12mm 14mm',
+                            padding: pageSize === 'letter' ? '8mm 10mm' : '10mm 12mm',
                             boxSizing: 'border-box',
                             printColorAdjust: 'exact',
                             WebkitPrintColorAdjust: 'exact',
@@ -337,7 +337,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     height: ${sizeConfigs[pageSize].height} !important;
                                     min-height: ${sizeConfigs[pageSize].height} !important;
                                     max-height: ${sizeConfigs[pageSize].height} !important;
-                                    padding: ${pageSize === 'letter' ? '8mm 10mm' : pageSize === 'a4' ? '10mm 12mm' : '12mm 14mm'} !important;
+                                    padding: ${pageSize === 'letter' ? '8mm 10mm' : pageSize === 'a4' ? '10mm 12mm' : '10mm 12mm'} !important;
                                     margin: 0 auto !important;
                                     border: none !important;
                                     box-shadow: none !important;
@@ -517,67 +517,67 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
 
                             ${pageSize === 'folio' ? `
                                 [data-print-container] {
-                                    font-size: 12.2px !important;
-                                    line-height: 1.35 !important;
+                                    font-size: 11px !important;
+                                    line-height: 1.2 !important;
                                 }
                                 [data-print-container] .mb-4 {
-                                    margin-bottom: 0.95rem !important;
+                                    margin-bottom: 0.5rem !important;
                                 }
                                 [data-print-container] .mb-3 {
-                                    margin-bottom: 0.75rem !important;
+                                    margin-bottom: 0.4rem !important;
                                 }
                                 [data-print-container] .mb-2 {
-                                    margin-bottom: 0.55rem !important;
+                                    margin-bottom: 0.25rem !important;
                                 }
                                 [data-print-container] .mt-8 {
-                                    margin-top: 3.5rem !important;
+                                    margin-top: 1.5rem !important;
                                 }
                                 [data-print-container] .pt-4 {
-                                    padding-top: 1.5rem !important;
+                                    padding-top: 0.75rem !important;
                                 }
                                 [data-print-container] .pb-3 {
-                                    padding-bottom: 1.1rem !important;
+                                    padding-bottom: 0.5rem !important;
                                 }
                                 [data-print-container] .pb-2.5 {
-                                    padding-bottom: 0.9rem !important;
+                                    padding-bottom: 0.4rem !important;
                                 }
                                 [data-print-container] .py-1.5 {
-                                    padding-top: 0.6rem !important;
-                                    padding-bottom: 0.6rem !important;
+                                    padding-top: 0.35rem !important;
+                                    padding-bottom: 0.35rem !important;
                                 }
                                 [data-print-container] .text-xs {
-                                    font-size: 12.2px !important;
-                                }
-                                [data-print-container] .text-[10px] {
                                     font-size: 11px !important;
                                 }
+                                [data-print-container] .text-[10px] {
+                                    font-size: 9.5px !important;
+                                }
                                 [data-print-container] .text-[11px] {
-                                    font-size: 12px !important;
+                                    font-size: 10.5px !important;
                                 }
                                 [data-print-container] .text-[15px] {
-                                    font-size: 16.5px !important;
+                                    font-size: 14px !important;
                                 }
                                 [data-print-container] img.object-contain {
-                                    max-height: 18.5mm !important;
+                                    max-height: 16mm !important;
                                 }
                                 [data-print-container] .w-\\[18mm\\] {
-                                    width: 18.5mm !important;
+                                    width: 16mm !important;
                                 }
                                 [data-print-container] .h-\\[18mm\\] {
-                                    height: 18.5mm !important;
+                                    height: 16mm !important;
                                 }
                                 [data-print-container] .w-\\[38mm\\] {
-                                    width: 38mm !important;
+                                    width: 35mm !important;
                                 }
                                 [data-print-container] .h-\\[38mm\\] {
-                                    height: 38mm !important;
+                                    height: 35mm !important;
                                 }
                                 [data-print-container] .px-12 {
-                                    padding-left: 3rem !important;
-                                    padding-right: 3rem !important;
+                                    padding-left: 2rem !important;
+                                    padding-right: 2rem !important;
                                 }
                                 [data-print-container] .gap-16 {
-                                    gap: 3.5rem !important;
+                                    gap: 2rem !important;
                                 }
                             ` : ''}
                         `}</style>
@@ -612,24 +612,23 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         Department of Education
                                     </div>
                                     <div className="text-[9px] font-bold text-slate-700 uppercase leading-none mt-0.5">
-                                        {schoolProfile.region || 'Region VII'}
+                                        {schoolProfile.region || 'Region / Regional Office'}
                                     </div>
                                     <div className="text-[9px] font-extrabold text-slate-800 uppercase leading-none mt-0.5">
-                                        {schoolProfile.division ? `Schools Division of ${schoolProfile.division}` : 'Schools Division of Cebu Province'}
+                                        {schoolProfile.division ? `Schools Division of ${schoolProfile.division}` : 'Schools Division Office'}
                                     </div>
                                     <div className="text-[9px] font-black text-slate-700 tracking-wide uppercase mt-1">
-                                        BASIC EDUCATION | <span className="text-slate-950 font-extrabold">{departmentLabel}</span>
+                                        <span className="text-slate-950 font-extrabold">{departmentLabel}</span>
                                     </div>
                                     <h1 className="text-[15px] font-black text-slate-950 uppercase tracking-tight leading-none my-1">
-                                        {schoolProfile.name || 'LOGON NATIONAL HIGH SCHOOL'}
+                                        {schoolProfile.name || 'NAME OF SCHOOL / INSTITUTION'}
                                     </h1>
                                     <p className="text-[9px] text-slate-600 font-bold uppercase">
                                         {schoolProfile.district ? `${schoolProfile.district} District, ` : ''}
                                         {[
                                             schoolProfile.municipality || schoolProfile.city,
                                             schoolProfile.province
-                                        ].filter(Boolean).join(', ')}
-                                        {!schoolProfile.province && 'Logon, Daanbantayan, Cebu, Philippines 6013'}
+                                        ].filter(Boolean).join(', ') || 'School Address (District, Municipality, Province)'}
                                     </p>
                                 </div>
                             </div>
@@ -1229,7 +1228,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     <div className="flex items-baseline">
                                         <span className="font-bold text-slate-700 shrink-0">School Last Attended:</span>
                                         <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
-                                            {!isElem ? student.elementary_school || '' : ''}
+                                            {isSHS ? student.jhs_school_name || '' : isJHS ? student.elementary_school || '' : ''}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
@@ -1276,7 +1275,16 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     </div>
                                     <div className="text-[8px] text-slate-500 font-extrabold uppercase mt-1">Signature Over Printed Name of Student</div>
                                 </div>
-                                <div className="text-center">
+                                <div className="text-center relative">
+                                    {schoolProfile?.adviser_signature_url && (
+                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[18px] w-24 h-12 flex items-center justify-center pointer-events-none z-10">
+                                            <img 
+                                                src={schoolProfile.adviser_signature_url} 
+                                                alt="Adviser Signature" 
+                                                className="max-h-full max-w-full object-contain" 
+                                            />
+                                        </div>
+                                    )}
                                     <div className="border-b border-slate-900 pb-1 font-black uppercase text-[10px] text-slate-950 min-h-[16px]">
                                         {adviserName}
                                     </div>

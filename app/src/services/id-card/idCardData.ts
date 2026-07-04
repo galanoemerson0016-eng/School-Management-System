@@ -123,6 +123,8 @@ export interface IdCardViewModel {
     emergencyName: string;
     emergencyAddress: string;
     emergencyContact: string;
+    signatureScale: number;
+    signatureOffsetY: number;
     // Resolved config
     template: IdCardTemplate;
     primaryColor: string;
@@ -186,6 +188,8 @@ export function buildIdCardModel(
         emergencyName: student.guardian_name?.trim() || student.parent_name?.trim() || student.father_name?.trim() || student.mother_name?.trim() || 'Parent\'s Name',
         emergencyAddress: student.address?.trim() || 'Brgy. Municipality, Province',
         emergencyContact: student.parent_contact?.trim() || student.contact_number?.trim() || '0912-345-6789',
+        signatureScale: config.signatureScale ?? 1.0,
+        signatureOffsetY: config.signatureOffsetY ?? 0,
         template: config.template,
         primaryColor: config.primaryColor || DEFAULT_ID_PRIMARY_COLOR,
         accentColor: config.accentColor || DEFAULT_ID_ACCENT_COLOR,

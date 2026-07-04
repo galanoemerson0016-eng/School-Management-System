@@ -1,5 +1,19 @@
 # Version History
 
+## v2.4.1 (2026-07-04)
+
+### 🚀 New Features
+- Added support for adviser and school head digital signature uploads in the Institute Profile settings.
+- Integrated digital signatures dynamically across ID cards, student profile sheets, SF9 report cards, and temporary grade slips.
+
+### ⚡ Improvements
+- Optimized student ID card back layout and spacing to prevent text or footer displacement.
+- Added signature scale and vertical offset sliders to the ID Template settings for precise alignment.
+- Corrected the **School Last Attended** field on the printed student profile sheets to dynamically resolve based on the student's department (Elementary, JHS, or SHS).
+
+### 🐞 Bug Fixes
+- Fixed a rendering issue under the **Glassmorphism** ID card template that caused details to disappear in vector PDF downloads.
+
 ## v2.4.0 (2026-06-28)
 
 ### 🚀 New Features

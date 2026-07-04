@@ -37,6 +37,7 @@ export interface SchoolProfile {
     province?: string;
     logo_url?: string;
     head_signature_url?: string;
+    adviser_signature_url?: string;
     adviser_name?: string;
     grade_level?: string;
     section?: string;
@@ -89,6 +90,8 @@ export interface IdCardConfig {
     divisionName?: string;             // custom Division name override
     districtName?: string;             // custom District name override
     validityText?: string;             // custom Validity Period override (e.g. S.Y. 2026-2027)
+    signatureScale?: number;           // custom signature scale multiplier, default 1.0 (50 to 200%)
+    signatureOffsetY?: number;         // custom signature vertical offset in mm, default 0 (-10 to 10)
 }
 
 export interface SchoolYear {

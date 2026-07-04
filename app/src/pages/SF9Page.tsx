@@ -1929,7 +1929,13 @@ function SF9Pages({
                                 </View>
                                 <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle', marginTop: 2 }, isValuesOnly ? { color: transparentBorder } : {}]}>Approved:</Text>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                    <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
+                                        {schoolProfile?.head_signature_url && (
+                                            <Image 
+                                                src={schoolProfile.head_signature_url} 
+                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
+                                            />
+                                        )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(principal || '').toUpperCase()}
                                         </Text>
@@ -1938,7 +1944,13 @@ function SF9Pages({
                                             {(principalTitle || 'School Head').toUpperCase()}
                                         </Text>
                                     </View>
-                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                    <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
+                                        {schoolProfile?.adviser_signature_url && (
+                                            <Image 
+                                                src={schoolProfile.adviser_signature_url} 
+                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
+                                            />
+                                        )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(adviser || '').toUpperCase()}
                                         </Text>
@@ -1957,7 +1969,13 @@ function SF9Pages({
                                     <View style={[styles.singleCancellationLine, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]} />
                                 </View>
                                 <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                                    <View style={{ width: '45%', alignItems: 'center' }}>
+                                    <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
+                                        {schoolProfile?.head_signature_url && (
+                                            <Image 
+                                                src={schoolProfile.head_signature_url} 
+                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
+                                            />
+                                        )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(principal || '').toUpperCase()}
                                         </Text>

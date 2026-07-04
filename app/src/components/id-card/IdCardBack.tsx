@@ -64,6 +64,30 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
 
     const cardFontFamily = template === 'academic' ? "'Georgia', Times, serif" : "'Segoe UI', Arial, sans-serif";
 
+    // Adaptive emergency details and signatory sizing using continuous formulas to keep text strictly single-line
+    const emergencyNameLength = (model.emergencyName || '').length;
+    const emergencyAddressLength = (model.emergencyAddress || '').length;
+    const emergencyContactLength = (model.emergencyContact || '').length;
+
+    // Start scaling down from base size (e.g. 2.4mm) only if length exceeds a reasonable threshold
+    const nameSizeVal = emergencyNameLength > 25 
+        ? Math.max(1.3, 2.4 - (emergencyNameLength - 25) * 0.04) 
+        : 2.4;
+
+    const addressSizeVal = emergencyAddressLength > 25 
+        ? Math.max(1.3, 2.4 - (emergencyAddressLength - 25) * 0.04) 
+        : 2.4;
+
+    const contactSizeVal = emergencyContactLength > 16 
+        ? Math.max(1.5, 2.4 - (emergencyContactLength - 16) * 0.06) 
+        : 2.4;
+
+    // Choose the minimum of the three to keep the font size uniform across emergency fields
+    const emergencyFontSize = `${Math.min(nameSizeVal, addressSizeVal, contactSizeVal)}mm`;
+
+    const signatoryNameLength = (model.signatoryName || '').length;
+    const signatoryFontSize = `${Math.max(1.4, Math.min(2.8, (2.8 * 16) / Math.max(16, signatoryNameLength)))}mm`;
+
     return (
         <div
             className="id-card id-card-back"
@@ -474,12 +498,12 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                 style={{ 
                     flex: 1, 
                     padding: template === 'compact' 
-                        ? (model.show.slot ? '1.0mm 2mm 1mm' : '1.5mm 2mm 1mm') 
+                        ? (model.show.slot ? '1.0mm 2mm 10.0mm' : '1.5mm 2mm 10.0mm') 
                         : (template === 'minimalist' || template === 'badges') 
-                        ? (model.show.slot ? '1.2mm 3mm 1mm 6.5mm' : '1.8mm 3mm 1mm 6.5mm') 
+                        ? (model.show.slot ? '1.2mm 3mm 16.0mm 6.5mm' : '1.8mm 3mm 16.0mm 6.5mm') 
                         : (template === 'modern' || template === 'lanyard') 
-                        ? (model.show.slot ? '1.2mm 3mm 3.6mm' : '1.8mm 3mm 4.6mm') 
-                        : (model.show.slot ? '1.2mm 3mm 1mm' : '1.8mm 3mm 1mm'),
+                        ? (model.show.slot ? '1.2mm 3mm 16.0mm' : '1.8mm 3mm 16.0mm') 
+                        : (model.show.slot ? '1.2mm 3mm 16.0mm' : '1.8mm 3mm 16.0mm'),
                     textAlign: 'center', 
                     display: 'flex', 
                     flexDirection: 'column',
@@ -493,113 +517,146 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
             >
                 {/* Validity */}
                 <div style={{ 
-                    fontSize: '2.1mm', 
+                    fontSize: '2.8mm', 
                     fontWeight: 700, 
                     color: '#334155', 
                     letterSpacing: '0.08mm', 
-                    marginBottom: model.show.slot ? '0.6mm' : '1.0mm',
+                    marginTop: model.show.slot ? '1.0mm' : '2.0mm',
+                    marginBottom: model.show.slot ? '1.2mm' : '1.8mm',
                     fontFamily: cardFontFamily 
                 }}>
                     VALIDITY: {model.validityText}
                 </div>
 
                 {/* Emergency block */}
-                <div style={{ marginTop: model.show.slot ? '1.0mm' : '1.5mm' }}>
+                <div style={{ marginTop: model.show.slot ? '1.2mm' : '2.0mm' }}>
                     <div style={{ 
                         fontSize: '1.85mm', 
                         fontWeight: 800, 
                         color: accentColor, 
                         letterSpacing: '0.05mm', 
                         textTransform: 'uppercase', 
-                        marginBottom: '1.0mm',
+                        marginBottom: '1.2mm',
                         fontFamily: cardFontFamily 
                     }}>
                         {model.emergencyText}
                     </div>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: model.show.slot ? '0.8mm' : '1.2mm' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: model.show.slot ? '1.5mm' : '2.2mm' }}>
                         {/* Name */}
                         <div>
                             <div style={{ 
-                                fontSize: '2.1mm', 
+                                fontSize: emergencyFontSize, 
                                 fontWeight: 700, 
                                 borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'inline-block', 
-                                minWidth: '42mm', 
+                                display: 'block', 
+                                width: '100%', 
                                 paddingBottom: '0.3mm', 
-                                color: '#0f172a',
-                                fontFamily: cardFontFamily
+                                color: '#000000',
+                                fontFamily: cardFontFamily,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'clip'
                             }}>
                                 {model.emergencyName}
                             </div>
-                            <div style={{ fontSize: '2.1mm', color: '#64748b', marginTop: '0.1mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Name</div>
+                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Name</div>
                         </div>
 
                         {/* Address */}
                         <div>
                             <div style={{ 
-                                fontSize: '2.1mm', 
+                                fontSize: emergencyFontSize, 
                                 fontWeight: 700, 
                                 borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'inline-block', 
-                                minWidth: '42mm', 
+                                display: 'block', 
+                                width: '100%', 
                                 paddingBottom: '0.3mm', 
-                                color: '#0f172a', 
+                                color: '#000000', 
                                 whiteSpace: 'nowrap', 
                                 overflow: 'hidden', 
-                                textOverflow: 'ellipsis', 
-                                maxWidth: '44mm',
+                                textOverflow: 'clip', 
                                 fontFamily: cardFontFamily
                             }}>
                                 {model.emergencyAddress}
                             </div>
-                            <div style={{ fontSize: '2.1mm', color: '#64748b', marginTop: '0.1mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Address</div>
+                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Address</div>
                         </div>
 
                         {/* Contact */}
                         <div>
                             <div style={{ 
-                                fontSize: '2.1mm', 
+                                fontSize: emergencyFontSize, 
                                 fontWeight: 700, 
                                 borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'inline-block', 
-                                minWidth: '42mm', 
+                                display: 'block', 
+                                width: '100%', 
                                 paddingBottom: '0.3mm', 
-                                color: '#0f172a',
-                                fontFamily: cardFontFamily
+                                color: '#000000',
+                                fontFamily: cardFontFamily,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'clip'
                             }}>
                                 {model.emergencyContact}
                             </div>
-                            <div style={{ fontSize: '2.1mm', color: '#64748b', marginTop: '0.1mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Contact Number</div>
+                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Contact Number</div>
                         </div>
                     </div>
                 </div>
 
                 {/* Certify text */}
                 <div style={{ 
-                    marginTop: model.show.slot ? '1.2mm' : '2.0mm', 
-                    fontSize: '1.75mm', 
+                    marginTop: model.show.slot ? '1.5mm' : '2.0mm', 
+                    fontSize: (model.schoolName || '').length > 40 ? '1.85mm' : '2.1mm', 
                     lineHeight: 1.3, 
-                    color: '#475569', 
+                    color: '#000000', 
                     padding: '0 2mm', 
                     fontFamily: cardFontFamily 
                 }}>
-                    This certifies that the bearer whose picture appears on this card is a student of <strong style={{ color: primaryColor }}>{model.schoolName}</strong>
+                    This certifies that the bearer whose picture appears on this card is a student of <br />
+                    <strong style={{ color: '#000000' }}>{model.schoolName}</strong>
                 </div>
 
                 {/* Signature and non-transferable footer */}
-                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ 
+                    position: 'absolute',
+                    bottom: template === 'compact' ? '2.5mm' : '4.8mm',
+                    left: 0,
+                    right: 0,
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center',
+                    pointerEvents: 'none',
+                    zIndex: 10
+                }}>
                     {model.show.signature && (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: model.signatureUrl ? '13mm' : '8mm', justifyContent: 'flex-end' }}>
+                        <div style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            minHeight: model.signatureUrl ? '11mm' : '7.5mm', 
+                            justifyContent: 'flex-end',
+                            marginTop: '2.0mm',
+                            marginBottom: '0.4mm'
+                        }}>
                             {model.signatureUrl && (
                                 <img
                                     src={model.signatureUrl}
                                     alt="Signature"
-                                    style={{ height: '8.5mm', maxWidth: '30mm', objectFit: 'contain', marginBottom: '-1.5mm', zIndex: 10 }}
+                                    style={{ 
+                                        height: '9mm', 
+                                        maxWidth: '30mm', 
+                                        objectFit: 'contain', 
+                                        marginBottom: '-1.2mm', 
+                                        transform: `scale(${model.signatureScale ?? 1.0}) translateY(${model.signatureOffsetY ?? 0}mm)`,
+                                        transformOrigin: 'bottom center',
+                                        zIndex: 10 
+                                    }}
                                 />
                             )}
                             <div style={{ borderTop: `0.2mm solid ${primaryColor}70`, width: '42mm' }} />
-                            <div style={{ fontSize: '2.1mm', fontWeight: 700, marginTop: '0.3mm', textTransform: 'uppercase', color: '#0f172a', fontFamily: cardFontFamily }}>
+                            <div style={{ fontSize: signatoryFontSize, fontWeight: 700, marginTop: '0.3mm', textTransform: 'uppercase', color: '#0f172a', fontFamily: cardFontFamily }}>
                                 {model.signatoryName || 'AGAPITO S. GONZAGA'}
                             </div>
                             <div style={{ fontSize: '1.5mm', color: '#475569', fontWeight: 500 }}>
@@ -612,7 +669,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                         fontSize: '2.6mm', 
                         fontWeight: 900, 
                         color: accentColor, 
-                        marginTop: '2.0mm', 
+                        marginTop: '1.2mm', 
                         letterSpacing: '0.5mm',
                         whiteSpace: 'nowrap',
                         fontFamily: cardFontFamily 

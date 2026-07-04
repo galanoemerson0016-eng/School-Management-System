@@ -582,7 +582,16 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             {/* Footer Signatures */}
             <div className="mt-auto px-1 flex flex-col items-center justify-center shrink-0 w-full text-center">
                 <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
-                <div className="w-45 mx-auto text-center mt-2.5">
+                <div className="w-45 mx-auto text-center mt-2.5 relative">
+                    {schoolProfile.adviser_signature_url && (
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                            <img 
+                                src={schoolProfile.adviser_signature_url} 
+                                alt="Adviser Signature" 
+                                className="max-h-full max-w-full object-contain" 
+                            />
+                        </div>
+                    )}
                     <div className="font-bold text-[9px] uppercase border-b border-black pb-0.5 leading-none">
                         {schoolProfile.adviser_name || '_________________________'}
                     </div>
@@ -1086,7 +1095,16 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             {/* Footer Signatures */}
             <div className="mt-auto px-1 flex flex-col items-center justify-center shrink-0 w-full text-center">
                 <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
-                <div className="w-45 mx-auto text-center mt-2.5">
+                <div className="w-45 mx-auto text-center mt-2.5 relative">
+                    {schoolProfile.adviser_signature_url && (
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                            <img 
+                                src={schoolProfile.adviser_signature_url} 
+                                alt="Adviser Signature" 
+                                className="max-h-full max-w-full object-contain" 
+                            />
+                        </div>
+                    )}
                     <div className="font-bold text-[9px] uppercase border-b border-black pb-0.5 leading-none">
                         {schoolProfile.adviser_name || '_________________________'}
                     </div>

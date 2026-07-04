@@ -287,6 +287,42 @@ export function IdTemplateSettings({ config, onChange, canEdit, logoUrl, signatu
                 </div>
             </div>
 
+            <div className="border-t border-slate-100 pt-3.5 space-y-3.5">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Signature Layout Adjustments</span>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] font-semibold text-slate-600">Signature Scale</label>
+                            <span className="text-[10px] font-mono text-slate-500">{Math.round((config.signatureScale ?? 1.0) * 100)}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min={50}
+                            max={200}
+                            step={5}
+                            value={Math.round((config.signatureScale ?? 1.0) * 100)}
+                            onChange={(e) => set('signatureScale', parseInt(e.target.value) / 100)}
+                            className="w-full h-1.5 accent-deped-blue cursor-pointer"
+                        />
+                    </div>
+                    <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                            <label className="text-[10px] font-semibold text-slate-600">Vertical Offset (Y)</label>
+                            <span className="text-[10px] font-mono text-slate-500">{(config.signatureOffsetY ?? 0) > 0 ? `+${config.signatureOffsetY}` : config.signatureOffsetY} mm</span>
+                        </div>
+                        <input
+                            type="range"
+                            min={-10}
+                            max={10}
+                            step={1}
+                            value={config.signatureOffsetY ?? 0}
+                            onChange={(e) => set('signatureOffsetY', parseInt(e.target.value))}
+                            className="w-full h-1.5 accent-deped-blue cursor-pointer"
+                        />
+                    </div>
+                </div>
+            </div>
+
             {(logoUrl || signatureUrl) && (
                 <div className="border-t border-slate-100 pt-3.5 space-y-2">
                     <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Active Branding Assets</label>

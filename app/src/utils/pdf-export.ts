@@ -119,6 +119,26 @@ function flattenFormControls(original: HTMLElement, clone: HTMLElement): void {
         let value = '';
         if (origEl instanceof HTMLSelectElement) {
             value = origEl.options[origEl.selectedIndex]?.text ?? origEl.value;
+        } else if (origEl instanceof HTMLInputElement && origEl.type === 'checkbox') {
+            const isChecked = origEl.checked;
+            const span = document.createElement('span');
+            span.className = cloneEl.className;
+            span.setAttribute('style', cloneEl.getAttribute('style') || '');
+            span.style.display = 'inline-flex';
+            span.style.alignItems = 'center';
+            span.style.justifyContent = 'center';
+            span.style.border = '1.5px solid #0f172a';
+            span.style.borderRadius = '2px';
+            span.style.backgroundColor = isChecked ? '#0f172a' : '#ffffff';
+            span.style.color = '#ffffff';
+            span.style.fontSize = '9px';
+            span.style.fontWeight = '900';
+            span.style.lineHeight = '1';
+            span.style.flexShrink = '0';
+            span.style.boxSizing = 'border-box';
+            span.textContent = isChecked ? '✓' : '';
+            cloneEl.parentNode?.replaceChild(span, cloneEl);
+            return;
         } else {
             value = (origEl as HTMLInputElement | HTMLTextAreaElement).value || '';
         }
