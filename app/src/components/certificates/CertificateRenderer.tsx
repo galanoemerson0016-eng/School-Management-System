@@ -1,4 +1,3 @@
-import '../../styles/certificate-styles.css';
 import { useAppStore } from '../../stores/app-store';
 
 export interface CertificateData {

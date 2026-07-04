@@ -1,5 +1,10 @@
 # Version History
 
+## v2.4.3 (2026-07-04)
+
+### 🐞 Bug Fixes
+- Fixed a layout formatting bug in the Advanced Certificate Generator preview within the installed app by statically compiling and bundling the certificate stylesheet.
+
 ## v2.4.2 (2026-07-04)
 
 ### 🚀 New Features
