@@ -18,6 +18,13 @@
 }
 
 /* Base Font Definitions */
+/* Bundle Old English Text MT so the preview matches the generated PDF even on
+   machines where the font is not installed (local() wins when it is). */
+@font-face {
+    font-family: 'Old English Text MT';
+    src: local('Old English Text MT'), url('../assets/fonts/OLDENGL.TTF') format('truetype');
+}
+
 .font-old-english {
     font-family: 'Old English Text MT', 'MedievalSharp', serif;
 }

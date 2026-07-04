@@ -1,112 +1,145 @@
 import { Document, Page, View, Text, Image, StyleSheet, Font } from '@react-pdf/renderer';
 import type { CertificateData } from './CertificateRenderer';
+import bookosRegular from '../../assets/fonts/BOOKOS.TTF?inline';
+import bookosBold from '../../assets/fonts/BOOKOSB.TTF?inline';
+import bookosItalic from '../../assets/fonts/BOOKOSI.TTF?inline';
+import bookosBoldItalic from '../../assets/fonts/BOOKOSBI.TTF?inline';
+import oldEnglishTextMT from '../../assets/fonts/OLDENGL.TTF?inline';
 
-// Helper to resolve absolute URLs for fonts and assets in client-side React-PDF
-const base = typeof window !== 'undefined' ? (window.location.origin + (import.meta.env.BASE_URL || '/')) : '/';
-const fontPath = `${base.endsWith('/') ? base : base + '/'}fonts`;
-
-// Register Bookman Old Style fonts
+// Fonts are inlined as base64 data URIs because the packaged app runs on
+// file://, where react-pdf's fetch()-based font loader cannot reach local files.
 Font.register({
   family: 'BookmanOldStyle',
-  src: `${fontPath}/BOOKOS.TTF`
+  src: bookosRegular
 });
 Font.register({
   family: 'BookmanOldStyle-Bold',
-  src: `${fontPath}/BOOKOSB.TTF`
+  src: bookosBold
 });
 Font.register({
   family: 'BookmanOldStyle-Italic',
-  src: `${fontPath}/BOOKOSI.TTF`
+  src: bookosItalic
 });
 Font.register({
   family: 'BookmanOldStyle-BoldItalic',
-  src: `${fontPath}/BOOKOSBI.TTF`
+  src: bookosBoldItalic
 });
 
-// Register Gothic font for Republic/Title sections
+// Old English Text MT matches the on-screen preview (.font-old-english). It ships
+// no italic face; register the same file for both styles so react-pdf can resolve
+// fontStyle: 'italic' instead of throwing.
 Font.register({
-  family: 'MedievalSharp',
-  src: 'https://fonts.gstatic.com/s/medievalsharp/v23/PN_o7K43Fz4Q3v79Gv21-4wM-vW4wQ.ttf'
+  family: 'OldEnglishTextMT',
+  fonts: [
+    { src: oldEnglishTextMT },
+    { src: oldEnglishTextMT, fontStyle: 'italic' }
+  ]
 });
 
+// Sizes and margins mirror the on-screen preview (certificate-styles.css +
+// CertificateRenderer.tsx tailwind classes); px values converted to pt (x0.75).
 const styles = StyleSheet.create({
   page: {
+    // Explicit dimensions: with wrap={false} react-pdf would otherwise size
+    // the page to its content instead of exact Letter landscape.
     width: '11in',
     height: '8.5in',
+    minHeight: '8.5in',
     backgroundColor: '#ffffff',
-    paddingTop: 25,
-    paddingLeft: 36,
+    paddingTop: 25, // 0.35in
+    paddingLeft: 36, // 0.5in
     paddingRight: 36,
-    paddingBottom: 35,
+    paddingBottom: 47, // 0.65in
     fontFamily: 'BookmanOldStyle',
+    // Fallback for any text without an explicit lineHeight; react-pdf would
+    // otherwise use raw font metrics (very tall for Old English Text MT).
+    lineHeight: 1.2,
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
-    boxSizing: 'border-box',
   },
   logoLeft: {
     position: 'absolute',
-    left: 43.2, // 0.6in * 72
-    top: 30,
-    width: 90,
-    height: 90,
+    left: 43, // 0.6in
+    top: 22,
+    width: 101, // 1.4in
+    height: 101,
   },
   logoRight: {
     position: 'absolute',
-    right: 43.2, // 0.6in * 72
-    top: 30,
-    width: 90,
-    height: 90,
+    right: 43,
+    top: 22,
+    width: 101,
+    height: 101,
+  },
+  // Fixed-height flow area (8.5in minus page paddings): long content overflows
+  // into the bottom padding like the HTML preview instead of growing the page.
+  mainArea: {
+    width: '100%',
+    height: 540,
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
+    width: '100%',
     textAlign: 'center',
-    marginBottom: 5,
+    lineHeight: 0.95,
+    marginTop: 8,
+    marginBottom: 6,
   },
   republicTg: {
-    fontFamily: 'MedievalSharp',
-    fontSize: 13,
+    fontFamily: 'OldEnglishTextMT',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 0.95,
     color: '#000000',
-    marginBottom: 1,
   },
   republicEn: {
-    fontFamily: 'MedievalSharp',
-    fontSize: 10.5,
+    fontFamily: 'OldEnglishTextMT',
+    fontSize: 11.5,
     fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 0.95,
     color: '#000000',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   deptTg: {
-    fontFamily: 'MedievalSharp',
-    fontSize: 13,
+    fontFamily: 'OldEnglishTextMT',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 0.95,
     color: '#000000',
-    marginBottom: 1,
   },
   deptEn: {
-    fontFamily: 'MedievalSharp',
-    fontSize: 10.5,
+    fontFamily: 'OldEnglishTextMT',
+    fontSize: 11.5,
     fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 0.95,
     color: '#000000',
     marginBottom: 3,
   },
   subHeaderTg: {
-    fontSize: 9.5,
+    fontSize: 11,
     fontFamily: 'BookmanOldStyle-Bold',
     textTransform: 'uppercase',
-    marginBottom: 0,
-    lineHeight: 1.1,
+    textAlign: 'center',
+    lineHeight: 0.95,
   },
   subHeaderEn: {
-    fontSize: 7.5,
+    fontSize: 8,
     fontFamily: 'BookmanOldStyle-BoldItalic',
     textTransform: 'uppercase',
-    marginBottom: 2,
-    lineHeight: 1.1,
+    textAlign: 'center',
+    lineHeight: 0.95,
+    marginBottom: 1.5,
   },
   schoolName: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'BookmanOldStyle-Bold',
     textTransform: 'uppercase',
-    marginTop: 2,
+    textAlign: 'center',
+    lineHeight: 0.95,
   },
   contentContainer: {
     width: '100%',
@@ -114,114 +147,151 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: 5,
+    marginTop: 7, // 0.1in
   },
   certTitle: {
-    fontFamily: 'MedievalSharp',
-    fontSize: 28,
+    fontFamily: 'OldEnglishTextMT',
+    fontSize: 32,
     textAlign: 'center',
-    marginTop: 2,
-    marginBottom: 4,
+    lineHeight: 1.2,
+    marginTop: 3,
   },
   awardSentenceTg: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'BookmanOldStyle-Italic',
     textAlign: 'center',
+    lineHeight: 1.2,
+    marginTop: 6,
   },
   awardSentenceEn: {
-    fontSize: 8.5,
+    fontSize: 10,
     fontFamily: 'BookmanOldStyle-Italic',
     textAlign: 'center',
-    marginTop: 1,
+    lineHeight: 1,
+    marginTop: 3,
   },
   learnerName: {
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: 'BookmanOldStyle-Bold',
     textAlign: 'center',
     textTransform: 'uppercase',
-    marginTop: 8,
+    lineHeight: 1.2,
+    marginTop: 12,
     textDecoration: 'underline',
   },
   lrn: {
-    fontSize: 8,
+    fontSize: 9,
     fontFamily: 'BookmanOldStyle-Bold',
     textAlign: 'center',
-    marginTop: 2,
+    lineHeight: 1.2,
+    marginTop: 1.5,
   },
   awardBody: {
-    textAlign: 'center',
-    marginTop: 10,
-    paddingLeft: 70,
-    paddingRight: 70,
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginTop: 18,
+    paddingLeft: 86, // 1.2in
+    paddingRight: 86,
+    lineHeight: 1.3,
   },
   awardTitleTg: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'BookmanOldStyle-Bold',
-    marginBottom: 1,
+    textAlign: 'center',
+    lineHeight: 1.3,
+    width: '100%',
   },
   awardTitleEn: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'BookmanOldStyle-Italic',
-    marginBottom: 3,
+    textAlign: 'center',
+    lineHeight: 1.3,
+    marginBottom: 15,
+    width: '100%',
   },
   bodyTextTg: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'BookmanOldStyle',
-    lineHeight: 1.2,
-    marginBottom: 0,
+    textAlign: 'center',
+    lineHeight: 1.3,
+    width: '100%',
   },
   bodyTextEn: {
-    fontSize: 8,
+    fontSize: 9,
     fontFamily: 'BookmanOldStyle-Italic',
-    lineHeight: 1.2,
-    marginBottom: 6,
+    textAlign: 'center',
+    lineHeight: 1.3,
+    marginBottom: 12,
+    width: '100%',
   },
   projectContainer: {
-    marginTop: 3,
-    marginBottom: 6,
-    textAlign: 'center',
+    width: '100%',
+    marginTop: 9,
+    marginBottom: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   projectTitle: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'BookmanOldStyle-Bold',
     textTransform: 'uppercase',
+    textAlign: 'center',
+    lineHeight: 1.3,
+    width: '100%',
   },
   projectMembers: {
-    fontSize: 7.5,
-    fontFamily: 'BookmanOldStyle-Italic',
-    color: '#4b5563',
-    marginTop: 1,
-  },
-  excellenceAwardTitle: {
-    fontSize: 14,
-    fontFamily: 'BookmanOldStyle-Bold',
-    textTransform: 'uppercase',
-    marginTop: 2,
-  },
-  excellenceAwardSub: {
-    fontSize: 9,
-    fontFamily: 'BookmanOldStyle-Italic',
-    marginTop: 1,
-  },
-  dateLineTg: {
-    fontSize: 10,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  dateLineEn: {
     fontSize: 8,
     fontFamily: 'BookmanOldStyle-Italic',
+    color: '#6b7280',
     textAlign: 'center',
-    marginTop: 1,
+    lineHeight: 1.3,
+    marginTop: 1.5,
+    width: '100%',
+  },
+  excellenceAwardTitle: {
+    fontSize: 16,
+    fontFamily: 'BookmanOldStyle-Bold',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    lineHeight: 1.3,
+    width: '100%',
+    marginTop: 14,
+  },
+  excellenceAwardSub: {
+    fontSize: 10,
+    fontFamily: 'BookmanOldStyle-Italic',
+    textAlign: 'center',
+    lineHeight: 1.3,
+    marginTop: 3,
+    width: '100%',
+    marginBottom: 6,
+  },
+  dateLineTg: {
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 1.2,
+    marginTop: 18,
+    marginBottom: 1.5,
+    width: '100%',
+  },
+  dateLineEn: {
+    fontSize: 9,
+    fontFamily: 'BookmanOldStyle-Italic',
+    textAlign: 'center',
+    lineHeight: 1,
+    width: '100%',
   },
   signatoriesContainer: {
     width: '100%',
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingLeft: 40,
-    paddingRight: 40,
-    marginTop: 28,
+    paddingLeft: 43, // 0.6in
+    paddingRight: 43,
+    marginTop: 36,
   },
   signatoryCol: {
     width: '40%',
@@ -233,25 +303,27 @@ const styles = StyleSheet.create({
   },
   signatureOverlay: {
     position: 'absolute',
-    top: -45,
-    height: 60,
-    width: 100,
+    top: -48,
+    height: 72,
+    width: 140,
     opacity: 0.9,
+    objectFit: 'contain',
   },
   signatoryName: {
-    fontSize: 10.5,
+    fontSize: 12,
     fontFamily: 'BookmanOldStyle-Bold',
     textTransform: 'uppercase',
-    borderTopWidth: 1,
-    borderTopColor: '#000000',
+    textAlign: 'center',
+    lineHeight: 1.2,
     paddingTop: 3,
     width: '100%',
   },
   signatoryTitle: {
-    fontSize: 8.5,
+    fontSize: 10,
     fontFamily: 'BookmanOldStyle',
-    marginTop: 2,
-    lineHeight: 1.1,
+    textAlign: 'center',
+    marginTop: 1.5,
+    lineHeight: 1.25,
   },
 });
 
@@ -294,11 +366,12 @@ export function CertificatePDFDocument({ data, logoLeftUrl, logoRightUrl }: Cert
 
   return (
     <Document>
-      <Page size="LETTER" orientation="landscape" style={styles.page}>
+      <Page size="LETTER" orientation="landscape" style={styles.page} wrap={false}>
         {/* Logos */}
         {logoLeftUrl && <Image src={logoLeftUrl} style={styles.logoLeft} />}
         {logoRightUrl && <Image src={logoRightUrl} style={styles.logoRight} />}
 
+        <View style={styles.mainArea}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.republicTg}>Republika ng Pilipinas</Text>
@@ -334,28 +407,28 @@ export function CertificatePDFDocument({ data, logoLeftUrl, logoRightUrl }: Cert
             <Text style={styles.awardTitleEn}>({data.awardTitleEnglish})</Text>
 
             {data.bodyTextTagalog ? (
-              <View>
+              <>
                 <Text style={styles.bodyTextTg}>{data.bodyTextTagalog}</Text>
                 <Text style={styles.bodyTextEn}>{data.bodyTextEnglish}</Text>
-              </View>
+              </>
             ) : data.excellenceAward === 'Subject Excellence Award' ? (
-              <View>
+              <>
                 <Text style={styles.bodyTextTg}>
                   bilang pagkilala sa natatanging pagganap sa asignaturang {data.awardTitleEnglish.split('in ')[1] || 'Asignatura'}.
                 </Text>
                 <Text style={styles.bodyTextEn}>
                   in recognition of outstanding academic performance in {data.awardTitleEnglish.split('in ')[1] || 'Subject'}.
                 </Text>
-              </View>
+              </>
             ) : (
-              <View>
+              <>
                 <Text style={styles.bodyTextTg}>
                   bilang pagkilala sa matagumpay na pagtamo ng karangalang itinakda ng Kagawaran ng Edukasyon para sa mga mag-aaral.
                 </Text>
                 <Text style={styles.bodyTextEn}>
                   in recognition of having satisfactorily met the standards for academic honors prescribed by the Department of Education.
                 </Text>
-              </View>
+              </>
             )}
 
             {/* Custom projects/groups */}
@@ -407,6 +480,7 @@ export function CertificatePDFDocument({ data, logoLeftUrl, logoRightUrl }: Cert
               </Text>
             </View>
           </View>
+        </View>
         </View>
       </Page>
     </Document>

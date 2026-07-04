@@ -72,7 +72,8 @@ export function CertificateGeneratorPage() {
     // Generator State
     const [certType, setCertType] = useState<CertificateType>('T1');
     const [selectedSectionId, setSelectedSectionId] = useState<string>('');
-    const [showSignatures, setShowSignatures] = useState(true);
+    const [showAdviserSignature, setShowAdviserSignature] = useState(true);
+    const [showHeadSignature, setShowHeadSignature] = useState(true);
     const [adviserSignatureUrl, setAdviserSignatureUrl] = useState<string | undefined>(undefined);
     
     // Batch Processing State
@@ -209,6 +210,9 @@ export function CertificateGeneratorPage() {
     // Sync with school profile updates
     useEffect(() => {
         if (schoolProfile) {
+            if (schoolProfile.adviser_signature_url && !adviserSignatureUrl) {
+                setAdviserSignatureUrl(schoolProfile.adviser_signature_url);
+            }
             const timer = setTimeout(() => {
                 setCertData(prev => ({
                     ...prev,
@@ -242,7 +246,7 @@ export function CertificateGeneratorPage() {
             }, 0);
             return () => clearTimeout(timer);
         }
-    }, [schoolProfile]);
+    }, [schoolProfile, adviserSignatureUrl]);
 
     // Batch Scanning Logic
     const handleBatchScan = () => {
@@ -303,7 +307,11 @@ const section = sections.find(s => s.id === selectedSectionId);
             }).filter(Boolean) as BatchStudent[];
 
             // 2. Subject Excellence Detection (Top Scorer per Subject)
-            const sectionSubjectIds = new Set(subjects.filter(sub => sub.section_id === selectedSectionId).map(sub => sub.id));
+            let sectionSubjects = subjects.filter(sub => sub.section_id === selectedSectionId && sub.term !== 'none');
+            if (sectionSubjects.length === 0 && section) {
+                sectionSubjects = subjects.filter(sub => sub.grade_level === section.section_grade_level && !sub.section_id && sub.term !== 'none');
+            }
+            const sectionSubjectIds = new Set(sectionSubjects.map(sub => sub.id));
             const awards: typeof subjectAwards = [];
 
             sectionSubjectIds.forEach(subId => {
@@ -476,30 +484,6 @@ const section = sections.find(s => s.id === selectedSectionId);
         }, 1000);
     };
 
-    const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64String = reader.result as string;
-                // Update local profile and store
-                const updatedProfile = { ...schoolProfile, head_signature_url: base64String };
-                useAppStore.getState().updateSchoolProfile(updatedProfile);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleAdviserSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setAdviserSignatureUrl(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
 
     const toggleStudentSelection = (lrn: string) => {
         setBatchStudents(prev => prev.map(s => 
@@ -525,13 +509,13 @@ const section = sections.find(s => s.id === selectedSectionId);
             const { PDFDocument } = await import('pdf-lib');
             const { pdf } = await import('@react-pdf/renderer');
             const { CertificatePDFDocument } = await import('../components/certificates/CertificatePDFDocument');
+            const { certificateAssets } = await import('../components/certificates/certificateAssets');
 
             const mergedPdf = await PDFDocument.create();
             let renderedCount = 0;
 
-            const baseUrl = import.meta.env.BASE_URL || '/';
-            const logoLeftUrl = window.location.origin + baseUrl + 'deped_logo_left.png';
-            const logoRightUrl = schoolProfile?.logo_url || (window.location.origin + baseUrl + 'school-logo.png');
+            const logoLeftUrl = certificateAssets.depedLogoLeft;
+            const logoRightUrl = schoolProfile?.logo_url || certificateAssets.schoolLogoFallback;
 
             // 1. Process Honors
             for (const student of selectedHonors) {
@@ -541,8 +525,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                     lrn: student.lrn,
                     awardTitleTagalog: student.honors.tagalog,
                     awardTitleEnglish: student.honors.english,
-                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                    signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                    signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                 };
 
                 const blob = await pdf(
@@ -571,8 +555,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                     awardTitleTagalog: `May Pinakamataas na Marka sa ${award.subject}`,
                     awardTitleEnglish: `Highest Grade in ${award.subject}`,
                     excellenceAward: 'Subject Excellence Award',
-                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                    signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                    signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                 };
 
                 const blob = await pdf(
@@ -605,8 +589,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                     bodyTextEnglish: award.bodyTextEnglish,
                     projectTitle: award.projectTitle,
                     projectMembers: award.projectMembers,
-                    signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                    signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                    signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                    signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                 };
 
                 const blob = await pdf(
@@ -890,49 +874,33 @@ const section = sections.find(s => s.id === selectedSectionId);
                                     </div>
                                 </div>
                             )}
-                        </section>
-
-                         {/* Signature Management */}
+                        </section>                         {/* Signature Management */}
                         <section className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
                             <h3 className="text-[10px] font-black text-gray-400 uppercase mb-3 flex items-center gap-2">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> Signature Management
                             </h3>
-                            <div className="space-y-4">
-                                {/* Adviser Signature */}
-                                <div>
-                                    <p className="text-[8px] font-bold text-gray-400 uppercase mb-1 ml-1">Class Adviser Signature (Left)</p>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <div className="flex-1 bg-white dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/10 rounded-xl px-4 py-2 text-center transition-hover hover:border-blue-500">
-                                            <p className="text-[10px] font-bold text-gray-500 tracking-tight">
-                                                {adviserSignatureUrl ? 'Change Adviser Sign' : 'Upload Adviser Sign'}
-                                            </p>
-                                            <input type="file" accept="image/*" className="hidden" onChange={handleAdviserSignatureUpload} />
-                                        </div>
-                                    </label>
-                                </div>
+                            <div className="space-y-3">
+                                {/* Show Adviser Signature Checkbox */}
+                                <label className="flex items-center justify-between cursor-pointer py-1">
+                                    <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 uppercase">Show Class Adviser Signature</span>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={showAdviserSignature} 
+                                        onChange={(e) => setShowAdviserSignature(e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </label>
 
-                                {/* School Head Signature */}
-                                <div>
-                                    <p className="text-[8px] font-bold text-gray-400 uppercase mb-1 ml-1">School Head Signature (Right)</p>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <div className="flex-1 bg-white dark:bg-white/5 border border-dashed border-gray-300 dark:border-white/10 rounded-xl px-4 py-2 text-center transition-hover hover:border-blue-500">
-                                            <p className="text-[10px] font-bold text-gray-500 tracking-tight">
-                                                {schoolProfile?.head_signature_url ? 'Change Head Sign' : 'Upload Head Sign'}
-                                            </p>
-                                            <input type="file" accept="image/*" className="hidden" onChange={handleSignatureUpload} />
-                                        </div>
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center justify-between px-1 pt-1 border-t border-gray-100 dark:border-white/5">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">Show on Print</span>
-                                    <button 
-                                        onClick={() => setShowSignatures(!showSignatures)}
-                                        className={`w-10 h-5 rounded-full relative transition-all ${showSignatures ? 'bg-blue-500' : 'bg-gray-300'}`}
-                                    >
-                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${showSignatures ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
+                                {/* Show School Head Signature Checkbox */}
+                                <label className="flex items-center justify-between cursor-pointer py-1">
+                                    <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 uppercase">Show School Head Signature</span>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={showHeadSignature} 
+                                        onChange={(e) => setShowHeadSignature(e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </label>
                             </div>
                         </section>
 
@@ -1072,8 +1040,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 lrn: student.lrn,
                                                 awardTitleTagalog: student.honors.tagalog,
                                                 awardTitleEnglish: student.honors.english,
-                                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                                             }} />
                                         </div>
                                     </div>
@@ -1093,8 +1061,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 awardTitleTagalog: `May Pinakamataas na Marka sa ${award.subject}`,
                                                 awardTitleEnglish: `Highest Grade in ${award.subject}`,
                                                 excellenceAward: 'Subject Excellence Award',
-                                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                                             }} />
                                         </div>
                                     </div>
@@ -1118,8 +1086,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 bodyTextEnglish: award.bodyTextEnglish,
                                                 projectTitle: award.projectTitle,
                                                 projectMembers: award.projectMembers,
-                                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                                             }} />
                                         </div>
                                     </div>
@@ -1139,8 +1107,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 lrn: student.lrn,
                                 awardTitleTagalog: student.honors.tagalog,
                                 awardTitleEnglish: student.honors.english,
-                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                             }} />
                         </div>
                     ))}
@@ -1153,8 +1121,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 awardTitleTagalog: `May Pinakamataas na Marka sa ${award.subject}`,
                                 awardTitleEnglish: `Highest Grade in ${award.subject}`,
                                 excellenceAward: 'Subject Excellence Award',
-                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                             }} />
                         </div>
                     ))}
@@ -1171,8 +1139,8 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 bodyTextEnglish: award.bodyTextEnglish,
                                 projectTitle: award.projectTitle,
                                 projectMembers: award.projectMembers,
-                                signatureUrl1: showSignatures ? adviserSignatureUrl : undefined,
-                                signatureUrl2: showSignatures ? schoolProfile?.head_signature_url : undefined
+                                signatureUrl1: showAdviserSignature ? (adviserSignatureUrl || schoolProfile?.adviser_signature_url) : undefined,
+                                signatureUrl2: showHeadSignature ? schoolProfile?.head_signature_url : undefined
                             }} />
                         </div>
                     ))}

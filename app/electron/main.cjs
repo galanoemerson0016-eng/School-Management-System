@@ -55,7 +55,9 @@ if (!gotTheLock) {
       minWidth: 1024,
       minHeight: 768,
       fullscreen: false,
-      icon: path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
+      icon: process.platform === 'win32'
+        ? path.join(__dirname, '..', isDev ? 'public' : 'dist', 'icon.ico')
+        : path.join(__dirname, '..', isDev ? 'public' : 'dist', 'app-logo.png'),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -102,6 +104,9 @@ if (!gotTheLock) {
   }
 
   app.whenReady().then(() => {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.formease.pro');
+    }
     createWindow();
 
     // Check for updates after the app is ready (only in production)

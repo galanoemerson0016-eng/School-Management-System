@@ -1,5 +1,18 @@
 # Version History
 
+## v2.4.4 (2026-07-05)
+
+### 🐞 Bug Fixes
+- **Advanced Certificate Generator:**
+  - Resolved `file://` fetch CORS issues during batch certificate compilation.
+  - Implemented protocol-aware resolution for font and logo assets to support both web subpaths and desktop Electron environments.
+  - Split signature visibility options into separate, direct toggle checkboxes (Class Adviser & School Head) utilizing global institute profile signatures.
+  - Centered award descriptions, body texts, and category titles on printed certificates, adjusting date margins for clean alignment.
+  - Fixed missing Subject Awards scanner lookup to automatically fall back to grade-level subjects when section-specific links are absent.
+- **Application Icon & Identity:**
+  - Added Windows Application User Model ID registration to correctly link taskbar and titlebar icons to the FormEase Pro desktop shortcut.
+  - Configured high-resolution native `.ico` support for Windows platforms.
+
 ## v2.4.3 (2026-07-04)
 
 ### 🐞 Bug Fixes
