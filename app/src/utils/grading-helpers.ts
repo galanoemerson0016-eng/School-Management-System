@@ -346,38 +346,60 @@ export function getStudentAbsences(
     else if (term === 3) monthsToInclude = ['january', 'february', 'march', 'april'];
     else monthsToInclude = ['june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april'];
 
-    // Check SF2Sheets
+    const monthsWithSF2 = new Set<string>();
+
+    // 1. Check SF2Sheets
     const sheets = sf2Sheets.filter(s => s.section_id === sectionId && s.school_year === schoolYear);
     sheets.forEach(sheet => {
         const m = sheet.month.toLowerCase();
         const matchesTerm = monthsToInclude.some(mi => mi.startsWith(m) || m.startsWith(mi));
         if (term !== 'EOSY' && !matchesTerm) return;
 
+        monthsWithSF2.add(m);
+
         const studentAttendance = sheet.attendance[studentLrn];
         if (studentAttendance) {
-            Object.values(studentAttendance).forEach(status => {
-                if (status === 'absent') {
-                    count++;
-                }
-            });
+            const hasDateLabels = sheet.date_labels && Object.keys(sheet.date_labels).length > 0;
+            if (hasDateLabels) {
+                // Iterate through valid columns defined in date_labels to avoid counting empty space or double counting
+                Object.keys(sheet.date_labels).forEach(colKeyStr => {
+                    const colKey = Number(colKeyStr);
+                    const dateVal = sheet.date_labels[colKey];
+                    if (dateVal && dateVal.trim() !== '') {
+                        const dateKey = `date_${dateVal.trim()}`;
+                        const status = studentAttendance[dateKey] !== undefined 
+                            ? studentAttendance[dateKey] 
+                            : (studentAttendance[colKey] !== undefined ? studentAttendance[colKey] : studentAttendance[colKeyStr]);
+                        
+                        if (status === 'absent') {
+                            count++;
+                        }
+                    }
+                });
+            } else {
+                // Legacy / Test fallback: count all "absent" values in the record
+                Object.values(studentAttendance).forEach(status => {
+                    if (status === 'absent') {
+                        count++;
+                    }
+                });
+            }
         }
     });
 
-    // Also check individual attendanceRecords (as a fallback or override)
+    // 2. Also check individual attendanceRecords for months that DO NOT have an SF2 sheet yet
     const records = attendanceRecords.filter(r => r.student_lrn === studentLrn && r.status === 'absent');
-    if (count === 0 && records.length > 0) {
-        records.forEach(r => {
-            if (term !== 'EOSY') {
-                const dateObj = new Date(r.date);
-                const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();
-                if (monthsToInclude.includes(monthName)) {
-                    count++;
-                }
-            } else {
-                count++;
-            }
-        });
-    }
+    records.forEach(r => {
+        const dateObj = new Date(r.date);
+        const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();
+        
+        const isTermMonth = monthsToInclude.some(mi => mi.startsWith(monthName) || monthName.startsWith(mi));
+        const hasSF2Sheet = Array.from(monthsWithSF2).some(m => m.startsWith(monthName) || monthName.startsWith(m));
+        
+        if (isTermMonth && !hasSF2Sheet) {
+            count++;
+        }
+    });
 
     return count;
 }

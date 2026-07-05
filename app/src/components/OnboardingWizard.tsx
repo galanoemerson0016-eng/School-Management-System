@@ -245,8 +245,8 @@ export function OnboardingWizard({ onClose }: OnboardingWizardProps) {
         },
         {
             title: "About & Innovator",
-            description: "Check software version specifications, release credentials, and information about the FormEase Pro platform.",
-            elementSelector: '[data-tour="sidebar-about"]',
+            description: "Check software version specifications, release credentials, and information about the FormEase Pro platform — found inside Settings.",
+            elementSelector: '[data-tour="sidebar-settings"]',
             icon: Info,
             color: "from-rose-500 to-pink-600",
             iconColor: "text-rose-500 bg-rose-50 dark:bg-rose-500/10",

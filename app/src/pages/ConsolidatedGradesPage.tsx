@@ -331,7 +331,7 @@ const GradeInput = ({
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
             saveChanges(val);
-        }, 300);
+        }, 2000);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

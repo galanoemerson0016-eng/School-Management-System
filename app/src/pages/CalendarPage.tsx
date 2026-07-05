@@ -142,7 +142,7 @@ export function CalendarPage() {
     }, [events, currentDate]);
 
     return (
-        <div className="space-y-4 pb-4 h-[calc(100vh-140px)] flex flex-col">
+        <div className="space-y-3 md:space-y-4 pb-3 md:pb-4 h-full min-h-0 flex flex-col overflow-hidden pr-1 lg:pr-2">
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -165,15 +165,15 @@ export function CalendarPage() {
                 )}
             </motion.div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 flex-1 min-h-0 items-stretch">
                 {/* Calendar Grid */}
-                <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col min-h-0">
                     {/* Month Navigation */}
-                    <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-linear-to-r from-deped-blue to-blue-600">
+                    <div className="flex items-center justify-between p-3 md:p-4 border-b border-gray-100 bg-linear-to-r from-deped-blue to-blue-600">
                         <button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white">
                             <ChevronLeft className="w-5 h-5" />
                         </button>
-                        <h3 className="text-xl font-black text-white tracking-wide">{monthName}</h3>
+                        <h3 className="text-lg md:text-xl font-black text-white tracking-wide">{monthName}</h3>
                         <button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white">
                             <ChevronRight className="w-5 h-5" />
                         </button>
@@ -182,14 +182,14 @@ export function CalendarPage() {
                     {/* Day Headers */}
                     <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-100">
                         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className="px-2 py-3 text-center text-xs font-black text-gray-400 uppercase tracking-widest">
+                            <div key={day} className="px-1.5 md:px-2 py-1.5 md:py-2 text-center text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest">
                                 {day}
                             </div>
                         ))}
                     </div>
 
                     {/* Calendar Days */}
-                    <div className="grid grid-cols-7 flex-1 min-h-0">
+                    <div className="grid grid-cols-7 grid-rows-6 flex-1 min-h-0">
                         {calendarDays.map((day, idx) => {
                             const dayEvents = getEventsForDate(day.dateStr);
                             const isToday = day.dateStr === todayStr;
@@ -199,14 +199,14 @@ export function CalendarPage() {
                                 <div
                                     key={idx}
                                     onClick={() => handleDayClick(day.dateStr)}
-                                    className={`min-h-[95px] p-1.5 border-b border-r border-gray-50 cursor-pointer transition-all hover:bg-blue-50/50 ${!day.isCurrentMonth ? 'bg-gray-50/50' : ''
+                                    className={`min-h-0 h-full p-1 md:p-1.5 border-b border-r border-gray-50 cursor-pointer transition-all hover:bg-blue-50/50 ${!day.isCurrentMonth ? 'bg-gray-50/50' : ''
                                         } ${isSelected ? 'bg-blue-50 ring-2 ring-deped-blue ring-inset' : ''}`}
                                 >
-                                    <div className={`text-xs font-bold mb-1 w-7 h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-deped-blue text-white' : !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-600'
+                                    <div className={`text-[11px] md:text-xs font-bold mb-0.5 md:mb-1 w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full ${isToday ? 'bg-deped-blue text-white' : !day.isCurrentMonth ? 'text-gray-300' : 'text-gray-600'
                                         }`}>
                                         {day.date}
                                     </div>
-                                    <div className="space-y-0.5">
+                                    <div className="space-y-0.5 overflow-hidden">
                                         {dayEvents.slice(0, 2).map(evt => (
                                             <div key={evt.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate ${EVENT_TYPES[evt.type]?.color} text-white`}>
                                                 {evt.title}
@@ -223,7 +223,7 @@ export function CalendarPage() {
                 </div>
 
                 {/* Sidebar */}
-                <div className="flex flex-col gap-4 h-full">
+                <div className="flex flex-col gap-3 md:gap-4 h-full min-h-0">
                     {/* Selected Date Events */}
                     {selectedDate && (
                         <motion.div
@@ -231,12 +231,12 @@ export function CalendarPage() {
                             animate={{ opacity: 1, y: 0 }}
                             className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                         >
-                            <div className="p-4 bg-deped-blue text-white">
+                            <div className="p-3 md:p-4 bg-deped-blue text-white">
                                 <h4 className="font-bold text-sm">
                                     {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                                 </h4>
                             </div>
-                            <div className="p-4 space-y-2">
+                            <div className="p-3 md:p-4 space-y-2">
                                 {selectedDateEvents.length > 0 ? (
                                     selectedDateEvents.map(evt => (
                                         <div key={evt.id} className={`p-3 rounded-xl border ${EVENT_TYPES[evt.type]?.border} ${EVENT_TYPES[evt.type]?.bg}`}>
@@ -265,13 +265,13 @@ export function CalendarPage() {
 
                     {/* Monthly Activities */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="p-4 border-b border-gray-100">
+                        <div className="p-3 md:p-4 border-b border-gray-100">
                             <h4 className="font-bold text-gray-800 flex items-center gap-2">
                                 <CalendarIcon className="w-3 h-3 text-deped-blue" />
                                 {currentDate.toLocaleString('default', { month: 'long' })} Activities
                             </h4>
                         </div>
-                        <div className="p-2 space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar">
+                        <div className="p-2 space-y-1.5 max-h-56 md:max-h-64 overflow-y-auto custom-scrollbar">
                             {monthActivities.length > 0 ? (
                                 monthActivities.map(evt => (
                                     <div

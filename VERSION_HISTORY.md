@@ -1,5 +1,17 @@
 # Version History
 
+## v2.5.0 (2026-07-05)
+
+### 🚀 New Features
+- Added daily QR attendance scanning.
+- Added calendar announcements.
+
+### ⚡ Improvements
+- Improved grade sheets synchronization.
+
+### 📝 Notes
+Backward compatible.
+
 ## v2.4.5 (2026-07-05)
 
 ### 🐞 Bug Fixes

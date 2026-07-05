@@ -188,7 +188,7 @@ export function SF10Page() {
     };
 
     return (
-        <div className="sf10-print-root flex flex-col h-screen bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+        <div className="sf10-print-root flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/75 backdrop-blur-2xl border-b border-slate-200/70 shadow-[0_8px_28px_rgba(15,23,42,0.05)] relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />

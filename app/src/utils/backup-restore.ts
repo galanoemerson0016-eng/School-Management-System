@@ -50,6 +50,7 @@ export interface BackupSummary {
     adviserAssignments: number;
     gradingConfiguration: number;
     attendanceRecords: number;
+    activityLog?: number;
 }
 
 export interface BackupUser {
@@ -95,6 +96,7 @@ export interface ComprehensiveBackup {
         }>;
         gradingConfiguration: Record<string, unknown>;
         localStorageData?: Record<string, string>;
+        activityLog?: unknown[];
     };
 }
 
@@ -117,6 +119,7 @@ export async function createComprehensiveBackup(
     exportedBy: string = 'local-user',
 ): Promise<ComprehensiveBackup> {
     const users = await db.getAllRecords<BackupUser>('users').catch(() => []);
+    const activityLog = await db.getAllRecords<unknown>('activityLog').catch(() => []);
 
     const localStorageData: Record<string, string> = {};
     try {
@@ -125,7 +128,14 @@ export async function createComprehensiveBackup(
             if (key && (
                 key.startsWith('formease_sf8_signatories_') ||
                 key === 'school_calendar_events' ||
-                key === 'system_login_announcement'
+                key === 'system_login_announcement' ||
+                key === 'formease_sf2_include_saturdays' ||
+                key === 'formease_sf2_show_adviser_sig' ||
+                key === 'formease_sf2_show_head_sig' ||
+                key === 'formease_sf5_show_adviser_sig' ||
+                key === 'formease_sf5_show_head_sig' ||
+                key === 'formease_sf6_show_head_sig' ||
+                key === 'announcement_cloud_sync'
             )) {
                 const value = localStorage.getItem(key);
                 if (value) {
@@ -164,6 +174,7 @@ export async function createComprehensiveBackup(
             adviserAssignments: sections.filter((s) => !!s.adviser_id).length,
             gradingConfiguration: 1,
             attendanceRecords: attendanceRecords.length,
+            activityLog: activityLog.length,
         },
         payload: {
             schoolProfile,
@@ -188,6 +199,7 @@ export async function createComprehensiveBackup(
             adviserAssignments: [],
             gradingConfiguration: {},
             localStorageData,
+            activityLog,
         },
     };
 

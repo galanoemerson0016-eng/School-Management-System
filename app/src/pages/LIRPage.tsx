@@ -219,34 +219,34 @@ export function LIRPage() {
     }, [selectedStudent, selectedSubject, selectedSubjectObj, classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear]);
 
     return (
-        <div className="lir-print-root flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+        <div className="lir-print-root flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
-                <div className="flex items-center justify-start w-full h-16 select-none relative px-3 lg:px-4 gap-2 lg:gap-3 overflow-x-auto scrollbar-none">
+                <div className="flex items-center w-full h-14 select-none relative px-2 lg:px-3 gap-1.5 lg:gap-2 overflow-hidden">
                     
                     {/* Identity & Context Branding (Left Most Edge) */}
-                    <div className="flex items-center gap-2 lg:gap-3 shrink-0">
+                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-7 h-7 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
                         <div className="flex flex-col shrink-0">
-                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">Learner Record</h2>
-                            <p className="text-[7.5px] font-black text-emerald-600 uppercase tracking-widest leading-none">Individual LIR</p>
+                            <h2 className="text-[10px] lg:text-[11px] font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Learner Record</h2>
+                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest leading-none">Individual LIR</p>
                         </div>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                    <div className="h-5 w-px bg-slate-200 shrink-0" />
                         
                     {/* Section Selector */}
-                    <div className="relative group shrink-0">
+                    <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[120px] lg:min-w-[135px] duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-[90px] duration-200 truncate"
                             value={selectedSection}
                             onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setSelectedSubject(''); }}
                         >
@@ -263,13 +263,13 @@ export function LIRPage() {
                                 )
                             ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
 
                     {/* Subject Selector */}
-                    <div className="relative group shrink-0">
+                    <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-[130px] lg:min-w-[145px] disabled:opacity-30 duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer w-full min-w-[90px] disabled:opacity-30 duration-200 truncate"
                             value={selectedSubject}
                             onChange={(e) => { setSelectedSubject(e.target.value); setSelectedStudent(null); }}
                             disabled={!selectedSection}
@@ -281,13 +281,13 @@ export function LIRPage() {
                                 </option>
                             ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
 
                     {/* Learner Selector */}
-                    <div className="relative group shrink-0">
+                    <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[140px] lg:min-w-[160px] max-w-[200px] truncate disabled:opacity-30 duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-[100px] truncate disabled:opacity-30 duration-200"
                             value={selectedStudent?.lrn || ''}
                             onChange={(e) => {
                                 const student = students.find(s => s.lrn === e.target.value) || null;
@@ -319,83 +319,77 @@ export function LIRPage() {
                                 </optgroup>
                             )}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                    <div className="h-5 w-px bg-slate-200 shrink-0" />
 
                     {/* Paper Size selector */}
                     <div className="relative group shrink-0">
                         <select
                             value={paperSize}
                             onChange={(e) => setPaperSize(e.target.value as 'a4' | 'letter' | 'folio')}
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-[70px] lg:min-w-[80px] duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-[55px] duration-200"
                             title="Paper Size"
                         >
                             <option value="a4">A4</option>
                             <option value="letter">Letter</option>
                             <option value="folio">Folio</option>
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
-
                     {/* Branding Colors swatches */}
-                    <div className="flex gap-1.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 h-9 shrink-0 items-center px-2">
+                    <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 h-8 shrink-0 items-center px-1.5">
                         <div className="relative flex items-center justify-center cursor-pointer shrink-0" title="Choose Fill Color">
-                            <div className="w-5 h-5 rounded-lg border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: fillColor }} />
+                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: fillColor, width: 18, height: 18 }} />
                             <input 
                                 type="color" 
                                 value={fillColor} 
                                 onChange={(e) => setFillColor(e.target.value)}
-                                className="w-5 h-5 opacity-0 absolute inset-0 cursor-pointer"
+                                className="w-full h-full opacity-0 absolute inset-0 cursor-pointer"
                             />
                         </div>
                         <div className="relative flex items-center justify-center cursor-pointer shrink-0" title="Choose Outline Color">
-                            <div className="w-5 h-5 rounded-lg border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: outlineColor }} />
+                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: outlineColor, width: 18, height: 18 }} />
                             <input 
                                 type="color" 
                                 value={outlineColor} 
                                 onChange={(e) => setOutlineColor(e.target.value)}
-                                className="w-5 h-5 opacity-0 absolute inset-0 cursor-pointer"
+                                className="w-full h-full opacity-0 absolute inset-0 cursor-pointer"
                             />
                         </div>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
-
                     {/* View Zoom */}
-                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-xl border border-slate-200 h-9 shrink-0">
+                    <div className="flex items-center gap-0 bg-slate-100 p-0.5 rounded-lg border border-slate-200 h-8 shrink-0">
                         <button 
                             onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all active:scale-90 duration-200"
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all active:scale-90 duration-200"
                             title="Zoom Out"
                         >
-                            <Minus className="w-3.5 h-3.5" />
+                            <Minus className="w-3 h-3" />
                         </button>
-                        <span className="text-[9px] font-black text-slate-900 w-8 text-center tabular-nums">
+                        <span className="text-[8px] font-black text-slate-900 w-7 text-center tabular-nums">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button 
                             onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                            className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all active:scale-90 duration-200"
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all active:scale-90 duration-200"
                             title="Zoom In"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-3 h-3" />
                         </button>
                     </div>
-
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
 
                     {/* Print Button */}
                     <button
                         onClick={handlePrint}
                         disabled={!selectedStudent}
-                        className="h-9 px-3.5 lg:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
+                        className="ml-auto h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[8px] uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0"
                     >
-                        <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
-                        Print / PDF
+                        <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
+                        Print
                     </button>
                 </div>
              </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useTransition, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useTransition, useCallback, useRef } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFViewer, PDFDownloadLink, Image, Font } from '@react-pdf/renderer';
 Font.registerHyphenationCallback(word => [word]);
 
@@ -15,10 +15,10 @@ try {
 }
 
 import { useAppStore, useAuthStore } from '../stores';
-import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent } from '../types';
+import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings } from '../types';
 import { db } from '../services/database';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, PenTool } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
@@ -1476,12 +1476,28 @@ interface SF9ExactDocumentProps {
     logoUrl: string;
     schoolProfile?: SchoolProfile;
     printMode?: SF9PrintMode;
+    showAdviserSig?: boolean;
+    showHeadSig?: boolean;
+    adviserSigWidth?: number;
+    adviserSigHeight?: number;
+    adviserSigOffset?: number;
+    headSigWidth?: number;
+    headSigHeight?: number;
+    headSigOffset?: number;
 }
 
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
     adviser, principal, principalTitle,
-    grades, subjects: currentSubjects, comments = ['', '', ''], attendance, pageSize, logoUrl, printMode = 'full', schoolProfile
+    grades, subjects: currentSubjects, comments = ['', '', ''], attendance, pageSize, logoUrl, printMode = 'full', schoolProfile,
+    showAdviserSig = true,
+    showHeadSig = true,
+    adviserSigWidth = 60,
+    adviserSigHeight = 18,
+    adviserSigOffset = 10,
+    headSigWidth = 60,
+    headSigHeight = 18,
+    headSigOffset = 10
 }: SF9ExactDocumentProps) {
 
     const STRAND_MAPPING: Record<string, string> = {
@@ -1930,11 +1946,13 @@ function SF9Pages({
                                 <Text style={[{ fontSize: 8.5, fontFamily: 'BookmanOldStyle', marginTop: 2 }, isValuesOnly ? { color: transparentBorder } : {}]}>Approved:</Text>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
                                     <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
-                                        {schoolProfile?.head_signature_url && (
-                                            <Image 
-                                                src={schoolProfile.head_signature_url} 
-                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
-                                            />
+                                        {showHeadSig && schoolProfile?.head_signature_url && (
+                                            <View style={{ position: 'absolute', bottom: headSigOffset, left: 0, right: 0, alignItems: 'center' }}>
+                                                <Image 
+                                                    src={schoolProfile.head_signature_url} 
+                                                    style={{ height: headSigHeight, width: headSigWidth, objectFit: 'contain' }} 
+                                                />
+                                            </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(principal || '').toUpperCase()}
@@ -1945,11 +1963,13 @@ function SF9Pages({
                                         </Text>
                                     </View>
                                     <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
-                                        {schoolProfile?.adviser_signature_url && (
-                                            <Image 
-                                                src={schoolProfile.adviser_signature_url} 
-                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
-                                            />
+                                        {showAdviserSig && schoolProfile?.adviser_signature_url && (
+                                            <View style={{ position: 'absolute', bottom: adviserSigOffset, left: 0, right: 0, alignItems: 'center' }}>
+                                                <Image 
+                                                    src={schoolProfile.adviser_signature_url} 
+                                                    style={{ height: adviserSigHeight, width: adviserSigWidth, objectFit: 'contain' }} 
+                                                />
+                                            </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(adviser || '').toUpperCase()}
@@ -1970,11 +1990,13 @@ function SF9Pages({
                                 </View>
                                 <View style={{ flexDirection: 'row', marginTop: 6 }}>
                                     <View style={{ width: '45%', alignItems: 'center', position: 'relative' }}>
-                                        {schoolProfile?.head_signature_url && (
-                                            <Image 
-                                                src={schoolProfile.head_signature_url} 
-                                                style={{ position: 'absolute', bottom: 10, height: 18, width: 60, objectFit: 'contain' }} 
-                                            />
+                                        {showHeadSig && schoolProfile?.head_signature_url && (
+                                            <View style={{ position: 'absolute', bottom: headSigOffset, left: 0, right: 0, alignItems: 'center' }}>
+                                                <Image 
+                                                    src={schoolProfile.head_signature_url} 
+                                                    style={{ height: headSigHeight, width: headSigWidth, objectFit: 'contain' }} 
+                                                />
+                                            </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
                                             {(principal || '').toUpperCase()}
@@ -2023,6 +2045,8 @@ const SF9PagesMemo = React.memo(SF9Pages);
 export function SF9BatchDocument({
     students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviser, pageSize, printMode = 'full', subjectSelections
 }: SF9BatchDocumentProps) {
+    const sigSettings = sectionObj.section_metadata?.sf9SignatureSettings || {};
+
     return (
         <Document title={`SF9 Batch - ${sectionObj.section_name}`}>
             {students.filter(student => {
@@ -2064,6 +2088,14 @@ export function SF9BatchDocument({
                         logoUrl={schoolProfile.logo_url || ''}
                         schoolProfile={schoolProfile}
                         printMode={printMode}
+                        showAdviserSig={sigSettings.showAdviserSig !== false}
+                        showHeadSig={sigSettings.showHeadSig !== false}
+                        adviserSigWidth={sigSettings.adviserSigWidth ?? 60}
+                        adviserSigHeight={sigSettings.adviserSigHeight ?? 18}
+                        adviserSigOffset={sigSettings.adviserSigOffset ?? 10}
+                        headSigWidth={sigSettings.headSigWidth ?? 60}
+                        headSigHeight={sigSettings.headSigHeight ?? 18}
+                        headSigOffset={sigSettings.headSigOffset ?? 10}
                     />
                 );
             })}
@@ -2101,6 +2133,18 @@ export function SF9Page() {
     const [isStabilizing, setIsStabilizing] = useState(false);
     const [isPending] = useTransition();
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
+    const [layoutModalInitialTab, setLayoutModalInitialTab] = useState<'subjects' | 'signatures'>('subjects');
+
+    // Local Signature Preview States
+    const [showAdviserSig, setShowAdviserSig] = useState(true);
+    const [adviserSigWidth, setAdviserSigWidth] = useState(60);
+    const [adviserSigHeight, setAdviserSigHeight] = useState(18);
+    const [adviserSigOffset, setAdviserSigOffset] = useState(10);
+
+    const [showHeadSig, setShowHeadSig] = useState(true);
+    const [headSigWidth, setHeadSigWidth] = useState(60);
+    const [headSigHeight, setHeadSigHeight] = useState(18);
+    const [headSigOffset, setHeadSigOffset] = useState(10);
     const [printMode, setPrintMode] = useState<SF9PrintMode>('full');
     const [suggestionTab, setSuggestionTab] = useState<'academic' | 'behavior' | 'growth'>('academic');
     const [suggestionMode, setSuggestionMode] = useState<'replace' | 'append'>('append');
@@ -2141,6 +2185,21 @@ export function SF9Page() {
     }, [hydratedSf2Sheets, storeSf2Sheets]);
 
     const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
+
+    useEffect(() => {
+        if (selectedSectionObj) {
+            const sigSettings = selectedSectionObj.section_metadata?.sf9SignatureSettings || {};
+            setShowAdviserSig(sigSettings.showAdviserSig !== false);
+            setAdviserSigWidth(sigSettings.adviserSigWidth ?? 60);
+            setAdviserSigHeight(sigSettings.adviserSigHeight ?? 18);
+            setAdviserSigOffset(sigSettings.adviserSigOffset ?? 10);
+
+            setShowHeadSig(sigSettings.showHeadSig !== false);
+            setHeadSigWidth(sigSettings.headSigWidth ?? 60);
+            setHeadSigHeight(sigSettings.headSigHeight ?? 18);
+            setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+        }
+    }, [selectedSectionObj]);
     const isAdvisorySection = useCallback((section: Section) => {
         const legacy = 'is_advisory_class' in section ? (section as Section & { is_advisory_class?: boolean }).is_advisory_class : false;
         return !!section.is_advisory || !!legacy;
@@ -2293,7 +2352,12 @@ export function SF9Page() {
         return selectedSectionObj.section_metadata?.sf9SubjectSelections || {};
     }, [selectedSectionObj]);
 
-    const handleUpdateLayout = async (selections: Record<number, string>) => {
+    const currentSignatureSettings = useMemo(() => {
+        if (!selectedSectionObj) return {};
+        return selectedSectionObj.section_metadata?.sf9SignatureSettings || {};
+    }, [selectedSectionObj]);
+
+    const handleUpdateLayout = async (selections: Record<number, string>, sigSettings?: SF9SignatureSettings) => {
         if (!selectedSectionObj) return;
         
         try {
@@ -2301,12 +2365,29 @@ export function SF9Page() {
                 ...selectedSectionObj,
                 section_metadata: {
                     ...selectedSectionObj.section_metadata,
-                    sf9SubjectSelections: selections
+                    sf9SubjectSelections: selections,
+                    sf9SignatureSettings: sigSettings
                 }
             };
             await useAppStore.getState().updateSection(updatedSection);
+
+            // Immediately update local signature states to the saved values
+            // so the PDF preview reflects the new settings without a reload.
+            // We cannot rely on handleCloseLayoutModal reading selectedSectionObj
+            // because that memoized ref is still stale at this point.
+            if (sigSettings) {
+                setShowAdviserSig(sigSettings.showAdviserSig !== false);
+                setAdviserSigWidth(sigSettings.adviserSigWidth ?? 60);
+                setAdviserSigHeight(sigSettings.adviserSigHeight ?? 18);
+                setAdviserSigOffset(sigSettings.adviserSigOffset ?? 10);
+                setShowHeadSig(sigSettings.showHeadSig !== false);
+                setHeadSigWidth(sigSettings.headSigWidth ?? 60);
+                setHeadSigHeight(sigSettings.headSigHeight ?? 18);
+                setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+            }
+
             setIsLayoutModalOpen(false);
-            useAppStore.getState().showNotification('SF9 subject layout saved', 'success');
+            useAppStore.getState().showNotification('SF9 layout and signature settings saved', 'success');
         } catch (error) {
             console.error('Failed to save layout:', error);
             useAppStore.getState().showNotification('Failed to save layout', 'error');
@@ -2400,9 +2481,33 @@ export function SF9Page() {
                 logoUrl={schoolProfile.logo_url || ''}
                 schoolProfile={schoolProfile}
                 printMode={printMode}
+                showAdviserSig={showAdviserSig}
+                showHeadSig={showHeadSig}
+                adviserSigWidth={adviserSigWidth}
+                adviserSigHeight={adviserSigHeight}
+                adviserSigOffset={adviserSigOffset}
+                headSigWidth={headSigWidth}
+                headSigHeight={headSigHeight}
+                headSigOffset={headSigOffset}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, pageSize, sections, printMode]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
+
+    const handleCloseLayoutModal = () => {
+        if (selectedSectionObj) {
+            const sigSettings = selectedSectionObj.section_metadata?.sf9SignatureSettings || {};
+            setShowAdviserSig(sigSettings.showAdviserSig !== false);
+            setAdviserSigWidth(sigSettings.adviserSigWidth ?? 60);
+            setAdviserSigHeight(sigSettings.adviserSigHeight ?? 18);
+            setAdviserSigOffset(sigSettings.adviserSigOffset ?? 10);
+
+            setShowHeadSig(sigSettings.showHeadSig !== false);
+            setHeadSigWidth(sigSettings.headSigWidth ?? 60);
+            setHeadSigHeight(sigSettings.headSigHeight ?? 18);
+            setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+        }
+        setIsLayoutModalOpen(false);
+    };
 
     const handlePrint = useCallback(async () => {
         if (!selectedStudent || !singleDocument || isShsSf9Section) return;
@@ -2678,7 +2783,7 @@ export function SF9Page() {
     }, []);
 
     return (
-        <div className="flex flex-col h-screen bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 relative overflow-hidden font-sans">
+        <div className="flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/75 backdrop-blur-2xl border-b border-slate-200/70 shadow-[0_8px_28px_rgba(15,23,42,0.05)] relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
@@ -2749,11 +2854,18 @@ export function SF9Page() {
                         </div>
 
                         <button
-                            onClick={() => setIsLayoutModalOpen(true)}
+                            onClick={() => { setLayoutModalInitialTab('subjects'); setIsLayoutModalOpen(true); }}
                             className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
                         >
                             <Settings2 className="w-3 h-3 text-indigo-500" />
                             Layout
+                        </button>
+                        <button
+                            onClick={() => { setLayoutModalInitialTab('signatures'); setIsLayoutModalOpen(true); }}
+                            className="h-9 px-2.5 rounded-xl bg-white border border-slate-200 text-[8.5px] font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 hover:border-blue-400 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
+                        >
+                            <PenTool className="w-3 h-3 text-emerald-500" />
+                            Signatures
                         </button>
                     </div>
 
@@ -2910,7 +3022,13 @@ export function SF9Page() {
                         </motion.div>
                     ) : selectedStudent && singleDocument && !isBatchReady ? (
                         <div className="absolute inset-0 bg-white">
-                            <PDFViewer width="100%" height="100%" showToolbar={false} className="border-none w-full h-full">
+                            <PDFViewer 
+                                key={`${selectedStudent.lrn}_${selectedSectionObj?.id || ''}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${printMode}_${pageSize}`}
+                                width="100%" 
+                                height="100%" 
+                                showToolbar={false} 
+                                className="border-none w-full h-full"
+                            >
                                 {singleDocument!}
                             </PDFViewer>
                         </div>
@@ -3579,9 +3697,30 @@ export function SF9Page() {
             <AnimatePresence>
                 {isLayoutModalOpen && (
                     <SF9LayoutModal 
-                        onClose={() => setIsLayoutModalOpen(false)}
+                        onClose={handleCloseLayoutModal}
                         currentSelections={currentSubjectSelections}
                         subjects={subjects.filter(s => s.section_id === selectedSectionObj?.id)}
+                        signatureSettings={currentSignatureSettings}
+                        initialTab={layoutModalInitialTab}
+                        
+                        showAdviserSig={showAdviserSig}
+                        setShowAdviserSig={setShowAdviserSig}
+                        adviserSigWidth={adviserSigWidth}
+                        setAdviserSigWidth={setAdviserSigWidth}
+                        adviserSigHeight={adviserSigHeight}
+                        setAdviserSigHeight={setAdviserSigHeight}
+                        adviserSigOffset={adviserSigOffset}
+                        setAdviserSigOffset={setAdviserSigOffset}
+                        
+                        showHeadSig={showHeadSig}
+                        setShowHeadSig={setShowHeadSig}
+                        headSigWidth={headSigWidth}
+                        setHeadSigWidth={setHeadSigWidth}
+                        headSigHeight={headSigHeight}
+                        setHeadSigHeight={setHeadSigHeight}
+                        headSigOffset={headSigOffset}
+                        setHeadSigOffset={setHeadSigOffset}
+                        
                         onSave={handleUpdateLayout}
                     />
                 )}
@@ -3594,46 +3733,131 @@ interface LayoutModalProps {
     onClose: () => void;
     currentSelections: Record<number, string>;
     subjects: Subject[];
-    onSave: (selections: Record<number, string>) => Promise<void>;
+    signatureSettings: SF9SignatureSettings;
+    initialTab?: 'subjects' | 'signatures';
+    onSave: (selections: Record<number, string>, sigSettings: SF9SignatureSettings) => Promise<void>;
+
+    // Controlled Signature States for real-time live preview
+    showAdviserSig: boolean;
+    setShowAdviserSig: (v: boolean) => void;
+    adviserSigWidth: number;
+    setAdviserSigWidth: (v: number) => void;
+    adviserSigHeight: number;
+    setAdviserSigHeight: (v: number) => void;
+    adviserSigOffset: number;
+    setAdviserSigOffset: (v: number) => void;
+
+    showHeadSig: boolean;
+    setShowHeadSig: (v: boolean) => void;
+    headSigWidth: number;
+    setHeadSigWidth: (v: number) => void;
+    headSigHeight: number;
+    setHeadSigHeight: (v: number) => void;
+    headSigOffset: number;
+    setHeadSigOffset: (v: number) => void;
 }
 
-function SF9LayoutModal({ onClose, currentSelections, subjects, onSave }: LayoutModalProps) {
+function SF9LayoutModal({ 
+    onClose, currentSelections, subjects, initialTab = 'subjects', onSave,
+    showAdviserSig, setShowAdviserSig, adviserSigWidth, setAdviserSigWidth, adviserSigHeight, setAdviserSigHeight, adviserSigOffset, setAdviserSigOffset,
+    showHeadSig, setShowHeadSig, headSigWidth, setHeadSigWidth, headSigHeight, setHeadSigHeight, headSigOffset, setHeadSigOffset
+}: LayoutModalProps) {
     const [localSelections, setLocalSelections] = useState<Record<number, string>>(currentSelections);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Local signature states to enable lag-free slider rendering at 60fps
+    const [localShowAdviser, setLocalShowAdviser] = useState(showAdviserSig);
+    const [localAdviserWidth, setLocalAdviserWidth] = useState(adviserSigWidth);
+    const [localAdviserHeight, setLocalAdviserHeight] = useState(adviserSigHeight);
+    const [localAdviserOffset, setLocalAdviserOffset] = useState(adviserSigOffset);
+
+    const [localShowHead, setLocalShowHead] = useState(showHeadSig);
+    const [localHeadWidth, setLocalHeadWidth] = useState(headSigWidth);
+    const [localHeadHeight, setLocalHeadHeight] = useState(headSigHeight);
+    const [localHeadOffset, setLocalHeadOffset] = useState(headSigOffset);
+
+    // Debounce refs and handler
+    const timeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+    const debouncePropUpdate = useCallback(<T,>(key: string, value: T, setter: (v: T) => void) => {
+        if (timeoutsRef.current[key]) {
+            clearTimeout(timeoutsRef.current[key]);
+        }
+        timeoutsRef.current[key] = setTimeout(() => {
+            setter(value);
+        }, 250); // 250ms debounce
+    }, []);
+
+    // Clean up timeouts on unmount
+    useEffect(() => {
+        const timeouts = timeoutsRef.current;
+        return () => {
+            Object.values(timeouts).forEach(clearTimeout);
+        };
+    }, []);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onSave(localSelections);
-            onClose();
+            await onSave(localSelections, {
+                showAdviserSig: localShowAdviser,
+                adviserSigWidth: localAdviserWidth,
+                adviserSigHeight: localAdviserHeight,
+                adviserSigOffset: localAdviserOffset,
+                showHeadSig: localShowHead,
+                headSigWidth: localHeadWidth,
+                headSigHeight: localHeadHeight,
+                headSigOffset: localHeadOffset
+            });
+            // Do NOT call onClose() here. handleUpdateLayout already closes
+            // the modal and sets the local states to the saved values.
+            // Calling onClose() would trigger handleCloseLayoutModal which
+            // reads from the stale memoized selectedSectionObj and reverts
+            // the local states back to the OLD pre-save values.
         } finally {
             setIsSaving(false);
         }
     };
 
+    const [activeTab, setActiveTab] = useState<'subjects' | 'signatures'>(initialTab);
+
+    const handleResetSignatures = () => {
+        setLocalShowAdviser(true);
+        setLocalAdviserWidth(60);
+        setLocalAdviserHeight(18);
+        setLocalAdviserOffset(10);
+        
+        setLocalShowHead(true);
+        setLocalHeadWidth(60);
+        setLocalHeadHeight(18);
+        setLocalHeadOffset(10);
+
+        setShowAdviserSig(true);
+        setAdviserSigWidth(60);
+        setAdviserSigHeight(18);
+        setAdviserSigOffset(10);
+        setShowHeadSig(true);
+        setHeadSigWidth(60);
+        setHeadSigHeight(18);
+        setHeadSigOffset(10);
+    };
+
     return (
-        <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-110 overflow-hidden pointer-events-none">
             <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={onClose}
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-                initial={{ scale: 0.9, y: 20, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                exit={{ scale: 0.9, y: 20, opacity: 0 }}
-                className="relative w-full max-w-2xl bg-white rounded-4xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                className="absolute inset-y-0 left-0 w-full max-w-md bg-white shadow-2xl flex flex-col h-full z-110 border-r border-slate-200 pointer-events-auto"
             >
-                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-600">
                             <Settings2 className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Configure SF9 Subject Order</h3>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Select subjects for each of the 13 slots</p>
+                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">SF9 Layout & Signatures</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Customize subject rows and signature positioning</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all">
@@ -3641,42 +3865,234 @@ function SF9LayoutModal({ onClose, currentSelections, subjects, onSave }: Layout
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Array.from({ length: 13 }).map((_, idx) => {
-                            const slotNum = idx;
-                            return (
-                                <div key={slotNum} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-100 transition-all bg-slate-50/30">
-                                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0">
-                                        {slotNum + 1}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <select
-                                            value={localSelections[slotNum] || 'none'}
-                                            onChange={(e) => {
-                                                setLocalSelections(prev => ({ ...prev, [slotNum]: e.target.value }));
-                                            }}
-                                            className="w-full bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 focus:outline-none p-0 cursor-pointer"
-                                        >
-                                            <option value="none">-- Reserved Row --</option>
-                                            {subjects.map(subj => (
-                                                <option key={subj.id} value={subj.id}>{subj.subject_name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                <div className="flex border-b border-slate-100 px-8 py-2 gap-4 shrink-0 bg-slate-50/20">
+                    <button 
+                        onClick={() => setActiveTab('subjects')}
+                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'subjects' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    >
+                        Subject Order
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('signatures')}
+                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'signatures' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    >
+                        Signature Adjustments
+                    </button>
                 </div>
 
-                <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <button 
-                        onClick={() => setLocalSelections({})}
-                        className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all"
-                    >
-                        Clear All
-                    </button>
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    {activeTab === 'subjects' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {Array.from({ length: 13 }).map((_, idx) => {
+                                const slotNum = idx;
+                                return (
+                                    <div key={slotNum} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-100 transition-all bg-slate-50/30">
+                                        <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[11px] font-black text-slate-400 shrink-0">
+                                            {slotNum + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <select
+                                                value={localSelections[slotNum] || 'none'}
+                                                onChange={(e) => {
+                                                    setLocalSelections(prev => ({ ...prev, [slotNum]: e.target.value }));
+                                                }}
+                                                className="w-full bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 focus:outline-none p-0 cursor-pointer"
+                                            >
+                                                <option value="none">-- Reserved Row --</option>
+                                                {subjects.map(subj => (
+                                                    <option key={subj.id} value={subj.id}>{subj.subject_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="space-y-8">
+                            {/* Adviser Signature Group */}
+                            <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150/60 space-y-5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Class Adviser Signature</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Toggle and customize size or vertical offset</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={localShowAdviser} 
+                                            onChange={(e) => {
+                                                const val = e.target.checked;
+                                                setLocalShowAdviser(val);
+                                                setShowAdviserSig(val);
+                                            }}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+
+                                {localShowAdviser && (
+                                    <div className="space-y-4 pt-2 border-t border-slate-200/50">
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Signature Width</span>
+                                                <span className="text-blue-600">{localAdviserWidth}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="30" 
+                                                max="150" 
+                                                value={localAdviserWidth}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalAdviserWidth(val);
+                                                    debouncePropUpdate('adviserSigWidth', val, setAdviserSigWidth);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Signature Height</span>
+                                                <span className="text-blue-600">{localAdviserHeight}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="5" 
+                                                max="50" 
+                                                value={localAdviserHeight}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalAdviserHeight(val);
+                                                    debouncePropUpdate('adviserSigHeight', val, setAdviserSigHeight);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Vertical Offset (Alignment)</span>
+                                                <span className="text-blue-600">{localAdviserOffset}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="-20" 
+                                                max="50" 
+                                                value={localAdviserOffset}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalAdviserOffset(val);
+                                                    debouncePropUpdate('adviserSigOffset', val, setAdviserSigOffset);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* School Head Signature Group */}
+                            <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150/60 space-y-5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">School Head / Principal Signature</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Toggle and customize size or vertical offset</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={localShowHead} 
+                                            onChange={(e) => {
+                                                const val = e.target.checked;
+                                                setLocalShowHead(val);
+                                                setShowHeadSig(val);
+                                            }}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+
+                                {localShowHead && (
+                                    <div className="space-y-4 pt-2 border-t border-slate-200/50">
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Signature Width</span>
+                                                <span className="text-blue-600">{localHeadWidth}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="30" 
+                                                max="150" 
+                                                value={localHeadWidth}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalHeadWidth(val);
+                                                    debouncePropUpdate('headSigWidth', val, setHeadSigWidth);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Signature Height</span>
+                                                <span className="text-blue-600">{localHeadHeight}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="5" 
+                                                max="50" 
+                                                value={localHeadHeight}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalHeadHeight(val);
+                                                    debouncePropUpdate('headSigHeight', val, setHeadSigHeight);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs font-bold text-slate-500">
+                                                <span>Vertical Offset (Alignment)</span>
+                                                <span className="text-blue-600">{localHeadOffset}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="-20" 
+                                                max="50" 
+                                                value={localHeadOffset}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value);
+                                                    setLocalHeadOffset(val);
+                                                    debouncePropUpdate('headSigOffset', val, setHeadSigOffset);
+                                                }}
+                                                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="px-8 py-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+                    {activeTab === 'subjects' ? (
+                        <button 
+                            onClick={() => setLocalSelections({})}
+                            className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 transition-all active:scale-95"
+                        >
+                            Clear All
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleResetSignatures}
+                            className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-650 hover:bg-blue-50/50 transition-all active:scale-95"
+                        >
+                            Reset Defaults
+                        </button>
+                    )}
                     <div className="flex items-center gap-3">
                         <button 
                             onClick={onClose}
@@ -3689,7 +4105,7 @@ function SF9LayoutModal({ onClose, currentSelections, subjects, onSave }: Layout
                             disabled={isSaving}
                             className="px-8 py-3 rounded-2xl bg-blue-600 text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-2"
                         >
-                            {isSaving ? 'Saving...' : 'Save & Apply Layout'}
+                            {isSaving ? 'Saving...' : 'Save & Apply'}
                         </button>
                     </div>
                 </div>

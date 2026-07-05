@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X, Database, HelpCircle } from 'lucide-react';
+import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
+import { CloudSyncService } from '../../services/cloud-sync';
+import { createComprehensiveBackup, validateBackup } from '../../utils/backup-restore';
 
 const viewTitles: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -18,9 +20,10 @@ const viewTitles: Record<string, string> = {
     sf6: 'SF6 Summarized Promotion Report',
     sf8: 'SF8 Health & Nutrition Report',
     attendance: 'SF2 Daily Attendance',
+    'daily-attendance': 'Daily Attendance',
     'school-forms': 'Official School Forms Hub',
-    calendar: 'School Calendar',
-    announcements: 'Announcements',
+    calendar: 'Calendar & Announcements',
+    announcements: 'Calendar & Announcements',
     reports: 'Reports & Analytics',
     'consolidated-grades': 'Consolidated Grades',
     users: 'User Management',
@@ -35,18 +38,120 @@ export function Header() {
     const schoolProfile = useAppStore(state => state.schoolProfile);
     const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
     const announcements = useAppStore(state => state.announcements);
-    const createBackup = useAppStore(state => state.createBackup);
-    const lastBackupTime = useAppStore(state => state.lastBackupTime);
     const dbWritePendingCount = useAppStore(state => state.dbWritePendingCount || 0);
+    const showNotification = useAppStore(state => state.showNotification);
     const { user } = useAuthStore();
     const [showNotifications, setShowNotifications] = useState(false);
+
+    // Google Drive cloud backup state
+    const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+    const [isGDriveLinked, setIsGDriveLinked] = useState(false);
+    const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
+    const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+
+    // Backup dropdown / local export state
+    const [showBackupMenu, setShowBackupMenu] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Check Google Drive link status on mount
+    useEffect(() => {
+        CloudSyncService.getStateAsync().then((state) => {
+            setIsGDriveLinked(state.linked);
+            setGdriveEmail(state.email);
+            setLastSyncTime(state.lastSync);
+        });
+    }, []);
+
+    const handleCloudBackup = useCallback(async () => {
+        if (isCloudSyncing) return;
+        setIsCloudSyncing(true);
+        try {
+            // If not linked, authorize first
+            if (!isGDriveLinked) {
+                const newState = await CloudSyncService.authorize();
+                setIsGDriveLinked(newState.linked);
+                setGdriveEmail(newState.email);
+                if (!newState.linked) {
+                    showNotification('Google Drive authorization failed', 'error');
+                    return;
+                }
+                showNotification(`Google Drive linked as ${newState.email}`, 'success');
+            }
+
+            // Now sync (upload backup)
+            await CloudSyncService.syncNow();
+            const updatedState = CloudSyncService.getState();
+            setLastSyncTime(updatedState.lastSync);
+            showNotification('Backup uploaded to Google Drive successfully!', 'success');
+        } catch (error) {
+            console.error('Cloud backup failed:', error);
+            showNotification(error instanceof Error ? error.message : 'Cloud backup failed', 'error');
+        } finally {
+            setIsCloudSyncing(false);
+        }
+    }, [isCloudSyncing, isGDriveLinked, showNotification]);
+
+    // Full comprehensive local export (same backup pipeline as Settings > Data Management)
+    const handleFullExport = useCallback(async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            const s = useAppStore.getState();
+            const backup = await createComprehensiveBackup(
+                s.schoolProfile,
+                s.schoolYears,
+                s.activeSchoolYear,
+                s.enrollments,
+                s.students,
+                s.studentProfiles,
+                s.sections,
+                s.subjects,
+                s.classRecords,
+                s.gradingSheetRecords,
+                s.observedValues,
+                s.hpsRecords,
+                s.sf2Sheets,
+                s.announcements,
+                s.attendanceRecords,
+                user?.email || 'unknown',
+            );
+
+            const validation = await validateBackup(backup);
+            if (!validation.isValid) {
+                showNotification(`Backup validation failed: ${validation.issues[0] || 'unknown issue'}`, 'error');
+                return;
+            }
+
+            const timestamp = new Date().toISOString().split('T')[0];
+            const backupBlob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const backupUrl = URL.createObjectURL(backupBlob);
+            const backupLink = document.createElement('a');
+            backupLink.href = backupUrl;
+            backupLink.download = `SMS_Backup_Comprehensive_${timestamp}.json`;
+            document.body.appendChild(backupLink);
+            backupLink.click();
+            document.body.removeChild(backupLink);
+            URL.revokeObjectURL(backupUrl);
+
+            showNotification('Comprehensive backup exported successfully!', 'success');
+        } catch (error) {
+            console.error('Full export failed:', error);
+            showNotification(error instanceof Error ? error.message : 'Full database export failed', 'error');
+        } finally {
+            setIsExporting(false);
+        }
+    }, [isExporting, user, showNotification]);
 
     // Use announcements as notification source
     const recentNotifications = announcements.slice(0, 5);
     const unreadCount = recentNotifications.length;
 
+    const backupTitle = isGDriveLinked
+        ? `Google Drive: ${gdriveEmail || 'Connected'}${lastSyncTime ? `\nLast sync: ${new Date(lastSyncTime).toLocaleString()}` : '\nNot yet synced'}`
+        : 'Click to link Google Drive & backup online';
+
     return (
-        <header className="px-6 lg:px-8 h-[64px] flex items-center border-b border-[#E5E7EB] dark:border-white/5 bg-white dark:bg-[#0B1121] z-30 relative no-print shrink-0">
+        <header className="px-6 lg:px-8 h-16 flex items-center border-b border-[#E5E7EB] dark:border-white/5 bg-white dark:bg-[#0B1121] z-30 relative no-print shrink-0">
             <div className="flex items-center justify-between w-full max-w-screen-2xl mx-auto relative h-full">
                 
                 {/* Left Area: Title */}
@@ -98,14 +203,91 @@ export function Header() {
 
                     <UpdateStatus />
                     
-                    <button
-                        onClick={() => void createBackup()}
-                        className="hidden lg:flex items-center gap-1.5 h-9 px-3 rounded-md bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-all font-bold text-[11px] uppercase tracking-widest active:scale-95"
-                        title={lastBackupTime ? `Last backup: ${new Date(lastBackupTime).toLocaleString()}` : 'No backups recorded'}
-                    >
-                        <Database className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="hidden xl:inline">Backup</span>
-                    </button>
+                    {/* Backup Dropdown: Google Drive Cloud Backup + Full Local Export */}
+                    <div className="relative hidden lg:block">
+                        <button
+                            onClick={() => setShowBackupMenu(!showBackupMenu)}
+                            disabled={isCloudSyncing || isExporting}
+                            className={`flex items-center gap-1.5 h-9 px-3 rounded-md border transition-all font-bold text-[11px] uppercase tracking-widest active:scale-95 disabled:pointer-events-none ${
+                                isCloudSyncing || isExporting
+                                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/20'
+                                    : isGDriveLinked
+                                        ? 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/5 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-300 dark:hover:border-emerald-500/20'
+                                        : 'bg-white dark:bg-[#0B1121] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-blue-50 dark:hover:bg-blue-500/5 hover:text-blue-700 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-500/20'
+                            }`}
+                            title={backupTitle}
+                        >
+                            {isCloudSyncing || isExporting ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : isGDriveLinked ? (
+                                <CloudUpload className="w-3.5 h-3.5 text-emerald-500" />
+                            ) : (
+                                <Cloud className="w-3.5 h-3.5 text-slate-500" />
+                            )}
+                            <span className="hidden xl:inline">
+                                {isCloudSyncing ? 'Syncing...' : isExporting ? 'Exporting...' : isGDriveLinked ? 'Backup' : 'Link Drive'}
+                            </span>
+                            {isGDriveLinked && !isCloudSyncing && !isExporting && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                            )}
+                            <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showBackupMenu ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {showBackupMenu && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowBackupMenu(false)} />
+                                <div className="absolute right-0 top-full mt-3 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-[#E5E7EB] dark:border-white/10 z-50 overflow-hidden">
+                                    <div className="p-3 border-b border-[#E5E7EB] dark:border-white/5 bg-slate-50 dark:bg-white/5">
+                                        <h4 className="font-bold text-[#0f172a] dark:text-white text-xs tracking-wider uppercase">Backup Options</h4>
+                                    </div>
+                                    <div className="p-2 space-y-1">
+                                        <button
+                                            onClick={() => {
+                                                setShowBackupMenu(false);
+                                                void handleCloudBackup();
+                                            }}
+                                            className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors text-left cursor-pointer"
+                                        >
+                                            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 shrink-0">
+                                                {isGDriveLinked ? (
+                                                    <CloudUpload className="w-4 h-4 text-emerald-500" />
+                                                ) : (
+                                                    <Cloud className="w-4 h-4 text-blue-500" />
+                                                )}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[13px] font-bold text-[#0f172a] dark:text-white">
+                                                    {isGDriveLinked ? 'Backup to Google Drive' : 'Link Google Drive'}
+                                                </p>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
+                                                    {isGDriveLinked
+                                                        ? `Upload an online backup to ${gdriveEmail || 'your Drive'}.`
+                                                        : 'Authorize Google Drive and upload an online backup.'}
+                                                </p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowBackupMenu(false);
+                                                void handleFullExport();
+                                            }}
+                                            className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors text-left cursor-pointer"
+                                        >
+                                            <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 shrink-0">
+                                                <HardDriveDownload className="w-4 h-4 text-indigo-500" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[13px] font-bold text-[#0f172a] dark:text-white">Full Database Export</p>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
+                                                    Download a complete standalone backup (.json) of all school records to this device.
+                                                </p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
 
                     <div className="w-px h-5 bg-[#E5E7EB] dark:bg-white/10 hidden lg:block mx-1"></div>
 
@@ -126,14 +308,14 @@ export function Header() {
                         {showNotifications && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                                <div className="absolute right-0 top-full mt-3 w-80 lg:w-96 bg-white dark:bg-slate-900 rounded-[16px] shadow-lg border border-[#E5E7EB] dark:border-white/10 z-50 overflow-hidden">
+                                <div className="absolute right-0 top-full mt-3 w-80 lg:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-[#E5E7EB] dark:border-white/10 z-50 overflow-hidden">
                                     <div className="p-4 border-b border-[#E5E7EB] dark:border-white/5 flex justify-between items-center bg-slate-50 dark:bg-white/5">
                                         <h4 className="font-bold text-[#0f172a] dark:text-white text-sm tracking-wide">Notifications</h4>
                                         <button onClick={() => setShowNotifications(false)} className="p-1 hover:bg-slate-200 dark:hover:bg-white/10 rounded-md transition-colors">
                                             <X className="w-4 h-4 text-slate-500" />
                                         </button>
                                     </div>
-                                    <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
+                                    <div className="max-h-87.5 overflow-y-auto custom-scrollbar p-2">
                                         {recentNotifications.length > 0 ? (
                                             recentNotifications.map((n) => (
                                                 <div key={n.id} className="p-3 mb-1 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl cursor-pointer transition-colors">

@@ -11,6 +11,12 @@ import { db, onDatabaseWriteChange } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
+import {
+  buildAttendanceRecordsFromSf2Sheet,
+  buildAutoFilledDateLabels,
+  buildSf2SheetAttendanceFromRecords,
+  getSf2MonthContext,
+} from '../utils/sf2-sync';
 import { createGradingSlice, type GradingSlice } from './slices/grading-slice';
 import { createAttendanceSlice, type AttendanceSlice } from './slices/attendance-slice';
 import { createAnnouncementsSlice, type AnnouncementsSlice } from './slices/announcements-slice';
@@ -32,6 +38,7 @@ export interface ProfileMergeConflict {
 
 const CURRENT_VIEW_STORAGE_KEY = 'formease-current-view';
 const SELECTED_SECTION_STORAGE_KEY = 'formease-selected-section';
+const SF2_ATTENDANCE_REPAIR_KEY = 'formease-sf2-attendance-repair-v1';
 
 function getLocalStorageValue(key: string): string | null {
   try {
@@ -55,6 +62,92 @@ function removeLocalStorageValue(key: string): void {
   } catch {
     // Ignore storage failures (private mode or blocked storage).
   }
+}
+
+function getSf2DatesForSheet(sheet: SF2Sheet): string[] {
+  const monthIndexByName: Record<string, number> = {
+    JANUARY: 0, FEBRUARY: 1, MARCH: 2, APRIL: 3, MAY: 4, JUNE: 5,
+    JULY: 6, AUGUST: 7, SEPTEMBER: 8, OCTOBER: 9, NOVEMBER: 10, DECEMBER: 11,
+  };
+  const monthIndex = monthIndexByName[sheet.month];
+  if (monthIndex === undefined) return [];
+
+  const [startYear, endYear] = sheet.school_year.split('-').map(Number);
+  const year = monthIndex >= 5 ? startYear : endYear;
+  return Object.values(sheet.date_labels || {})
+    .map((label) => String(label || '').trim())
+    .filter((label) => /^\d{1,2}$/.test(label))
+    .map((dayLabel) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Number(dayLabel)).padStart(2, '0')}`);
+}
+
+function reconcileAttendanceAndSf2Data(
+  attendanceRecords: AttendanceRecord[],
+  sf2Sheets: SF2Sheet[],
+  activeSchoolYear: string,
+): { attendanceRecords: AttendanceRecord[]; sf2Sheets: SF2Sheet[] } {
+  const attendanceById = new Map(attendanceRecords.map((record) => [record.id, record]));
+
+  for (const sheet of sf2Sheets) {
+    const sheetDates = new Set(getSf2DatesForSheet(sheet));
+    for (const record of [...attendanceById.values()]) {
+      if (record.section_id === sheet.section_id && sheetDates.has(record.date)) {
+        attendanceById.delete(record.id);
+      }
+    }
+    for (const record of buildAttendanceRecordsFromSf2Sheet(sheet)) {
+      attendanceById.set(record.id, record);
+    }
+  }
+
+  const mergedAttendanceRecords = [...attendanceById.values()].sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date);
+    if (dateCmp !== 0) return dateCmp;
+    const sectionCmp = (a.section_id || '').localeCompare(b.section_id || '');
+    if (sectionCmp !== 0) return sectionCmp;
+    return a.student_lrn.localeCompare(b.student_lrn);
+  });
+
+  const sheetMap = new Map<string, SF2Sheet>();
+  for (const sheet of sf2Sheets) {
+    sheetMap.set(sheet.id, sheet);
+  }
+
+  const groupedRecords = new Map<string, AttendanceRecord[]>();
+  for (const record of mergedAttendanceRecords) {
+    if (!record.section_id) continue;
+    const context = getSf2MonthContext(record.date, activeSchoolYear);
+    if (!context) continue;
+    const sheetId = `${record.section_id}_${activeSchoolYear}_${context.month}`;
+    const bucket = groupedRecords.get(sheetId) || [];
+    bucket.push(record);
+    groupedRecords.set(sheetId, bucket);
+  }
+
+  const repairedSheets: SF2Sheet[] = [];
+  for (const [sheetId, records] of groupedRecords.entries()) {
+    const existing = sheetMap.get(sheetId);
+    if (!existing) {
+      const [sectionId, schoolYear, month] = sheetId.split('_');
+      const baseSheet: SF2Sheet = {
+        id: sheetId,
+        section_id: sectionId,
+        school_year: schoolYear,
+        month,
+        date_labels: buildAutoFilledDateLabels(month, schoolYear, localStorage.getItem('formease_sf2_include_saturdays') === 'true'),
+        attendance: {},
+        remarks: {},
+        updated_at: new Date().toISOString(),
+      };
+      repairedSheets.push(buildSf2SheetAttendanceFromRecords(baseSheet, records));
+      continue;
+    }
+    repairedSheets.push(buildSf2SheetAttendanceFromRecords(existing, records));
+  }
+
+  return {
+    attendanceRecords: mergedAttendanceRecords,
+    sf2Sheets: repairedSheets,
+  };
 }
 
 interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
@@ -1353,6 +1446,19 @@ export async function initializeAppStore() {
       loadStore<ObservedValues>('observedValues'),
     ]);
 
+    const shouldRepairSf2Attendance = getLocalStorageValue(SF2_ATTENDANCE_REPAIR_KEY) !== 'true';
+    const repaired = shouldRepairSf2Attendance
+      ? reconcileAttendanceAndSf2Data(attendanceRecords, sf2Sheets, (useAppStore.getState().activeSchoolYear || '2026-2027'))
+      : { attendanceRecords, sf2Sheets };
+
+    if (shouldRepairSf2Attendance) {
+      await Promise.all([
+        db.putRecordsBulk('attendanceRecords', repaired.attendanceRecords),
+        db.putRecordsBulk('sf2Sheets', repaired.sf2Sheets),
+      ]);
+      setLocalStorageValue(SF2_ATTENDANCE_REPAIR_KEY, 'true');
+    }
+
 
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
     const persistedSelectedSection = getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
@@ -1373,8 +1479,8 @@ export async function initializeAppStore() {
       hpsRecords,
       enrollments,
       announcements,
-      attendanceRecords,
-      sf2Sheets,
+      attendanceRecords: repaired.attendanceRecords,
+      sf2Sheets: repaired.sf2Sheets,
       observedValues,
       schoolProfile: schoolProfile || defaultSchoolProfile,
       isSyncReady: true,

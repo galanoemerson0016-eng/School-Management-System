@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import type { SVGProps } from 'react';
 import { useAppStore } from '../stores';
 import { isDescriptiveGrading } from '../lib/grading';
@@ -163,6 +163,7 @@ export function Dashboard() {
     const setSelectedSection = useAppStore((s) => s.setSelectedSection);
     const isSyncReady = useAppStore((s) => s.isSyncReady);
     const attendanceRecords = useAppStore((s) => s.attendanceRecords);
+    const sf2Sheets = useAppStore((s) => s.sf2Sheets);
     const activeSchoolYear = useAppStore((s) => s.activeSchoolYear);
     const schoolYears = useAppStore((s) => s.schoolYears);
 
@@ -177,33 +178,9 @@ export function Dashboard() {
     const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
     const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
     const [hoveredDonutIndex, setHoveredDonutIndex] = useState<'Male' | 'Female' | null>(null);
+    const [attendanceChartType, setAttendanceChartType] = useState<'calendar' | 'bar' | 'line'>('calendar');
 
-    const attendanceStats = useMemo(() => {
-        const last14Days = Array.from({ length: 14 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (13 - i));
-            return d.toISOString().split('T')[0];
-        });
-
-        return last14Days.map(date => {
-            const count = attendanceRecords.filter(r => r.date === date && r.status === 'absent').length;
-            return { date: date.split('-').slice(1).join('/'), count };
-        });
-    }, [attendanceRecords]);
-
-    // Attendance insights
-    const attendanceInsights = useMemo(() => {
-        const totalAbsences = attendanceStats.reduce((sum: number, day: {count: number}) => sum + day.count, 0);
-        const averageDailyAbsences = attendanceStats.length > 0 ? Math.round((totalAbsences / attendanceStats.length) * 10) / 10 : 0;
-        const peakDay = attendanceStats.reduce((max: {date: string, count: number}, day: {date: string, count: number}) => day.count > max.count ? day : max, attendanceStats[0] || { date: '', count: 0 });
-        
-        return {
-            totalAbsences,
-            averageDailyAbsences,
-            peakDay: peakDay?.date || 'N/A',
-            peakCount: peakDay?.count || 0
-        };
-    }, [attendanceStats]);
+    // Removed legacy attendance stats calculation from here
 
 
 
@@ -262,6 +239,138 @@ export function Dashboard() {
             s.student_section && (validSectionIds.has(s.student_section) || validSectionNames.has(s.student_section))
         );
     }, [students, sections]);
+
+    const attendanceStats = useMemo(() => {
+        const today = new Date();
+        const currentMonthIndex = today.getMonth();
+        const currentYear = today.getFullYear();
+        const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
+
+        const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => {
+            const dayNum = i + 1;
+            const d = new Date(currentYear, currentMonthIndex, dayNum);
+            
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const localDateStr = `${year}-${month}-${day}`;
+            
+            return {
+                localDateStr,
+                d
+            };
+        });
+
+        const MONTH_NAMES = [
+            'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+            'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+        ];
+
+        const monthName = MONTH_NAMES[currentMonthIndex];
+
+        // Load Saturday preference and Calendar Events for holidays
+        const includeSaturdays = localStorage.getItem('formease_sf2_include_saturdays') === 'true';
+        let holidays: string[] = [];
+        try {
+            const storedEvents = localStorage.getItem('school_calendar_events');
+            if (storedEvents) {
+                const parsedEvents = JSON.parse(storedEvents);
+                if (Array.isArray(parsedEvents)) {
+                    holidays = parsedEvents
+                        .filter((e: CalendarEvent) => e.type === 'holiday')
+                        .flatMap((e: CalendarEvent) => {
+                            const dates: string[] = [];
+                            try {
+                                const curr = new Date(e.date + 'T00:00:00');
+                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
+                                if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
+                                    while (curr <= end) {
+                                        dates.push(curr.toISOString().split('T')[0]);
+                                        curr.setDate(curr.getDate() + 1);
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(err);
+                            }
+                            return dates;
+                        });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load holidays for dashboard attendance stats', e);
+        }
+
+        const advisorySections = sections.filter(s => s.is_advisory || (s as typeof sections[number] & { is_advisory_class?: boolean }).is_advisory_class);
+        const advisoryStudentLrns = new Set(advisoryStudents.map(s => s.lrn));
+        const advisorySectionIds = new Set(advisorySections.map(s => s.id));
+        const advisorySectionNames = new Set(advisorySections.map(s => s.section_name));
+
+        return currentMonthDays.map(({ localDateStr, d }) => {
+            const dayStr = d.getDate().toString();
+
+            const dow = d.getDay();
+            const isWeekend = dow === 0 || (dow === 6 && !includeSaturdays);
+            const isHoliday = holidays.includes(localDateStr);
+            const isSchoolDay = !isWeekend && !isHoliday;
+
+            const absentStudentsForDay = new Set<string>();
+
+            // 1. Check attendanceRecords table
+            const recordsForDay = attendanceRecords.filter(r => r.date === localDateStr && r.status === 'absent');
+            for (const record of recordsForDay) {
+                if (advisoryStudentLrns.has(record.student_lrn)) {
+                    absentStudentsForDay.add(record.student_lrn);
+                }
+            }
+
+            // 2. Check sf2Sheets table
+            const matchingSheets = sf2Sheets.filter(sheet => 
+                sheet.school_year === activeSchoolYear &&
+                sheet.month === monthName &&
+                (advisorySectionIds.has(sheet.section_id) || advisorySectionNames.has(sheet.section_id))
+            );
+
+            for (const sheet of matchingSheets) {
+                const colsWithDate = Object.keys(sheet.date_labels).filter(
+                    colKey => sheet.date_labels[Number(colKey)]?.trim() === dayStr
+                );
+                for (const studentLrn of Object.keys(sheet.attendance)) {
+                    const studentRecord = sheet.attendance[studentLrn];
+                    if (!studentRecord) continue;
+                    const isAbsent = studentRecord[`date_${dayStr}`] === 'absent' || 
+                                     colsWithDate.some(col => studentRecord[col] === 'absent' || studentRecord[Number(col)] === 'absent');
+                    if (isAbsent) {
+                        absentStudentsForDay.add(studentLrn);
+                    }
+                }
+            }
+
+            const formattedDate = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+            return { date: formattedDate, count: absentStudentsForDay.size, isSchoolDay, d };
+        });
+    }, [attendanceRecords, sf2Sheets, sections, advisoryStudents, activeSchoolYear]);
+
+    // Attendance insights
+    const attendanceInsights = useMemo(() => {
+        const schoolDays = attendanceStats.filter(day => day.isSchoolDay);
+        const schoolDaysCount = schoolDays.length || 1; // avoid division by zero
+
+        const totalAbsences = schoolDays.reduce((sum: number, day: {count: number}) => sum + day.count, 0);
+        const averageDailyAbsences = Math.round((totalAbsences / schoolDaysCount) * 10) / 10;
+        
+        // Find peak day strictly from school days
+        const peakDay = schoolDays.reduce(
+            (max: {date: string, count: number}, day: {date: string, count: number}) => day.count > max.count ? day : max,
+            schoolDays[0] || { date: '', count: 0 }
+        );
+        
+        return {
+            totalAbsences,
+            averageDailyAbsences,
+            peakDay: peakDay?.date || 'N/A',
+            peakCount: peakDay?.count || 0
+        };
+    }, [attendanceStats]);
 
     const filteredStudentLrns = useMemo(() => {
         return new Set(filteredStudents.map(s => s.lrn));
@@ -888,6 +997,111 @@ export function Dashboard() {
         );
     };
 
+    const renderAttendanceCalendarGrid = () => {
+        const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        return (
+            <div className="w-full flex flex-col space-y-2.5">
+                {/* Active Hover Status Banner */}
+                <div className="text-[9px] font-black uppercase tracking-wider text-center h-7 flex items-center justify-center bg-slate-50/70 border border-slate-100 rounded-xl text-slate-400 py-1.5 px-3">
+                    {hoveredPointIndex !== null && attendanceStats[hoveredPointIndex] ? (
+                        <span className="flex items-center gap-1.5">
+                            <span className="text-slate-500">
+                                Date: <strong className="text-slate-800 font-extrabold">{attendanceStats[hoveredPointIndex].date} ({WEEKDAY_NAMES[attendanceStats[hoveredPointIndex].d.getDay()]})</strong>
+                            </span>
+                            <span className="text-slate-350">•</span>
+                            <span>
+                                Status: <strong className={
+                                    !attendanceStats[hoveredPointIndex].isSchoolDay 
+                                        ? "text-amber-600 font-extrabold" 
+                                        : attendanceStats[hoveredPointIndex].count === 0 
+                                            ? "text-emerald-600 font-extrabold" 
+                                            : "text-rose-600 font-extrabold"
+                                }>
+                                    {!attendanceStats[hoveredPointIndex].isSchoolDay 
+                                        ? "Non-School Day (Off)" 
+                                        : attendanceStats[hoveredPointIndex].count === 0 
+                                            ? "Perfect Attendance" 
+                                            : `${attendanceStats[hoveredPointIndex].count} ${attendanceStats[hoveredPointIndex].count === 1 ? 'Absence' : 'Absences'}`}
+                                </strong>
+                            </span>
+                        </span>
+                    ) : (
+                        <span className="text-slate-350 animate-pulse font-bold">Hover over any day card to view details</span>
+                    )}
+                </div>
+
+                {/* Horizontal scroll timeline */}
+                <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    <div className="flex justify-between items-center w-full gap-[3px] min-w-[680px] pb-1 pt-1">
+                        {attendanceStats.map((stats, index) => {
+                            const dayNum = index + 1;
+                            const weekdayLetter = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][stats.d.getDay()];
+                            const isSunday = stats.d.getDay() === 0;
+                            const isSchoolDay = stats.isSchoolDay;
+                            const hasAbsences = stats.count > 0;
+                            const isToday = new Date().getDate() === dayNum && new Date().getMonth() === stats.d.getMonth() && new Date().getFullYear() === stats.d.getFullYear();
+
+                            // Conditional Card Styling
+                            let cardStyle = "bg-white border-slate-150 hover:border-indigo-400 hover:shadow-xs";
+                            if (!isSchoolDay) {
+                                cardStyle = "bg-slate-50/50 border-slate-100 text-slate-400";
+                            } else if (hasAbsences) {
+                                cardStyle = "bg-rose-50/25 border-rose-150 hover:border-rose-455 hover:shadow-[0_4px_8px_-2px_rgba(225,29,72,0.06)]";
+                            } else {
+                                cardStyle = "bg-emerald-50/15 border-emerald-100/70 hover:border-emerald-350 hover:shadow-[0_4px_8px_-2px_rgba(16,185,129,0.06)]";
+                            }
+
+                            if (isToday) {
+                                cardStyle += " ring-2 ring-indigo-500 ring-offset-1";
+                            }
+
+                            return (
+                                <Fragment key={dayNum}>
+                                    {isSunday && index > 0 && (
+                                        <div className="w-[1.5px] bg-slate-200 self-stretch my-1.5 mx-1 shrink-0 rounded-full" title="Week Divider" />
+                                    )}
+                                    <div 
+                                        onMouseEnter={() => setHoveredPointIndex(index)}
+                                        onMouseLeave={() => setHoveredPointIndex(null)}
+                                        className={`flex-1 min-w-0 flex flex-col items-center justify-between py-1.5 rounded-lg border text-center transition-all duration-200 cursor-pointer select-none h-14 relative ${cardStyle}`}
+                                    >
+                                        {/* Top: Day number */}
+                                        <span className={`text-[8.5px] font-black leading-none ${!isSchoolDay ? 'text-slate-400' : isToday ? 'text-indigo-600' : 'text-slate-800'}`}>
+                                            {dayNum}
+                                        </span>
+
+                                        {/* Middle: Status indicator */}
+                                        <div className="flex items-center justify-center h-4">
+                                            {isSchoolDay ? (
+                                                hasAbsences ? (
+                                                    <span className="text-[9px] font-black text-rose-600 leading-none">
+                                                        {stats.count}
+                                                    </span>
+                                                ) : (
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                )
+                                            ) : (
+                                                <span className="text-[6.5px] font-bold text-slate-400 tracking-tighter uppercase leading-none">
+                                                    Off
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Bottom: Weekday letter */}
+                                        <span className={`text-[6.5px] font-bold leading-none ${!isSchoolDay ? 'text-slate-400/80' : isToday ? 'text-indigo-600/80' : 'text-slate-455'}`}>
+                                            {weekdayLetter}
+                                        </span>
+                                    </div>
+                                </Fragment>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderAttendanceTrendChart = () => {
         const svgWidth = 800;
         const svgHeight = 120;
@@ -902,17 +1116,60 @@ export function Dashboard() {
         const counts = attendanceStats.map(d => d.count);
         const maxCount = Math.max(5, ...counts);
 
+        const getYTicks = (max: number) => {
+            if (max <= 5) {
+                return Array.from({ length: max + 1 }, (_, i) => i);
+            }
+            const numTicks = 5;
+            const rawStep = max / (numTicks - 1);
+            const step = Math.ceil(rawStep);
+            const ticks = [];
+            for (let i = 0; i < numTicks; i++) {
+                ticks.push(i * step);
+            }
+            return ticks;
+        };
+
+        const yTicks = getYTicks(maxCount);
+        const maxTickVal = yTicks[yTicks.length - 1];
+
         const points = attendanceStats.map((d, i) => {
             const x = paddingLeft + (i / (attendanceStats.length - 1)) * chartWidth;
-            const y = paddingTop + chartHeight - (d.count / maxCount) * chartHeight;
-            return { x, y, date: d.date, count: d.count };
+            const y = paddingTop + chartHeight - (maxTickVal > 0 ? (d.count / maxTickVal) * chartHeight : 0);
+            return { x, y, date: d.date, count: d.count, isSchoolDay: d.isSchoolDay, d: d.d };
         });
 
-        // Generate Path Data
+        // Generate Path Data for line chart
         const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
         const areaPath = points.length > 0
             ? `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`
             : '';
+
+        const barWidth = Math.max(8, Math.min(20, (chartWidth / attendanceStats.length) * 0.45));
+
+        const MONTH_NAMES = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        const currentMonthName = MONTH_NAMES[new Date().getMonth()];
+
+        const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+        const schoolDays = attendanceStats.filter(day => day.isSchoolDay);
+        const schoolDaysCount = schoolDays.length;
+        const perfectAttendanceDaysCount = schoolDays.filter(day => day.count === 0).length;
+        const peakDay = schoolDays.reduce(
+            (max: {date: string, count: number}, day: {date: string, count: number}) => day.count > max.count ? day : max,
+            schoolDays[0] || { date: '', count: 0 }
+        );
+        const peakDayLabel = peakDay && peakDay.count > 0 
+            ? `${peakDay.date.split('/')[1]} (${peakDay.count} ${peakDay.count === 1 ? 'Abs' : 'Abs'})` 
+            : 'None';
+
+        const totalPossibleDays = (advisoryStudents.length || totalStudents || 1) * schoolDaysCount;
+        const totalAbsences = schoolDays.reduce((sum: number, day: {count: number}) => sum + day.count, 0);
+        const totalPresentDays = Math.max(0, totalPossibleDays - totalAbsences);
+        const monthlyAttendanceRate = Math.round((totalPresentDays / totalPossibleDays) * 1000) / 10;
 
         return (
             <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-[0_28px_56px_-20px_rgba(15,23,42,0.08)] transition-all duration-300">
@@ -922,11 +1179,33 @@ export function Dashboard() {
                             <Activity className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-slate-900 tracking-tight">14-Day Attendance Absences Trend</h3>
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight">{currentMonthName} Attendance Absences Trend</h3>
                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Absence rates overview</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500">
+                        {/* Toggle Controls */}
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            <button
+                                onClick={() => setAttendanceChartType('calendar')}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${attendanceChartType === 'calendar' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                Calendar
+                            </button>
+                            <button
+                                onClick={() => setAttendanceChartType('bar')}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${attendanceChartType === 'bar' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                Bar
+                            </button>
+                            <button
+                                onClick={() => setAttendanceChartType('line')}
+                                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${attendanceChartType === 'line' ? 'bg-white text-indigo-600 shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                                Line
+                            </button>
+                        </div>
+
                         <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full bg-indigo-500" />
                             <span>Daily Absences</span>
@@ -936,127 +1215,240 @@ export function Dashboard() {
                         </div>
                     </div>
                 </div>
-                <div className="relative h-[120px] w-full">
-                    <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none">
-                        <defs>
-                            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.00" />
-                            </linearGradient>
-                        </defs>
 
-                        {/* Horizontal Y-Gridlines */}
-                        {[0, 25, 50, 75, 100].map((tick) => {
-                            const val = Math.round((tick / 100) * maxCount);
-                            const y = paddingTop + chartHeight - (tick / 100) * chartHeight;
-                            return (
-                                <g key={tick}>
-                                    <line
-                                        x1={paddingLeft}
-                                        y1={y}
-                                        x2={svgWidth - paddingRight}
-                                        y2={y}
-                                        stroke="#f8fafc"
-                                        strokeWidth="1"
+                {/* Dynamic Monthly Insights Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 mt-2">
+                    <div className="bg-slate-50/60 border border-slate-100 p-3 rounded-2xl flex flex-col justify-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Active School Days</span>
+                        <span className="text-sm font-black text-slate-800 mt-0.5">{schoolDaysCount} Days</span>
+                    </div>
+                    <div className="bg-slate-50/60 border border-slate-100 p-3 rounded-2xl flex flex-col justify-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Monthly Attendance Rate</span>
+                        <span className="text-sm font-black text-indigo-650 mt-0.5">{monthlyAttendanceRate}%</span>
+                    </div>
+                    <div className="bg-slate-50/60 border border-slate-100 p-3 rounded-2xl flex flex-col justify-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Perfect Attendance Days</span>
+                        <span className="text-sm font-black text-emerald-600 mt-0.5">{perfectAttendanceDaysCount} Days</span>
+                    </div>
+                    <div className="bg-slate-50/60 border border-slate-100 p-3 rounded-2xl flex flex-col justify-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Peak Absences Day</span>
+                        <span className="text-sm font-black text-rose-600 mt-0.5">{peakDayLabel}</span>
+                    </div>
+                </div>
+
+                {attendanceChartType === 'calendar' ? (
+                    renderAttendanceCalendarGrid()
+                ) : (
+                    <div className="relative h-[120px] w-full">
+                        <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+                                    <stop offset="100%" stopColor="#6366f1" stopOpacity="0.00" />
+                                </linearGradient>
+                                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#4f46e5" />
+                                    <stop offset="100%" stopColor="#818cf8" />
+                                </linearGradient>
+                                <linearGradient id="barGradHover" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#6366f1" />
+                                    <stop offset="100%" stopColor="#a5b4fc" />
+                                </linearGradient>
+                            </defs>
+
+                            {/* Non-School Days shading (Weekends & Holidays) */}
+                            {points.map((p, i) => {
+                                if (p.isSchoolDay) return null;
+                                const rectX = p.x - (chartWidth / attendanceStats.length) / 2;
+                                const colWidth = chartWidth / attendanceStats.length;
+                                return (
+                                    <rect
+                                        key={`shade-${i}`}
+                                        x={rectX}
+                                        y={paddingTop}
+                                        width={colWidth}
+                                        height={chartHeight}
+                                        fill="#f1f5f9"
+                                        opacity={0.4}
                                     />
-                                    <text
-                                        x={paddingLeft - 8}
-                                        y={y + 3}
-                                        textAnchor="end"
-                                        fontSize="7px"
-                                        fontWeight="bold"
-                                        fill="#94a3b8"
-                                    >
-                                        {val}
-                                    </text>
-                                </g>
-                            );
-                        })}
+                                );
+                            })}
 
-                        {/* Shaded Area under the path */}
-                        {areaPath && (
-                            <motion.path
-                                d={areaPath}
-                                fill="url(#areaGrad)"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ duration: 0.8 }}
-                            />
-                        )}
-
-                        {/* Glowing Line Path */}
-                        {linePath && (
-                            <motion.path
-                                d={linePath}
-                                fill="none"
-                                stroke="#6366f1"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 1.2, ease: "easeOut" }}
-                            />
-                        )}
-
-                        {/* Interactive Circles for data points */}
-                        {points.map((p, i) => {
-                            const isHovered = hoveredPointIndex === i;
-                            return (
-                                <g key={i}>
-                                    {/* Invisible larger touch targets */}
-                                    <circle
-                                        cx={p.x}
-                                        cy={p.y}
-                                        r="8"
-                                        fill="transparent"
-                                        className="cursor-pointer"
-                                        onMouseEnter={() => setHoveredPointIndex(i)}
-                                        onMouseLeave={() => setHoveredPointIndex(null)}
-                                    />
-                                    {/* Visible glowing dot */}
-                                    <circle
-                                        cx={p.x}
-                                        cy={p.y}
-                                        r={isHovered ? "5.5" : "3.5"}
-                                        fill={isHovered ? "#ffffff" : "#6366f1"}
-                                        stroke="#6366f1"
-                                        strokeWidth={isHovered ? "3" : "1.5"}
-                                        className="transition-all duration-150 pointer-events-none"
-                                    />
-                                    {/* X-Axis Date label */}
-                                    {i % 2 === 0 && (
+                            {/* Horizontal Y-Gridlines */}
+                            {yTicks.map((tickVal) => {
+                                const y = paddingTop + chartHeight - (maxTickVal > 0 ? (tickVal / maxTickVal) * chartHeight : 0);
+                                return (
+                                    <g key={tickVal}>
+                                        <line
+                                            x1={paddingLeft}
+                                            y1={y}
+                                            x2={svgWidth - paddingRight}
+                                            y2={y}
+                                            stroke="#f8fafc"
+                                            strokeWidth="1"
+                                        />
                                         <text
-                                            x={p.x}
-                                            y={svgHeight - 2}
-                                            textAnchor="middle"
+                                            x={paddingLeft - 8}
+                                            y={y + 3}
+                                            textAnchor="end"
                                             fontSize="7px"
                                             fontWeight="bold"
                                             fill="#94a3b8"
                                         >
-                                            {p.date}
+                                            {tickVal}
                                         </text>
-                                    )}
-                                </g>
-                            );
-                        })}
-                    </svg>
+                                    </g>
+                                );
+                            })}
 
-                    {/* Floating Tooltip */}
-                    {hoveredPointIndex !== null && points[hoveredPointIndex] && (
-                        <div 
-                            className="absolute bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1.5 px-2.5 rounded-lg shadow-lg z-25 pointer-events-none transition-all duration-75"
-                            style={{
-                                left: `${(points[hoveredPointIndex].x / svgWidth) * 100}%`,
-                                top: `${(points[hoveredPointIndex].y / svgHeight) * 100 - 32}%`,
-                                transform: 'translateX(-50%)',
-                            }}
-                        >
-                            <div>Date: {points[hoveredPointIndex].date}</div>
-                            <div className="text-rose-400 font-extrabold">{points[hoveredPointIndex].count} Absences</div>
-                        </div>
-                    )}
-                </div>
+                            {/* Bar Chart rendering */}
+                            {attendanceChartType === 'bar' && points.map((p, i) => {
+                                const isHovered = hoveredPointIndex === i;
+                                const barHeight = paddingTop + chartHeight - p.y;
+                                const rectX = p.x - barWidth / 2;
+                                return (
+                                    <g key={i}>
+                                        <rect
+                                            x={p.x - (chartWidth / attendanceStats.length) / 2}
+                                            y={paddingTop}
+                                            width={chartWidth / attendanceStats.length}
+                                            height={chartHeight}
+                                            fill="transparent"
+                                            className="cursor-pointer"
+                                            onMouseEnter={() => setHoveredPointIndex(i)}
+                                            onMouseLeave={() => setHoveredPointIndex(null)}
+                                        />
+                                        <motion.rect
+                                            x={rectX}
+                                            y={p.y}
+                                            width={barWidth}
+                                            height={barHeight}
+                                            rx={3}
+                                            ry={3}
+                                            fill={isHovered ? "url(#barGradHover)" : "url(#barGrad)"}
+                                            initial={{ scaleY: 0, originY: 1 }}
+                                            animate={{ scaleY: 1 }}
+                                            transition={{ duration: 0.6, delay: i * 0.02, ease: "easeOut" }}
+                                            style={{ transformOrigin: `${p.x}px ${paddingTop + chartHeight}px` }}
+                                        />
+                                        {isHovered && p.count > 0 && (
+                                            <text
+                                                x={p.x}
+                                                y={p.y - 4}
+                                                textAnchor="middle"
+                                                fontSize="8px"
+                                                fontWeight="bold"
+                                                fill="#4f46e5"
+                                            >
+                                                {p.count}
+                                            </text>
+                                        )}
+                                        {/* X-Axis Date label */}
+                                        {i % 3 === 0 && (
+                                            <text
+                                                x={p.x}
+                                                y={svgHeight - 2}
+                                                textAnchor="middle"
+                                                fontSize="7px"
+                                                fontWeight="bold"
+                                                fill="#94a3b8"
+                                            >
+                                                {p.date}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })}
+
+                            {/* Line Chart Area rendering */}
+                            {attendanceChartType === 'line' && areaPath && (
+                                <motion.path
+                                    d={areaPath}
+                                    fill="url(#areaGrad)"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.8 }}
+                                />
+                            )}
+
+                            {/* Line Chart Path rendering */}
+                            {attendanceChartType === 'line' && linePath && (
+                                <motion.path
+                                    d={linePath}
+                                    fill="none"
+                                    stroke="#6366f1"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    initial={{ pathLength: 0 }}
+                                    animate={{ pathLength: 1 }}
+                                    transition={{ duration: 1.2, ease: "easeOut" }}
+                                />
+                            )}
+
+                            {/* Line Chart Circles rendering */}
+                            {attendanceChartType === 'line' && points.map((p, i) => {
+                                const isHovered = hoveredPointIndex === i;
+                                return (
+                                    <g key={i}>
+                                        <circle
+                                            cx={p.x}
+                                            cy={p.y}
+                                            r="8"
+                                            fill="transparent"
+                                            className="cursor-pointer"
+                                            onMouseEnter={() => setHoveredPointIndex(i)}
+                                            onMouseLeave={() => setHoveredPointIndex(null)}
+                                        />
+                                        <circle
+                                            cx={p.x}
+                                            cy={p.y}
+                                            r={isHovered ? "5.5" : "3.5"}
+                                            fill={isHovered ? "#ffffff" : "#6366f1"}
+                                            stroke="#6366f1"
+                                            strokeWidth={isHovered ? "3" : "1.5"}
+                                            className="transition-all duration-150 pointer-events-none"
+                                        />
+                                        {/* X-Axis Date label */}
+                                        {i % 3 === 0 && (
+                                            <text
+                                                x={p.x}
+                                                y={svgHeight - 2}
+                                                textAnchor="middle"
+                                                fontSize="7px"
+                                                fontWeight="bold"
+                                                fill="#94a3b8"
+                                            >
+                                                {p.date}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+
+                        {/* Floating Tooltip */}
+                        {hoveredPointIndex !== null && points[hoveredPointIndex] && (
+                            <div 
+                                className="absolute bg-slate-955 text-white text-[9px] font-black uppercase tracking-wider py-2 px-3 rounded-xl shadow-xl z-25 pointer-events-none transition-all duration-75 text-center min-w-[140px] border border-slate-800"
+                                style={{
+                                    left: `${(points[hoveredPointIndex].x / svgWidth) * 100}%`,
+                                    top: `${(points[hoveredPointIndex].y / svgHeight) * 100 - 36}%`,
+                                    transform: 'translateX(-50%)',
+                                }}
+                            >
+                                <div className="font-extrabold text-slate-400">{points[hoveredPointIndex].date} ({WEEKDAY_NAMES[points[hoveredPointIndex].d.getDay()]})</div>
+                                {!points[hoveredPointIndex].isSchoolDay ? (
+                                    <div className="text-amber-400 font-extrabold mt-1">Non-School Day</div>
+                                ) : (
+                                    <div className={points[hoveredPointIndex].count === 0 ? "text-emerald-400 font-extrabold mt-1" : "text-rose-400 font-extrabold mt-1"}>
+                                        {points[hoveredPointIndex].count} {points[hoveredPointIndex].count === 1 ? 'Absence' : 'Absences'}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     };
@@ -1123,7 +1515,7 @@ export function Dashboard() {
                         },
                         { 
                             label: 'Attendance Rate', 
-                            value: `${totalStudents > 0 ? Math.round(((totalStudents - attendanceInsights.averageDailyAbsences) / totalStudents) * 100) : 100}%`, 
+                            value: `${advisoryStudents.length > 0 ? Math.round(((advisoryStudents.length - attendanceInsights.averageDailyAbsences) / advisoryStudents.length) * 100) : (totalStudents > 0 ? Math.round(((totalStudents - attendanceInsights.averageDailyAbsences) / totalStudents) * 100) : 100)}%`, 
                             sub: `${attendanceInsights.averageDailyAbsences} avg absences`, 
                             icon: Calendar, 
                             color: 'indigo', 

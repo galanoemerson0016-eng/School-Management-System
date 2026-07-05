@@ -689,9 +689,9 @@ export function AttendancePage() {
             const currentStatus = studentRecord[key] ?? studentRecord[day];
             let newStatus = '';
             if (!currentStatus) newStatus = 'absent';
-            else if (currentStatus === 'absent') newStatus = 'tardy';
-            else if (currentStatus === 'tardy') newStatus = 'cutting';
-            else if (currentStatus === 'cutting') newStatus = '';
+            else if (currentStatus === 'absent') newStatus = 'tardy-upper';
+            else if (currentStatus === 'tardy-upper' || currentStatus === 'tardy') newStatus = 'tardy-lower';
+            else if (currentStatus === 'tardy-lower' || currentStatus === 'cutting') newStatus = '';
 
             const newRecord = { ...studentRecord };
             newRecord[key] = newStatus;
@@ -715,8 +715,22 @@ export function AttendancePage() {
     const getStatusSymbol = (status?: string) => {
         switch (status) {
             case 'absent': return 'X';
-            case 'tardy': return 'T';
-            case 'cutting': return 'CC';
+            case 'tardy-upper':
+            case 'tardy':
+                return (
+                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-[2px] border border-black align-middle">
+                        <span className="h-1/2 w-full bg-black/90" />
+                        <span className="h-1/2 w-full bg-white" />
+                    </span>
+                );
+            case 'tardy-lower':
+            case 'cutting':
+                return (
+                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-[2px] border border-black align-middle">
+                        <span className="h-1/2 w-full bg-white" />
+                        <span className="h-1/2 w-full bg-black/90" />
+                    </span>
+                );
             default: return '';
         }
     };
@@ -1510,8 +1524,8 @@ export function AttendancePage() {
                             <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>1. CODES FOR CHECKING ATTENDANCE</p>
                         </div>
                         <div className={`p-2.5 flex-1 flex flex-col leading-normal text-black font-bold ${layoutConfig.guidelinesTextSize}`}>
-                            <p className="mb-3 leading-normal">
-                                blank- Present;&nbsp;&nbsp;(x)- Absent;&nbsp;&nbsp;Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)
+                                <p className="mb-3 leading-normal">
+                                blank- Present;&nbsp;&nbsp;(x)- Absent;&nbsp;&nbsp;Tardy (half shaded = upper for late comer, lower for cutting classes)
                             </p>
                             <p className={`font-black text-black mb-1.5 uppercase tracking-wide ${layoutConfig.tableTextSize}`}>2. REASONS/CAUSES OF NLS</p>
                             <div className={`leading-[1.3] font-bold text-black space-y-0.5 ${layoutConfig.guidelinesTextSize}`}>
@@ -1721,7 +1735,7 @@ export function AttendancePage() {
     }, [bodyRows, pageCapacity]);
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />

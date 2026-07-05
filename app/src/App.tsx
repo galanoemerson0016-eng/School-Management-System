@@ -29,13 +29,14 @@ const SF8Page = lazy(() => import('./pages/SF8Page').then(m => ({ default: m.SF8
 const SF5Page = lazy(() => import('./pages/SF5Page').then(m => ({ default: m.SF5Page })));
 const SF6Page = lazy(() => import('./pages/SF6Page').then(m => ({ default: m.SF6Page })));
 const AttendancePage = lazy(() => import('./pages/AttendancePage').then(m => ({ default: m.AttendancePage })));
+const DailyAttendancePage = lazy(() => import('./pages/DailyAttendancePage').then(m => ({ default: m.DailyAttendancePage })));
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage').then(m => ({ default: m.AnnouncementsPage })));
 const InstitutePage = lazy(() => import('./pages/InstitutePage').then(m => ({ default: m.InstitutePage })));
 const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(m => ({ default: m.UsersPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const ConsolidatedGradesPage = lazy(() => import('./pages/ConsolidatedGradesPage').then(m => ({ default: m.ConsolidatedGradesPage })));
-const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const CertificateGeneratorPage = lazy(() => import('./pages/CertificateGeneratorPage').then(m => ({ default: m.CertificateGeneratorPage })));
 const SchoolFormsPage = lazy(() => import('./pages/SchoolFormsPage').then(m => ({ default: m.SchoolFormsPage })));
 const NameTagPage = lazy(() => import('./pages/NameTagPage').then(m => ({ default: m.NameTagPage })));
@@ -48,7 +49,7 @@ const StudentIDGeneratorPage = lazy(() => import('./pages/StudentIDGeneratorPage
 
 function ContentLoading() {
   return (
-    <div className="h-full w-full flex items-center justify-center min-h-[300px]">
+    <div className="h-full w-full flex items-center justify-center" style={{ minHeight: 300 }}>
       <div className="relative w-8 h-8">
         <div className="absolute inset-0 border-2 border-slate-200 dark:border-slate-800 rounded-full" />
         <div className="absolute inset-0 border-2 border-transparent border-t-deped-blue dark:border-t-blue-400 rounded-full animate-spin" />
@@ -97,9 +98,9 @@ function LoadingSplash() {
 
         {/* DepEd tri-color accent */}
         <div className="flex gap-1 mt-1">
-          <div className="w-8 h-[2px] bg-deped-blue-light/60 rounded-full" />
-          <div className="w-5 h-[2px] bg-deped-red/60 rounded-full" />
-          <div className="w-8 h-[2px] bg-deped-yellow/60 rounded-full" />
+          <div className="w-8 bg-deped-blue-light/60 rounded-full" style={{ height: 2 }} />
+          <div className="w-5 bg-deped-red/60 rounded-full" style={{ height: 2 }} />
+          <div className="w-8 bg-deped-yellow/60 rounded-full" style={{ height: 2 }} />
         </div>
       </div>
     </div>
@@ -425,6 +426,8 @@ function App() {
         return <SchoolFormsPage />;
       case 'attendance':
         return <AttendancePage />;
+      case 'daily-attendance':
+        return <DailyAttendancePage />;
       case 'calendar':
         return <CalendarPage />;
       case 'announcements':
@@ -500,7 +503,7 @@ function App() {
           <div className="print:hidden">
             <Header />
           </div>
-          <div className="flex-1 overflow-y-auto p-3 lg:p-4 custom-scrollbar print:p-0 print:overflow-visible">
+          <div className={`flex-1 flex flex-col ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
             <ErrorBoundary>
               <Suspense fallback={<ContentLoading />}>
                 {renderContent()}

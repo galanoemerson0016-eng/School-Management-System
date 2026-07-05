@@ -16,6 +16,7 @@ export type AppView =
     | 'sf6'
     | 'school-forms'
     | 'attendance'
+    | 'daily-attendance'
     | 'calendar'
     | 'announcements'
     | 'reports'

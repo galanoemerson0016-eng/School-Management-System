@@ -8,16 +8,16 @@ import {
     School,
     GraduationCap,
     FileSpreadsheet,
-    Megaphone,
     Settings,
-    Info,
     LogOut,
     BarChart3,
     Calendar,
+    Megaphone,
     Menu,
     X,
     ChevronLeft,
     ClipboardList,
+    ClipboardCheck,
     Layers,
     Gamepad2,
     IdCard
@@ -111,6 +111,7 @@ export function Sidebar() {
         { id: 'sections', label: 'Classes & Sections', icon: Layers },
         { id: 'students', label: 'Student Information', icon: Users },
         { id: 'institute', label: 'Institute Profile', icon: School },
+        { id: 'daily-attendance', label: 'Daily Attendance', icon: ClipboardCheck },
         { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
         { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
         { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
@@ -192,22 +193,6 @@ export function Sidebar() {
                         {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
                     </button>
                 )}
-                {/* About */}
-                <button
-                    onClick={() => handleNavClick('about')}
-                    data-tour="sidebar-about"
-                    title={isCollapsed ? 'About' : undefined}
-                    className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'about'
-                        ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
-                        : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
-                        }`}
-                >
-                    {currentView === 'about' && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
-                    )}
-                    <Info className={`w-4.5 h-4.5 shrink-0 transition-colors ${currentView === 'about' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                    {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide transition-colors ${currentView === 'about' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>About & Innovator</span>}
-                </button>
             </nav>
 
             <div className={`p-2.5 space-y-1.5`}>

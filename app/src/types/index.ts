@@ -268,6 +268,17 @@ export interface AwardEvaluation {
 }
 
 
+export interface SF9SignatureSettings {
+    showAdviserSig?: boolean;
+    showHeadSig?: boolean;
+    adviserSigWidth?: number;
+    adviserSigHeight?: number;
+    adviserSigOffset?: number;
+    headSigWidth?: number;
+    headSigHeight?: number;
+    headSigOffset?: number;
+}
+
 export interface Section {
     id: string;
     section_name: string;
@@ -282,6 +293,7 @@ export interface Section {
     strand?: string; // Strand for SHS (STEM, ABM, HUMSS, GAS, etc.)
     section_metadata?: {
         sf9SubjectSelections?: Record<number, string>;
+        sf9SignatureSettings?: SF9SignatureSettings;
     };
 }
 
@@ -340,7 +352,7 @@ export interface AttendanceRecord {
     id: string;
     student_lrn: string;
     date: string;
-    status: 'present' | 'absent' | 'late' | 'excused';
+    status: 'present' | 'absent' | 'late' | 'cutting' | 'excused';
     section_id: string;
 }
 

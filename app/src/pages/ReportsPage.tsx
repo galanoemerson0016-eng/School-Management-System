@@ -1611,14 +1611,14 @@ export function ReportsPage() {
                                 <button
                                     onClick={() => {
                                         setAwardsTab('classroom');
-                                        const firstKs1 = sections.find(s => isKeyStage1(s.section_grade_level));
-                                        if (firstKs1 && !selectedSectionForAwards) {
-                                            setSelectedSectionForAwards(firstKs1.id);
+                                        const firstSec = sections[0];
+                                        if (firstSec && !selectedSectionForAwards) {
+                                            setSelectedSectionForAwards(firstSec.id);
                                         }
                                     }}
                                     className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${awardsTab === 'classroom' ? 'border-deped-blue text-deped-blue font-bold dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                                 >
-                                    Classroom Awards (KS1)
+                                    Classroom Awards
                                 </button>
                                 <button
                                     onClick={() => {
@@ -1823,9 +1823,8 @@ export function ReportsPage() {
                                             onChange={(e) => setSelectedSectionForAwards(e.target.value)}
                                             className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
                                         >
-                                            <option value="">Select KS1 Section...</option>
+                                            <option value="">Select Section...</option>
                                             {sections
-                                                .filter(s => isKeyStage1(s.section_grade_level))
                                                 .map(s => (
                                                     <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
                                                 ))
@@ -1882,7 +1881,6 @@ export function ReportsPage() {
                                                                 <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
                                                                     <th className="pb-2">Learner LRN</th>
                                                                     <th className="pb-2">Name</th>
-                                                                    <th className="pb-2 text-center">Absences</th>
                                                                     <th className="pb-2 text-center">Status</th>
                                                                 </tr>
                                                             </thead>
@@ -1902,7 +1900,6 @@ export function ReportsPage() {
                                                                         <tr key={s.lrn} className="hover:bg-gray-50/50">
                                                                             <td className="py-2.5 font-medium text-gray-400">{s.lrn}</td>
                                                                             <td className="py-2.5 font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</td>
-                                                                            <td className="py-2.5 text-center font-bold text-gray-600">{abs}</td>
                                                                             <td className="py-2.5 text-center">
                                                                                 <button 
                                                                                     onClick={async () => {
@@ -1928,7 +1925,7 @@ export function ReportsPage() {
                                                                                     }}
                                                                                     className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${hasAward ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-gray-50 border border-gray-200 text-gray-400 hover:bg-gray-100'}`}
                                                                                 >
-                                                                                    {hasAward ? '✓ Qualified' : 'Not Qualified'}
+                                                                                    {hasAward ? '✓ Qualified' : `Not Qualified (${abs} Abs)`}
                                                                                 </button>
                                                                             </td>
                                                                         </tr>
@@ -1947,7 +1944,7 @@ export function ReportsPage() {
                                                                 <Heart className="w-5 h-5 text-pink-500" /> Character Traits Awards (Nomination)
                                                             </h4>
                                                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
-                                                                Kindergarten to Grade 3 • Limited to 5 core awards per term
+                                                                All Grade Levels • Limited to 5 core awards per term
                                                             </p>
                                                         </div>
                                                     </div>

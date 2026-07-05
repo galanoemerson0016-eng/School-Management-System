@@ -217,6 +217,15 @@ export async function restoreBackupToFirestore(
             }
         }
 
+        // Restore activity log entries if present in comprehensive payload
+        if (Array.isArray(backup.payload.activityLog)) {
+            for (const entry of backup.payload.activityLog) {
+                if (entry && typeof entry === 'object' && 'id' in entry) {
+                    await db.putRecord('activityLog', entry);
+                }
+            }
+        }
+
         // Restore localStorage items if present in comprehensive payload
         if (backup.payload.localStorageData) {
             try {
