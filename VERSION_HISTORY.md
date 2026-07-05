@@ -1,5 +1,17 @@
 # Version History
 
+## v2.4.5 (2026-07-05)
+
+### 🐞 Bug Fixes
+- **Application Icon:**
+  - Fixed the application icon missing from the installed app by re-enabling executable resource editing, so the FormEase Pro logo is embedded into the built executable, installer, desktop shortcuts, and taskbar.
+  - Rebuilt the Windows icon (`.ico`) with multi-size images (16–256 px) for crisp rendering in the title bar, taskbar, and Explorer.
+- **Certificate Generator:**
+  - Included missing DepEd and school certificate logo assets in the application bundle.
+
+### 📝 Notes
+Backward compatible. No data migration required.
+
 ## v2.4.4 (2026-07-05)
 
 ### 🐞 Bug Fixes
