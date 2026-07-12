@@ -4,7 +4,7 @@ import type { Announcement } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Pin, PinOff, Trash2, Plus, Search, Cloud, CloudOff, RefreshCw, Globe } from 'lucide-react';
 import { canManagePublicPosts } from '../lib/rbac';
-import { announcementSync } from '../services/announcement-sync';
+import { announcementSync, mapAnnouncementType, type CloudAnnouncement } from '../services/announcement-sync';
 
 export function AnnouncementsPage() {
     const { 
@@ -48,10 +48,10 @@ export function AnnouncementsPage() {
                     if (!exists) {
                         const localAnn: Announcement = {
                             id: ann.id,
-                            announcement_title: ann.announcement_title,
-                            announcement_content: ann.announcement_content,
-                            announcement_date: ann.announcement_date,
-                            announcement_type: ann.announcement_type,
+                            announcement_title: ann.announcement_title || '',
+                            announcement_content: ann.announcement_content || '',
+                            announcement_date: ann.announcement_date || new Date().toISOString().split('T')[0],
+                            announcement_type: mapAnnouncementType(ann.announcement_type),
                             is_pinned: ann.is_pinned || false,
                             category: ann.category,
                             author_id: ann.author_id,
@@ -75,15 +75,15 @@ export function AnnouncementsPage() {
             const cloudAnns = await announcementSync.syncFromCloud(schoolProfile.school_id);
             if (cloudAnns && cloudAnns.length > 0) {
                 // Update local store with newly synced announcements
-                cloudAnns.forEach((ann: Announcement) => {
+                cloudAnns.forEach((ann: CloudAnnouncement) => {
                     const exists = announcements.find(a => a.id === ann.id);
                     if (!exists) {
                         const localAnn: Announcement = {
                             id: ann.id,
-                            announcement_title: ann.announcement_title,
-                            announcement_content: ann.announcement_content,
-                            announcement_date: ann.announcement_date,
-                            announcement_type: ann.announcement_type,
+                            announcement_title: ann.announcement_title || '',
+                            announcement_content: ann.announcement_content || '',
+                            announcement_date: ann.announcement_date || new Date().toISOString().split('T')[0],
+                            announcement_type: mapAnnouncementType(ann.announcement_type),
                             is_pinned: ann.is_pinned || false,
                             category: ann.category,
                             author_id: ann.author_id,

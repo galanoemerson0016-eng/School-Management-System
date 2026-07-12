@@ -17,12 +17,20 @@ export interface CloudAnnouncement {
     announcement_title?: string;
     announcement_content?: string;
     announcement_date?: string;
-    announcement_type?: 'General' | 'Event' | 'Holiday' | 'Emergency';
+    announcement_type?: string;
     is_pinned?: boolean;
     category?: string;
     author_id?: string;
     published_at?: Timestamp;
 }
+
+export const mapAnnouncementType = (type?: string): 'general' | 'urgent' | 'event' => {
+    if (!type) return 'general';
+    const normalized = type.toLowerCase();
+    if (normalized === 'urgent' || normalized === 'emergency') return 'urgent';
+    if (normalized === 'event') return 'event';
+    return 'general';
+};
 
 const COLLECTION_NAME = 'shared_announcements';
 
@@ -115,10 +123,13 @@ export const announcementSync = {
         for (const ann of cloudAnnouncements) {
             const localAnn: Announcement = {
                 id: ann.id,
-                announcement_title: ann.announcement_title,
-                announcement_content: ann.announcement_content,
-                announcement_date: ann.announcement_date,
-                announcement_type: ann.announcement_type,
+                announcement_title: ann.announcement_title || '',
+                announcement_content: ann.announcement_content || '',
+                announcement_date: ann.announcement_date || new Date().toISOString().split('T')[0],
+                announcement_type: mapAnnouncementType(ann.announcement_type),
+                is_pinned: ann.is_pinned || false,
+                category: ann.category,
+                author_id: ann.author_id,
             };
             await localDb.putRecord('announcements', localAnn);
         }
