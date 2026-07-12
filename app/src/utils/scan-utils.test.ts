@@ -27,7 +27,7 @@ describe('extractLrnFromScan', () => {
     });
 
     it('is case-insensitive on the LRN label', () => {
-        expect(extractLrnFromScan('lrn: 990011')).toBe('990011');
+        expect(extractLrnFromScan('lrn: 136548120001')).toBe('136548120001');
     });
 });
 
