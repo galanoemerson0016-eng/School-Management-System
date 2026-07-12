@@ -23,3 +23,8 @@ _mac_temp_repair/
 .env
 .env.local
 .env.*
+
+# Portable tools
+.git-portable/
+.node-portable/
+gh-cli/

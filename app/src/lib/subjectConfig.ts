@@ -349,6 +349,7 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     if (normalized.includes('gmrc') || normalized.includes('goodmanners')) return 'gmrc';
     if (normalized.includes('valueseducation') || normalized.includes('values')) return 'valuesEducation';
     if (normalized.includes('epp') || normalized.includes('tle')) return 'tle';
+    if (normalized.includes('ict')) return 'ict';
     if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 'musicAndArts';
     if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 'peAndHealth';
     // Old curriculum individual MAPEH components

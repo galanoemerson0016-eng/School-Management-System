@@ -325,7 +325,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const sf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
         const gradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
         const observedValues = await db.getAllRecords<ObservedValues>('observedValues');
-        const automatedBackups = await db.getAllRecords<any>('automated_backups');
+        const automatedBackups = await db.getAllRecords<unknown>('automated_backups');
 
         // 2. Derive the new key
         const salt = await getDbSalt();

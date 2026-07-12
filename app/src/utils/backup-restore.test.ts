@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Stub out the database service — validateBackup doesn't use it directly,
 // but backup-restore.ts imports it at module load time.

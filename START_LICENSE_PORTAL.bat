@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo ========================================
@@ -30,3 +31,4 @@ if !errorlevel! neq 0 (
     echo [ERROR] Failed to start server.
     pause
 )
+

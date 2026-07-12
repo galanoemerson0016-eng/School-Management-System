@@ -111,7 +111,7 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
 const DB_NAME = 'FormEaseDB';
 const DB_VERSION = 10;
 
-interface BackupMetadata {
+export interface BackupMetadata {
   id: string;
   timestamp: number;
   label: string;
@@ -124,6 +124,8 @@ interface BackupMetadata {
     enrollments: number;
     announcements: number;
     attendanceRecords: number;
+    gradingSheetRecords?: number;
+    observedValues?: number;
   };
 }
 
@@ -671,7 +673,40 @@ async function migrateDatabaseForIndexing(): Promise<void> {
   }
 }
 
+async function getStoreStats(): Promise<Record<string, { count: number; sizeBytes: number }>> {
+  const stores = [
+    'schoolProfile',
+    'students',
+    'sections',
+    'subjects',
+    'classRecords',
+    'enrollments',
+    'announcements',
+    'attendanceRecords',
+    'sf2Sheets',
+    'hpsRecords',
+    'gradingSheetRecords',
+    'observedValues',
+    'backups'
+  ];
+  const stats: Record<string, { count: number; sizeBytes: number }> = {};
+  const encoder = new TextEncoder();
+  for (const store of stores) {
+    try {
+      const records = await getAllRecords<unknown>(store);
+      const count = records.length;
+      const jsonStr = JSON.stringify(records);
+      const sizeBytes = encoder.encode(jsonStr).length;
+      stats[store] = { count, sizeBytes };
+    } catch (_e) {
+      stats[store] = { count: 0, sizeBytes: 0 };
+    }
+  }
+  return stats;
+}
+
 export const db = {
+  getStoreStats,
   setDatabaseEncryptionKey,
   onDatabaseChange,
   getAllRecords,

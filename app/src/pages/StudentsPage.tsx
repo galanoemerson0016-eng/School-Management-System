@@ -268,7 +268,7 @@ export function StudentsPage() {
 
     const handleDownloadTemplate = () => {
         if (!selectedSectionObj) return;
-        downloadEnrollmentTemplate(selectedSectionObj.section_name);
+        downloadEnrollmentTemplate(selectedSectionObj.section_name, isCurrentSectionAdvisory);
     };
 
     const handleTemplateImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

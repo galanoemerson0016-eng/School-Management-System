@@ -1,7 +1,7 @@
 import { db } from './database';
 
 let isDirty = false;
-let timerId: any = null;
+let timerId: ReturnType<typeof setInterval> | null = null;
 const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export const IncrementalBackupService = {

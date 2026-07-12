@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo.
@@ -82,3 +83,4 @@ echo.
 echo Done! You can close this window now.
 pause
 exit /b
+

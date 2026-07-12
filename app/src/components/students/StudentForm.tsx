@@ -572,7 +572,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             setIsLoading(false);
         }
     };
-    const isLrnEditable = !student || student.lrn?.startsWith('TEMP-') || (student.lrn?.startsWith('99') && student.lrn?.length === 12);
+    const isLrnEditable = true;
 
     const getLrnDisplayValue = () => {
         if (!formData.lrn) return '';

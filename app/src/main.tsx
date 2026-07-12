@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
-;(window as any).Buffer = Buffer
+;(window as unknown as Record<string, unknown>).Buffer = Buffer
 import './index.css'
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'

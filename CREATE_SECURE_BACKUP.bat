@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 :: Get current date and time for the folder name
@@ -52,3 +53,4 @@ if %ERRORLEVEL% GEQ 8 (
 echo.
 echo You can now close this window.
 pause
+

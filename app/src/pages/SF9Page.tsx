@@ -592,11 +592,12 @@ function computeStudentGrades(
     const currentSubjects: SF9SubjectItem[] = [];
     
     const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
+    const hasNumericKeys = !!(subjectSelections && Object.keys(subjectSelections).some(k => /^\d+$/.test(k)));
 
     if (isSHS) {
         // Resolve target list of subjects
         const selectedSubjects: typeof baseSubjects = [];
-        if (subjectSelections && Object.keys(subjectSelections).length > 0) {
+        if (hasNumericKeys) {
             for (let i = 0; i < 13; i++) {
                 const selectedId = subjectSelections[i];
                 if (selectedId && selectedId !== 'none') {
@@ -770,7 +771,7 @@ function computeStudentGrades(
                 currentSubjects.push({ name: `reserved_extra_${currentSubjects.length}`, isReserved: true });
             }
         }
-    } else if (subjectSelections && Object.keys(subjectSelections).length > 0) {
+    } else if (hasNumericKeys) {
         for (let i = 0; i < 13; i++) {
             const selectedId = subjectSelections[i];
             if (selectedId && selectedId !== 'none') {
@@ -2078,7 +2079,7 @@ export function SF9BatchDocument({
                         district={schoolProfile.district}
                         adviser={adviser}
                         principal={schoolProfile.head_name || ''}
-                        principalTitle={schoolProfile.head_position || 'Secondary School Principal I'}
+                        principalTitle={schoolProfile.head_position || 'School Head'}
                         grades={grades}
                         subjects={computedSubjects}
                         observedValues={values}
@@ -2471,7 +2472,7 @@ export function SF9Page() {
                 district={schoolProfile.district} 
                 adviser={adviserName} 
                 principal={schoolProfile.head_name || ''} 
-                principalTitle={schoolProfile.head_position || 'Secondary School Principal I'} 
+                principalTitle={schoolProfile.head_position || 'School Head'} 
                 grades={studentGrades.grades || {}} 
                 subjects={studentGrades.subjects || []}
                 observedValues={studentValues} 
@@ -2516,26 +2517,20 @@ export function SF9Page() {
             const blob = await pdf(singleDocument).toBlob();
             const url = URL.createObjectURL(blob);
             
-            // Create a hidden iframe for direct printing
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = url;
-            document.body.appendChild(iframe);
-            
-            iframe.onload = () => {
-                setTimeout(() => {
-                    iframe.contentWindow?.print();
-                    // Clean up after some time to allow print dialog to finish
+            const printWindow = window.open(url, '_blank');
+            if (printWindow) {
+                printWindow.focus();
+                printWindow.onload = () => {
                     setTimeout(() => {
-                        if (document.body.contains(iframe)) {
-                            document.body.removeChild(iframe);
-                            URL.revokeObjectURL(url);
-                        }
-                    }, 5000);
-                }, 500);
-            };
+                        printWindow.print();
+                    }, 500);
+                };
+            } else {
+                alert('Could not open print window. Please check if popups are blocked.');
+            }
         } catch (error) {
             console.error('Print failed:', error);
+            useAppStore.getState().showNotification('Failed to generate print document', 'error');
         }
     }, [selectedStudent, singleDocument, isShsSf9Section]);
 
@@ -2612,7 +2607,7 @@ export function SF9Page() {
                             district={schoolProfile.district}
                             adviser={adviserName}
                             principal={schoolProfile.head_name || ''}
-                            principalTitle={schoolProfile.head_position || 'Secondary School Principal I'}
+                            principalTitle={schoolProfile.head_position || 'School Head'}
                             grades={grades}
                             subjects={compSubjects}
                             observedValues={values}

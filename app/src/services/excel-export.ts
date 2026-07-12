@@ -130,7 +130,7 @@ export function exportMasterDataToExcel(
   sections: Section[],
   subjects: Subject[],
   grades: ClassRecord[],
-  enrollments: Enrollment[]
+  _enrollments: Enrollment[]
 ) {
   const workbook = XLSX.utils.book_new();
 

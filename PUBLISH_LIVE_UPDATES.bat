@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo.
@@ -90,3 +91,4 @@ echo   SUCCESS! FormEase Pro Update is now LIVE & DOWNLOADABLE!
 echo   Download Link: https://formease-licensing.web.app/updates
 echo ========================================================
 pause
+

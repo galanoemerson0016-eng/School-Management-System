@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 echo ====================================================
 echo   FormEase Pro - Firebase Update Deployer
 echo ====================================================
@@ -18,3 +19,4 @@ echo ====================================================
 echo   DEPLOYMENT COMPLETE!
 echo ====================================================
 pause
+

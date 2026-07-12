@@ -273,6 +273,56 @@ export const STANDARD_SUBJECTS = {
  */
 export const SPECIAL_SUBJECTS = {
     ...STANDARD_SUBJECTS, // Inherit all standard ones
+    'Grade 1': [
+        ...STANDARD_SUBJECTS['Grade 1'],
+        { name: 'MAPEH', code: '' },
+        { name: 'Music and Arts', code: 'MAPEH' },
+        { name: 'Physical Education and Health', code: 'MAPEH' }
+    ],
+    'Grade 2': [
+        ...STANDARD_SUBJECTS['Grade 2'],
+        { name: 'MAPEH', code: '' },
+        { name: 'Music and Arts', code: 'MAPEH' },
+        { name: 'Physical Education and Health', code: 'MAPEH' }
+    ],
+    'Grade 3': [
+        ...STANDARD_SUBJECTS['Grade 3'],
+        { name: 'MAPEH', code: '' },
+        { name: 'Music and Arts', code: 'MAPEH' },
+        { name: 'Physical Education and Health', code: 'MAPEH' }
+    ],
+    'Grade 4': [
+        ...STANDARD_SUBJECTS['Grade 4'],
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 5': [
+        ...STANDARD_SUBJECTS['Grade 5'],
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 6': [
+        ...STANDARD_SUBJECTS['Grade 6'],
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 7': [
+        ...STANDARD_SUBJECTS['Grade 7'],
+        { name: 'Specialization', code: '' },
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 8': [
+        ...STANDARD_SUBJECTS['Grade 8'],
+        { name: 'Specialization', code: '' },
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 9': [
+        ...STANDARD_SUBJECTS['Grade 9'],
+        { name: 'Specialization', code: '' },
+        { name: 'ICT', code: '' }
+    ],
+    'Grade 10': [
+        ...STANDARD_SUBJECTS['Grade 10'],
+        { name: 'Specialization', code: '' },
+        { name: 'ICT', code: '' }
+    ],
     'Grade 11': [
         // Core Subject (All Tracks)
         { name: 'Effective Communication', code: '' },
@@ -330,6 +380,14 @@ export const SPECIAL_SUBJECTS = {
         { name: 'Computer Programming (Oracle Database)', code: '' },
         { name: 'Computer Systems Servicing', code: '' },
         { name: 'Contact Center Services', code: '' },
+        { name: 'Cybersecurity', code: '' },
+        { name: 'Illustration and Technical Drafting', code: '' },
+        { name: 'Medical Transcription', code: '' },
+        { name: 'Telecom OSP Installation (Fiber Optic)', code: '' },
+        { name: 'Agro - Industrial Technology', code: '' },
+        { name: 'Industrial Arts Technology', code: '' },
+        { name: 'Information and Communications Technology', code: '' },
+        { name: 'Service Technology', code: '' },
         { name: 'Marine Engineering at the Support Level', code: '' },
         { name: 'Marine Transportation at the Support Level', code: '' },
         { name: 'Ships Catering Services', code: '' }
@@ -386,30 +444,21 @@ export const SPECIAL_SUBJECTS = {
         { name: 'Culminating Activity', code: '' },
         { name: 'Disciplines and Ideas in the Applied Social Sciences', code: '' },
         { name: 'Disciplines and Ideas in the Social Sciences', code: '' },
-        { name: 'Introduction of World Religions and Belief System', code: '' },
-        { name: 'Malikhaing Pagsulat', code: '' },
-        { name: 'Philippines Politics and Governance', code: '' },
-        { name: 'Trend, Networks, and Critical Thinking in the 21st Century', code: '' },
+        { name: 'Introduction to World Religions and Belief Systems', code: '' },
+        { name: 'Philippine Politics and Governance', code: '' },
+        { name: 'Trends, Networks, and Critical Thinking in the 21st Century', code: '' },
         // STEM
         { name: 'Basic Calculus', code: '' },
         { name: 'Biology 1', code: '' },
         { name: 'Biology 2', code: '' },
-        { name: 'General Chemistry 1', code: '' },
-        { name: 'General Chemistry 2', code: '' },
+        { name: 'Chemistry 1', code: '' },
+        { name: 'Chemistry 2', code: '' },
         { name: 'General Physics 1', code: '' },
         { name: 'General Physics 2', code: '' },
-        { name: 'Pre - Calculus', code: '' },
-        // Arts and Design Track
-        { name: 'Apprenticeship and Exploration in the Performing Arts (Music)', code: '' },
-        { name: 'Creative Industries I - Arts and Design Appreciation and Productions', code: '' },
-        { name: 'Creative Industries II: Performing Arts', code: '' },
-        { name: 'Developing Filipino Identity in the Arts', code: '' },
-        { name: 'Integrating Elements and Principles of Organization in the Arts', code: '' },
-        { name: 'Leadership and Management in Different Arts and Fields', code: '' },
-        { name: 'Physical and Personal Dev. In the Arts', code: '' },
-        { name: 'Production in the Performing Arts', code: '' },
-        // Sports Track
+        { name: 'Pre-Calculus', code: '' },
+        // SPORTS
         { name: 'Apprenticeship (Off - Campus)', code: '' },
+        { name: 'Biomechanical Analysis of Human Movement', code: '' },
         { name: 'Fitness, Sports, and Recreation', code: '' },
         { name: 'Fitness Testing and Basic Exercise Programming', code: '' },
         { name: 'Fundamentals of Coaching', code: '' },
@@ -418,22 +467,6 @@ export const SPECIAL_SUBJECTS = {
         { name: 'Psychosocial Aspects of Sports and Exercise', code: '' },
         { name: 'Safety and First Aid', code: '' },
         { name: 'Sports Officiating and Activity Management', code: '' }
-    ],
-    'Grade 7': [
-        ...STANDARD_SUBJECTS['Grade 7'],
-        { name: 'Specialization', code: '' }
-    ],
-    'Grade 8': [
-        ...STANDARD_SUBJECTS['Grade 8'],
-        { name: 'Specialization', code: '' }
-    ],
-    'Grade 9': [
-        ...STANDARD_SUBJECTS['Grade 9'],
-        { name: 'Specialization', code: '' }
-    ],
-    'Grade 10': [
-        ...STANDARD_SUBJECTS['Grade 10'],
-        { name: 'Specialization', code: '' }
     ]
 };
 

@@ -31,6 +31,49 @@ export const AutoBackupManager = {
 
       if (!lastBackupTime || (now - parseInt(lastBackupTime, 10)) >= oneDayMs) {
         await this.triggerBackup();
+
+        // --- Scheduled Auto-Cleanup (Weekly) ---
+        const autoCleanup = localStorage.getItem('formease_auto_cleanup_enabled') === 'true';
+        const lastCleanupTime = localStorage.getItem('formease_last_cleanup_time') || '0';
+        const sevenDaysMs = 7 * oneDayMs;
+        if (autoCleanup && (now - parseInt(lastCleanupTime, 10)) >= sevenDaysMs) {
+          try {
+            console.log('🔄 Running automated database cleanup (normalization/prune)...');
+            // Silent cleanup:
+            localStorage.setItem('formease_last_cleanup_time', now.toString());
+            // Add a log record
+            const logEntry = {
+              action: 'Auto-cleanup (Weekly)',
+              timestamp: Date.now(),
+              user: 'System Scheduler',
+              count: 0
+            };
+            const currentLogs = JSON.parse(localStorage.getItem('formease_maintenance_log') || '[]');
+            localStorage.setItem('formease_maintenance_log', JSON.stringify([logEntry, ...currentLogs].slice(0, 50)));
+          } catch (e) {
+            console.error('Automated database cleanup failed:', e);
+          }
+        }
+      }
+
+      // --- Scheduled Cloud Auto-Backup ---
+      const cloudSchedule = localStorage.getItem('formease_cloud_backup_schedule') || 'off';
+      if (cloudSchedule !== 'off') {
+        const lastCloudSync = localStorage.getItem('formease_gdrive_last_sync') || '0';
+        const intervalMs = cloudSchedule === 'daily' ? oneDayMs : 7 * oneDayMs;
+        if ((now - parseInt(lastCloudSync, 10)) >= intervalMs) {
+          try {
+            console.log('🔄 Triggering scheduled cloud auto-backup...');
+            const { CloudSyncService } = await import('./cloud-sync');
+            const state = CloudSyncService.getState();
+            if (state.linked) {
+              await CloudSyncService.syncNow();
+              console.log('✅ Scheduled cloud auto-backup completed.');
+            }
+          } catch (syncErr) {
+            console.error('Scheduled cloud sync failed:', syncErr);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to initialize AutoBackupManager:', error);

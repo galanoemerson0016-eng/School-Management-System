@@ -184,7 +184,12 @@ export function BackupRestoreModal({
 
             // Parse backup
             const text = await file.text();
-            const rawData = JSON.parse(text);
+            let rawData = JSON.parse(text);
+
+            if (rawData && rawData.version === '2.0.0-compressed') {
+                const decompressedText = atob(rawData.data);
+                rawData = JSON.parse(decompressedText);
+            }
 
             if (rawData && rawData.version === '2.0.0-encrypted') {
                 setState(prev => ({
@@ -282,7 +287,11 @@ export function BackupRestoreModal({
                 state.encryptedPayload.data.salt,
                 state.encryptedPayload.data.iv
             );
-            const decryptedData = JSON.parse(decryptedJson);
+            let decryptedData = JSON.parse(decryptedJson);
+            if (decryptedData && decryptedData.version === '2.0.0-compressed') {
+                const decompressedText = atob(decryptedData.data);
+                decryptedData = JSON.parse(decompressedText);
+            }
 
             // Validate decrypted backup
             const validation = validateRestoreBackup(decryptedData);
@@ -393,6 +402,19 @@ export function BackupRestoreModal({
                         : ''
                 }`
             );
+
+            try {
+                const historyEntry = {
+                    type: 'Restore Backup',
+                    timestamp: Date.now(),
+                    size: state.file ? state.file.size : 0,
+                    status: 'Success'
+                };
+                const currentHistory = JSON.parse(localStorage.getItem('formease_backup_history') || '[]');
+                localStorage.setItem('formease_backup_history', JSON.stringify([historyEntry, ...currentHistory].slice(0, 50)));
+            } catch (e) {
+                console.error('Failed to log restore to history:', e);
+            }
 
             setState(prev => ({
                 ...prev,

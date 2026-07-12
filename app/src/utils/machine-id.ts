@@ -1,9 +1,11 @@
 export async function getMachineId(): Promise<string> {
   // 1. Try Electron API
   try {
-    const id = await (window as any).electronAPI?.getMachineId();
+    const id = await window.electronAPI?.getMachineId();
     if (id) return id.toUpperCase();
-  } catch (e) {}
+  } catch {
+    // Fallback to browser storage
+  }
 
   // 2. Try localStorage for Browser
   const storedId = localStorage.getItem('formease-browser-id');

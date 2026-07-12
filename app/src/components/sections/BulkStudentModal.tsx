@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAppStore } from '../../stores';
 import type { Section, Student } from '../../types';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, FileText, AlertCircle, UserPlus, Info, Download, FileSpreadsheet } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Save, UserPlus, Info, Download, FileSpreadsheet } from 'lucide-react';
 import { useRef } from 'react';
 
 interface BulkStudentModalProps {
@@ -127,7 +127,7 @@ export function BulkStudentModal({ open, section, onClose }: BulkStudentModalPro
     };
 
     return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-300 flex items-center justify-center p-4">
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -250,7 +250,7 @@ export function BulkStudentModal({ open, section, onClose }: BulkStudentModalPro
                     <button 
                         onClick={handleSave}
                         disabled={isProcessing || preview.length === 0}
-                        className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-2 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isProcessing ? 'Importing...' : (
                             <>

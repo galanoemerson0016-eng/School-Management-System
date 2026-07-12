@@ -1,6 +1,6 @@
 import React from 'react';
 import { getSF10RowsForGrade } from '../lib/subjectConfig';
-import { AutoShrinkText, asString, type BoundData, type AnyObject, type SF10RendererProps } from './SF10Shared';
+import { AutoShrinkText, asString, type AnyObject, type SF10RendererProps } from './SF10Shared';
 
 export const SF10JHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
     

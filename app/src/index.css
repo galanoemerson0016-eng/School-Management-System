@@ -917,7 +917,10 @@
 }
 
 /* Performance Optimization: Disable heavy transitions and animations globally to fix lag, especially on macOS */
-*, *::before, *::after {
+.no-animations,
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
   animation-delay: 0s !important;
   animation-duration: 0s !important;
   transition-delay: 0s !important;

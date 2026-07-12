@@ -3,29 +3,44 @@ import type { Student } from '../types';
 
 /**
  * Downloads a sample spreadsheet (.xlsx) for student enrollment
- * containing headers: LAST NAME, FIRST NAME, MIDDLE NAME, NAME EXTENSION, GENDER.
+ * containing headers based on whether the section is advisory or not.
  */
-export const downloadEnrollmentTemplate = (sectionName: string) => {
-    const headers = ['LAST NAME', 'FIRST NAME', 'MIDDLE NAME', 'NAME EXTENSION', 'GENDER'];
+export const downloadEnrollmentTemplate = (sectionName: string, isAdvisory: boolean = true) => {
+    const headers = isAdvisory 
+        ? ['LRN', 'LAST NAME', 'FIRST NAME', 'MIDDLE NAME', 'NAME EXTENSION', 'GENDER']
+        : ['LAST NAME', 'FIRST NAME', 'MIDDLE NAME', 'NAME EXTENSION', 'GENDER'];
     
     // Provide sample entries to guide the user
     const data = [
         headers,
-        ['DOE', 'JOHN', 'SMITH', 'JR', 'Male'],
-        ['DELA CRUZ', 'MARIA', 'SANTOS', '', 'Female']
+        isAdvisory 
+            ? ['102345678901', 'DOE', 'JOHN', 'SMITH', 'JR', 'Male']
+            : ['DOE', 'JOHN', 'SMITH', 'JR', 'Male'],
+        isAdvisory
+            ? ['102345678902', 'DELA CRUZ', 'MARIA', 'SANTOS', '', 'Female']
+            : ['DELA CRUZ', 'MARIA', 'SANTOS', '', 'Female']
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(data);
 
     // Auto-fit column widths
-    const wscols = [
-        { wch: 20 }, // LAST NAME
-        { wch: 20 }, // FIRST NAME
-        { wch: 20 }, // MIDDLE NAME
-        { wch: 15 }, // NAME EXTENSION
-        { wch: 10 }  // GENDER
-    ];
+    const wscols = isAdvisory 
+        ? [
+            { wch: 15 }, // LRN
+            { wch: 20 }, // LAST NAME
+            { wch: 20 }, // FIRST NAME
+            { wch: 20 }, // MIDDLE NAME
+            { wch: 15 }, // NAME EXTENSION
+            { wch: 10 }  // GENDER
+          ]
+        : [
+            { wch: 20 }, // LAST NAME
+            { wch: 20 }, // FIRST NAME
+            { wch: 20 }, // MIDDLE NAME
+            { wch: 15 }, // NAME EXTENSION
+            { wch: 10 }  // GENDER
+          ];
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Enrollment Template');
@@ -37,7 +52,7 @@ export const downloadEnrollmentTemplate = (sectionName: string) => {
 /**
  * Parses the custom enrollment spreadsheet / CSV.
  * Converts names to uppercase (ALL CAPS), validates gender, and generates
- * unique temporary LRNs starting with "TEMP-".
+ * unique temporary LRNs starting with "TEMP-" if not provided.
  */
 export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Student>[]> => {
     return new Promise((resolve, reject) => {
@@ -79,6 +94,7 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
 
                 const headers = (jsonData[headerRowIndex] as unknown[]).map(h => String(h || '').toUpperCase().trim());
                 
+                const colLrnIdx = headers.indexOf('LRN');
                 const colLastNameIdx = headers.indexOf('LAST NAME');
                 const colFirstNameIdx = headers.indexOf('FIRST NAME');
                 const colMiddleNameIdx = headers.indexOf('MIDDLE NAME');
@@ -101,6 +117,15 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
                     // Skip row if both first name and last name are empty
                     if (!lastNameRaw && !firstNameRaw) continue;
 
+                    let lrn = '';
+                    if (colLrnIdx !== -1) {
+                        lrn = String(row[colLrnIdx] || '').trim();
+                    }
+                    // Validate LRN format (must be 12 digits or a TEMP LRN)
+                    if (!lrn || (!/^\d{12}$/.test(lrn) && !lrn.startsWith('TEMP-'))) {
+                        lrn = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}-${i}`;
+                    }
+
                     const middleNameRaw = colMiddleNameIdx !== -1 ? String(row[colMiddleNameIdx] || '').trim() : '';
                     const nameExtRaw = colNameExtensionIdx !== -1 ? String(row[colNameExtensionIdx] || '').trim() : '';
                     const genderRaw = String(row[colGenderIdx] || '').trim();
@@ -117,11 +142,8 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
                     const middleName = middleNameRaw.toUpperCase();
                     const nameExtension = nameExtRaw.toUpperCase();
 
-                    // Generate temporary LRN: "TEMP-timestamp-random-index"
-                    const tempLrn = `TEMP-${Date.now()}-${Math.floor(Math.random() * 10000)}-${i}`;
-
                     students.push({
-                        lrn: tempLrn,
+                        lrn,
                         last_name: lastName,
                         first_name: firstName,
                         middle_name: middleName,

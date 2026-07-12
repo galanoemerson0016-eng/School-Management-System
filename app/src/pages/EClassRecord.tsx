@@ -618,8 +618,9 @@ export function EClassRecord() {
 
     // Determine the actual subject ID to use for grading/fetching
     const effectiveSubjectId = useMemo(() => {
-        const isMapeh = selectedSubject === 'virtual_mapeh' || 
-                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH';
+        const isMapeh = (selectedSubject === 'virtual_mapeh' || 
+                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
+                       mapehComponents.length > 0;
         
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isMapeh && !isSummaryMode) {
@@ -633,8 +634,9 @@ export function EClassRecord() {
     }, [subjects, effectiveSubjectId, selectedSubject]);
 
     useEffect(() => {
-        const isMapeh = selectedSubject === 'virtual_mapeh' || 
-                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH';
+        const isMapeh = (selectedSubject === 'virtual_mapeh' || 
+                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
+                       mapehComponents.length > 0;
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isMapeh && mapehComponents.length > 0 && !selectedMapehComponentId && !isSummaryMode) {
             setSelectedMapehComponentId(mapehComponents[0].id);
@@ -858,7 +860,7 @@ export function EClassRecord() {
     }, [sectionGradeLevel, activeSchoolYear]);
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
-        const isMapeh = subjectName.toUpperCase() === 'MAPEH';
+        const isMapeh = subjectName.toUpperCase() === 'MAPEH' && mapehComponents.length > 0;
         
         const targetSubjectObj = subjects.find(s => s.id === selectedSubject);
         const isTermOffered = (subj: typeof targetSubjectObj | undefined, q: number) => {

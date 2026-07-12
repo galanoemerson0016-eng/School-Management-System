@@ -12,6 +12,18 @@ import { db as firestore } from '../lib/firebase';
 import { db as localDb } from './database';
 import type { Announcement } from '../types';
 
+export interface CloudAnnouncement {
+    id: string;
+    announcement_title?: string;
+    announcement_content?: string;
+    announcement_date?: string;
+    announcement_type?: 'General' | 'Event' | 'Holiday' | 'Emergency';
+    is_pinned?: boolean;
+    category?: string;
+    author_id?: string;
+    published_at?: Timestamp;
+}
+
 const COLLECTION_NAME = 'shared_announcements';
 
 export const announcementSync = {
@@ -47,7 +59,7 @@ export const announcementSync = {
      * NOTE: No orderBy to avoid requiring a composite index.
      * Sorting is done client-side instead.
      */
-    subscribeToSchool(schoolId: string, onUpdate: (announcements: any[]) => void) {
+    subscribeToSchool(schoolId: string, onUpdate: (announcements: CloudAnnouncement[]) => void) {
         if (!schoolId) return () => {};
 
         const q = query(
@@ -62,7 +74,7 @@ export const announcementSync = {
                 ...doc.data()
             }));
             // Sort client-side by published_at descending
-            announcements.sort((a: any, b: any) => {
+            announcements.sort((a: CloudAnnouncement, b: CloudAnnouncement) => {
                 const aTime = a.published_at?.toMillis?.() || 0;
                 const bTime = b.published_at?.toMillis?.() || 0;
                 return bTime - aTime;
@@ -90,10 +102,10 @@ export const announcementSync = {
         const cloudAnnouncements = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        })) as any[];
+        })) as CloudAnnouncement[];
 
         // Sort client-side
-        cloudAnnouncements.sort((a: any, b: any) => {
+        cloudAnnouncements.sort((a: CloudAnnouncement, b: CloudAnnouncement) => {
             const aTime = a.published_at?.toMillis?.() || 0;
             const bTime = b.published_at?.toMillis?.() || 0;
             return bTime - aTime;

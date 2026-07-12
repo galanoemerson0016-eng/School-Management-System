@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo.
@@ -67,3 +68,4 @@ echo After restarting, you can run:
 echo   START_DEV_G7SPECIAL.bat
 echo.
 pause
+

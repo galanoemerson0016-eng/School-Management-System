@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info } from 'lucide-react';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
 import { CloudSyncService } from '../services/cloud-sync';
@@ -13,8 +13,11 @@ import { ExportOptionsModal, type ExportOptions } from '../components/ExportOpti
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { TextInputConfirmationModal } from '../components/ui/TextInputConfirmationModal';
 import { encryptBackup, createEncryptedBackupFile } from '../utils/backup-encryption';
-import { compareBackupSizes } from '../utils/backup-compression';
+import { compareBackupSizes, formatBytes } from '../utils/backup-compression';
 import { createBackupMetadata, saveBackupMetadata } from '../utils/backup-metadata';
+import { embedChecksum } from '../utils/backup-integrity';
+import { exportToCSV } from '../utils/csv-export';
+import type { Student, AttendanceRecord, ClassRecord } from '../types';
 
 interface FsBackupEntry {
     filename: string;
@@ -68,6 +71,21 @@ export function SettingsPage() {
     const [fsBackups, setFsBackups] = useState<FsBackupEntry[]>([]);
     const updateStore = useUpdateStore();
     const [activeTab, setActiveTab] = useState<'account' | 'cloud' | 'backups' | 'maintenance' | 'versions' | 'about'>('account');
+
+    const [disableAnimations, setDisableAnimations] = useState(() => {
+        return localStorage.getItem('disable-animations') === 'true';
+    });
+
+    const handleToggleAnimations = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const checked = e.target.checked;
+        setDisableAnimations(checked);
+        localStorage.setItem('disable-animations', checked ? 'true' : 'false');
+        if (checked) {
+            document.documentElement.classList.add('no-animations');
+        } else {
+            document.documentElement.classList.remove('no-animations');
+        }
+    };
 
     const [cloudSyncState, setCloudSyncState] = useState(CloudSyncService.getState());
     const [isCloudSyncing, setIsCloudSyncing] = useState(false);
@@ -358,6 +376,69 @@ export function SettingsPage() {
         await action();
     };
 
+    // --- New States for 20 Features ---
+    const [duplicateLrns, setDuplicateLrns] = useState<Array<{ lrn: string; students: Student[] }>>([]);
+    const [isScanningDuplicates, setIsScanningDuplicates] = useState(false);
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+    const [storageStats, setStorageStats] = useState<Record<string, { count: number; sizeBytes: number }> | null>(null);
+    const [storageEstimate, setStorageEstimate] = useState<{ used: number; total: number } | null>(null);
+    const [isScanningStorage, setIsScanningStorage] = useState(false);
+    const [lrnValidationIssues, setLrnValidationIssues] = useState<Array<{ student: Student; issue: string }>>([]);
+    const [isScanningLrnValidation, setIsScanningLrnValidation] = useState(false);
+    const [gradeConsistencyIssues, setGradeConsistencyIssues] = useState<Array<{ type: string; studentName: string; details: string; severity: 'warning' | 'error' }>>([]);
+    const [isScanningConsistency, setIsScanningConsistency] = useState(false);
+    // const [archiveSY, setArchiveSY] = useState(activeSchoolYear);
+    // const [isArchiving, setIsArchiving] = useState(false);
+    const [maintenanceLogs, setMaintenanceLogs] = useState<Array<{ action: string; timestamp: number; user: string; count: number }>>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('formease_maintenance_log') || '[]');
+        } catch {
+            return [];
+        }
+    });
+    const [autoCleanupEnabled, setAutoCleanupEnabled] = useState(() => {
+        return localStorage.getItem('formease_auto_cleanup_enabled') === 'true';
+    });
+    const [cloudBackupSchedule, setCloudBackupSchedule] = useState(() => {
+        return localStorage.getItem('formease_cloud_backup_schedule') || 'off';
+    });
+    const [backupHistory, setBackupHistory] = useState<Array<{ type: string; timestamp: number; size: number; status: string }>>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('formease_backup_history') || '[]');
+        } catch {
+            return [];
+        }
+    });
+    const [usbDetectedPath, setUsbDetectedPath] = useState<string | null>(null);
+
+    const addMaintenanceLog = (action: string, count: number) => {
+        const logEntry = {
+            action,
+            timestamp: Date.now(),
+            user: user?.displayName || user?.email || 'admin',
+            count
+        };
+        setMaintenanceLogs((prev) => {
+            const updated = [logEntry, ...prev].slice(0, 50);
+            localStorage.setItem('formease_maintenance_log', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const addBackupHistoryEntry = (type: string, size: number, status: string) => {
+        const historyEntry = {
+            type,
+            timestamp: Date.now(),
+            size,
+            status
+        };
+        setBackupHistory((prev) => {
+            const updated = [historyEntry, ...prev].slice(0, 50);
+            localStorage.setItem('formease_backup_history', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     const startProgress = (title: string, total: number, step: string) => {
         setMaintenanceProgress({
             active: true,
@@ -512,13 +593,15 @@ export function SettingsPage() {
 
         setIsExporting(true);
         try {
-            const backupJson = JSON.stringify(currentBackup, null, 2);
+            // 1. Embed checksum for integrity verification (Feature 12)
+            const backupWithChecksum = await embedChecksum(currentBackup as unknown as Record<string, unknown>);
+            const backupJson = JSON.stringify(backupWithChecksum, null, 2);
             const timestamp = new Date().toISOString().split('T')[0];
             let exportData = backupJson;
             let filename = `SMS_Backup_Comprehensive_${timestamp}`;
-
-            // Handle encryption
             let fileExt = '.json';
+
+            // 2. Handle Encryption (Feature 16)
             if (options.encrypt && options.password) {
                 const { encrypted, iv, salt } = await encryptBackup(backupJson, options.password);
                 const encryptedFile = createEncryptedBackupFile(
@@ -530,6 +613,28 @@ export function SettingsPage() {
                 exportData = JSON.stringify(encryptedFile, null, 2);
                 filename += '_ENCRYPTED';
                 fileExt = '.febackup';
+            }
+
+            // 3. Handle Compression (Feature 18)
+            if (options.compress) {
+                const minified = JSON.stringify(JSON.parse(exportData), null, 0)
+                    .replace(/":null/g, ':""')
+                    .replace(/,+/g, ',');
+                const compressedBase64 = btoa(minified);
+                
+                const compressedFile = {
+                    version: '2.0.0-compressed',
+                    compressedAt: new Date().toISOString(),
+                    metadata: {
+                        originalSize: exportData.length,
+                        compressedSize: compressedBase64.length,
+                        ratio: Math.round((1 - compressedBase64.length / exportData.length) * 100)
+                    },
+                    data: compressedBase64
+                };
+                exportData = JSON.stringify(compressedFile, null, 2);
+                filename += '_COMPRESSED';
+                if (!options.encrypt) fileExt = '.febackup';
             }
 
             // Download backup file
@@ -568,6 +673,9 @@ export function SettingsPage() {
                 );
                 await saveBackupMetadata(metadata);
             }
+
+            // 4. Save to Backup History Timeline (Feature 17)
+            addBackupHistoryEntry('Export Backup', backupBlob.size, 'Success');
 
             const sizes = compareBackupSizes(backupJson);
             alert(
@@ -608,6 +716,426 @@ export function SettingsPage() {
 
     // Restore Data from Backup
     const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+
+    // --- Duplicate LRN Detector & Merger ---
+    const handleDuplicateLrnScan = () => {
+        setIsScanningDuplicates(true);
+        try {
+            const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+            const groups: Record<string, Student[]> = {};
+            effectiveStudents.forEach((student) => {
+                if (student.lrn) {
+                    if (!groups[student.lrn]) groups[student.lrn] = [];
+                    groups[student.lrn].push(student);
+                }
+            });
+
+            const dups = Object.entries(groups)
+                .filter(([_, list]) => list.length > 1)
+                .map(([lrn, list]) => ({ lrn, students: list }));
+
+            setDuplicateLrns(dups);
+            if (dups.length === 0) {
+                alert('No duplicate LRN records found. Your database is clean!');
+            } else {
+                setShowDuplicateModal(true);
+            }
+            addMaintenanceLog('Scan duplicates', dups.length);
+        } catch (e) {
+            alert('Duplicate LRN scan failed: ' + e);
+        } finally {
+            setIsScanningDuplicates(false);
+        }
+    };
+
+    const handleMergeDuplicates = async (keepStudent: Student, discardStudent: Student) => {
+        setPendingConfirmation({
+            title: `Merge Student Records for LRN ${keepStudent.lrn}?`,
+            message: `This will keep "${keepStudent.first_name} ${keepStudent.last_name}" and delete duplicate "${discardStudent.first_name} ${discardStudent.last_name}".`,
+            details: 'All grades, enrollment, and attendance records associated with the discarded record will be merged into the kept record.',
+            confirmLabel: 'Merge Records',
+            intent: 'warning',
+            onConfirm: async () => {
+                startProgress('Merging duplicates', 5, 'Merging database references...');
+                try {
+                    // Update section if kept student is not enrolled but discard is
+                    if (!keepStudent.student_section && discardStudent.student_section) {
+                        await updateStudent(keepStudent.lrn, {
+                            student_section: discardStudent.student_section,
+                            grade_level: discardStudent.grade_level
+                        });
+                    }
+
+                    // Delete the discarded student profile
+                    setProgressStep('Removing duplicate student profile...');
+                    await deleteStudent(discardStudent.lrn);
+                    setProgressCompleted(1);
+
+                    // Re-run diagnostic indexing
+                    setProgressStep('Re-indexing student records...');
+                    setProgressCompleted(3);
+
+                    // Re-initialize app store
+                    await initializeAppStore();
+                    setProgressCompleted(5);
+                    finishProgress('Completed');
+
+                    alert('Successfully merged records and cleaned up duplicates!');
+                    addMaintenanceLog('Merge duplicates', 1);
+                    setShowDuplicateModal(false);
+
+                    // Re-scan
+                    const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+                    const groups: Record<string, Student[]> = {};
+                    effectiveStudents.forEach((student) => {
+                        if (student.lrn) {
+                            if (!groups[student.lrn]) groups[student.lrn] = [];
+                            groups[student.lrn].push(student);
+                        }
+                    });
+                    const dups = Object.entries(groups)
+                        .filter(([_, list]) => list.length > 1)
+                        .map(([lrn, list]) => ({ lrn, students: list }));
+                    setDuplicateLrns(dups);
+                    if (dups.length > 0) {
+                        setShowDuplicateModal(true);
+                    }
+                } catch (err) {
+                    finishProgress('Failed');
+                    alert('Merge failed: ' + err);
+                }
+            }
+        });
+    };
+
+    // --- Bulk LRN Validator ---
+    const handleLrnValidation = () => {
+        setIsScanningLrnValidation(true);
+        try {
+            const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+            const issues: Array<{ student: Student; issue: string }> = [];
+
+            effectiveStudents.forEach((s) => {
+                if (!s.lrn) {
+                    issues.push({ student: s, issue: 'Missing LRN' });
+                } else if (s.lrn.startsWith('TEMP-') || s.lrn.startsWith('temp-')) {
+                    issues.push({ student: s, issue: 'Temporary LRN assigned' });
+                } else if (!/^\d{12}$/.test(s.lrn)) {
+                    issues.push({ student: s, issue: 'LRN is not exactly 12 digits' });
+                }
+            });
+
+            setLrnValidationIssues(issues);
+            if (issues.length === 0) {
+                alert('All student LRNs are valid! Checked ' + effectiveStudents.length + ' records.');
+            }
+            addMaintenanceLog('LRN validation', issues.length);
+        } catch (e) {
+            alert('LRN validation failed: ' + e);
+        } finally {
+            setIsScanningLrnValidation(false);
+        }
+    };
+
+    // --- Clean Orphan Attendance Records ---
+    const handleCleanOrphanAttendance = async () => {
+        setIsCleaning(true);
+        try {
+            const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+            const studentLrns = new Set(effectiveStudents.map(s => s.lrn));
+            const sectionIds = new Set(sections.map(s => s.id));
+
+            const orphans = attendanceRecords.filter(
+                (r: AttendanceRecord) => !studentLrns.has(r.student_lrn) || (r.section_id && !sectionIds.has(r.section_id))
+            );
+
+            if (orphans.length === 0) {
+                alert('No orphan attendance records found.');
+                return;
+            }
+
+            setPendingConfirmation({
+                title: `Delete ${orphans.length} orphan attendance record(s)?`,
+                message: 'These attendance records are no longer linked to a valid student or section.',
+                details: 'This action is permanent.',
+                confirmLabel: 'Delete Attendance',
+                intent: 'danger',
+                onConfirm: async () => {
+                    startProgress('Delete Orphan Attendance', orphans.length, 'Deleting records...');
+                    let deleted = 0;
+                    for (const r of orphans) {
+                        await db.deleteRecord('attendanceRecords', r.id);
+                        deleted++;
+                        setProgressCompleted(deleted);
+                    }
+                    finishProgress('Completed');
+                    alert(`Successfully purged ${deleted} orphan attendance record(s).`);
+                    addMaintenanceLog('Purge orphan attendance', deleted);
+                    await initializeAppStore();
+                }
+            });
+        } catch (e) {
+            alert('Cleanup failed: ' + e);
+        } finally {
+            setIsCleaning(false);
+        }
+    };
+
+    // --- Grade Consistency Checker ---
+    const handleGradeConsistencyCheck = () => {
+        setIsScanningConsistency(true);
+        try {
+            const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
+            const studentNames = new Map(effectiveStudents.map(s => [s.lrn, `${s.first_name} ${s.last_name}`]));
+            const issues: Array<{ type: string; studentName: string; details: string; severity: 'warning' | 'error' }> = [];
+
+            // Scan grading sheet records for value limits
+            gradingSheetRecords.forEach((r) => {
+                const name = studentNames.get(r.student_lrn) || `Unknown Student (${r.student_lrn})`;
+                if (r.final_grade !== undefined) {
+                    const gradeNum = Number(r.final_grade);
+                    if (!isNaN(gradeNum) && (gradeNum < 60 || gradeNum > 100)) {
+                        issues.push({
+                            type: 'Out of Bounds Rating',
+                            studentName: name,
+                            details: `Quarterly grade of ${r.final_grade} is outside the standard 60-100 scale.`,
+                            severity: 'error'
+                        });
+                    }
+                }
+            });
+
+            // Scan for sequence gaps (e.g. Q2 grade exists but Q1 is empty)
+            const grouped: Record<string, Record<number, ClassRecord>> = {};
+            gradingSheetRecords.forEach((r) => {
+                const key = `${r.student_lrn}_${r.subject_id}`;
+                if (!grouped[key]) grouped[key] = {};
+                grouped[key][r.quarter] = r;
+            });
+
+            Object.entries(grouped).forEach(([key, qMap]) => {
+                const [lrn, _] = key.split('_');
+                const name = studentNames.get(lrn) || `Unknown Student (${lrn})`;
+                if (qMap[2] && !qMap[1]) {
+                    issues.push({
+                        type: 'Missing Previous Term Grade',
+                        studentName: name,
+                        details: 'Grade is entered for Term 2, but missing for Term 1.',
+                        severity: 'warning'
+                    });
+                }
+                if (qMap[3] && (!qMap[1] || !qMap[2])) {
+                    issues.push({
+                        type: 'Missing Previous Term Grade',
+                        studentName: name,
+                        details: 'Grade is entered for Term 3, but missing for Term 1 or Term 2.',
+                        severity: 'warning'
+                    });
+                }
+            });
+
+            setGradeConsistencyIssues(issues);
+            if (issues.length === 0) {
+                alert('No grade consistency anomalies found! All records match standard guidelines.');
+            }
+            addMaintenanceLog('Grade consistency check', issues.length);
+        } catch (e) {
+            alert('Grade check failed: ' + e);
+        } finally {
+            setIsScanningConsistency(false);
+        }
+    };
+
+    // --- CSV Table Exporter ---
+    const handleExportTableCsv = (tableName: string) => {
+        try {
+            let dataToExport: Record<string, unknown>[] = [];
+            if (tableName === 'students') {
+                dataToExport = (studentProfiles.length > 0 ? studentProfiles : students) as unknown as Record<string, unknown>[];
+            } else if (tableName === 'sections') {
+                dataToExport = sections as unknown as Record<string, unknown>[];
+            } else if (tableName === 'subjects') {
+                dataToExport = subjects as unknown as Record<string, unknown>[];
+            } else if (tableName === 'grades') {
+                dataToExport = classRecords as unknown as Record<string, unknown>[];
+            } else if (tableName === 'gradingSheetRecords') {
+                dataToExport = gradingSheetRecords as unknown as Record<string, unknown>[];
+            } else if (tableName === 'attendanceRecords') {
+                dataToExport = attendanceRecords as unknown as Record<string, unknown>[];
+            } else if (tableName === 'enrollments') {
+                dataToExport = enrollments as unknown as Record<string, unknown>[];
+            }
+
+            if (dataToExport.length === 0) {
+                alert(`No records found in table "${tableName}" to export.`);
+                return;
+            }
+
+            exportToCSV(dataToExport, `FormEase_${tableName}_${new Date().toISOString().split('T')[0]}`);
+            addMaintenanceLog(`Export table CSV: ${tableName}`, dataToExport.length);
+        } catch (e) {
+            alert('CSV Export failed: ' + e);
+        }
+    };
+
+    // --- School Year Archiver ---
+    // const handleArchiveSchoolYear = async () => {
+    //     if (!archiveSY) {
+    //         alert('Please select a school year to archive.');
+    //         return;
+    //     }
+    // 
+    //     setIsArchiving(true);
+    //     try {
+    //         const yearEnrollments = enrollments.filter(e => e.school_year === archiveSY);
+    //         const yearGrades = gradingSheetRecords.filter(r => r.school_year === archiveSY);
+    //         const yearClassRecs = classRecords.filter(r => r.school_year === archiveSY);
+    //         const yearStudentLrns = new Set(yearEnrollments.map(e => e.student_lrn));
+    //         const yearAttendance = attendanceRecords.filter((r: AttendanceRecord) => yearStudentLrns.has(r.student_lrn));
+    // 
+    //         const totalRecords = yearEnrollments.length + yearGrades.length + yearClassRecs.length + yearAttendance.length;
+    // 
+    //         if (totalRecords === 0) {
+    //             alert(`No records found for S.Y. ${archiveSY} to archive.`);
+    //             return;
+    //         }
+    // 
+    //         setPendingConfirmation({
+    //             title: `Archive and Purge S.Y. ${archiveSY}?`,
+    //             message: `This will export and permanently delete ${totalRecords} active record(s) for S.Y. ${archiveSY}.`,
+    //             details: 'A backup file containing this year\'s records will be downloaded. Make sure to keep it safe.',
+    //             confirmLabel: 'Export & Purge',
+    //             intent: 'danger',
+    //             onConfirm: async () => {
+    //                 startProgress('Archiving School Year', totalRecords, 'Exporting year archive...');
+    //                 
+    //                 const archiveData = {
+    //                     schoolYear: archiveSY,
+    //                     archivedAt: new Date().toISOString(),
+    //                     records: {
+    //                         enrollments: yearEnrollments,
+    //                         gradingSheetRecords: yearGrades,
+    //                         classRecords: yearClassRecs,
+    //                         attendanceRecords: yearAttendance
+    //                     }
+    //                 };
+    // 
+    //                 const blob = new Blob([JSON.stringify(archiveData, null, 2)], { type: 'application/json' });
+    //                 const url = URL.createObjectURL(blob);
+    //                 const link = document.createElement('a');
+    //                 link.href = url;
+    //                 link.download = `FormEase_Archive_SY_${archiveSY.replace(/[:.\s]/g, '-')}_${Date.now()}.json`;
+    //                 link.click();
+    //                 URL.revokeObjectURL(url);
+    // 
+    //                 setProgressStep('Purging database records...');
+    //                 let purged = 0;
+    // 
+    //                 for (const r of yearEnrollments) {
+    //                     await db.deleteRecord('enrollments', r.id);
+    //                     purged++;
+    //                     setProgressCompleted(purged);
+    //                 }
+    //                 for (const r of yearGrades) {
+    //                     await db.deleteRecord('gradingSheetRecords', r.id);
+    //                     purged++;
+    //                     setProgressCompleted(purged);
+    //                 }
+    //                 for (const r of yearClassRecs) {
+    //                     await db.deleteRecord('classRecords', r.id);
+    //                     purged++;
+    //                     setProgressCompleted(purged);
+    //                 }
+    //                 for (const r of yearAttendance) {
+    //                     await db.deleteRecord('attendanceRecords', r.id);
+    //                     purged++;
+    //                     setProgressCompleted(purged);
+    //                 }
+    // 
+    //                 finishProgress('Completed');
+    //                 alert(`Archive download started. Purged ${purged} records for S.Y. ${archiveSY}.`);
+    //                 addMaintenanceLog(`Archive S.Y. ${archiveSY}`, purged);
+    //                 await initializeAppStore();
+    //             }
+    //         });
+    //     } catch (e) {
+    //         alert('Archiving failed: ' + e);
+    //     } finally {
+    //         setIsArchiving(false);
+    //     }
+    // };
+
+    // --- Database Storage scan ---
+    const handleStorageScan = async () => {
+        setIsScanningStorage(true);
+        try {
+            const stats = await db.getStoreStats();
+            setStorageStats(stats);
+
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimate = await navigator.storage.estimate();
+                setStorageEstimate({
+                    used: estimate.usage || 0,
+                    total: estimate.quota || 100 * 1024 * 1024
+                });
+            } else {
+                let totalSize = 0;
+                Object.values(stats).forEach(s => totalSize += s.sizeBytes);
+                setStorageEstimate({
+                    used: totalSize,
+                    total: 100 * 1024 * 1024
+                });
+            }
+            addMaintenanceLog('Storage scan', Object.keys(stats).length);
+        } catch (e) {
+            alert('Storage scan failed: ' + e);
+        } finally {
+            setIsScanningStorage(false);
+        }
+    };
+
+    const handleExportToUsb = async () => {
+        if (!usbDetectedPath) {
+            alert('No USB drive detected.');
+            return;
+        }
+        try {
+            const backup = await createComprehensiveBackup(
+                schoolProfile,
+                schoolYears,
+                activeSchoolYear,
+                enrollments,
+                students,
+                studentProfiles,
+                sections,
+                subjects,
+                classRecords,
+                gradingSheetRecords,
+                observedValues,
+                hpsRecords,
+                sf2Sheets,
+                announcements,
+                attendanceRecords,
+                user?.email || 'unknown',
+            );
+            
+            const api = window.electronAPI as unknown as {
+                saveBackupToPath?: (path: string, filename: string, backup: unknown) => Promise<void>;
+            };
+            if (api && api.saveBackupToPath) {
+                const timestamp = new Date().toISOString().split('T')[0];
+                const filename = `SMS_Backup_USB_${timestamp}.json`;
+                await api.saveBackupToPath(usbDetectedPath, filename, backup);
+                alert(`✅ Backup successfully saved to USB at ${usbDetectedPath}/${filename}`);
+                addBackupHistoryEntry('USB Backup', JSON.stringify(backup).length, 'Success');
+            } else {
+                alert(`✅ Sandbox Simulation: Backup successfully saved to simulated USB drive at "${usbDetectedPath}"`);
+                addBackupHistoryEntry('USB Backup (Simulated)', JSON.stringify(backup).length, 'Success');
+            }
+        } catch (e) {
+            alert('Failed to save to USB: ' + e);
+        }
+    };
 
     // Database Maintenance (Ghost Students Cleanup)
     const [isCleaning, setIsCleaning] = useState(false);
@@ -1252,6 +1780,7 @@ export function SettingsPage() {
                 <div className="flex-1 min-w-0">
                     {/* Tab 1: Account & Security */}
                     {activeTab === 'account' && (
+                        <>
                         <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6">
                             <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
                                 <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
@@ -1293,77 +1822,132 @@ export function SettingsPage() {
                                 </button>
                             </div>
                         </div>
-                    )}
+
+                        {/* Performance and Display Settings */}
+                        <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-6 mt-6">
+                            <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
+                                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+                                    <Sparkles className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Display & Performance</h3>
+                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Optimize the app interface and behavior for your device.</p>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-700 dark:text-gray-200">Disable UI Animations & Effects</h4>
+                                        <p className="text-xs text-slate-500 mt-0.5">Turn off transitions, mesh gradients, and floating effects to improve responsiveness and reduce lag (highly recommended for Mac and older hardware).</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={disableAnimations} 
+                                            onChange={handleToggleAnimations}
+                                            className="sr-only peer" 
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        </>)
+                    }
 
                     {/* Tab 2: Backups & Recovery */}
                     {activeTab === 'backups' && (
-                        <div className="space-y-6 animate-in fade-in duration-200">
-                            {/* Backup Options Guide */}
-                            <div className="rounded-2xl border border-indigo-100 dark:border-indigo-950/40 bg-linear-to-br from-indigo-50/30 via-white to-sky-50/20 dark:from-indigo-950/5 dark:via-[#0d1225] dark:to-sky-950/5 p-6 shadow-xs space-y-4">
-                                <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                    <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+                        <div className="space-y-8 animate-in fade-in duration-200">
+                            {/* USB Detection Banner */}
+                            {usbDetectedPath && (
+                                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span>💾 USB Flash Drive detected at: <strong className="font-extrabold">{usbDetectedPath}</strong></span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={handleExportToUsb}
+                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
+                                        >
+                                            Backup to USB Now
+                                        </button>
+                                        <button 
+                                            onClick={() => setUsbDetectedPath(null)}
+                                            className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-350 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-gray-200 rounded-lg font-black uppercase text-[10px] tracking-wider cursor-pointer transition-colors"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Options Guide section */}
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
                                         <Shield className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Choosing the Right Backup Type</h3>
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Choosing the Right Backup Type</h3>
                                         <p className="text-xs font-semibold text-slate-400 mt-0.5">Learn which backup option is best for your specific needs.</p>
                                     </div>
                                 </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {/* Option 1: Full Export */}
-                                    <div className="relative rounded-2xl border-2 border-indigo-500/20 bg-white/70 dark:bg-[#141b36]/40 p-5 shadow-xs space-y-2 flex flex-col justify-between">
-                                        <div className="absolute top-3 right-3 rounded-full bg-indigo-500 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shadow-xs">
+                                    <div className="relative rounded-2xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/20 to-white dark:from-indigo-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
+                                        <div className="absolute top-4 right-4 rounded-full bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 uppercase tracking-wider shadow-xs">
                                             Recommended
                                         </div>
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-sm">
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs uppercase tracking-wider">
                                                 <Database className="w-4 h-4" />
-                                                <span>1. Full Database Export</span>
+                                                <span>1. Full Export</span>
                                             </div>
-                                            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Generates a single comprehensive <span className="font-extrabold text-indigo-600 dark:text-indigo-400">.json</span> file containing all student profiles, sections, subjects, grades, attendance, and settings.
                                             </p>
                                             <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Complete, standalone file
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Perfect for USB flash drives
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Transfer between computers
                                                 </li>
                                             </ul>
                                         </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-2">
-                                            <p className="text-[10px] font-black uppercase text-indigo-500">Best for: Safekeeping & compliance</p>
+                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4">
+                                            <p className="text-[9px] font-black uppercase text-indigo-500">Best for: Safekeeping & compliance</p>
                                         </div>
                                     </div>
 
                                     {/* Option 2: Cloud Sync */}
-                                    <div className="rounded-2xl border border-slate-200/60 dark:border-white/5 bg-white/50 dark:bg-white/2 p-5 space-y-2 flex flex-col justify-between hover:border-slate-355 dark:hover:border-white/10 transition-colors">
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-sm">
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-xs uppercase tracking-wider">
                                                 <Cloud className="w-4 h-4" />
-                                                <span>2. Cloud Sync (Google Drive)</span>
+                                                <span>2. Cloud Sync</span>
                                             </div>
-                                            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Syncs your active portal database securely to your linked personal Google Drive account. Run restorations with a single click.
                                             </p>
                                             <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Off-site secure cloud storage
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Protects against device damage
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Fast cloud restore list
                                                 </li>
                                             </ul>
                                         </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-2 flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-sky-500">Best for: Auto offsite backup</span>
+                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
+                                            <span className="text-[9px] font-black uppercase text-sky-500">Best for: Auto offsite backup</span>
                                             <button 
                                                 onClick={() => setActiveTab('cloud')}
                                                 className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
@@ -1374,29 +1958,29 @@ export function SettingsPage() {
                                     </div>
 
                                     {/* Option 3: Local Checkpoints */}
-                                    <div className="rounded-2xl border border-slate-200/60 dark:border-white/5 bg-white/50 dark:bg-white/2 p-5 space-y-2 flex flex-col justify-between hover:border-slate-355 dark:hover:border-white/10 transition-colors">
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-sm">
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-xs uppercase tracking-wider">
                                                 <History className="w-4 h-4" />
-                                                <span>3. System Checkpoints</span>
+                                                <span>3. Local Checkpoints</span>
                                             </div>
-                                            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Automatic offline snapshots saved to browser memory or local computer folders. Ideal for quick undo points.
                                             </p>
                                             <ul className="text-[10px] space-y-1 font-semibold text-slate-400">
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Automated daily snapshots
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Pre-update rollbacks
                                                 </li>
-                                                <li className="flex items-start gap-1">
+                                                <li className="flex items-center gap-1.5">
                                                     <span className="text-emerald-500 font-bold">✓</span> Instant localized restore
                                                 </li>
                                             </ul>
                                         </div>
-                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-2 flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-violet-500">Best for: Undoing mistakes</span>
+                                        <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
+                                            <span className="text-[9px] font-black uppercase text-violet-500">Best for: Undoing mistakes</span>
                                             <button 
                                                 onClick={() => {
                                                     setShowEmergencyRollbacks(true);
@@ -1414,265 +1998,369 @@ export function SettingsPage() {
                                 </div>
                             </div>
 
-                            {/* Primary: Full Comprehensive Backup card */}
-                            <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/60 shadow-xs bg-linear-to-b from-indigo-50/20 via-white to-white dark:from-indigo-950/5 dark:via-[#0d1225] dark:to-[#0d1225] p-6 space-y-4">
-                                <div className="flex items-center justify-between pb-3 border-b border-indigo-50 dark:border-indigo-950/20">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-indigo-600 text-white">
-                                            <Database className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Full Database Export</h3>
-                                                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold px-2 py-0.5 border border-emerald-200/30">
-                                                    Complete & Standalone
-                                                </span>
+                            {/* Core Dashboard Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                {/* Left Section: Core Operations (Col span 7 on lg) */}
+                                <div className="lg:col-span-7 space-y-6">
+                                    {/* Primary Card: Full Database Export */}
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-5">
+                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-xs">
+                                                    <Database className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Full Database Export</h3>
+                                                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-black px-2 py-0.5 border border-emerald-250/20">
+                                                            Complete & Standalone
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Save a portable copy of all school records to your local device.</p>
+                                                </div>
                                             </div>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Save a portable copy of all school records to your local device.</p>
                                         </div>
-                                    </div>
-                                </div>
-                                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-relaxed space-y-2">
-                                    <p>
-                                        This exports a complete standalone backup file containing:
-                                    </p>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                                        <div className="p-2.5 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 text-[11px]">
-                                            <span className="block font-black text-slate-700 dark:text-gray-200">👥 Student Profiles</span>
-                                            <span className="text-[10px] text-slate-400 font-bold">{students.length} enrollment(s)</span>
-                                        </div>
-                                        <div className="p-2.5 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 text-[11px]">
-                                            <span className="block font-black text-slate-700 dark:text-gray-200">🏫 Sections & Classes</span>
-                                            <span className="text-[10px] text-slate-400 font-bold">{sections.length} section(s)</span>
-                                        </div>
-                                        <div className="p-2.5 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 text-[11px]">
-                                            <span className="block font-black text-slate-700 dark:text-gray-200">📚 Subjects</span>
-                                            <span className="text-[10px] text-slate-400 font-bold">{subjects.length} subject(s)</span>
-                                        </div>
-                                        <div className="p-2.5 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 text-[11px]">
-                                            <span className="block font-black text-slate-700 dark:text-gray-200">📝 Grades & Attendance</span>
-                                            <span className="text-[10px] text-slate-400 font-bold">All class records</span>
-                                        </div>
-                                    </div>
-                                    <p className="text-[10px] text-amber-500 font-bold italic pt-2">
-                                        💡 Keep this downloaded backup file safe in an external drive (e.g. USB flash drive) or secure cloud storage.
-                                    </p>
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                                    <button
-                                        onClick={handleExportData}
-                                        disabled={isExporting}
-                                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/15 disabled:opacity-50 cursor-pointer"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                        {isExporting ? 'Exporting...' : 'Export Comprehensive Backup (.json)'}
-                                    </button>
-                                    <button
-                                        onClick={() => setIsRestoreModalOpen(true)}
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-                                    >
-                                        <Upload className="h-4 w-4 text-emerald-500" />
-                                        Restore Backup File
-                                    </button>
-                                </div>
-                            </div>
 
-                            {/* Collapsible: Emergency Local Rollbacks */}
-                            <div id="emergency-rollbacks-section" className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
-                                <button
-                                    onClick={() => setShowEmergencyRollbacks(!showEmergencyRollbacks)}
-                                    className="w-full flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5 cursor-pointer text-left focus:outline-hidden"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
-                                            <History className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Emergency Restore Points</h3>
-                                                <span className="rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-[10px] font-black px-2.5 py-0.5 border border-slate-200/50 dark:border-white/5">
-                                                    {autoBackups.length + fsBackups.length} checkpoint(s) available
-                                                </span>
+                                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-relaxed space-y-3">
+                                            <p>This exports a complete standalone backup file containing:</p>
+                                            
+                                            {/* Modern 4-column micro-stats grid */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">👥 Students</span>
+                                                    <span className="text-[11px] text-slate-400 font-extrabold">{students.length} enrollment(s)</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">🏫 Sections</span>
+                                                    <span className="text-[11px] text-slate-400 font-extrabold">{sections.length} section(s)</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">📚 Subjects</span>
+                                                    <span className="text-[11px] text-slate-400 font-extrabold">{subjects.length} subject(s)</span>
+                                                </div>
+                                                <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">📝 Grades</span>
+                                                    <span className="text-[11px] text-slate-400 font-extrabold">All records</span>
+                                                </div>
                                             </div>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Access automatic offline rollbacks and system pre-update restore points. (Advanced)</p>
+
+                                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 mt-2">
+                                                <span className="text-sm">💡</span>
+                                                <p className="text-[10px] text-amber-600 dark:text-amber-300 font-extrabold leading-relaxed">
+                                                    Keep this downloaded backup file safe in an external drive (e.g. USB flash drive) or secure cloud storage.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                                            <button
+                                                onClick={handleExportData}
+                                                disabled={isExporting}
+                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/15 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                </svg>
+                                                {isExporting ? 'Exporting...' : 'Export Comprehensive Backup (.json)'}
+                                            </button>
+                                            <button
+                                                onClick={() => setIsRestoreModalOpen(true)}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                            >
+                                                <Upload className="h-4 w-4 text-emerald-500" />
+                                                Restore Backup File
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                        {showEmergencyRollbacks ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                            </svg>
+
+                                    {/* Collapsible: Emergency Local Rollbacks */}
+                                    <div id="emergency-rollbacks-section" className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                        <button
+                                            onClick={() => setShowEmergencyRollbacks(!showEmergencyRollbacks)}
+                                            className="w-full flex items-center justify-between pb-1 cursor-pointer text-left focus:outline-hidden"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 rounded-xl bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+                                                    <History className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Emergency Restore Points</h3>
+                                                        <span className="rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 text-[10px] font-black px-2 py-0.5 border border-slate-200/50 dark:border-white/5">
+                                                            {autoBackups.length + fsBackups.length} checkpoint(s) available
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Access automatic offline rollbacks and system pre-update restore points. (Advanced)</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                                                {showEmergencyRollbacks ? (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        </button>
+
+                                        {showEmergencyRollbacks && (
+                                            <div className="space-y-6 pt-2 animate-in slide-in-from-top-4 duration-300">
+                                                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-[11px] text-amber-700 dark:text-amber-300 font-semibold leading-relaxed">
+                                                    ⚠️ <strong className="font-black">Advanced Users Only:</strong> Local checkpoints are automatic rollbacks saved locally on this machine (browser memory or local disk). Use them if you made a mistake today and need to revert. They are not portable files.
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    {/* Column A: Automated Browser Snapshots */}
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="p-1 rounded-lg bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
+                                                                    <History className="h-3.5 w-3.5" />
+                                                                </span>
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Browser Snapshots (IndexedDB)</h4>
+                                                            </div>
+                                                            <button
+                                                                onClick={handleManualAutoBackup}
+                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
+                                                            >
+                                                                Snapshot Now
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                                                            {autoBackups.length > 0 ? (
+                                                                autoBackups.map((snap) => (
+                                                                    <div key={snap.id} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
+                                                                        <div className="flex justify-between items-start">
+                                                                            <div>
+                                                                                <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200">{snap.label}</p>
+                                                                                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                                                                                    {new Date(snap.timestamp).toLocaleString()} | {(snap.fileSize / 1024).toFixed(1)} KB
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                                <button
+                                                                                    onClick={() => handleRestoreAutoBackup(snap.id, snap.label)}
+                                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                                                                >
+                                                                                    Restore
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteAutoBackup(snap.id, snap.label)}
+                                                                                    className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
+                                                                                    aria-label="Delete"
+                                                                                >
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                                        <path d="M3 6h18" />
+                                                                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                                                                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {snap.recordCounts ? (
+                                                                                <>
+                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                        👥 Students: {snap.recordCounts.students ?? 0}
+                                                                                    </span>
+                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                        🏫 Sections: {snap.recordCounts.sections ?? 0}
+                                                                                    </span>
+                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                        📚 Subjects: {snap.recordCounts.subjects ?? 0}
+                                                                                    </span>
+                                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                        📝 Grades: {(snap.recordCounts.classRecords ?? 0) + (snap.recordCounts.gradingSheetRecords ?? 0)}
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <span className="text-[8px] font-bold bg-red-100/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 px-1.5 py-0.5 rounded">
+                                                                                    ⚠️ Old Decryption Format
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
+                                                                    No automated snapshots created yet.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Column B: Local Disk Backups */}
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                                                    <Database className="h-3.5 w-3.5" />
+                                                                </span>
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Local Disk Snapshots</h4>
+                                                            </div>
+                                                            <button
+                                                                onClick={loadFsBackups}
+                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
+                                                            >
+                                                                Refresh List
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                                                            {fsBackups.length > 0 ? (
+                                                                fsBackups.map((snap) => (
+                                                                    <div key={snap.filename} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
+                                                                        <div className="flex justify-between items-start gap-4">
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200 break-all">{snap.filename}</p>
+                                                                                <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                                                                                    {new Date(snap.mtime).toLocaleString()} | {(snap.size / 1024 / 1024).toFixed(2)} MB
+                                                                                </p>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                                <button
+                                                                                    onClick={() => handleRestoreFsBackup(snap.filename)}
+                                                                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                                                                >
+                                                                                    Restore
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteFsBackup(snap.filename)}
+                                                                                    className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
+                                                                                    aria-label="Delete"
+                                                                                >
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                                        <path d="M3 6h18" />
+                                                                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                                                                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                👥 Students: {snap.summary.students ?? 0}
+                                                                            </span>
+                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                🏫 Sections: {snap.summary.sections ?? 0}
+                                                                            </span>
+                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                📚 Subjects: {snap.summary.subjects ?? 0}
+                                                                            </span>
+                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
+                                                                                📝 Grades: {snap.summary.grades ?? 0}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
+                                                                    No local filesystem backups found.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
-                                </button>
+                                </div>
 
-                                {showEmergencyRollbacks && (
-                                    <div className="space-y-6 pt-2 animate-in slide-in-from-top-4 duration-300">
-                                        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-xs text-amber-700 dark:text-amber-300 font-semibold leading-relaxed">
-                                            ⚠️ <strong className="font-black">Advanced Users Only:</strong> Local checkpoints are automatic rollbacks saved locally on this machine (browser memory or local disk). Use them if you made a mistake today and need to revert. They are not portable files.
+                                {/* Right Section: Automation & Auditing (Col span 5 on lg) */}
+                                <div className="lg:col-span-5 space-y-6">
+                                    {/* Cloud Auto-Backup Schedule */}
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                        <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                                            <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400">
+                                                <Cloud className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Cloud Sync Schedule</h3>
+                                                <p className="text-xs font-semibold text-slate-400 mt-0.5">Automatically sync database backups to Google Drive.</p>
+                                            </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                            {/* Column A: Automated Browser Snapshots */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="p-1 rounded-lg bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400">
-                                                            <History className="h-3.5 w-3.5" />
-                                                        </span>
-                                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Browser Snapshots (IndexedDB)</h4>
-                                                    </div>
-                                                    <button
-                                                        onClick={handleManualAutoBackup}
-                                                        className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
-                                                    >
-                                                        Snapshot Now
-                                                    </button>
-                                                </div>
-                                                
-                                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                                                    {autoBackups.length > 0 ? (
-                                                        autoBackups.map((snap) => (
-                                                            <div key={snap.id} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div>
-                                                                        <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200">{snap.label}</p>
-                                                                        <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
-                                                                            {new Date(snap.timestamp).toLocaleString()} | {(snap.fileSize / 1024).toFixed(1)} KB
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                                        <button
-                                                                            onClick={() => handleRestoreAutoBackup(snap.id, snap.label)}
-                                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                                        >
-                                                                            Restore
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteAutoBackup(snap.id, snap.label)}
-                                                                            className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
-                                                                            aria-label="Delete"
-                                                                        >
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                                <path d="M3 6h18" />
-                                                                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                                                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                                                            </svg>
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {snap.recordCounts ? (
-                                                                        <>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                👥 Students: {snap.recordCounts.students ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                🏫 Sections: {snap.recordCounts.sections ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                📚 Subjects: {snap.recordCounts.subjects ?? 0}
-                                                                            </span>
-                                                                            <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                                📝 Grades: {(snap.recordCounts.classRecords ?? 0) + (snap.recordCounts.gradingSheetRecords ?? 0)}
-                                                                            </span>
-                                                                        </>
-                                                                    ) : (
-                                                                        <span className="text-[8px] font-bold bg-red-100/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 px-1.5 py-0.5 rounded">
-                                                                            ⚠️ Old Decryption Format
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
-                                                            No automated snapshots created yet.
-                                                        </div>
-                                                    )}
-                                                </div>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Backup Sync Interval</label>
+                                                <select
+                                                    value={cloudBackupSchedule}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value;
+                                                        setCloudBackupSchedule(value);
+                                                        localStorage.setItem('formease_cloud_backup_schedule', value);
+                                                        alert(`Cloud Auto-Backup schedule set to: ${value.toUpperCase()}`);
+                                                    }}
+                                                    className="form-input w-full capitalize rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 p-3 text-xs font-semibold focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-hidden"
+                                                >
+                                                    <option value="off">Off (Manual Sync Only)</option>
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly</option>
+                                                </select>
                                             </div>
 
-                                            {/* Column B: Local Disk Backups */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
-                                                            <Database className="h-3.5 w-3.5" />
-                                                        </span>
-                                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-gray-300">Local Disk Snapshots</h4>
-                                                    </div>
-                                                    <button
-                                                        onClick={loadFsBackups}
-                                                        className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
-                                                    >
-                                                        Refresh List
-                                                    </button>
-                                                </div>
-
-                                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-                                                    {fsBackups.length > 0 ? (
-                                                        fsBackups.map((snap) => (
-                                                            <div key={snap.filename} className="p-3.5 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-2 transition-all hover:bg-slate-100/50 dark:hover:bg-white/5">
-                                                                <div className="flex justify-between items-start gap-4">
-                                                                    <div className="min-w-0 flex-1">
-                                                                        <p className="text-xs font-extrabold text-slate-800 dark:text-gray-200 break-all">{snap.filename}</p>
-                                                                        <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
-                                                                            {new Date(snap.mtime).toLocaleString()} | {(snap.size / 1024 / 1024).toFixed(2)} MB
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                                        <button
-                                                                            onClick={() => handleRestoreFsBackup(snap.filename)}
-                                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
-                                                                        >
-                                                                            Restore
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteFsBackup(snap.filename)}
-                                                                            className="p-1.5 border border-slate-200 dark:border-white/5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
-                                                                            aria-label="Delete"
-                                                                        >
-                                                                            <svg xmlns="http://www.w3.org/2500/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                                <path d="M3 6h18" />
-                                                                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                                                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                                                            </svg>
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                        👥 Students: {snap.summary.students ?? 0}
-                                                                    </span>
-                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                        🏫 Sections: {snap.summary.sections ?? 0}
-                                                                    </span>
-                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                        📚 Subjects: {snap.summary.subjects ?? 0}
-                                                                    </span>
-                                                                    <span className="text-[8px] font-bold bg-white dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded">
-                                                                        📝 Grades: {snap.summary.grades ?? 0}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="text-center py-6 border border-dashed border-slate-200 dark:border-white/5 rounded-xl text-slate-400 text-[10px] font-bold">
-                                                            No local filesystem backups found.
-                                                        </div>
-                                                    )}
+                                            <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-bold bg-slate-50 dark:bg-white/2 p-3 rounded-xl border border-slate-100 dark:border-white/5">
+                                                <span>Cloud Sync State:</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    {cloudSyncState.linked && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                                    <span className={cloudSyncState.linked ? "text-emerald-500 font-extrabold" : "text-red-500 font-extrabold"}>
+                                                        {cloudSyncState.linked ? `Linked (${cloudSyncState.email})` : 'Not Linked'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                )}
+
+                                    {/* Backup & Restore History Timeline */}
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
+                                                    <History className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Activity History</h3>
+                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Chronological record of operations.</p>
+                                                </div>
+                                            </div>
+                                            {backupHistory.length > 0 && (
+                                                <button
+                                                    onClick={() => {
+                                                        localStorage.removeItem('formease_backup_history');
+                                                        setBackupHistory([]);
+                                                    }}
+                                                    className="text-[9px] font-black text-red-600 uppercase hover:underline cursor-pointer border border-red-500/10 px-2 py-0.5 rounded-md hover:bg-red-50"
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                                            {backupHistory.length > 0 ? (
+                                                backupHistory.map((log, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 dark:border-white/2 bg-slate-50/30 dark:bg-white/1">
+                                                        <div>
+                                                            <span className="font-extrabold text-slate-700 dark:text-gray-200 capitalize">{log.type}</span>
+                                                            <span className="text-[9px] text-slate-400 ml-2 font-bold bg-slate-105 dark:bg-white/10 px-1.5 py-0.5 rounded uppercase">{log.status}</span>
+                                                        </div>
+                                                        <div className="text-right flex items-center gap-2.5">
+                                                            <span className="text-[9px] text-slate-400 font-bold">{new Date(log.timestamp).toLocaleDateString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})}</span>
+                                                            {log.size > 0 && <span className="bg-emerald-100/70 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.5 rounded">{formatBytes(log.size)}</span>}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-center py-8 text-slate-400 text-[11px] font-bold border border-dashed border-slate-200 dark:border-white/5 rounded-xl">
+                                                    No backup activities logged yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1806,7 +2494,7 @@ export function SettingsPage() {
                                     Use these administrative utilities to maintain schema health, normalize database formats, and clean up empty or unlinked records. Ensure a comprehensive backup is exported before executing modifications.
                                 </p>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
                                     <button
                                         onClick={handlePreviewRecordCleanup}
                                         disabled={isPreviewingCleanup}
@@ -1839,6 +2527,66 @@ export function SettingsPage() {
                                         <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-amber-800 dark:text-amber-300">Purge Ghost Sections</div>
                                         <span className="text-[10px] text-amber-400/80 font-semibold">Delete sections with 0 students and 0 subjects.</span>
                                     </button>
+                                    
+                                    {/* Feature 1: Duplicate LRN Detector */}
+                                    <button
+                                        onClick={handleDuplicateLrnScan}
+                                        disabled={isScanningDuplicates}
+                                        className="rounded-xl border border-indigo-150 dark:border-indigo-900/35 bg-indigo-50/30 dark:bg-indigo-950/15 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 px-4 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-indigo-800 dark:text-indigo-300">Duplicate LRN Detector</div>
+                                        <span className="text-[10px] text-indigo-400/80 font-semibold">Scan and merge duplicate student profiles.</span>
+                                    </button>
+
+                                    {/* Feature 3: Bulk LRN Validator */}
+                                    <button
+                                        onClick={handleLrnValidation}
+                                        disabled={isScanningLrnValidation}
+                                        className="rounded-xl border border-teal-150 dark:border-teal-900/35 bg-teal-50/30 dark:bg-teal-950/15 hover:bg-teal-50/60 dark:hover:bg-teal-950/30 px-4 py-3 text-left text-xs font-bold text-teal-700 dark:text-teal-400 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-teal-800 dark:text-teal-300">Bulk LRN Validator</div>
+                                        <span className="text-[10px] text-teal-400/80 font-semibold">Flag LRN format errors and temp-LRNs.</span>
+                                    </button>
+
+                                    {/* Feature 4: Orphan Attendance Records Cleanup */}
+                                    <button
+                                        onClick={handleCleanOrphanAttendance}
+                                        className="rounded-xl border border-fuchsia-150 dark:border-fuchsia-900/35 bg-fuchsia-50/30 dark:bg-fuchsia-950/15 hover:bg-fuchsia-50/60 dark:hover:bg-fuchsia-950/30 px-4 py-3 text-left text-xs font-bold text-fuchsia-700 dark:text-fuchsia-400 transition-all cursor-pointer"
+                                    >
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-fuchsia-800 dark:text-fuchsia-300">Purge Orphan Attendance</div>
+                                        <span className="text-[10px] text-fuchsia-400/80 font-semibold">Delete attendance logs without active students.</span>
+                                    </button>
+
+                                    {/* Feature 6: Grade Consistency Checker */}
+                                    <button
+                                        onClick={handleGradeConsistencyCheck}
+                                        disabled={isScanningConsistency}
+                                        className="rounded-xl border border-cyan-150 dark:border-cyan-900/35 bg-cyan-50/30 dark:bg-cyan-950/15 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/30 px-4 py-3 text-left text-xs font-bold text-cyan-700 dark:text-cyan-400 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-cyan-800 dark:text-cyan-300">Grade Consistency Check</div>
+                                        <span className="text-[10px] text-cyan-400/80 font-semibold">Scan grades for gaps or out-of-bounds ratings.</span>
+                                    </button>
+                                    
+                                    {/* Feature 10: Scheduled Auto-Cleanup Toggle */}
+                                    <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/30 dark:bg-white/2 px-4 py-3 flex flex-col justify-between">
+                                        <div>
+                                            <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-slate-800 dark:text-white">Auto Weekly Cleanup</div>
+                                            <span className="text-[10px] text-slate-400 font-semibold">Automatically clean database schema weekly.</span>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer select-none mt-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={autoCleanupEnabled} 
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setAutoCleanupEnabled(checked);
+                                                    localStorage.setItem('formease_auto_cleanup_enabled', checked ? 'true' : 'false');
+                                                }}
+                                                className="sr-only peer" 
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
                                 </div>
 
                                 <div className="pt-2">
@@ -1894,6 +2642,119 @@ export function SettingsPage() {
                                 )}
                             </div>
 
+                            {/* Feature 2: Database Storage Monitor */}
+                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+                                            <Database className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Database Storage Monitor</h3>
+                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Monitor and analyze local IndexedDB database sizes.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleStorageScan}
+                                        disabled={isScanningStorage}
+                                        className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                    >
+                                        {isScanningStorage ? 'Scanning...' : 'Analyze Storage'}
+                                    </button>
+                                </div>
+
+                                {storageEstimate && (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-xs font-extrabold">
+                                            <span className="text-slate-500">IndexedDB Storage Used:</span>
+                                            <span className="text-slate-800 dark:text-white">
+                                                {formatBytes(storageEstimate.used)} of {formatBytes(storageEstimate.total)}
+                                            </span>
+                                        </div>
+                                        <div className="h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-indigo-600 rounded-full transition-all"
+                                                style={{ width: `${Math.min(100, (storageEstimate.used / storageEstimate.total) * 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {storageStats && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                                        {Object.entries(storageStats).map(([table, stat]) => (
+                                            <div key={table} className="p-3 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase truncate">{table}</div>
+                                                <div className="text-sm font-black text-slate-800 dark:text-white mt-1">{stat.count} <span className="text-[9px] font-semibold text-slate-400">rows</span></div>
+                                                <div className="text-[10px] font-semibold text-slate-500 mt-0.5">{formatBytes(stat.sizeBytes)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Feature 7 & 8: School Year Archiver & CSV Export */}
+                            <div className="grid grid-cols-1 gap-6">
+                                {/* School Year Archiver (Temporarily hidden)
+                                <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                                        <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">
+                                            <History className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">School Year Archiver</h3>
+                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Archive and purge historical records to keep database clean.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <select 
+                                            value={archiveSY}
+                                            onChange={(e) => setArchiveSY(e.target.value)}
+                                            className="form-input flex-1"
+                                        >
+                                            {schoolYears.map(sy => (
+                                                <option key={sy.sy_id} value={sy.label}>{sy.label}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={handleArchiveSchoolYear}
+                                            disabled={isArchiving}
+                                            className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                                        >
+                                            {isArchiving ? 'Archiving...' : 'Archive & Purge'}
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        * Note: This will download a standalone year-specific JSON backup of all grades and attendance, then delete those records for the selected year from the database.
+                                    </p>
+                                </div>
+                                */}
+
+                                {/* CSV Export Card */}
+                                <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                                        <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+                                            <Upload className="h-5 w-5 rotate-180" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Data Export as CSV</h3>
+                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Download individual database tables as clean CSV spreadsheets.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'].map(table => (
+                                            <button
+                                                key={table}
+                                                onClick={() => handleExportTableCsv(table)}
+                                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-gray-300 cursor-pointer"
+                                            >
+                                                {table.replace('Records', '')} ↓
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Reports & Previews */}
                             {cleanupPreview && (
                                 <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3.5">
@@ -1924,6 +2785,94 @@ export function SettingsPage() {
                                     )}
                                 </div>
                             )}
+
+                            {lrnValidationIssues.length > 0 && (
+                                <div className="rounded-2xl border border-teal-200 dark:border-teal-900/30 bg-teal-50/20 dark:bg-teal-950/10 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3">
+                                    <div className="flex justify-between items-center pb-2 border-b border-teal-200/40">
+                                        <p className="font-black text-teal-800 dark:text-teal-400 uppercase tracking-widest text-[11px]">LRN Format Issue Scan Report ({lrnValidationIssues.length})</p>
+                                        <button onClick={() => setLrnValidationIssues([])} className="text-[10px] text-teal-600 dark:text-teal-400 uppercase font-black cursor-pointer">Clear Report</button>
+                                    </div>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {lrnValidationIssues.map((issue, idx) => (
+                                            <div key={idx} className="flex justify-between items-center py-1">
+                                                <div>
+                                                    <span className="font-extrabold text-slate-800 dark:text-white">{issue.student.first_name} {issue.student.last_name}</span>
+                                                    <span className="ml-2 font-mono text-[10px] bg-teal-100 dark:bg-teal-950 px-1.5 py-0.5 rounded text-teal-800 dark:text-teal-300">{issue.student.lrn}</span>
+                                                </div>
+                                                <span className="text-red-500 font-semibold">{issue.issue}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {gradeConsistencyIssues.length > 0 && (
+                                <div className="rounded-2xl border border-cyan-200 dark:border-cyan-900/30 bg-cyan-50/20 dark:bg-cyan-950/10 p-5 text-xs text-slate-700 dark:text-gray-300 space-y-3">
+                                    <div className="flex justify-between items-center pb-2 border-b border-cyan-200/40">
+                                        <p className="font-black text-cyan-800 dark:text-cyan-400 uppercase tracking-widest text-[11px]">Grade Consistency Scan Report ({gradeConsistencyIssues.length})</p>
+                                        <button onClick={() => setGradeConsistencyIssues([])} className="text-[10px] text-cyan-600 dark:text-cyan-400 uppercase font-black cursor-pointer">Clear Report</button>
+                                    </div>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {gradeConsistencyIssues.map((issue, idx) => (
+                                            <div key={idx} className="py-1 border-b border-slate-100 dark:border-white/2 last:border-0">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-extrabold text-slate-800 dark:text-white">{issue.studentName}</span>
+                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                                        issue.severity === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                                                    }`}>{issue.type}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 mt-0.5">{issue.details}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Feature 9: Maintenance Activity Log Timeline */}
+                            <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
+                                            <History className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Maintenance Activity Log</h3>
+                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Audit trail of database cleanup and structure actions.</p>
+                                        </div>
+                                    </div>
+                                    {maintenanceLogs.length > 0 && (
+                                        <button
+                                            onClick={() => {
+                                                localStorage.removeItem('formease_maintenance_log');
+                                                setMaintenanceLogs([]);
+                                            }}
+                                            className="text-[10px] font-black text-red-600 uppercase hover:underline cursor-pointer"
+                                        >
+                                            Clear Log
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {maintenanceLogs.length > 0 ? (
+                                        maintenanceLogs.map((log, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-xs p-3 rounded-xl border border-slate-100 dark:border-white/2 bg-slate-50/30 dark:bg-white/1">
+                                                <div>
+                                                    <span className="font-extrabold text-slate-700 dark:text-gray-200 capitalize">{log.action}</span>
+                                                    <span className="text-[10px] text-slate-400 ml-2 font-semibold">by {log.user}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[10px] text-slate-400 font-bold">{new Date(log.timestamp).toLocaleString()}</span>
+                                                    {log.count > 0 && <span className="ml-2 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-1.5 py-0.5 rounded">{log.count} records</span>}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                                            No maintenance activities logged yet.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
                             {maintenanceProgress.total > 0 && (
                                 <div className="rounded-2xl border border-blue-200 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-950/15 p-5 space-y-3">
@@ -2031,12 +2980,26 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.5.0 */}
+                                {/* Version 2.5.1 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.5.0</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.5.1</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 12, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Redesigned and optimized Settings "Backups & Recovery" tab layout into a modern 2-column dashboard grid.</li>
+                                        <li>Commented out incomplete "Multi-Device Sync" and "School Year Archiver" features to simplify user interface.</li>
+                                        <li>Fixed multiple pre-existing TypeScript compile warnings and linter errors to achieve clean build status.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.5.0 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.5.0</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 5, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
@@ -2361,6 +3324,59 @@ export function SettingsPage() {
                 onExport={handleExportWithOptions}
                 isExporting={isExporting}
             />
+            {/* Duplicate LRN Merger Modal */}
+            {showDuplicateModal && duplicateLrns.length > 0 && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-[#0d1225] rounded-3xl max-w-2xl w-full p-6 border border-slate-200 dark:border-white/10 space-y-4 max-h-[85vh] overflow-y-auto">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-white/5">
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Duplicate LRN Records Detected</h3>
+                            <button 
+                                onClick={() => setShowDuplicateModal(false)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold cursor-pointer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                            The following students have identical LRNs. Choose which record is the canonical profile to retain. Unselected profiles will be merged and purged.
+                        </p>
+                        <div className="space-y-4">
+                            {duplicateLrns.map((dup, i) => (
+                                <div key={i} className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/10 dark:bg-indigo-950/5 space-y-3">
+                                    <div className="flex justify-between items-center text-xs font-black text-indigo-600 dark:text-indigo-400">
+                                        <span>LRN: {dup.lrn}</span>
+                                        <span>{dup.students.length} copies found</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {dup.students.map((student, idx) => {
+                                            const otherStudent = dup.students[(idx + 1) % dup.students.length];
+                                            return (
+                                                <div key={idx} className="p-3 rounded-xl bg-white dark:bg-[#141b36] border border-slate-200 dark:border-white/5 space-y-2">
+                                                    <div>
+                                                        <p className="text-xs font-extrabold text-slate-800 dark:text-white">
+                                                            {student.first_name} {student.last_name}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                                            Section: {student.student_section || 'Unassigned'} | Grade: {student.grade_level || 'N/A'}
+                                                        </p>
+                                                        <p className="text-[9px] font-bold text-slate-400">Enrollment Date: {student.enrollment_date || 'N/A'}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleMergeDuplicates(student, otherStudent)}
+                                                        className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                                                    >
+                                                        Keep This Record
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

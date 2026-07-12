@@ -3,7 +3,7 @@
  * Handles automatic daily backups and manual restore/rollback functionality
  */
 
-import { db } from './database';
+import { db, type BackupMetadata } from './database';
 import type {
   SchoolProfile,
   Student,
@@ -14,6 +14,8 @@ import type {
   Announcement,
   AttendanceRecord,
   ObservedValues,
+  SF2Sheet,
+  HPSRecord,
 } from '../types';
 
 interface BackupFile {
@@ -29,8 +31,8 @@ interface BackupFile {
     enrollments: Enrollment[];
     announcements: Announcement[];
     attendanceRecords: AttendanceRecord[];
-    sf2Sheets: any[];
-    hpsRecords: any[];
+    sf2Sheets: SF2Sheet[];
+    hpsRecords: HPSRecord[];
     gradingSheetRecords?: ClassRecord[];
     observedValues?: ObservedValues[];
   };
@@ -66,7 +68,7 @@ export async function createBackup(label?: string): Promise<string> {
       },
     };
 
-    await db.saveBackupMetadata(metadata as any);
+    await db.saveBackupMetadata(metadata as BackupMetadata);
     await downloadBackupFile(data, backupLabel);
 
     return backupId;
@@ -145,7 +147,7 @@ export async function restoreFromBackupFile(file: File): Promise<string> {
           },
         };
 
-        await db.saveBackupMetadata(metadata as any);
+        await db.saveBackupMetadata(metadata as BackupMetadata);
         resolve(`Restored from: ${backup.label}`);
       } catch (error) {
         reject(error);

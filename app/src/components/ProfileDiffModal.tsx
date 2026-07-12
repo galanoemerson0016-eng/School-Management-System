@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { X, Check, HelpCircle } from 'lucide-react';
-import type { Student } from '../types';
 
 export interface ProfileDiffItem {
   fieldName: string;

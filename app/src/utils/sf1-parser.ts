@@ -122,18 +122,63 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
 
                     // Parse Name (Col C)
                     const nameParts = colC.split(',').map(s => s.trim());
-                    const lastName = nameParts[0];
-                    let firstName = nameParts[1] || '';
-                    let middleName = nameParts[2] || '';
+                    let lastName = nameParts[0] || '';
+                    let nameExtension = '';
 
-                    // Smart name parsing fallback for FirstName MiddleName formats (when no second comma is present)
-                    if (!middleName && firstName.includes(' ')) {
-                        const firstParts = firstName.split(/\s+/);
-                        if (firstParts.length > 1) {
-                            middleName = firstParts.pop() || '';
-                            firstName = firstParts.join(' ');
+                    // 1. Check if last name has extension (e.g. "Galano Jr.")
+                    const lastWords = lastName.split(/\s+/);
+                    if (lastWords.length > 1) {
+                        const lastWordUpper = lastWords[lastWords.length - 1].toUpperCase().replace(/\./g, '');
+                        if (['JR', 'SR', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'].includes(lastWordUpper)) {
+                            nameExtension = lastWords.pop() || '';
+                            lastName = lastWords.join(' ');
                         }
                     }
+
+                    // 2. Check remaining parts
+                    let firstName = '';
+                    let middleName = '';
+                    
+                    if (nameParts.length >= 3) {
+                        // Format: Last, First, Ext or Last, First, Middle
+                        const part2Upper = nameParts[2].toUpperCase().replace(/\./g, '');
+                        if (['JR', 'SR', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'].includes(part2Upper)) {
+                            nameExtension = nameParts[2];
+                            firstName = nameParts[1];
+                        } else {
+                            firstName = nameParts[1];
+                            middleName = nameParts[2];
+                        }
+                    } else {
+                        // Format: Last, First Middle (with optional extension embedded)
+                        const rawFirst = nameParts[1] || '';
+                        const firstWords = rawFirst.split(/\s+/);
+                        
+                        // Look for name extension inside the first name parts
+                        const extIdx = firstWords.findIndex(w => {
+                            const wUpper = w.toUpperCase().replace(/\./g, '');
+                            return ['JR', 'SR', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'].includes(wUpper);
+                        });
+
+                        if (extIdx !== -1) {
+                            nameExtension = firstWords[extIdx];
+                            firstWords.splice(extIdx, 1);
+                        }
+
+                        // Parse first name and middle name from remaining words
+                        if (firstWords.length > 1) {
+                            middleName = firstWords.pop() || '';
+                            firstName = firstWords.join(' ');
+                        } else {
+                            firstName = firstWords[0] || '';
+                        }
+                    }
+                    
+                    // Normalize cases (keep uppercase since standard Philippine records are in uppercase)
+                    lastName = lastName.toUpperCase();
+                    firstName = firstName.toUpperCase();
+                    middleName = middleName.toUpperCase();
+                    nameExtension = nameExtension.toUpperCase();
 
                     let birthdate = '';
                     let age = 0;
@@ -218,6 +263,7 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         last_name: lastName,
                         first_name: firstName,
                         middle_name: middleName,
+                        name_extension: nameExtension,
                         gender: isScanningMales ? 'Male' : 'Female',
                         birthday: birthdate,
                         age: age,

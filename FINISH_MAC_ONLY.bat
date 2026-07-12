@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo ========================================================
@@ -75,3 +76,4 @@ echo ========================================================
 echo   MAC DEPLOYMENT COMPLETE for v%NEW_VERSION%
 echo ========================================================
 pause
+

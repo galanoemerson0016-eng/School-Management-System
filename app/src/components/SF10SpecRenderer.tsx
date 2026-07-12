@@ -2,7 +2,7 @@ import React from 'react';
 import { getSF10RowsForGrade } from '../lib/subjectConfig';
 import { formatGradeForDisplay } from '../lib/grading';
 import type { SchoolCurriculum } from '../types';
-import { AutoShrinkText, asString, type BoundData, type AnyObject, type SF10RendererProps } from './SF10Shared';
+import { AutoShrinkText, asString, type AnyObject, type SF10RendererProps } from './SF10Shared';
 
 export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
     

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AutoShrinkText, asString, type BoundData, type SF10RendererProps } from './SF10Shared';
+import { AutoShrinkText, asString, type SF10RendererProps } from './SF10Shared';
 
 export const SF10SHSRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data, onUpdate }) => {
     const getRaw = (path: string): unknown => {

@@ -61,6 +61,7 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('valueseducation') || name.includes('values')) key = 'valuesEducation';
   else if (name.includes('edukasyon') || name === 'esp' || name.includes('pagpapakatao')) key = 'esp';
   else if (name.includes('epp') || name.includes('tle') || name.includes('technologyandlivelihood')) key = 'tle';
+  else if (name.includes('ict')) key = 'ict';
   else if (name.includes('musicandarts') || name.includes('musicarts')) key = 'musicAndArts';
   else if (name.includes('physicaleducationandhealth') || name.includes('peandhealth') || name.includes('pehealth')) key = 'peAndHealth';
   else if (name.includes('mapeh')) key = 'mapeh';
@@ -181,8 +182,9 @@ export function mapStudentToSpecData({
       });
 
       // If we have manual selections for the current grade, use that order!
-      if (grade === currentGradeNum && studentSection?.section_metadata?.sf9SubjectSelections) {
-          const selections = studentSection.section_metadata.sf9SubjectSelections;
+      const selections = studentSection?.section_metadata?.sf9SubjectSelections;
+      const hasNumericKeys = selections && Object.keys(selections).some(k => /^\d+$/.test(k));
+      if (grade === currentGradeNum && hasNumericKeys && selections) {
           const orderedList: CurriculumSubject[] = [];
           
           const seenOrdered = new Set<string>();
@@ -274,6 +276,12 @@ export function mapStudentToSpecData({
 
     const nextCurriculum: SchoolCurriculum = profile.curriculum ? { ...profile.curriculum } : { school_id: profile.school_id };
 
+    nextCurriculum.grade_1_subjects = augmentGradeSubjects(1, nextCurriculum.grade_1_subjects);
+    nextCurriculum.grade_2_subjects = augmentGradeSubjects(2, nextCurriculum.grade_2_subjects);
+    nextCurriculum.grade_3_subjects = augmentGradeSubjects(3, nextCurriculum.grade_3_subjects);
+    nextCurriculum.grade_4_subjects = augmentGradeSubjects(4, nextCurriculum.grade_4_subjects);
+    nextCurriculum.grade_5_subjects = augmentGradeSubjects(5, nextCurriculum.grade_5_subjects);
+    nextCurriculum.grade_6_subjects = augmentGradeSubjects(6, nextCurriculum.grade_6_subjects);
     nextCurriculum.grade_7_subjects = augmentGradeSubjects(7, nextCurriculum.grade_7_subjects);
     nextCurriculum.grade_8_subjects = augmentGradeSubjects(8, nextCurriculum.grade_8_subjects);
     nextCurriculum.grade_9_subjects = augmentGradeSubjects(9, nextCurriculum.grade_9_subjects);

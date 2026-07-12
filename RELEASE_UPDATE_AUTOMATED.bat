@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo.
@@ -363,3 +364,4 @@ echo   Licensing portal: https://formease-licensing.web.app/updates
 echo =============================================================
 pause
 exit /b
+

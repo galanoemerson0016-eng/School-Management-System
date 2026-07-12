@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 echo.
@@ -24,10 +25,15 @@ if not exist "license-portal" (
 )
 
 echo [1/2] Starting License Portal in a new window...
-start "FormEase - License Portal" cmd /c "cd /d %~dp0license-portal && title License Portal && npm run dev"
+start "FormEase - License Portal" cmd /c "cd /d %~dp0license-portal && title License Portal && (if not exist node_modules (echo [INFO] First time setup: Installing dependencies for License Portal... && npm install)) && npm run dev"
 
 echo [2/2] Starting Main Application...
 cd /d "%~dp0app"
+if not exist "node_modules" (
+    echo [INFO] First time setup: Installing dependencies for main application...
+    call npm install
+)
 call npm run dev -- --port 3001
 
 pause
+

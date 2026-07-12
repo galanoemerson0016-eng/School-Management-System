@@ -224,6 +224,15 @@ function App() {
   }, [schoolProfile]);
 
   useEffect(() => {
+    const disable = localStorage.getItem('disable-animations') === 'true';
+    if (disable) {
+      document.documentElement.classList.add('no-animations');
+    } else {
+      document.documentElement.classList.remove('no-animations');
+    }
+  }, []);
+
+  useEffect(() => {
     const init = async () => {
       try {
         await initializeAppStore();

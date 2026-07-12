@@ -1,4 +1,5 @@
 @echo off
+set "PATH=%~dp0.node-portable;%~dp0.git-portable\cmd;%~dp0gh-cli\bin;%PATH%"
 setlocal enabledelayedexpansion
 
 :: Define source and destination
@@ -48,3 +49,4 @@ echo project sub-folders (app, license-portal, etc.) to
 echo restore dependencies.
 echo ============================================================
 pause
+

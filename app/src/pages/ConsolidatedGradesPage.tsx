@@ -514,7 +514,7 @@ const StudentGradeRow = memo(({
                 const currentCol = colIndices[index];
                 return (
                     <Fragment key={`${student.lrn}-${column.baseId}-${index}`}>
-                        {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' ? (
+                        {selectedTerm !== 'all' && (column.subject as any)._mapehGroups ? (
                             <>
                                 <td className="consolidated-subject-col border border-black p-0 text-center tabular-nums" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>
                                     {activeQuarterTerm && column.subject._mapehGroups?.musicArts[0] && (
@@ -734,7 +734,7 @@ export function ConsolidatedGradesPage() {
             for (const student of sectionStudents) {
                 // Process each subject in the section
                 for (const subject of sectionSubjects) {
-                    if (subject.is_virtual && (subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(subject.subject_name))) continue;
+                    if (subject.is_virtual && ((subject as any)._mapehGroups || isEcmkParent(subject.subject_name))) continue;
 
                     // 1. Find HPS for this subject/quarter
                     const hpsRec = hpsRecords.find(r => 
@@ -835,6 +835,8 @@ export function ConsolidatedGradesPage() {
                 if (sub._mapehGroups) {
                     subjectsToExport.push(...(sub._mapehGroups.musicArts || []));
                     subjectsToExport.push(...(sub._mapehGroups.peHealth || []));
+                } else {
+                    subjectsToExport.push(sub);
                 }
             } else if (isEcmkParent(sub.subject_name)) {
                 if (sub._ecmkGroups) {
@@ -1147,19 +1149,23 @@ const groupedSections = useMemo(() => {
         const withGroupData = baseList.map(base => {
             const norm = normalizeSubjectName(base.subject_name);
             if (norm === 'mapeh' && !isSHS) {
-                return {
-                    ...base,
-                    _mapehGroups: {
-                        musicArts: sectionDbSubjects.filter(s => {
-                            const n = normalizeSubjectName(s.subject_name);
-                            return n.includes('musicandarts') || n.includes('musicarts');
-                        }),
-                        peHealth: sectionDbSubjects.filter(s => {
-                            const n = normalizeSubjectName(s.subject_name);
-                            return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
-                        })
-                    }
-                };
+                const musicArts = sectionDbSubjects.filter(s => {
+                    const n = normalizeSubjectName(s.subject_name);
+                    return n.includes('musicandarts') || n.includes('musicarts');
+                });
+                const peHealth = sectionDbSubjects.filter(s => {
+                    const n = normalizeSubjectName(s.subject_name);
+                    return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
+                });
+                if (musicArts.length > 0 && peHealth.length > 0) {
+                    return {
+                        ...base,
+                        _mapehGroups: {
+                            musicArts,
+                            peHealth
+                        }
+                    };
+                }
             }
             if (isEcmkParent(base.subject_name)) {
                 return {
@@ -1229,7 +1235,7 @@ const groupedSections = useMemo(() => {
 
     const subjectColumns = useMemo(() => {
         return sectionSubjects.map((baseSubject) => {
-            if (baseSubject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(baseSubject.subject_name)) {
+            if ((baseSubject as any)._mapehGroups || isEcmkParent(baseSubject.subject_name)) {
                 return { baseId: baseSubject.id, subject: baseSubject };
             }
 
@@ -1276,7 +1282,7 @@ const groupedSections = useMemo(() => {
 
         // 1. Calculate total logical sub-columns (MAPEH and EC&MK take 3 slots, others take 1)
         const totalSubCols = sectionSubjects.reduce((acc, sub) => {
-            if (sub.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(sub.subject_name)) return acc + 3;
+            if ((sub as any)._mapehGroups || isEcmkParent(sub.subject_name)) return acc + 3;
             return acc + 1;
         }, 0);
 
@@ -1728,7 +1734,7 @@ const groupedSections = useMemo(() => {
 
 
     const getSubjectHeaderStyle = (sub: VirtualSectionSubject) => {
-        if (showGenAvg && sub.subject_name.toUpperCase() === 'MAPEH') {
+        if (showGenAvg && (sub as any)._mapehGroups) {
             const width = 3 * MAPEH_SUBCOLUMN_WIDTH;
             return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
         }
@@ -1743,7 +1749,7 @@ const groupedSections = useMemo(() => {
     
     const termColSpan = useCallback((sub: VirtualSectionSubject) => {
         if (selectedTerm === 'all') return 4;
-        if (sub.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(sub.subject_name)) return 3;
+        if ((sub as any)._mapehGroups || isEcmkParent(sub.subject_name)) return 3;
         return 1;
     }, [selectedTerm]);
 
@@ -2035,7 +2041,7 @@ const groupedSections = useMemo(() => {
                 <colgroup>
                     <col style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px` }} />
                     {subjectColumns.map((column, index) => {
-                        if (selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH') {
+                        if (selectedTerm !== 'all' && (column.subject as any)._mapehGroups) {
                             return (
                                 <Fragment key={`col-group-mapeh-${column.baseId}-${index}`}>
                                     <col style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }} />
@@ -2152,7 +2158,7 @@ const groupedSections = useMemo(() => {
                                         </th>
                                     ) : (
                                         <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                            {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                            {(column.subject as any)._mapehGroups || isEcmkParent(column.subject.subject_name) ? (
                                                 column.subject.subject_name
                                             ) : (
                                                 selectedTerm === 'q1' ? (
@@ -2192,7 +2198,7 @@ const groupedSections = useMemo(() => {
                         <tr className="text-center font-bold text-[8px] uppercase tracking-wider h-8">
                             <th rowSpan={2} className="consolidated-name-col border border-black p-2 font-bold text-center bg-gray-100" style={{ width: `${learnerNameColumnWidth}px`, minWidth: `${learnerNameColumnWidth}px`, maxWidth: `${learnerNameColumnWidth}px` }}>NAME OF LEARNERS</th>
                             {subjectColumns.map((column, index) => (
-                                selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(column.subject.subject_name) ? (
+                                selectedTerm !== 'all' && !(column.subject as any)._mapehGroups && !isEcmkParent(column.subject.subject_name) ? (
                                     <th
                                         key={`subject-column-${column.baseId}-${index}`}
                                         rowSpan={2}
@@ -2226,7 +2232,7 @@ const groupedSections = useMemo(() => {
                                     </th>
                                 ) : (
                                     <th key={`subject-column-${column.baseId}-${index}`} colSpan={termColSpan(column.subject)} className="consolidated-subject-header border border-black p-1 text-center font-bold uppercase text-[7px] leading-tight bg-gray-50/50" title={column.subject.subject_name} style={getSubjectHeaderStyle(column.subject)}>
-                                        {column.subject.subject_name.toUpperCase() === 'MAPEH' || isEcmkParent(column.subject.subject_name) ? (
+                                        {(column.subject as any)._mapehGroups || isEcmkParent(column.subject.subject_name) ? (
                                             column.subject.subject_name
                                         ) : (
                                             selectedTerm === 'q1' ? (
@@ -2275,7 +2281,7 @@ const groupedSections = useMemo(() => {
                     <tr className="">
                         {subjectColumns.map((column, index) => (
                             <Fragment key={`subject-subheader-${column.baseId}-${index}`}>
-                                {selectedTerm !== 'all' && column.subject.subject_name.toUpperCase() === 'MAPEH' && (
+                                {selectedTerm !== 'all' && (column.subject as any)._mapehGroups && (
                                     <>
                                         <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>Music &<br/>Arts</th>
                                         <th className="consolidated-subject-col border border-black p-0.5 text-center font-normal text-[6px] leading-[1.1] bg-gray-50" style={{ width: `${MAPEH_SUBCOLUMN_WIDTH}px`, minWidth: `${MAPEH_SUBCOLUMN_WIDTH}px`, maxWidth: `${MAPEH_SUBCOLUMN_WIDTH}px` }}>PE &<br/>Health</th>
