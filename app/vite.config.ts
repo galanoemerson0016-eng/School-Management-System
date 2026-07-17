@@ -59,7 +59,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(), 
-    tailwindcss(),
+    !process.env.VITEST ? tailwindcss() : null,
     // Only obfuscate in production to keep dev fast
     mode === 'production' ? bundleObfuscator(obfuscatorOptions) : null
   ].filter(Boolean),

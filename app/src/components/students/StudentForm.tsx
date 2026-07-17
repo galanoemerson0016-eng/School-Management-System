@@ -93,7 +93,7 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | 
 
 
 export function StudentForm({ student, onClose, initialData, isSimplified = false }: StudentFormProps) {
-    const { addStudent, updateStudent, sections, students } = useAppStore();
+    const { addStudent, updateStudent, sections, students, showNotification } = useAppStore();
     const [isLoading, setIsLoading] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [pendingProfile, setPendingProfile] = useState<Student | null>(null);
@@ -441,7 +441,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
         // Validate LRN (allow 12 digits or TEMP- format)
         if (!/^\d{12}$/.test(finalLrn) && !finalLrn.startsWith('TEMP-')) {
-            alert('LRN must be exactly 12 digits');
+            showNotification('LRN must be exactly 12 digits', 'error');
             setIsLoading(false);
             setSaveStatus('idle');
             return;
@@ -450,7 +450,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
         // Check for duplicates (prevent multiple students from having the same LRN)
         const duplicate = students.find((s) => s.lrn === finalLrn);
         if (duplicate && (!student || student.lrn !== finalLrn)) {
-            alert(`A student named ${duplicate.first_name} ${duplicate.last_name} already has the LRN ${finalLrn}.`);
+            showNotification(`A student named ${duplicate.first_name} ${duplicate.last_name} already has the LRN ${finalLrn}.`, 'error');
             setIsLoading(false);
             setSaveStatus('idle');
             return;

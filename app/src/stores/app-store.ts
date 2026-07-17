@@ -410,8 +410,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await db.deleteRecord('students', lrn);
 
         // Cascade to enrollments
-        const allEnrollments = await db.getAllRecords<Enrollment>('enrollments');
-        const enrollmentsToUpdate = allEnrollments.filter((e) => e.student_lrn === lrn);
+        const enrollmentsToUpdate = await db.getRecordsByIndex<Enrollment>('enrollments', 'by-student-lrn', lrn);
         for (const e of enrollmentsToUpdate) {
           await db.deleteRecord('enrollments', e.id);
           const newId = e.id.replace(lrn, updated.lrn);
@@ -420,8 +419,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cascade to classRecords
-        const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
-        const classRecordsToUpdate = allClassRecords.filter((r) => r.student_lrn === lrn);
+        const classRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('classRecords', 'by-student-lrn', lrn);
         for (const r of classRecordsToUpdate) {
           await db.deleteRecord('classRecords', r.id);
           const newId = r.id.replace(lrn, updated.lrn);
@@ -430,8 +428,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cascade to gradingSheetRecords
-        const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
-        const gradingSheetRecordsToUpdate = allGradingSheetRecords.filter((r) => r.student_lrn === lrn);
+        const gradingSheetRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('gradingSheetRecords', 'by-student-lrn', lrn);
         for (const r of gradingSheetRecordsToUpdate) {
           await db.deleteRecord('gradingSheetRecords', r.id);
           const newId = r.id.replace(lrn, updated.lrn);
@@ -440,8 +437,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cascade to attendanceRecords
-        const allAttendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
-        const attendanceRecordsToUpdate = allAttendanceRecords.filter((r) => r.student_lrn === lrn);
+        const attendanceRecordsToUpdate = await db.getRecordsByIndex<AttendanceRecord>('attendanceRecords', 'by-student-lrn', lrn);
         for (const r of attendanceRecordsToUpdate) {
           await db.deleteRecord('attendanceRecords', r.id);
           const newId = r.id.replace(lrn, updated.lrn);
@@ -450,8 +446,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cascade to observedValues
-        const allObservedValues = await db.getAllRecords<ObservedValues>('observedValues');
-        const observedValuesToUpdate = allObservedValues.filter((v) => v.student_lrn === lrn);
+        const observedValuesToUpdate = await db.getRecordsByIndex<ObservedValues>('observedValues', 'by-student-lrn', lrn);
         for (const v of observedValuesToUpdate) {
           await db.deleteRecord('observedValues', v.id);
           const newId = v.id.replace(lrn, updated.lrn);
@@ -635,8 +630,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             await db.deleteRecord('students', oldLrn);
 
             // Cascade to enrollments
-            const allEnrollments = await db.getAllRecords<Enrollment>('enrollments');
-            const enrollmentsToUpdate = allEnrollments.filter((e) => e.student_lrn === oldLrn);
+            const enrollmentsToUpdate = await db.getRecordsByIndex<Enrollment>('enrollments', 'by-student-lrn', oldLrn);
             for (const e of enrollmentsToUpdate) {
               await db.deleteRecord('enrollments', e.id);
               const newId = e.id.replace(oldLrn, newLrn);
@@ -645,8 +639,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             // Cascade to classRecords
-            const allClassRecords = await db.getAllRecords<ClassRecord>('classRecords');
-            const classRecordsToUpdate = allClassRecords.filter((r) => r.student_lrn === oldLrn);
+            const classRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('classRecords', 'by-student-lrn', oldLrn);
             for (const r of classRecordsToUpdate) {
               await db.deleteRecord('classRecords', r.id);
               const newId = r.id.replace(oldLrn, newLrn);
@@ -655,8 +648,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             // Cascade to gradingSheetRecords
-            const allGradingSheetRecords = await db.getAllRecords<ClassRecord>('gradingSheetRecords');
-            const gradingSheetRecordsToUpdate = allGradingSheetRecords.filter((r) => r.student_lrn === oldLrn);
+            const gradingSheetRecordsToUpdate = await db.getRecordsByIndex<ClassRecord>('gradingSheetRecords', 'by-student-lrn', oldLrn);
             for (const r of gradingSheetRecordsToUpdate) {
               await db.deleteRecord('gradingSheetRecords', r.id);
               const newId = r.id.replace(oldLrn, newLrn);
@@ -665,8 +657,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             // Cascade to attendanceRecords
-            const allAttendanceRecords = await db.getAllRecords<AttendanceRecord>('attendanceRecords');
-            const attendanceRecordsToUpdate = allAttendanceRecords.filter((r) => r.student_lrn === oldLrn);
+            const attendanceRecordsToUpdate = await db.getRecordsByIndex<AttendanceRecord>('attendanceRecords', 'by-student-lrn', oldLrn);
             for (const r of attendanceRecordsToUpdate) {
               await db.deleteRecord('attendanceRecords', r.id);
               const newId = r.id.replace(oldLrn, newLrn);
@@ -675,8 +666,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             // Cascade to observedValues
-            const allObservedValues = await db.getAllRecords<ObservedValues>('observedValues');
-            const observedValuesToUpdate = allObservedValues.filter((v) => v.student_lrn === oldLrn);
+            const observedValuesToUpdate = await db.getRecordsByIndex<ObservedValues>('observedValues', 'by-student-lrn', oldLrn);
             for (const v of observedValuesToUpdate) {
               await db.deleteRecord('observedValues', v.id);
               const newId = v.id.replace(oldLrn, newLrn);
@@ -1377,60 +1367,63 @@ export async function initializeAppStore() {
       allProfiles[0] ??
       undefined;
 
-    // Auto-load all subjects for all grade levels if none are loaded.
-    // Collect into an array then write in one bulk transaction instead of
-    // issuing one putRecord() per subject (which was 100+ round-trips).
+    const isAutoloaded = localStorage.getItem('formease_subjects_autoloaded') === 'true';
     if (subjects.length === 0) {
-      console.log('Auto-loading all subjects for all grade levels right away...');
-      const timestamp = Date.now();
-      const grades = [
-        'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-        'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
-      ];
-      const universalOrder = [
-        'Language',
-        'Reading and Literacy',
-        'Filipino',
-        'English',
-        'Mathematics',
-        'Science',
-        'Araling Panlipunan (AP)',
-        'GMRC (Good Manners and Right Conduct)',
-        'Values Education',
-        'Makabansa',
-        'E.P.P.',
-        'Technology and Livelihood Education (TLE)',
-        'MAPEH',
-        'Music and Arts',
-        'Physical Education and Health',
-        'Specialization',
-        '*Arabic Language',
-        '*Islamic Values Education',
-      ];
+      if (!isAutoloaded) {
+        console.log('Auto-loading all subjects for all grade levels right away...');
+        const timestamp = Date.now();
+        const grades = [
+          'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+          'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+        ];
+        const universalOrder = [
+          'Language',
+          'Reading and Literacy',
+          'Filipino',
+          'English',
+          'Mathematics',
+          'Science',
+          'Araling Panlipunan (AP)',
+          'GMRC (Good Manners and Right Conduct)',
+          'Values Education',
+          'Makabansa',
+          'E.P.P.',
+          'Technology and Livelihood Education (TLE)',
+          'MAPEH',
+          'Music and Arts',
+          'Physical Education and Health',
+          'Specialization',
+          '*Arabic Language',
+          '*Islamic Values Education',
+        ];
 
-      const normalizeLabel = (val: string) => val.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
-      const newSubjects: Subject[] = [];
+        const normalizeLabel = (val: string) => val.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
+        const newSubjects: Subject[] = [];
 
-      for (const grade of grades) {
-        const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
-        if (!templates) continue;
+        for (const grade of grades) {
+          const templates = STANDARD_SUBJECTS[grade as keyof typeof STANDARD_SUBJECTS];
+          if (!templates) continue;
 
-        for (let i = 0; i < templates.length; i++) {
-          const template = templates[i];
-          const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
-          newSubjects.push({
-            id: subjectId,
-            subject_name: template.name,
-            subject_code: template.code,
-            grade_level: grade,
-            term: getDefaultTermForSubject(template.name, grade),
-            order: universalOrder.findIndex((name) => normalizeLabel(name) === normalizeLabel(template.name)),
-          });
+          for (let i = 0; i < templates.length; i++) {
+            const template = templates[i];
+            const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
+            newSubjects.push({
+              id: subjectId,
+              subject_name: template.name,
+              subject_code: template.code,
+              grade_level: grade,
+              term: getDefaultTermForSubject(template.name, grade),
+              order: universalOrder.findIndex((name) => normalizeLabel(name) === normalizeLabel(template.name)),
+            });
+          }
         }
-      }
 
-      await db.putRecordsBulk('subjects', newSubjects);
-      subjects.push(...newSubjects);
+        await db.putRecordsBulk('subjects', newSubjects);
+        subjects.push(...newSubjects);
+        localStorage.setItem('formease_subjects_autoloaded', 'true');
+      }
+    } else {
+      localStorage.setItem('formease_subjects_autoloaded', 'true');
     }
     const finalSubjects = subjects;
 

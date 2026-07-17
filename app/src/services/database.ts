@@ -68,13 +68,26 @@ async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T
   }
   
   const keyField = storeName === 'students' ? 'lrn' : 'id';
-  const keyValue = (record as Record<string, unknown>)[keyField];
+  let keyValue = (record as Record<string, unknown>)[keyField];
   
   if (!keyValue) {
     return record;
   }
+
+  let finalRecord = record;
+  const rawRecord = record as Record<string, unknown>;
+  if (rawRecord.is_encrypted && rawRecord.iv && rawRecord.ciphertext) {
+    try {
+      const decrypted = await decryptPayload<T>(rawRecord.ciphertext as string, rawRecord.iv as string, dbKey);
+      finalRecord = decrypted;
+      keyValue = (finalRecord as Record<string, unknown>)[keyField] || keyValue;
+    } catch (err) {
+      console.warn(`[Database] Record in store ${storeName} is already encrypted, but failed to decrypt with current key. Saving as-is.`, err);
+      return record;
+    }
+  }
   
-  const { ciphertext, iv } = await encryptPayload(record, dbKey);
+  const { ciphertext, iv } = await encryptPayload(finalRecord, dbKey);
   
   const envelope: EncryptedEnvelope = {
     [keyField]: keyValue,
@@ -84,7 +97,7 @@ async function encryptRecordIfNeeded<T>(storeName: string, record: T): Promise<T
   } as unknown as EncryptedEnvelope;
 
   // Project selected index fields in plain text on the envelope
-  const rec = record as Record<string, unknown>;
+  const rec = finalRecord as Record<string, unknown>;
   if (rec.student_lrn) envelope.student_lrn = rec.student_lrn as string;
   if (rec.subject_id) envelope.subject_id = rec.subject_id as string;
   if (rec.school_year) envelope.school_year = rec.school_year as string;
@@ -109,7 +122,7 @@ async function decryptRecordIfNeeded<T>(storeName: string, record: unknown): Pro
 
 // IndexedDB database name and stores
 const DB_NAME = 'FormEaseDB';
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 export interface BackupMetadata {
   id: string;
@@ -241,6 +254,17 @@ function openDatabase(): Promise<IDBDatabase> {
         const gradingSheetRecordsStore = transaction.objectStore('gradingSheetRecords');
         if (!gradingSheetRecordsStore.indexNames.contains('by-student-subject-sy')) {
           gradingSheetRecordsStore.createIndex('by-student-subject-sy', ['student_lrn', 'subject_id', 'school_year'], { unique: false });
+        }
+      }
+
+      // Create student_lrn indexes for cascading updates
+      const storesWithLrn = ['classRecords', 'gradingSheetRecords', 'enrollments', 'attendanceRecords', 'observedValues'];
+      for (const storeName of storesWithLrn) {
+        if (db.objectStoreNames.contains(storeName) && transaction) {
+          const store = transaction.objectStore(storeName);
+          if (!store.indexNames.contains('by-student-lrn')) {
+            store.createIndex('by-student-lrn', 'student_lrn', { unique: false });
+          }
         }
       }
     };
@@ -646,11 +670,11 @@ async function getRecordsByIndex<T>(
 }
 
 async function migrateDatabaseForIndexing(): Promise<void> {
-  const isMigrated = localStorage.getItem('formease_db_indexing_migrated_v10') === 'true';
+  const isMigrated = localStorage.getItem('formease_db_indexing_migrated_v11') === 'true';
   if (isMigrated) return;
 
   try {
-    console.log('🔄 Running database indexing projection migration...');
+    console.log('🔄 Running database indexing projection migration (v11)...');
     const classRecords = await getAllRecords<ClassRecord>('classRecords');
     if (classRecords.length > 0) {
       await putRecordsBulk('classRecords', classRecords);
@@ -666,7 +690,17 @@ async function migrateDatabaseForIndexing(): Promise<void> {
       await putRecordsBulk('enrollments', enrollments);
     }
 
-    localStorage.setItem('formease_db_indexing_migrated_v10', 'true');
+    const attendanceRecords = await getAllRecords<AttendanceRecord>('attendanceRecords');
+    if (attendanceRecords.length > 0) {
+      await putRecordsBulk('attendanceRecords', attendanceRecords);
+    }
+
+    const observedValues = await getAllRecords<ObservedValues>('observedValues');
+    if (observedValues.length > 0) {
+      await putRecordsBulk('observedValues', observedValues);
+    }
+
+    localStorage.setItem('formease_db_indexing_migrated_v11', 'true');
     console.log('✅ Database indexing migration complete.');
   } catch (err) {
     console.error('❌ Database indexing migration failed:', err);
@@ -726,6 +760,8 @@ export const db = {
   addActivityEntry,
   getRecordsByIndex,
   migrateDatabaseForIndexing,
+  _encryptRecord: encryptRecordIfNeeded,
+  _decryptRecord: decryptRecordIfNeeded,
   nukeDatabase: async (): Promise<void> => {
     // Clear localStorage first
     localStorage.clear();

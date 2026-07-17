@@ -46,10 +46,10 @@ const stripUndefinedValues = <T extends object>(data: T) => {
 };
 
 export function getInvalidGradeReferences(backup: ComprehensiveBackup): InvalidGradeReference[] {
-    const studentSet = new Set(backup.payload.students.map((s) => s.lrn));
-    const subjectSet = new Set(backup.payload.subjects.map((s) => s.id));
+    const studentSet = new Set((backup.payload.students || []).map((s) => s.lrn));
+    const subjectSet = new Set((backup.payload.subjects || []).map((s) => s.id));
 
-    return backup.payload.classRecords
+    return (backup.payload.classRecords || [])
         .map((record) => {
             const missingStudent = !studentSet.has(record.student_lrn);
             const missingSubject = !subjectSet.has(record.subject_id);
@@ -107,11 +107,11 @@ export function prepareDataForRestore(backup: ComprehensiveBackup): {
     hpsRecords: HPSRecord[];
 } {
     return {
-        students: backup.payload.students.map((s) => stripUndefinedValues(s)),
-        sections: backup.payload.sections.map((s) => stripUndefinedValues(s)),
-        subjects: backup.payload.subjects.map((s) => stripUndefinedValues(s)),
-        enrollments: backup.payload.enrollments.map((e) => stripUndefinedValues(e)),
-        classRecords: backup.payload.classRecords.map((r) => stripUndefinedValues(r)),
+        students: (backup.payload.students || []).map((s) => stripUndefinedValues(s)),
+        sections: (backup.payload.sections || []).map((s) => stripUndefinedValues(s)),
+        subjects: (backup.payload.subjects || []).map((s) => stripUndefinedValues(s)),
+        enrollments: (backup.payload.enrollments || []).map((e) => stripUndefinedValues(e)),
+        classRecords: (backup.payload.classRecords || []).map((r) => stripUndefinedValues(r)),
         gradingSheetRecords: (backup.payload.gradingSheetRecords || []).map((r) => stripUndefinedValues(r)),
         observedValues: (backup.payload.observedValues || []).map((v) => stripUndefinedValues(v)),
         attendanceRecords: (backup.payload.attendanceRecords || []).map((r) => stripUndefinedValues(r)),

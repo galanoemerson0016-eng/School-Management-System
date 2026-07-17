@@ -93,11 +93,14 @@ export function exportGradesToExcel(
         'Name': `${student.last_name}, ${student.first_name}`,
         'Section': (sectionMap.get(student.student_section || '') || student.student_section) || 'Unassigned',
         'Subject': subjectMap.get(subjectId) || subjectId,
-        'Q1': qGrades[1] || '',
-        'Q2': qGrades[2] || '',
-        'Q3': qGrades[3] || '',
-        'Q4': qGrades[4] || '',
-        'Final': Math.round(( (qGrades[1] || 0) + (qGrades[2] || 0) + (qGrades[3] || 0) + (qGrades[4] || 0) ) / 4) || ''
+        'Term 1': qGrades[1] || '',
+        'Term 2': qGrades[2] || '',
+        'Term 3': qGrades[3] || '',
+        'Final': (() => {
+          const validGrades = [qGrades[1], qGrades[2], qGrades[3]].filter(val => typeof val === 'number' && val > 0);
+          if (validGrades.length === 0) return '';
+          return Math.round(validGrades.reduce((sum, val) => sum + val, 0) / validGrades.length);
+        })()
       });
     }
   }

@@ -310,6 +310,7 @@ export interface Subject {
     written_weight?: number;
     performance_weight?: number;
     exam_weight?: number;
+    enrolled_student_lrns?: string[]; // Optional list of LRNs of enrolled students
 }
 
 export interface ClassRecord {

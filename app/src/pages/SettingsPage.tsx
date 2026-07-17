@@ -1259,6 +1259,12 @@ export function SettingsPage() {
         gradeIdsToDelete: string[];
         gradingSheetIdsToDelete: string[];
         observedValuesIdsToDelete: string[];
+        attendanceIdsToDelete: string[];
+        sf2SheetIdsToDelete: string[];
+        hpsRecordIdsToDelete: string[];
+        sectionIdsToDelete: string[];
+        subjectIdsToDelete: string[];
+        announcementIdsToDelete: string[];
     } | null>(null);
 
     const deleteByCollectionIds = async (
@@ -1360,31 +1366,39 @@ export function SettingsPage() {
     };
 
     const handleFullHardReset = async () => {
+        // Full hard reset targets ALL records to ensure a completely clean state
         const profileLrns = Array.from(new Set(studentProfiles.map((s) => s.lrn)));
-        const enrollmentIdsToDelete = enrollments
-            .filter((entry) => profileLrns.includes(entry.student_lrn))
-            .map((entry) => entry.id);
-        const gradeIdsToDelete = classRecords
-            .filter((record) => profileLrns.includes(record.student_lrn))
-            .map((record) => record.id);
-        const gradingSheetIdsToDelete = gradingSheetRecords
-            .filter((record) => profileLrns.includes(record.student_lrn))
-            .map((record) => record.id);
-        const observedValuesIdsToDelete = observedValues
-            .filter((record) => profileLrns.includes(record.student_lrn))
-            .map((record) => record.id);
+        const enrollmentIdsToDelete = enrollments.map((entry) => entry.id);
+        const gradeIdsToDelete = classRecords.map((record) => record.id);
+        const gradingSheetIdsToDelete = gradingSheetRecords.map((record) => record.id);
+        const observedValuesIdsToDelete = observedValues.map((record) => record.id);
+        const attendanceIdsToDelete = attendanceRecords.map((record) => record.id);
+        const sf2SheetIdsToDelete = sf2Sheets.map((record) => record.id);
+        const hpsRecordIdsToDelete = hpsRecords.map((record) => record.id);
+        const sectionIdsToDelete = sections.map((sec) => sec.id);
+        const subjectIdsToDelete = subjects.map((sub) => sub.id);
+        const announcementIdsToDelete = announcements.map((ann) => ann.id);
 
         const totalGradeRecords = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length;
+        const totalAttendanceRecords = attendanceIdsToDelete.length + sf2SheetIdsToDelete.length;
+        const totalToReset = profileLrns.length + 
+                             enrollmentIdsToDelete.length + 
+                             totalGradeRecords + 
+                             totalAttendanceRecords + 
+                             hpsRecordIdsToDelete.length +
+                             sectionIdsToDelete.length +
+                             subjectIdsToDelete.length +
+                             announcementIdsToDelete.length;
 
-        if (profileLrns.length === 0) {
-            alert('No student profiles found to reset.');
+        if (totalToReset === 0) {
+            alert('No data found to reset.');
             return;
         }
 
         setPendingConfirmation({
             title: 'Run full hard reset?',
             message: 'This will permanently delete student profiles, enrollments, and all grade records (E-Class, Consolidated, Core Values) for the current backup set.',
-            details: `Student profiles: ${profileLrns.length}\nEnrollment records: ${enrollmentIdsToDelete.length}\nTotal Grade records: ${totalGradeRecords}\n\nYou will be asked to confirm with text in the next step.`,
+            details: `Student profiles: ${profileLrns.length}\nEnrollment records: ${enrollmentIdsToDelete.length}\nTotal Grade records: ${totalGradeRecords}\nAttendance records: ${totalAttendanceRecords}\nHPS records: ${hpsRecordIdsToDelete.length}\nClass Sections: ${sectionIdsToDelete.length}\nSubjects: ${subjectIdsToDelete.length}\nAnnouncements: ${announcementIdsToDelete.length}\n\nYou will be asked to confirm with text in the next step.`,
             confirmLabel: 'Continue',
             intent: 'danger',
             onConfirm: async () => {
@@ -1393,7 +1407,13 @@ export function SettingsPage() {
                     enrollmentIdsToDelete, 
                     gradeIdsToDelete,
                     gradingSheetIdsToDelete,
-                    observedValuesIdsToDelete 
+                    observedValuesIdsToDelete,
+                    attendanceIdsToDelete,
+                    sf2SheetIdsToDelete,
+                    hpsRecordIdsToDelete,
+                    sectionIdsToDelete,
+                    subjectIdsToDelete,
+                    announcementIdsToDelete
                 });
             },
         });
@@ -1401,12 +1421,34 @@ export function SettingsPage() {
 
     const handleHardResetTextConfirm = async () => {
         if (!showHardResetTextInput) return;
-        const { profileLrns, enrollmentIdsToDelete, gradeIdsToDelete, gradingSheetIdsToDelete, observedValuesIdsToDelete } = showHardResetTextInput;
+        const { 
+            profileLrns, 
+            enrollmentIdsToDelete, 
+            gradeIdsToDelete, 
+            gradingSheetIdsToDelete, 
+            observedValuesIdsToDelete,
+            attendanceIdsToDelete,
+            sf2SheetIdsToDelete,
+            hpsRecordIdsToDelete,
+            sectionIdsToDelete,
+            subjectIdsToDelete,
+            announcementIdsToDelete
+        } = showHardResetTextInput;
         setShowHardResetTextInput(null);
 
         setIsRunningHardReset(true);
         try {
-            const totalWork = gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length + enrollmentIdsToDelete.length + profileLrns.length;
+            const totalWork = gradeIdsToDelete.length + 
+                              gradingSheetIdsToDelete.length + 
+                              observedValuesIdsToDelete.length + 
+                              attendanceIdsToDelete.length +
+                              sf2SheetIdsToDelete.length +
+                              hpsRecordIdsToDelete.length +
+                              sectionIdsToDelete.length +
+                              subjectIdsToDelete.length +
+                              announcementIdsToDelete.length +
+                              enrollmentIdsToDelete.length + 
+                              profileLrns.length;
             startProgress('Full Hard Reset', totalWork, 'Deleting grade records...');
 
             let totalDeleted = 0;
@@ -1421,6 +1463,24 @@ export function SettingsPage() {
             await deleteByCollectionIds('observedValues', observedValuesIdsToDelete, makeTracker(totalDeleted));
             totalDeleted += observedValuesIdsToDelete.length;
 
+            await deleteByCollectionIds('attendanceRecords', attendanceIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += attendanceIdsToDelete.length;
+
+            await deleteByCollectionIds('sf2Sheets', sf2SheetIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += sf2SheetIdsToDelete.length;
+
+            await deleteByCollectionIds('hpsRecords', hpsRecordIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += hpsRecordIdsToDelete.length;
+
+            await deleteByCollectionIds('sections', sectionIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += sectionIdsToDelete.length;
+
+            await deleteByCollectionIds('subjects', subjectIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += subjectIdsToDelete.length;
+
+            await deleteByCollectionIds('announcements', announcementIdsToDelete, makeTracker(totalDeleted));
+            totalDeleted += announcementIdsToDelete.length;
+
             setProgressStep('Deleting enrollment records...');
             await deleteByCollectionIds('enrollments', enrollmentIdsToDelete, makeTracker(totalDeleted));
             totalDeleted += enrollmentIdsToDelete.length;
@@ -1432,7 +1492,12 @@ export function SettingsPage() {
                 `Hard reset complete.\n\n` +
                 `Deleted student profiles: ${profileLrns.length}\n` +
                 `Deleted enrollments: ${enrollmentIdsToDelete.length}\n` +
-                `Deleted all grade records: ${gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length}`
+                `Deleted all grade records: ${gradeIdsToDelete.length + gradingSheetIdsToDelete.length + observedValuesIdsToDelete.length}\n` +
+                `Deleted attendance records: ${attendanceIdsToDelete.length + sf2SheetIdsToDelete.length}\n` +
+                `Deleted HPS configurations: ${hpsRecordIdsToDelete.length}\n` +
+                `Deleted sections: ${sectionIdsToDelete.length}\n` +
+                `Deleted subjects: ${subjectIdsToDelete.length}\n` +
+                `Deleted announcements: ${announcementIdsToDelete.length}`
             );
             setCleanupPreview(null);
             finishProgress('Completed');

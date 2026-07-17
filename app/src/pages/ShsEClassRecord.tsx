@@ -2,9 +2,10 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
+import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -442,6 +443,7 @@ export function ShsEClassRecord() {
     const [zoom, setZoom] = useState(0.95);
     const [paperSize, setPaperSize] = useState<PaperSize>('folio');
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
 
     const formatStudentFullName = useCallback((student: typeof students[number]) => {
         const middleName = student.middle_name?.trim();
@@ -587,8 +589,16 @@ export function ShsEClassRecord() {
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
-        return students.filter((s) => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id));
-    }, [students, selectedSection, selectedSectionObj]);
+        const baseStudents = students.filter((s) => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id));
+        
+        // Find subject enrollment if defined
+        const subj = subjects.find(s => s.id === selectedSubject);
+        if (subj?.enrolled_student_lrns && subj.enrolled_student_lrns.length > 0) {
+            return baseStudents.filter(s => subj.enrolled_student_lrns?.includes(s.lrn));
+        }
+        
+        return baseStudents;
+    }, [students, selectedSection, selectedSectionObj, selectedSubject, subjects]);
 
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
@@ -1381,6 +1391,15 @@ export function ShsEClassRecord() {
                                 <Plus className="w-3 h-3" />
                             </button>
                         </div>
+                        {selectedSubject && (
+                            <button 
+                                onClick={() => setIsEnrollmentModalOpen(true)}
+                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                title="Manage Enrolled Students"
+                            >
+                                <Users className="w-3.5 h-3.5" /> Enrolled Learners
+                            </button>
+                        )}
                         <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
                             <Printer className="w-3.5 h-3.5" /> Print Record
                         </button>
@@ -2169,6 +2188,11 @@ export function ShsEClassRecord() {
                     </div>
                 </div>
             </div>
+            <SubjectEnrollmentModal
+                open={isEnrollmentModalOpen}
+                subject={subjects.find(s => s.id === selectedSubject) || null}
+                onClose={() => setIsEnrollmentModalOpen(false)}
+            />
         </div>
     );
 }

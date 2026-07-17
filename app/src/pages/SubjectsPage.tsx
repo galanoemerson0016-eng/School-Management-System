@@ -5,12 +5,13 @@ import {
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
     Sparkles, BookText, X, Trash2, ArrowRight, ChevronLeft,
-    Search, Eye, EyeOff
+    Search, Eye, EyeOff, Users
 } from 'lucide-react';
 import type { Subject } from '../types';
 import type { LucideIcon } from 'lucide-react';
 import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -260,7 +261,7 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
 import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
 
 export function SubjectsPage() {
-    const { schoolProfile, subjects, sections, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
+    const { schoolProfile, subjects, sections, students, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
@@ -268,6 +269,7 @@ export function SubjectsPage() {
     const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [enrollmentSubject, setEnrollmentSubject] = useState<Subject | null>(null);
     const [formData, setFormData] = useState({
         subject_name: '',
         subject_code: '',
@@ -1440,10 +1442,25 @@ export function SubjectsPage() {
                                                                         <div className="font-black text-slate-900 text-lg tracking-tight uppercase">{subject.subject_name}</div>
                                                                         {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
                                                                         {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
-                                                                            <div className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
+                                                                            <div className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
                                                                                 Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
                                                                             </div>
                                                                         )}
+                                                                        {(() => {
+                                                                            if (!subject.section_id) return null;
+                                                                            const sect = sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id);
+                                                                            const sectName = sect ? sect.section_name : subject.section_id;
+                                                                            const sectStudents = students.filter(s => s.student_section === sectName || s.student_section === subject.section_id);
+                                                                            const sectCount = sectStudents.length;
+                                                                            const enrolledCount = subject.enrolled_student_lrns && subject.enrolled_student_lrns.length > 0 
+                                                                                ? subject.enrolled_student_lrns.length 
+                                                                                : sectCount;
+                                                                            return (
+                                                                                <div className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
+                                                                                    Enrolled: {enrolledCount} / {sectCount} Learners
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -1476,6 +1493,15 @@ export function SubjectsPage() {
                                                                         >
                                                                             {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                                         </button>
+                                                                        {subject.section_id && (
+                                                                            <button
+                                                                                onClick={() => setEnrollmentSubject(subject)}
+                                                                                title="Manage Enrolled Students"
+                                                                                className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm cursor-pointer"
+                                                                            >
+                                                                                <Users className="w-4 h-4" />
+                                                                            </button>
+                                                                        )}
                                                                         <button
                                                                             onClick={() => handleEdit(subject)}
                                                                             className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center shadow-sm"
@@ -2033,6 +2059,12 @@ export function SubjectsPage() {
                 intent="warning"
                 onConfirm={handleAutoLoadAllGrades}
                 onCancel={() => setShowAutoLoadConfirm(false)}
+            />
+
+            <SubjectEnrollmentModal
+                open={enrollmentSubject !== null}
+                subject={enrollmentSubject}
+                onClose={() => setEnrollmentSubject(null)}
             />
         </div>
     );
