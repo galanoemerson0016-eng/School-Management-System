@@ -4,7 +4,7 @@ import { CARD_WIDTH, CARD_HEIGHT } from './idCardDimensions';
 const FALLBACK_LOGO = `${import.meta.env.BASE_URL}school-logo.png`;
 
 // A beautiful, highly professional background watermark rendering the school's logo
-function WatermarkSeal({ logoUrl }: { logoUrl?: string }) {
+function WatermarkSeal({ logoUrl, opacity }: { logoUrl?: string; opacity: number }) {
     return (
         <div style={{
             position: 'absolute',
@@ -12,7 +12,7 @@ function WatermarkSeal({ logoUrl }: { logoUrl?: string }) {
             left: '6.0mm',
             width: '42mm',
             height: '42mm',
-            opacity: 0.042,
+            opacity,
             pointerEvents: 'none',
             zIndex: 1,
             display: 'flex',
@@ -63,30 +63,6 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
     const bgPosY = model.bgImagePositionY ?? 50;
 
     const cardFontFamily = template === 'academic' ? "'Georgia', Times, serif" : "'Segoe UI', Arial, sans-serif";
-
-    // Adaptive emergency details and signatory sizing using continuous formulas to keep text strictly single-line
-    const emergencyNameLength = (model.emergencyName || '').length;
-    const emergencyAddressLength = (model.emergencyAddress || '').length;
-    const emergencyContactLength = (model.emergencyContact || '').length;
-
-    // Start scaling down from base size (e.g. 2.4mm) only if length exceeds a reasonable threshold
-    const nameSizeVal = emergencyNameLength > 25 
-        ? Math.max(1.3, 2.4 - (emergencyNameLength - 25) * 0.04) 
-        : 2.4;
-
-    const addressSizeVal = emergencyAddressLength > 25 
-        ? Math.max(1.3, 2.4 - (emergencyAddressLength - 25) * 0.04) 
-        : 2.4;
-
-    const contactSizeVal = emergencyContactLength > 16 
-        ? Math.max(1.5, 2.4 - (emergencyContactLength - 16) * 0.06) 
-        : 2.4;
-
-    // Choose the minimum of the three to keep the font size uniform across emergency fields
-    const emergencyFontSize = `${Math.min(nameSizeVal, addressSizeVal, contactSizeVal)}mm`;
-
-    const signatoryNameLength = (model.signatoryName || '').length;
-    const signatoryFontSize = `${Math.max(1.4, Math.min(2.8, (2.8 * 16) / Math.max(16, signatoryNameLength)))}mm`;
 
     return (
         <div
@@ -139,7 +115,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
             )}
 
             {/* Watermark Seal */}
-            {template !== 'minimalist' && <WatermarkSeal logoUrl={model.logoUrl} />}
+            {template !== 'minimalist' && <WatermarkSeal logoUrl={model.logoUrl} opacity={model.watermarkOpacity} />}
 
             {/* Lanyard Slot Punch Simulation */}
             {model.show.slot && (
@@ -194,25 +170,23 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
             {template === 'modern' && (
                 <>
                     {/* Left vertical bar */}
-                    <div style={{ position: 'absolute', left: '-0.5mm', top: model.show.slot ? '13.5mm' : '11.0mm', bottom: '-0.5mm', width: '2.5mm', background: primaryColor }} />
+                    <div style={{ position: 'absolute', left: '-0.5mm', top: '6.5mm', bottom: '-0.5mm', width: '2.5mm', background: primaryColor }} />
                     {/* Right vertical bar */}
-                    <div style={{ position: 'absolute', right: '-0.5mm', top: model.show.slot ? '13.5mm' : '11.0mm', bottom: '-0.5mm', width: '2.5mm', background: primaryColor }} />
+                    <div style={{ position: 'absolute', right: '-0.5mm', top: '6.5mm', bottom: '-0.5mm', width: '2.5mm', background: primaryColor }} />
                     {/* Subtle dot grid pattern */}
                     <div style={{ 
                         position: 'absolute', 
                         left: '2.0mm', 
                         right: '2.0mm', 
-                        top: model.show.slot ? '15.0mm' : '12.5mm', 
+                        top: '8.0mm', 
                         bottom: '2mm', 
                         backgroundImage: 'radial-gradient(#00000005 0.25mm, transparent 0.25mm)', 
                         backgroundSize: '3mm 3mm',
                         pointerEvents: 'none'
                     }} />
                     {/* Tech crosshairs in corner */}
-                    <div style={{ position: 'absolute', left: '2.8mm', top: model.show.slot ? '16.5mm' : '14mm', width: '1.5mm', height: '1.5mm', borderLeft: '0.15mm solid #00000020', borderTop: '0.15mm solid #00000020', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', right: '2.8mm', top: model.show.slot ? '16.5mm' : '14mm', width: '1.5mm', height: '1.5mm', borderRight: '0.15mm solid #00000020', borderTop: '0.15mm solid #00000020', pointerEvents: 'none' }} />
-                    {/* Solid bottom accent bar */}
-                    <div style={{ position: 'absolute', bottom: '-0.5mm', left: '-0.5mm', right: '-0.5mm', height: '3.0mm', background: primaryColor }} />
+                    <div style={{ position: 'absolute', left: '2.8mm', top: '9.0mm', width: '1.5mm', height: '1.5mm', borderLeft: '0.15mm solid #00000020', borderTop: '0.15mm solid #00000020', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', right: '2.8mm', top: '9.0mm', width: '1.5mm', height: '1.5mm', borderRight: '0.15mm solid #00000020', borderTop: '0.15mm solid #00000020', pointerEvents: 'none' }} />
                 </>
             )}
 
@@ -254,17 +228,15 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
             {template === 'lanyard' && (
                 <>
                     {/* Colored line separators under header */}
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: model.show.slot ? '15.0mm' : '12.5mm', height: '0.6mm', background: primaryColor }} />
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: model.show.slot ? '15.6mm' : '13.1mm', height: '0.3mm', background: accentColor }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '7.0mm', height: '0.6mm', background: primaryColor }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '7.6mm', height: '0.3mm', background: accentColor }} />
                     {/* Subtle vertical striping */}
                     <div style={{ 
                         position: 'absolute', 
-                        inset: model.show.slot ? '15.9mm 0 2.5mm' : '13.4mm 0 2.5mm', 
+                        inset: '7.9mm 0 2.0mm', 
                         backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 3mm, ${primaryColor}02 3mm, ${primaryColor}02 3.3mm)`,
                         pointerEvents: 'none' 
                     }} />
-                    {/* Solid bottom footer bar */}
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '2.5mm', background: primaryColor }} />
                 </>
             )}
 
@@ -300,7 +272,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                         position: 'absolute',
                         left: '-5mm',
                         right: '-5mm',
-                        top: model.show.slot ? '15.0mm' : '12.5mm',
+                        top: '7.0mm',
                         height: '22mm',
                         background: `radial-gradient(circle at 10% 20%, ${accentColor}10 0%, transparent 55%), radial-gradient(circle at 90% 80%, ${primaryColor}12 0%, transparent 60%)`,
                         pointerEvents: 'none',
@@ -388,7 +360,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                     <div style={{ 
                         position: 'absolute', 
                         left: '-20mm', 
-                        top: model.show.slot ? '14.0mm' : '11.5mm', 
+                        top: '7.0mm', 
                         width: '45mm', 
                         height: '45mm', 
                         borderRadius: '50%',
@@ -421,7 +393,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                     <div style={{ 
                         position: 'absolute', 
                         left: '-15mm', 
-                        top: '12.5mm', 
+                        top: '7.0mm', 
                         width: '45mm', 
                         height: '45mm', 
                         borderRadius: '50%',
@@ -443,241 +415,251 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                 </>
             )}
 
-            {/* Header band: logo + school identity */}
+            {/* IMPORTANT Header Band */}
             <div
                 style={{
                     background: primaryColor,
-                    color: model.headerTextColor || '#ffffff',
-                    fontFamily: model.headerFontFamily || 'inherit',
-                    padding: model.show.slot 
-                        ? (template === 'minimalist' || template === 'badges' ? '3.8mm 2mm 1.0mm 5.8mm' : '3.8mm 2mm 1.0mm')
-                        : (template === 'minimalist' || template === 'badges' ? '1.2mm 2mm 1.2mm 5.8mm' : '1.2mm 2mm'),
+                    color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '1.6mm',
-                    height: model.show.slot ? '15.0mm' : '12.5mm',
+                    justifyContent: 'center',
+                    height: '7.0mm',
                     boxSizing: 'border-box',
                     position: 'relative',
                     zIndex: 2,
-                    // Modern template adjustments to align flush with borders
                     margin: template === 'modern' ? '-0.5mm -0.5mm 0 -0.5mm' : '0',
                     borderRadius: template === 'modern' ? '2.1mm 2.1mm 0 0' : '0',
                     printColorAdjust: 'exact',
                     WebkitPrintColorAdjust: 'exact',
                 }}
             >
-                <img
-                    src={model.logoUrl || FALLBACK_LOGO}
-                    alt="Logo"
-                    style={{ width: '9.5mm', height: '9.5mm', objectFit: 'contain', flexShrink: 0 }}
-                />
-                <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1 }}>
-                    <div style={{ fontSize: `${1.43 * model.headerFontSizeScale}mm`, fontWeight: 600, opacity: 0.95 }}>
-                        {model.deptName}
-                    </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        {model.region}
-                    </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, whiteSpace: 'nowrap' }}>
-                        {model.division}
-                    </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
-                        {model.district}
-                    </div>
-                    <div style={{ fontSize: `${2.0 * model.headerFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', whiteSpace: 'nowrap' }}>
-                        {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}
-                    </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, textTransform: 'uppercase' }}>
-                        {model.schoolAddress || 'VICTORIA, TARLAC'}
-                    </div>
+                <div style={{ fontSize: '3.0mm', fontWeight: 800, letterSpacing: '0.6mm', textTransform: 'uppercase' }}>
+                    IMPORTANT
                 </div>
             </div>
 
             {/* Main content body */}
-            <div 
-                style={{ 
-                    flex: 1, 
-                    padding: template === 'compact' 
-                        ? (model.show.slot ? '1.0mm 2mm 10.0mm' : '1.5mm 2mm 10.0mm') 
-                        : (template === 'minimalist' || template === 'badges') 
-                        ? (model.show.slot ? '1.2mm 3mm 16.0mm 6.5mm' : '1.8mm 3mm 16.0mm 6.5mm') 
-                        : (template === 'modern' || template === 'lanyard') 
-                        ? (model.show.slot ? '1.2mm 3mm 16.0mm' : '1.8mm 3mm 16.0mm') 
-                        : (model.show.slot ? '1.2mm 3mm 16.0mm' : '1.8mm 3mm 16.0mm'),
-                    textAlign: 'center', 
-                    display: 'flex', 
+            <div
+                style={{
+                    flex: 1,
+                    display: 'flex',
                     flexDirection: 'column',
-                    margin: template === 'compact' ? '1.2mm 2.5mm 1.5mm' : '0',
-                    background: template === 'compact' ? `${primaryColor}06` : 'transparent',
-                    border: template === 'compact' ? `0.2mm solid ${primaryColor}15` : 'none',
-                    borderRadius: template === 'compact' ? '1.8mm' : '0',
                     position: 'relative',
-                    zIndex: 2
+                    padding: template === 'minimalist' || template === 'badges' ? '1.0mm 3mm 0mm 6.5mm' : '1.0mm 3mm 0mm',
+                    zIndex: 2,
                 }}
             >
-                {/* Validity */}
-                <div style={{ 
-                    fontSize: '2.8mm', 
-                    fontWeight: 700, 
-                    color: '#334155', 
-                    letterSpacing: '0.08mm', 
-                    marginTop: model.show.slot ? '1.0mm' : '2.0mm',
-                    marginBottom: model.show.slot ? '1.2mm' : '1.8mm',
-                    fontFamily: cardFontFamily 
+                {/* Non-transferable description */}
+                <div style={{
+                    fontSize: '1.8mm',
+                    fontStyle: 'italic',
+                    fontFamily: cardFontFamily,
+                    color: primaryColor,
+                    padding: '0 2.5mm',
+                    marginTop: '0.6mm',
+                    lineHeight: 1.2,
+                    textAlign: 'center',
+                    zIndex: 2,
                 }}>
-                    VALIDITY: {model.validityText}
+                    This card is non-transferable and must be worn within the school premises at all times.
                 </div>
 
-                {/* Emergency block */}
-                <div style={{ marginTop: model.show.slot ? '1.2mm' : '2.0mm' }}>
-                    <div style={{ 
-                        fontSize: '1.85mm', 
-                        fontWeight: 800, 
-                        color: accentColor, 
-                        letterSpacing: '0.05mm', 
-                        textTransform: 'uppercase', 
-                        marginBottom: '1.2mm',
-                        fontFamily: cardFontFamily 
-                    }}>
-                        {model.emergencyText}
+                {/* Validation Table */}
+                <table
+                    style={{
+                        width: '46.5mm',
+                        margin: '1.0mm auto 1.5mm',
+                        borderCollapse: 'collapse',
+                        border: `0.18mm solid ${primaryColor}`,
+                        zIndex: 2,
+                        fontFamily: cardFontFamily,
+                    }}
+                >
+                    <thead>
+                        <tr style={{ background: `${accentColor}20`, borderBottom: `0.18mm solid ${primaryColor}` }}>
+                            <th style={{ width: '15.5mm', fontSize: '1.4mm', fontWeight: 800, color: primaryColor, padding: '0.4mm 0.3mm', borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center' }}>SCHOOL YEAR</th>
+                            <th style={{ width: '17.0mm', fontSize: '1.4mm', fontWeight: 800, color: primaryColor, padding: '0.4mm 0.3mm', borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center' }}>GRADE & SECTION</th>
+                            <th style={{ width: '14.0mm', fontSize: '1.4mm', fontWeight: 800, color: primaryColor, padding: '0.4mm 0.3mm', textAlign: 'center' }}>ADVISER</th>
+                        </tr>
+                    </thead>
+                    <tbody style={{ fontSize: '1.75mm', fontWeight: 700, color: '#000000' }}>
+                        {/* Row 1: Active School Year */}
+                        <tr style={{ borderBottom: `0.18mm solid ${primaryColor}`, height: '4.8mm' }}>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{model.schoolYear || '2026-2027'}</td>
+                            <td style={{ 
+                                borderRight: `0.18mm solid ${primaryColor}`, 
+                                textAlign: 'center', 
+                                verticalAlign: 'middle', 
+                                textTransform: 'uppercase', 
+                                fontSize: '1.65mm', 
+                                fontWeight: 800,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                padding: '0 0.5mm',
+                            }}>
+                                {model.gradeLevel && model.section ? `${model.gradeLevel.replace(/^Grade\s*/i, '')} - ${model.section}` : (model.gradeLevel?.replace(/^Grade\s*/i, '') || model.section || '')}
+                            </td>
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0.1mm' }}>
+                                {model.adviserSignatureUrl && (
+                                    <img
+                                        src={model.adviserSignatureUrl}
+                                        alt=""
+                                        style={{ height: '4.2mm', maxWidth: '13.5mm', objectFit: 'contain' }}
+                                    />
+                                )}
+                            </td>
+                        </tr>
+                        {/* Row 2: 2027-2028 */}
+                        <tr style={{ borderBottom: `0.18mm solid ${primaryColor}`, height: '4.8mm' }}>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center', verticalAlign: 'middle' }}>2027-2028</td>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}` }}></td>
+                            <td></td>
+                        </tr>
+                        {/* Row 3: 2028-2029 */}
+                        <tr style={{ borderBottom: `0.18mm solid ${primaryColor}`, height: '4.8mm' }}>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center', verticalAlign: 'middle' }}>2028-2029</td>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}` }}></td>
+                            <td></td>
+                        </tr>
+                        {/* Row 4: 2029-2030 */}
+                        <tr style={{ height: '4.8mm' }}>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}`, textAlign: 'center', verticalAlign: 'middle' }}>2029-2030</td>
+                            <td style={{ borderRight: `0.18mm solid ${primaryColor}` }}></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {/* Emergency Info block */}
+                <div style={{ textAlign: 'center', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '0.4mm' }}>
+                    <div style={{ fontSize: '2.4mm', fontWeight: 800, color: primaryColor, textTransform: 'uppercase', letterSpacing: '0.04mm' }}>
+                        IN CASE OF EMERGENCY
+                    </div>
+                    <div style={{ fontSize: '1.95mm', fontStyle: 'italic', color: primaryColor, marginTop: '-0.3mm' }}>
+                        Please notify:
                     </div>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: model.show.slot ? '1.5mm' : '2.2mm' }}>
-                        {/* Name */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6mm', marginTop: '0.2mm' }}>
                         <div>
-                            <div style={{ 
-                                fontSize: emergencyFontSize, 
-                                fontWeight: 700, 
-                                borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'block', 
-                                width: '100%', 
-                                paddingBottom: '0.3mm', 
+                            <div style={{
+                                fontSize: '2.3mm',
+                                fontWeight: 800,
                                 color: '#000000',
+                                borderBottom: `0.15mm solid ${primaryColor}`,
+                                display: 'inline-block',
+                                width: '42mm',
+                                paddingBottom: '0.05mm',
+                                textAlign: 'center',
+                                textTransform: 'uppercase',
                                 fontFamily: cardFontFamily,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
-                                textOverflow: 'clip'
                             }}>
                                 {model.emergencyName}
                             </div>
-                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Name</div>
+                            <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Guardian</div>
                         </div>
 
-                        {/* Address */}
                         <div>
-                            <div style={{ 
-                                fontSize: emergencyFontSize, 
-                                fontWeight: 700, 
-                                borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'block', 
-                                width: '100%', 
-                                paddingBottom: '0.3mm', 
-                                color: '#000000', 
-                                whiteSpace: 'nowrap', 
-                                overflow: 'hidden', 
-                                textOverflow: 'clip', 
-                                fontFamily: cardFontFamily
-                            }}>
-                                {model.emergencyAddress}
-                            </div>
-                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Address</div>
-                        </div>
-
-                        {/* Contact */}
-                        <div>
-                            <div style={{ 
-                                fontSize: emergencyFontSize, 
-                                fontWeight: 700, 
-                                borderBottom: '0.15mm solid #cbd5e1', 
-                                display: 'block', 
-                                width: '100%', 
-                                paddingBottom: '0.3mm', 
+                            <div style={{
+                                fontSize: '2.3mm',
+                                fontWeight: 800,
                                 color: '#000000',
+                                borderBottom: `0.15mm solid ${primaryColor}`,
+                                display: 'inline-block',
+                                width: '42mm',
+                                paddingBottom: '0.05mm',
+                                textAlign: 'center',
                                 fontFamily: cardFontFamily,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
-                                textOverflow: 'clip'
                             }}>
                                 {model.emergencyContact}
                             </div>
-                            <div style={{ fontSize: '2.1mm', color: '#000000', marginTop: '0.2mm', textTransform: 'uppercase', fontWeight: 600, fontFamily: cardFontFamily }}>Contact Number</div>
+                            <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Contact</div>
+                        </div>
+
+                        <div>
+                            <div style={{
+                                fontSize: '2.2mm',
+                                fontWeight: 800,
+                                color: '#000000',
+                                borderBottom: `0.15mm solid ${primaryColor}`,
+                                display: 'inline-block',
+                                width: '42mm',
+                                paddingBottom: '0.05mm',
+                                textAlign: 'center',
+                                textTransform: 'uppercase',
+                                fontFamily: cardFontFamily,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                            }}>
+                                {model.emergencyAddress}
+                            </div>
+                            <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Address</div>
                         </div>
                     </div>
                 </div>
 
-                {/* Certify text */}
-                <div style={{ 
-                    marginTop: model.show.slot ? '1.5mm' : '2.0mm', 
-                    fontSize: (model.schoolName || '').length > 40 ? '1.85mm' : '2.1mm', 
-                    lineHeight: 1.3, 
-                    color: '#000000', 
-                    padding: '0 2mm', 
-                    fontFamily: cardFontFamily 
-                }}>
-                    This certifies that the bearer whose picture appears on this card is a student of <br />
-                    <strong style={{ color: '#000000' }}>{model.schoolName}</strong>
-                </div>
-
-                {/* Signature and non-transferable footer */}
-                <div style={{ 
-                    position: 'absolute',
-                    bottom: template === 'compact' ? '2.5mm' : '4.8mm',
-                    left: 0,
-                    right: 0,
-                    display: 'flex', 
-                    flexDirection: 'column', 
+                {/* School Head Signatory & Signature overlapping */}
+                <div style={{
+                    marginTop: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    pointerEvents: 'none',
-                    zIndex: 10
+                    position: 'relative',
+                    width: '100%',
+                    zIndex: 2,
                 }}>
-                    {model.show.signature && (
-                        <div style={{ 
-                            display: 'flex', 
-                            flexDirection: 'column', 
-                            alignItems: 'center', 
-                            minHeight: model.signatureUrl ? '11mm' : '7.5mm', 
-                            justifyContent: 'flex-end',
-                            marginTop: '2.0mm',
-                            marginBottom: '0.4mm'
-                        }}>
-                            {model.signatureUrl && (
-                                <img
-                                    src={model.signatureUrl}
-                                    alt="Signature"
-                                    style={{ 
-                                        height: '9mm', 
-                                        maxWidth: '30mm', 
-                                        objectFit: 'contain', 
-                                        marginBottom: '-1.2mm', 
-                                        transform: `scale(${model.signatureScale ?? 1.0}) translateY(${model.signatureOffsetY ?? 0}mm)`,
-                                        transformOrigin: 'bottom center',
-                                        zIndex: 10 
-                                    }}
-                                />
-                            )}
-                            <div style={{ borderTop: `0.2mm solid ${primaryColor}70`, width: '42mm' }} />
-                            <div style={{ fontSize: signatoryFontSize, fontWeight: 700, marginTop: '0.3mm', textTransform: 'uppercase', color: '#0f172a', fontFamily: cardFontFamily }}>
-                                {model.signatoryName || 'AGAPITO S. GONZAGA'}
-                            </div>
-                            <div style={{ fontSize: '1.5mm', color: '#475569', fontWeight: 500 }}>
-                                {model.signatoryPosition || 'School Head'}
-                            </div>
-                        </div>
+                    {model.show.signature && model.signatureUrl && (
+                        <img
+                            src={model.signatureUrl}
+                            alt="Signature"
+                            style={{
+                                position: 'absolute',
+                                bottom: '2.5mm',
+                                height: '8.0mm',
+                                maxWidth: '30mm',
+                                objectFit: 'contain',
+                                transform: `scale(${model.signatureScale ?? 1.0}) translateY(${model.signatureOffsetY ?? 0}mm)`,
+                                transformOrigin: 'bottom center',
+                                zIndex: 11,
+                                pointerEvents: 'none',
+                            }}
+                        />
                     )}
                     
-                    <div style={{ 
-                        fontSize: '2.6mm', 
-                        fontWeight: 900, 
-                        color: accentColor, 
-                        marginTop: '1.2mm', 
-                        letterSpacing: '0.5mm',
-                        whiteSpace: 'nowrap',
-                        fontFamily: cardFontFamily 
+                    {/* Signatory Name Block */}
+                    <div style={{
+                        width: '100%',
+                        padding: '0.4mm 0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                     }}>
-                        NON-TRANSFERABLE
+                        <div style={{ fontSize: '2.6mm', fontWeight: 900, textTransform: 'uppercase', color: primaryColor, letterSpacing: '0.04mm' }}>
+                            {model.signatoryName || 'AGAPITO S. GONZAGA'}
+                        </div>
+                    </div>
+                    
+                    {/* Signatory Position */}
+                    <div style={{ fontSize: '1.8mm', color: primaryColor, fontWeight: 700, textTransform: 'uppercase', padding: '0.1mm 0 0.4mm' }}>
+                        {model.signatoryPosition || 'OIC-School Head HT VI'}
                     </div>
                 </div>
             </div>
+
+            {/* Solid bottom accent bar */}
+            <div style={{
+                background: primaryColor,
+                width: '100%',
+                height: '2.0mm',
+                zIndex: 2,
+                margin: template === 'modern' ? '0 -0.5mm -0.5mm -0.5mm' : '0',
+                printColorAdjust: 'exact',
+                WebkitPrintColorAdjust: 'exact',
+                borderRadius: template === 'modern' ? '0 0 2.1mm 2.1mm' : '0',
+            }} />
         </div>
     );
 }

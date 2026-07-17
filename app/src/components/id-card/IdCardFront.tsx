@@ -13,7 +13,7 @@ import { CARD_WIDTH, CARD_HEIGHT } from './idCardDimensions';
 const FALLBACK_LOGO = `${import.meta.env.BASE_URL}school-logo.png`;
 
 // A beautiful, highly professional background watermark rendering the school's logo
-function WatermarkSeal({ logoUrl }: { logoUrl?: string }) {
+function WatermarkSeal({ logoUrl, opacity }: { logoUrl?: string; opacity: number }) {
     return (
         <div style={{
             position: 'absolute',
@@ -21,7 +21,7 @@ function WatermarkSeal({ logoUrl }: { logoUrl?: string }) {
             left: '6.0mm',
             width: '42mm',
             height: '42mm',
-            opacity: 0.042,
+            opacity,
             pointerEvents: 'none',
             zIndex: 1,
             display: 'flex',
@@ -94,6 +94,18 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
             : nameLength > 15
             ? '2.9mm'
             : '3.2mm';
+    const lrnFontSize = 
+        nameLength > 32
+            ? '1.5mm'
+            : nameLength > 28
+            ? '1.65mm'
+            : nameLength > 24
+            ? '1.9mm'
+            : nameLength > 20
+            ? '2.1mm'
+            : nameLength > 15
+            ? '2.3mm'
+            : '2.6mm';
     const nameLetterSpacing = 
         nameLength > 32
             ? '-0.08mm'
@@ -155,7 +167,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
             )}
 
             {/* Watermark Seal - applied to templates that benefit from texture */}
-            {template !== 'minimalist' && <WatermarkSeal logoUrl={model.logoUrl} />}
+            {template !== 'minimalist' && <WatermarkSeal logoUrl={model.logoUrl} opacity={model.watermarkOpacity} />}
 
             {/* Lanyard Slot Punch Simulation */}
             {model.show.slot && (
@@ -606,19 +618,10 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <span style={{ fontSize: '1.15mm', fontWeight: 700, color: `${primaryColor}b0`, textTransform: 'uppercase', letterSpacing: '0.08mm', marginBottom: '0.2mm' }}>LEARNER REFERENCE NUMBER</span>
-                            <div style={{ fontSize: '2.1mm', color: '#334155', fontWeight: 600, letterSpacing: '0.1mm' }}>
+                            <div style={{ fontSize: lrnFontSize, color: '#334155', fontWeight: 600, letterSpacing: '0.1mm' }}>
                                 {model.lrn}
                             </div>
                         </div>
-                        
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <span style={{ fontSize: '1.15mm', fontWeight: 700, color: `${primaryColor}b0`, textTransform: 'uppercase', letterSpacing: '0.08mm', marginBottom: '0.2mm' }}>GRADE & SECTION</span>
-                                <div style={{ fontSize: '2.0mm', fontWeight: 700, color: primaryColor, textTransform: 'uppercase' }}>
-                                    {model.gradeSectionLine}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 ) : template === 'academic' ? (
                     // Academic layout (Georgia font names, ornamental lines)
@@ -634,24 +637,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             <div style={{ flex: 1, height: '0.15mm', background: accentColor }} />
                         </div>
 
-                        <div style={{ fontSize: '2.0mm', color: '#475569', fontWeight: 600, letterSpacing: '0.05mm', fontFamily: nameFontFamily }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', fontWeight: 600, letterSpacing: '0.05mm', fontFamily: nameFontFamily }}>
                             LRN: <span style={{ color: '#0f172a', fontWeight: 700 }}>{model.lrn}</span>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: model.show.slot ? '1.5mm' : '2.2mm',
-                                padding: '0.4mm 2.2mm',
-                                border: `0.15mm solid ${accentColor}`,
-                                color: '#0f172a',
-                                fontSize: '2.0mm',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                background: `${accentColor}06`
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'minimalist' ? (
                     // Minimalist asymmetrical layout
@@ -676,27 +664,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         
                         <div style={{ width: '15mm', height: '0.3mm', background: `linear-gradient(90deg, ${primaryColor}20 0%, ${accentColor} 50%, ${primaryColor}20 100%)`, margin: model.show.slot ? '1.5mm 0' : '2.2mm 0' }} />
 
-                        <div style={{ fontSize: '1.9mm', color: '#64748b', fontWeight: 500 }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#64748b', fontWeight: 500 }}>
                             LRN <strong style={{ color: '#0f172a', marginLeft: '0.8mm' }}>{model.lrn}</strong>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: model.show.slot ? '1.5mm' : '2.2mm',
-                                fontSize: '1.8mm',
-                                fontWeight: 700,
-                                color: primaryColor,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05mm',
-                                border: `0.15mm solid ${primaryColor}40`,
-                                padding: '0.4mm 1.8mm',
-                                borderRadius: '0.8mm',
-                                background: `${primaryColor}04`,
-                                display: 'inline-block'
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'playful' ? (
                     // Playful layout (Pills, circular accents)
@@ -705,7 +675,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         <div style={{ 
-                            fontSize: '2.0mm', 
+                            fontSize: lrnFontSize, 
                             color: '#64748b', 
                             marginTop: model.show.slot ? '0.8mm' : '1.2mm', 
                             fontWeight: 600, 
@@ -716,27 +686,6 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             LRN: {model.lrn}
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    margin: model.show.slot ? '1.5mm auto 0' : '2.2mm auto 0',
-                                    padding: '0.6mm 2.2mm',
-                                    background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}dd 100%)`,
-                                    boxShadow: `0 0.4mm 1mm ${primaryColor}25`,
-                                    color: '#ffffff',
-                                    borderRadius: '4mm',
-                                    fontSize: '2.0mm',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'eco' ? (
                     // Eco / Botanical / Natural template
@@ -753,7 +702,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             display: 'inline-block',
                             marginBottom: model.show.slot ? '0.6mm' : '1.0mm'
                         }}>
-                            STUDENT PROFILE
+                            STUDENT
                         </div>
                         <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
@@ -766,25 +715,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             <div style={{ width: '1.2mm', height: '1.2mm', borderRadius: '50%', background: `${accentColor}80` }} />
                         </div>
 
-                        <div style={{ fontSize: '2.0mm', color: '#475569', fontWeight: 600 }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', fontWeight: 600 }}>
                             LRN: <strong style={{ color: '#0f172a', fontWeight: 700 }}>{model.lrn}</strong>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: model.show.slot ? '1.5mm' : '2.2mm',
-                                padding: '0.5mm 2.2mm',
-                                background: `${primaryColor}08`,
-                                border: `0.2mm solid ${primaryColor}20`,
-                                color: '#0f172a',
-                                fontSize: '2.0mm',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                borderRadius: '2mm'
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'glass' ? (
                     // Frosted Glassmorphism template
@@ -818,24 +751,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         
                         <div style={{ width: '12mm', height: '0.3mm', background: 'rgba(0, 0, 0, 0.08)', margin: '1.8mm 0' }} />
 
-                        <div style={{ fontSize: '1.95mm', color: '#475569', fontWeight: 600 }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', fontWeight: 600 }}>
                             LRN: <span style={{ color: '#0f172a', fontWeight: 800 }}>{model.lrn}</span>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: '1.8mm',
-                                padding: '0.3mm 2.0mm',
-                                background: `${primaryColor}15`,
-                                color: primaryColor,
-                                fontSize: '2.0mm',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                borderRadius: '1.2mm',
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'badges' ? (
                     // Academy / Badges template
@@ -860,26 +778,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         
                         <div style={{ width: '22mm', height: '0.6mm', background: primaryColor, margin: model.show.slot ? '1.6mm 0' : '2.4mm 0', borderRadius: '0.3mm' }} />
 
-                        <div style={{ fontSize: '2.0mm', color: '#475569', fontWeight: 700 }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', fontWeight: 700 }}>
                             LRN: <strong style={{ color: primaryColor }}>{model.lrn}</strong>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: model.show.slot ? '1.5mm' : '2.2mm',
-                                padding: '0.6mm 2.5mm',
-                                background: primaryColor,
-                                color: '#ffffff',
-                                fontSize: '2.1mm',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                borderRadius: '1.0mm',
-                                display: 'inline-block',
-                                boxShadow: `0 0.5mm 1mm ${primaryColor}30`
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : template === 'aurora' ? (
                     // Aurora flowing mesh gradient template
@@ -905,27 +806,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         
                         <div style={{ width: '20mm', height: '0.4mm', background: `linear-gradient(90deg, ${primaryColor}20 0%, ${accentColor} 50%, ${primaryColor}20 100%)`, margin: model.show.slot ? '1.5mm 0' : '2.2mm 0' }} />
 
-                        <div style={{ fontSize: '2.0mm', color: '#475569', fontWeight: 700 }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', fontWeight: 700 }}>
                             LRN: <strong style={{ color: '#0f172a' }}>{model.lrn}</strong>
                         </div>
-
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div style={{
-                                marginTop: model.show.slot ? '1.5mm' : '2.2mm',
-                                padding: '0.4mm 2.2mm',
-                                background: '#ffffff',
-                                border: '0.15mm solid rgba(0, 0, 0, 0.08)',
-                                color: primaryColor,
-                                fontSize: '2.0mm',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                borderRadius: '1.5mm',
-                                display: 'inline-block',
-                                boxShadow: '0 0.4mm 1mm rgba(0, 0, 0, 0.02)'
-                            }}>
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </div>
                 ) : (
                     // Standard / Lanyard / Compact general styles
@@ -933,29 +816,9 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', fontFamily: nameFontFamily, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
-                        <div style={{ fontSize: '2.6mm', color: '#475569', marginTop: model.show.slot ? '0.8mm' : '1.2mm', fontWeight: 600, letterSpacing: '0.1mm' }}>
+                        <div style={{ fontSize: lrnFontSize, color: '#475569', marginTop: model.show.slot ? '0.8mm' : '1.2mm', fontWeight: 600, letterSpacing: '0.1mm' }}>
                             LRN: <strong style={{ color: '#0f172a', fontWeight: 800 }}>{model.lrn}</strong>
                         </div>
-                        {model.show.gradeSection && model.gradeSectionLine && (
-                            <div
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    margin: model.show.slot ? '1.5mm auto 0' : '2.2mm auto 0',
-                                    padding: '0.7mm 2.5mm',
-                                    background: `${primaryColor}12`,
-                                    border: `0.2mm solid ${primaryColor}40`,
-                                    color: primaryColor,
-                                    borderRadius: '3mm',
-                                    fontSize: '2.1mm',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                {model.gradeSectionLine}
-                            </div>
-                        )}
                     </>
                 )}
 
@@ -973,8 +836,8 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                             src={model.qrDataUrl} 
                             alt="QR" 
                             style={{ 
-                                width: '17.5mm', 
-                                height: '17.5mm',
+                                width: '21.0mm', 
+                                height: '21.0mm',
                                 border: template === 'academic' 
                                     ? `0.2mm solid ${accentColor}40` 
                                     : template === 'minimalist'

@@ -1,5 +1,22 @@
 # Version History
 
+## v2.5.2 (2026-07-17)
+
+### 🚀 New Features & Improvements
+* Updated default ID card watermark seal opacity to 7%.
+* Added signature scale and vertical offset configuration settings.
+* Positioned the School Head signatory block directly below the signature on the back of the card.
+
+### 🐞 Bug Fixes
+* **ID Generator Layout:** Repaired left/right sidebar scrolling bounds to allow full scrolling.
+* **Floating Controls:** Moved the floating controls bar (zoom and sidebar toggles) to float at the top of the preview area to prevent overlapping card contents.
+* **Logo Persistence:** Fixed a bug where uploading/removing a logo from the Institute Profile would be overridden by stale config saves from the ID Generator page. Logo updates now auto-save immediately.
+* **Grade & Section Formatting:** Formatted the back-of-card table to strip the `"Grade "` prefix (e.g. displaying `"7 - Einstein"` instead of `"Grade 7 - Einstein"`).
+* **TypeScript Fixes:** Resolved VM model type errors by adding missing `schoolYear` and `adviserSignatureUrl` to `IdCardViewModel`.
+
+### 📝 Notes
+Backward compatible. No data migration required.
+
 ## v2.5.1 (2026-07-12)
 
 ### ⚡ Improvements

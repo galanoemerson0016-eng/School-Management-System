@@ -118,6 +118,8 @@ export function InstitutePage() {
         try {
             const base64 = await resizeImage(file, 400, 400);
             setFormData(prev => ({ ...prev, logo_url: base64 }));
+            // Auto-persist to store so the ID card preview and other pages update immediately
+            void updateSchoolProfile({ logo_url: base64 } as SchoolProfile);
         } catch (error) {
             console.error('Logo upload failed:', error);
             alert('Failed to process image. Please try another one.');
@@ -131,6 +133,8 @@ export function InstitutePage() {
     const handleDeleteLogo = () => {
         if (window.confirm('Are you sure you want to remove the custom logo? It will revert to the default.')) {
             setFormData(prev => ({ ...prev, logo_url: '' }));
+            // Auto-persist to store so the ID card preview and other pages update immediately
+            void updateSchoolProfile({ logo_url: '' } as SchoolProfile);
         }
     };
 

@@ -20,6 +20,7 @@ export function getDefaultIdCardConfig(): IdCardConfig {
         show: { qr: true, barcode: true, gradeSection: true, signature: true, address: true, slot: true },
         emergencyText: '',
         serialPrefix: '',
+        watermarkOpacity: 0.07,
     };
 }
 
@@ -125,6 +126,7 @@ export interface IdCardViewModel {
     emergencyContact: string;
     signatureScale: number;
     signatureOffsetY: number;
+    watermarkOpacity: number;
     // Resolved config
     template: IdCardTemplate;
     primaryColor: string;
@@ -133,6 +135,9 @@ export interface IdCardViewModel {
     headerTextColor?: string;
     headerFontFamily?: 'sans-serif' | 'serif' | 'monospace';
     headerFontSizeScale: number;
+    // Back-of-card validation table
+    schoolYear?: string;
+    adviserSignatureUrl?: string;
     // Pre-rasterized codes (data URLs) — filled in by the page before export.
     qrDataUrl?: string;
     barcodeDataUrl?: string;
@@ -190,6 +195,7 @@ export function buildIdCardModel(
         emergencyContact: student.parent_contact?.trim() || student.contact_number?.trim() || '0912-345-6789',
         signatureScale: config.signatureScale ?? 1.0,
         signatureOffsetY: config.signatureOffsetY ?? 0,
+        watermarkOpacity: config.watermarkOpacity ?? 0.07,
         template: config.template,
         primaryColor: config.primaryColor || DEFAULT_ID_PRIMARY_COLOR,
         accentColor: config.accentColor || DEFAULT_ID_ACCENT_COLOR,
@@ -197,6 +203,8 @@ export function buildIdCardModel(
         headerTextColor: config.headerTextColor,
         headerFontFamily: config.headerFontFamily,
         headerFontSizeScale: config.headerFontSizeScale ?? 1.0,
+        schoolYear: activeSchoolYear,
+        adviserSignatureUrl: profile.adviser_signature_url,
         qrPayload: buildQrPayload(student),
     };
 }

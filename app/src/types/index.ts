@@ -89,9 +89,14 @@ export interface IdCardConfig {
     regionName?: string;               // custom Region name override
     divisionName?: string;             // custom Division name override
     districtName?: string;             // custom District name override
+    schoolName?: string;               // custom School name override
+    barangayName?: string;             // custom Barangay name override
+    municipalityName?: string;         // custom Municipality name override
+    provinceName?: string;             // custom Province name override
     validityText?: string;             // custom Validity Period override (e.g. S.Y. 2026-2027)
     signatureScale?: number;           // custom signature scale multiplier, default 1.0 (50 to 200%)
     signatureOffsetY?: number;         // custom signature vertical offset in mm, default 0 (-10 to 10)
+    watermarkOpacity?: number;         // custom watermark opacity (0 to 1, default 0.042)
 }
 
 export interface SchoolYear {
