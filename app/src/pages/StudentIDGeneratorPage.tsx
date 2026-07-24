@@ -346,7 +346,7 @@ export function StudentIDGeneratorPage() {
                             >
                                 <Minus className="w-4 h-4" />
                             </button>
-                            <span className="text-xs font-semibold text-slate-700 min-w-[36px] text-center select-none">
+                            <span className="text-xs font-semibold text-slate-700 min-w-9 text-center select-none">
                                 {Math.round(zoomScale * 100)}%
                             </span>
                             <button
@@ -926,7 +926,7 @@ export function StudentIDGeneratorPage() {
                                             <div className="flex items-center gap-3 bg-white p-2.5 border border-slate-200 rounded-lg shadow-sm">
                                                 <div className="w-10 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
                                                     {schoolProfile.head_signature_url ? (
-                                                        <img src={schoolProfile.head_signature_url} alt="" className="h-8 max-w-[36px] object-contain" />
+                                                        <img src={schoolProfile.head_signature_url} alt="" className="h-8 max-w-9 object-contain" />
                                                     ) : (
                                                         <PenTool className="w-4 h-4 text-slate-400" />
                                                     )}
@@ -1002,7 +1002,7 @@ export function StudentIDGeneratorPage() {
                                 >
                                     <Minus className="w-4 h-4" />
                                 </button>
-                                <span className="text-[13px] font-black text-slate-800 min-w-[42px] text-center font-sans tracking-wide">
+                                <span className="text-[13px] font-black text-slate-800 min-w-10.5 text-center font-sans tracking-wide">
                                     {Math.round(zoomScale * 100)}%
                                 </span>
                                 <button

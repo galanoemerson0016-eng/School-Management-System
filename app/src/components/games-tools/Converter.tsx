@@ -222,7 +222,7 @@ export function Converter({ onBack }: ConverterProps) {
 
           <div className="w-full flex flex-col gap-5 mt-2">
             <div className="flex items-end gap-3 flex-wrap">
-              <div className="flex-1 min-w-[200px] flex flex-col gap-1.5">
+              <div className="flex-1 min-w-50 flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">From</label>
                 <input
                   value={fromValue}
@@ -251,7 +251,7 @@ export function Converter({ onBack }: ConverterProps) {
                 <ArrowRightLeft className="w-4.5 h-4.5" />
               </button>
 
-              <div className="flex-1 min-w-[200px] flex flex-col gap-1.5">
+              <div className="flex-1 min-w-50 flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">To</label>
                 <input
                   value={toValue}

@@ -19,13 +19,13 @@ export function AutoBackupManager() {
       if (window.electronAPI && window.electronAPI.saveAutoBackup) {
         const result = await window.electronAPI.saveAutoBackup(data, filename);
         if (result.success) {
-          console.log('✅ Auto-backup saved to:', result.path);
+          console.log('✅ Auto-backup saved silently to:', result.path);
         } else {
           console.error('❌ Auto-backup failed:', result.error);
         }
       }
     } catch (error) {
-      console.error('Failed to perform auto-backup:', error);
+      console.error('Failed to perform silent auto-backup:', error);
     }
   }, []);
 
@@ -34,13 +34,14 @@ export function AutoBackupManager() {
     const electronAPI = window.electronAPI;
     if (electronAPI) {
       try {
-        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 5000));
+        // Enforce max 2.5s timeout for exit backup so closing is fast and responsive
+        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2500));
         await Promise.race([
           performSilentBackup(),
           timeoutPromise
         ]);
       } catch (error) {
-        console.error('Error in close-intercept auto-backup:', error);
+        console.error('Error in silent exit auto-backup:', error);
       } finally {
         electronAPI.closeApp(true);
       }
@@ -52,13 +53,12 @@ export function AutoBackupManager() {
   }, []);
 
   useEffect(() => {
-    // A. Backup on Mount (App Start)
-    // We wait 5 seconds to not slow down the initial boot
+    // A. Silent Auto-Backup on Mount (App Opening)
     const startupTimer = setTimeout(() => {
       void performSilentBackup();
     }, 5000);
 
-    // B. Backup on Window Close (Exit)
+    // B. Show Exit Confirmation on Window Close
     const electronAPI = window.electronAPI;
     if (electronAPI && electronAPI.onCloseRequested) {
       electronAPI.onCloseRequested(() => {
@@ -74,8 +74,8 @@ export function AutoBackupManager() {
   return (
     <ConfirmationModal
       open={showConfirm}
-      title="Close Application"
-      message="Are you sure you want to exit FormEase Pro? Make sure all your class records and advisory lists have been fully finalized."
+      title="Exit FormEase Pro"
+      message="Are you sure you want to exit FormEase Pro?"
       intent="danger"
       confirmLabel="Yes, Exit App"
       cancelLabel="Cancel"

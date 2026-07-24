@@ -128,7 +128,7 @@ const SF10Grid: React.FC<SF10GridProps> = ({
             <img 
               src={`${import.meta.env.BASE_URL}logos/logo_right.png`} 
               alt="DepEd Logo" 
-              className="absolute top-[0.5in] right-[0.6in] w-[0.9in] h-auto pointer-events-none"
+              className="absolute top-12 right-[0.6in] w-[0.9in] h-auto pointer-events-none"
             />
           </>
         )}

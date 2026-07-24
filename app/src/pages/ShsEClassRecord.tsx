@@ -1294,7 +1294,7 @@ export function ShsEClassRecord() {
 
             <div className="bg-white rounded-lg shadow-md p-2.5 no-print">
                 <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-2 lg:gap-2">
-                    <div className="w-full lg:w-[160px] shrink-0">
+                    <div className="w-full lg:w-40 shrink-0">
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">Section</label>
                         </div>
@@ -1309,7 +1309,7 @@ export function ShsEClassRecord() {
                             ))}
                         </select>
                     </div>
-                    <div className="w-full lg:flex-1 lg:min-w-[140px]">
+                    <div className="w-full lg:flex-1 lg:min-w-35">
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">
                                 Subject {sectionGradeLevel && `(${sectionGradeLevel})`}
@@ -1341,7 +1341,7 @@ export function ShsEClassRecord() {
                         </select>
                     </div>
 
-                    <div className="w-full lg:w-[110px] shrink-0">
+                    <div className="w-full lg:w-27.5 shrink-0">
                         <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
                         <select value={quarter} onChange={(e) => {
                             const val = e.target.value;
@@ -1357,7 +1357,7 @@ export function ShsEClassRecord() {
                             <option value="summary_final">Final Summary</option>
                         </select>
                     </div>
-                    <div className="w-full lg:w-[110px] shrink-0">
+                    <div className="w-full lg:w-27.5 shrink-0">
                         <label className="text-[11px] font-semibold mb-1 text-deped-blue flex items-center gap-1 whitespace-nowrap">
                             <FileText className="w-3.5 h-3.5" /> Paper Size
                         </label>
@@ -1567,12 +1567,12 @@ export function ShsEClassRecord() {
                                 <thead className="print:table-header-group bg-white font-bold uppercase">
                                     <tr className="text-center text-[10px] font-bold bg-gray-100 h-10">
                                         <th className="border border-black w-8"></th>
-                                        <th className="border border-black p-2 align-middle w-[250px] text-center tracking-wider">LEARNERS' NAMES</th>
+                                        <th className="border border-black p-2 align-middle w-62.5 text-center tracking-wider">LEARNERS' NAMES</th>
                                         {offeredTerms.map(t => (
-                                            <th key={t} className="border border-black p-1 w-[80px]">TERM {t}</th>
+                                            <th key={t} className="border border-black p-1 w-20">TERM {t}</th>
                                         ))}
-                                        <th className="border border-black p-1 w-[90px]">FINAL GRADE</th>
-                                        <th className="border border-black p-1 w-[100px]">DESCRIPTOR</th>
+                                        <th className="border border-black p-1 w-22.5">FINAL GRADE</th>
+                                        <th className="border border-black p-1 w-25">DESCRIPTOR</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1586,7 +1586,7 @@ export function ShsEClassRecord() {
                                         return (
                                             <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
                                                 <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
-                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
+                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
                                                     {formatStudentFullName(student)}
                                                 </td>
                                                 {offeredTerms.map(t => (
@@ -1607,7 +1607,7 @@ export function ShsEClassRecord() {
                                         return (
                                             <tr key={student.lrn} className="h-7 hover:bg-gray-50 transition-colors">
                                                 <td className="border border-black text-center font-bold text-[10px]">{i + 1}</td>
-                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-[250px]">
+                                                <td className="border border-black text-left px-2 uppercase text-[10px] font-bold truncate max-w-62.5">
                                                     {formatStudentFullName(student)}
                                                 </td>
                                                 {offeredTerms.map(t => (
@@ -1861,45 +1861,45 @@ export function ShsEClassRecord() {
                                         </h1>
                                         <div className="grid gap-x-4 gap-y-3 text-[10px] font-bold uppercase mb-2 justify-center w-full px-2" style={{ gridTemplateColumns: '42% 33% 25%' }}>
                                             {/* Row 1, Col 1: Region */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">REGION</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[100px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-25 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>
                                                     {schoolProfile.region}
                                                 </div>
                                             </div>
                                             {/* Row 1, Col 2: Division */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DIVISION</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>
                                                     {schoolProfile.division}
                                                 </div>
                                             </div>
                                             {/* Row 1, Col 3: District */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DISTRICT</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[120px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.district || '', "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.district || '', "text-[10px]")}`}>
                                                     {schoolProfile.district || ''}
                                                 </div>
                                             </div>
 
                                             {/* Row 2, Col 1: School Name */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL NAME</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[140px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-35 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>
                                                     {schoolProfile.name}
                                                 </div>
                                             </div>
                                             {/* Row 2, Col 2: School ID */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL ID</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>
                                                     {schoolProfile.school_id}
                                                 </div>
                                             </div>
                                             {/* Row 2, Col 3: School Year */}
-                                            <div className="flex items-center min-h-[26px]">
+                                            <div className="flex items-center min-h-6.5">
                                                 <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR</span>
-                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-[80px] text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[10px]")}`}>
+                                                <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[10px]")}`}>
                                                     {activeSchoolYear}
                                                 </div>
                                             </div>
@@ -1999,7 +1999,7 @@ export function ShsEClassRecord() {
                                     <div className="space-y-3">
                                         <div className="border border-black rounded p-2 bg-white flex flex-col items-center justify-center">
                                             <h4 className="text-[9px] font-bold text-gray-700 mb-1">Proficiency Level Distribution</h4>
-                                            <div className="w-full h-[110px]">
+                                            <div className="w-full h-27.5">
                                                 <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                     <BarChart data={[
                                                         { name: 'Advancing', count: proficiencyData.advancing?.total || 0 },
@@ -2036,7 +2036,7 @@ export function ShsEClassRecord() {
 
                                         <div className="border border-black rounded p-2 bg-white flex flex-col items-center justify-center">
                                             <h4 className="text-[9px] font-bold text-gray-700 mb-1">MPS by Gender</h4>
-                                            <div className="w-full h-[70px]">
+                                            <div className="w-full h-17.5">
                                                 <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                                     <BarChart layout="vertical" data={[
                                                         { name: 'Male', mps: Number(mpsData.maleMps.toFixed(2)) },

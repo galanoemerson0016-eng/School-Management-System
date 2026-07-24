@@ -11,10 +11,9 @@ import {
     Award,
     ExternalLink,
     ShieldCheck,
-    Cpu,
+    Code,
     Monitor,
     ShieldAlert,
-    Rocket,
     Shield,
     Users,
     Heart,
@@ -293,8 +292,8 @@ export function AboutPage() {
                         {/* INNOVATOR HERO */}
                         <section className="relative min-h-[80vh] flex flex-col items-center justify-center px-6 text-center pt-20">
                             <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                                <div className="absolute top-[15%] left-[20%] w-[400px] h-[400px] bg-blue-600/5 rounded-full blur-[100px]" />
-                                <div className="absolute bottom-[15%] right-[20%] w-[400px] h-[400px] bg-emerald-600/5 rounded-full blur-[100px]" />
+                                <div className="absolute top-[15%] left-[20%] w-100 h-100 bg-blue-600/5 rounded-full blur-[100px]" />
+                                <div className="absolute bottom-[15%] right-[20%] w-100 h-100 bg-emerald-600/5 rounded-full blur-[100px]" />
                             </div>
 
                             <motion.div 
@@ -305,8 +304,8 @@ export function AboutPage() {
                                 <div className="space-y-4">
                                     <span className="text-blue-500 font-black tracking-[0.4em] uppercase text-[10px]">The Innovator</span>
                                     <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-white">Emerson M. Galano</h2>
-                                    <p className="text-base md:text-lg text-slate-400 font-medium max-w-2xl mx-auto">
-                                        Bridging the gap between classroom reality and intelligent technology.
+                                    <p className="text-sm md:text-base text-slate-400 font-medium max-w-3xl mx-auto leading-relaxed">
+                                        Transforming traditional classrooms into intelligent, future-ready learning environments. Specializing in AI integration, custom school automation, and data-driven systems that empower educators and streamline administration.
                                     </p>
                                 </div>
 
@@ -328,7 +327,8 @@ export function AboutPage() {
                                         {[
                                             { label: 'SHS Teacher', icon: GraduationCap },
                                             { label: 'ICT Coordinator', icon: Monitor },
-                                            { label: 'SDRRM Coordinator', icon: ShieldAlert }
+                                            { label: 'SDRRM Coordinator', icon: ShieldAlert },
+                                            { label: 'BERT Adviser', icon: Users }
                                         ].map((role) => (
                                             <div key={role.label} className="flex items-center gap-2 px-5 py-2.5 bg-[#1e293b]/60 rounded-2xl border border-white/5 backdrop-blur-xl">
                                                 <role.icon className="w-4 h-4 text-emerald-400" />
@@ -383,22 +383,58 @@ export function AboutPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {[
                                     {
-                                        title: "Strategic Pedagogy",
-                                        icon: Brain,
+                                        title: "Educational Leadership",
+                                        icon: GraduationCap,
                                         color: "text-blue-400",
-                                        items: ["Educational Mastery", "Records Standards", "Curriculum Mapping", "Automated Assessment"]
+                                        items: ["Digital Transformation", "EdTech Management", "Change Management", "Data-Driven Improvement", "ICT Capacity Building"]
                                     },
                                     {
-                                        title: "Infrastructure",
-                                        icon: Cpu,
-                                        color: "text-emerald-400",
-                                        items: ["ICT & EdTech", "School Tech Leadership", "Data Ecosystems", "Instructional Systems"]
+                                        title: "Curriculum & Instruction",
+                                        icon: FileText,
+                                        color: "text-amber-400",
+                                        items: ["Curriculum & MELCs", "Outcomes-Based Design", "Learning Analytics", "Lesson Planning", "STEM & Science Ed"]
                                     },
                                     {
-                                        title: "Future-Ready",
-                                        icon: Rocket,
+                                        title: "Artificial Intelligence",
+                                        icon: Brain,
                                         color: "text-purple-400",
-                                        items: ["Digital Transformation", "Core Workflow Design", "Form Automation", "Database Logic"]
+                                        items: ["AI Integration", "GenAI in Classrooms", "Prompt Engineering", "AI Content Creation", "Decision Support Tools"]
+                                    },
+                                    {
+                                        title: "Automation & Productivity",
+                                        icon: Zap,
+                                        color: "text-emerald-400",
+                                        items: ["Workflow Automation", "DLL/DLP Automation", "School Forms Automation", "Assessment Automation", "Custom AI Workflows"]
+                                    },
+                                    {
+                                        title: "Educational Technology",
+                                        icon: Monitor,
+                                        color: "text-cyan-400",
+                                        items: ["LMS Solutions", "Digital Classrooms", "Software Integration", "Tech Adoption Strategies", "Digital Resources"]
+                                    },
+                                    {
+                                        title: "Software Development",
+                                        icon: Code,
+                                        color: "text-indigo-400",
+                                        items: ["FormEase SMS", "School Info Systems", "Database Management", "Web App Development", "UX Design"]
+                                    },
+                                    {
+                                        title: "Data & Analytics",
+                                        icon: FilePieChart,
+                                        color: "text-rose-400",
+                                        items: ["Performance Analytics", "EdTech Dashboards", "Student Info Systems", "Data Visualization", "Evidence-Based Decisions"]
+                                    },
+                                    {
+                                        title: "ICT Leadership",
+                                        icon: ShieldCheck,
+                                        color: "text-teal-400",
+                                        items: ["Infrastructure Planning", "Systems Administration", "Tech Training & Coaching", "Cybersecurity Awareness", "Tech Support Management"]
+                                    },
+                                    {
+                                        title: "Professional Development",
+                                        icon: Award,
+                                        color: "text-orange-400",
+                                        items: ["Teacher Upskilling", "AI Literacy Training", "Workshops & Coaching", "Instructional Coaching", "Capacity Building"]
                                     }
                                 ].map((pillar, i) => (
                                     <motion.div 

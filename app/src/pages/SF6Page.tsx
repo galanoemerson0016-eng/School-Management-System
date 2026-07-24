@@ -477,7 +477,7 @@ export function SF6Page() {
                                     <img
                                         src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`}
                                         alt="DepEd Logo"
-                                        className="w-[92px] h-[92px] object-contain shrink-0 mt-0.5"
+                                        className="w-23 h-23 object-contain shrink-0 mt-0.5"
                                     />
 
                                     <div className="flex-1">
@@ -490,35 +490,35 @@ export function SF6Page() {
                                         <div className="mt-2.5 text-[11px] space-y-2">
                                             <div className="flex items-center justify-center gap-3">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[68px] text-right text-black font-bold uppercase tracking-tighter">School ID</span>
-                                                    <div className="w-[135px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.school_id || ''}</div>
+                                                    <span className="w-17 text-right text-black font-bold uppercase tracking-tighter">School ID</span>
+                                                    <div className="w-33.75 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.school_id || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[52px] text-right text-black font-bold uppercase tracking-tighter">Region</span>
-                                                    <div className="w-[120px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.region || ''}</div>
+                                                    <span className="w-13 text-right text-black font-bold uppercase tracking-tighter">Region</span>
+                                                    <div className="w-30 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.region || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[56px] text-right text-black font-bold uppercase tracking-tighter">Division</span>
-                                                    <div className="w-[185px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.division || ''}</div>
+                                                    <span className="w-14 text-right text-black font-bold uppercase tracking-tighter">Division</span>
+                                                    <div className="w-46.25 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.division || ''}</div>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center justify-center gap-3">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[78px] text-right text-black font-bold uppercase tracking-tighter">School Name</span>
-                                                    <div className="w-[390px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.name || ''}</div>
+                                                    <span className="w-19.5 text-right text-black font-bold uppercase tracking-tighter">School Name</span>
+                                                    <div className="w-97.5 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.name || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className="w-[46px] text-right text-black font-bold uppercase tracking-tighter">District</span>
-                                                    <div className="w-[185px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.district || ''}</div>
+                                                    <span className="w-11.5 text-right text-black font-bold uppercase tracking-tighter">District</span>
+                                                    <div className="w-46.25 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{schoolProfile.district || ''}</div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                     <span className="w-[84px] text-right text-black font-bold uppercase tracking-tighter whitespace-nowrap">School Year</span>
-                                                     <div className="w-[77px] h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{activeSchoolYear}</div>
+                                                     <span className="w-21 text-right text-black font-bold uppercase tracking-tighter whitespace-nowrap">School Year</span>
+                                                     <div className="w-19.25 h-7 border border-black bg-transparent px-1.5 flex items-center font-black">{activeSchoolYear}</div>
                                                  </div>
                                             </div>
                                         </div>
@@ -528,7 +528,7 @@ export function SF6Page() {
 
                             <table className="w-full border-collapse table-fixed text-[9px] leading-tight mt-2">
                                 <thead>
-                                    <tr className="h-[56px]">
+                                    <tr className="h-14">
                                         <th className="border border-black p-0.5 font-bold" rowSpan={2} style={{ width: '14.5%' }}>
                                             SUMMARY TABLE
                                         </th>
@@ -538,7 +538,7 @@ export function SF6Page() {
                                             </th>
                                         ))}
                                     </tr>
-                                    <tr className="h-[26px]">
+                                    <tr className="h-6.5">
                                         {buckets.map((bucket) => (
                                             <Fragment key={`${bucket.id}-gender-head`}>
                                                 <th className="border border-black p-0.5 font-normal">MALE</th>
@@ -550,20 +550,20 @@ export function SF6Page() {
                                 </thead>
 
                                 <tbody>
-                                    <tr className="h-[24px]">
+                                    <tr className="h-6">
                                         <td className="border border-black p-0.5 font-bold uppercase">PROMOTED</td>
                                         {renderTripletCells((bucket) => bucket.status.promoted)}
                                     </tr>
-                                    <tr className="h-[24px]">
+                                    <tr className="h-6">
                                         <td className="border border-black p-0.5 font-bold uppercase">CONDITIONAL</td>
                                         {renderTripletCells((bucket) => bucket.status.conditional)}
                                     </tr>
-                                    <tr className="h-[24px]">
+                                    <tr className="h-6">
                                         <td className="border border-black p-0.5 font-bold uppercase">RETAINED</td>
                                         {renderTripletCells((bucket) => bucket.status.retained)}
                                     </tr>
 
-                                    <tr className="h-[48px]">
+                                    <tr className="h-12">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">
                                             LEARNING PROGRESS &<br />
                                             ACHIEVEMENT (based on Learners'<br />
@@ -578,27 +578,27 @@ export function SF6Page() {
                                         ))}
                                     </tr>
 
-                                    <tr className="h-[40px]">
+                                    <tr className="h-10">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">Emerging<br />(64 and below)</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.emerging)}
                                     </tr>
-                                    <tr className="h-[40px]">
+                                    <tr className="h-10">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">Developing<br />(65-74)</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.developing)}
                                     </tr>
-                                    <tr className="h-[40px]">
+                                    <tr className="h-10">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">Connecting<br />(75-79)</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.connecting)}
                                     </tr>
-                                    <tr className="h-[40px]">
+                                    <tr className="h-10">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">Benchmarking<br />(80-89)</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.benchmarking)}
                                     </tr>
-                                    <tr className="h-[40px]">
+                                    <tr className="h-10">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase">Advancing<br />(90-100)</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.advancing)}
                                     </tr>
-                                    <tr className="h-[34px]">
+                                    <tr className="h-8.5">
                                         <td className="border border-black p-0.5 font-bold text-center uppercase bg-slate-50/50">TOTAL</td>
                                         {renderTripletCells((bucket) => bucket.proficiency.total)}
                                     </tr>
@@ -612,7 +612,7 @@ export function SF6Page() {
                                     <p className="mb-1">Prepared and Submitted by:</p>
                                     <div className="relative h-10 flex flex-col justify-end items-center">
                                         {showHeadSig && schoolProfile?.head_signature_url && (
-                                            <div className="absolute inset-x-0 bottom-[12px] h-9 flex items-center justify-center pointer-events-none z-10">
+                                            <div className="absolute inset-x-0 bottom-3 h-9 flex items-center justify-center pointer-events-none z-10">
                                                 <img 
                                                     src={schoolProfile.head_signature_url} 
                                                     alt="School Head Signature" 

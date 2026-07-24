@@ -988,7 +988,7 @@ export function Dashboard() {
 
                 {/* Custom Tooltip */}
                 {hoveredBarIndex !== null && subjectAverages[hoveredBarIndex] && (
-                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1 px-2.5 rounded-lg shadow-lg z-25 transition-all pointer-events-none text-center min-w-[120px]">
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider py-1 px-2.5 rounded-lg shadow-lg z-25 transition-all pointer-events-none text-center min-w-30">
                         <p className="line-clamp-1">{subjectAverages[hoveredBarIndex].name}</p>
                         <p className="text-emerald-400 mt-0.5">{subjectAverages[hoveredBarIndex].avg}% Average</p>
                     </div>
@@ -1033,7 +1033,7 @@ export function Dashboard() {
 
                 {/* Horizontal scroll timeline */}
                 <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                    <div className="flex justify-between items-center w-full gap-[3px] min-w-[680px] pb-1 pt-1">
+                    <div className="flex justify-between items-center w-full gap-0.75 min-w-170 pb-1 pt-1">
                         {attendanceStats.map((stats, index) => {
                             const dayNum = index + 1;
                             const weekdayLetter = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][stats.d.getDay()];
@@ -1239,7 +1239,7 @@ export function Dashboard() {
                 {attendanceChartType === 'calendar' ? (
                     renderAttendanceCalendarGrid()
                 ) : (
-                    <div className="relative h-[120px] w-full">
+                    <div className="relative h-30 w-full">
                         <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="none">
                             <defs>
                                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1430,7 +1430,7 @@ export function Dashboard() {
                         {/* Floating Tooltip */}
                         {hoveredPointIndex !== null && points[hoveredPointIndex] && (
                             <div 
-                                className="absolute bg-slate-955 text-white text-[9px] font-black uppercase tracking-wider py-2 px-3 rounded-xl shadow-xl z-25 pointer-events-none transition-all duration-75 text-center min-w-[140px] border border-slate-800"
+                                className="absolute bg-slate-955 text-white text-[9px] font-black uppercase tracking-wider py-2 px-3 rounded-xl shadow-xl z-25 pointer-events-none transition-all duration-75 text-center min-w-35 border border-slate-800"
                                 style={{
                                     left: `${(points[hoveredPointIndex].x / svgWidth) * 100}%`,
                                     top: `${(points[hoveredPointIndex].y / svgHeight) * 100 - 36}%`,
@@ -1463,7 +1463,7 @@ export function Dashboard() {
                 <div className="absolute top-[50%] right-[40%] w-[30%] h-[30%] bg-violet-500/10 rounded-full blur-[110px]" style={{ animationDelay: '6s', animationDuration: '14s' }} />
             </div>
 
-            <div className="relative z-10 max-w-[1600px] mx-auto p-6 lg:p-10 space-y-10">
+            <div className="relative z-10 max-w-400 mx-auto p-6 lg:p-10 space-y-10">
 
                 {/* Welcome & Tour Banner */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white/70 backdrop-blur-xl p-6 lg:p-8 rounded-4xl border border-white/80 shadow-[0_20px_40px_-16px_rgba(0,0,0,0.02)]">
@@ -1576,7 +1576,7 @@ export function Dashboard() {
                 {renderAttendanceTrendChart()}
 
                 {/* ═══ 3. Insight Pillars ═══ */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch lg:h-[220px]">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch lg:h-55">
                     {/* Left — Action Cards */}
                     <div className="flex flex-col gap-3 h-full">
                         {/* Top Performers */}
@@ -1642,7 +1642,7 @@ export function Dashboard() {
                                 <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#ec4899] ring-2 ring-pink-100" /><span className="text-[7.5px] font-black text-slate-500 uppercase">F</span></div>
                             </div>
                         </div>
-                        <div className="flex-1 flex items-center justify-center relative min-h-[105px] h-[105px]">
+                        <div className="flex-1 flex items-center justify-center relative min-h-26.25 h-26.25">
                             {renderDonutChart()}
                         </div>
                     </div>
@@ -1668,7 +1668,7 @@ export function Dashboard() {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex-1 flex flex-col justify-between min-h-[105px] h-[105px] py-1">
+                        <div className="flex-1 flex flex-col justify-between min-h-26.25 h-26.25 py-1">
                             {renderBarChart()}
                         </div>
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100/60 flex justify-center">
@@ -1682,7 +1682,7 @@ export function Dashboard() {
                 {/* 4. Operation Center - Complex Bottom Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                     {/* Bulletins Section */}
-                    <div className="lg:col-span-7 bg-white p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-[380px]">
+                    <div className="lg:col-span-7 bg-white p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-95">
                         <div className="flex justify-between items-center mb-5">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
@@ -1742,7 +1742,7 @@ export function Dashboard() {
                     </div>
 
                     {/* School Calendar */}
-                    <div className="lg:col-span-5 bg-white p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-[380px]">
+                    <div className="lg:col-span-5 bg-white p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col h-95">
                         <div className="flex justify-between items-center mb-5 gap-3">
                             <div>
                                 <h3 className="text-lg font-black text-slate-900 tracking-tight">Calendar</h3>
@@ -1839,7 +1839,7 @@ export function Dashboard() {
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8 text-center px-4 border border-dashed border-slate-100 rounded-3xl">
                                     <Clock className="w-7 h-7 text-slate-300 mb-2 animate-pulse" />
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-1">No events scheduled</p>
-                                    <p className="text-[10px] text-slate-400 font-semibold max-w-[200px]">There are no official or user-created events for this day.</p>
+                                    <p className="text-[10px] text-slate-400 font-semibold max-w-50">There are no official or user-created events for this day.</p>
                                 </div>
                             )}
                         </div>

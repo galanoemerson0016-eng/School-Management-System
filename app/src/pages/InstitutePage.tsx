@@ -270,7 +270,7 @@ export function InstitutePage() {
 
     if (isEditing && canEdit) {
         return (
-            <div className="h-[calc(100vh-146px)] max-w-[1400px] mx-auto flex flex-col gap-3 overflow-hidden select-none">
+            <div className="h-[calc(100vh-146px)] max-w-350 mx-auto flex flex-col gap-3 overflow-hidden select-none">
                 {/* Header Edit bar */}
                 <motion.div 
                     initial={{ opacity: 0, y: -10 }}
@@ -649,7 +649,7 @@ export function InstitutePage() {
     }
 
     return (
-        <div className="h-[calc(100vh-146px)] max-w-[1400px] mx-auto flex flex-col gap-3 overflow-hidden select-none">
+        <div className="h-[calc(100vh-146px)] max-w-350 mx-auto flex flex-col gap-3 overflow-hidden select-none">
             {/* Top Row: Restored Premium Brand Hero Card */}
             <motion.div 
                 initial={{ opacity: 0, y: -15 }}
@@ -779,7 +779,7 @@ export function InstitutePage() {
                                 <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
                                     {sections.length === 0 ? 'No Classes Created' : 'Advisory Class Not Set'}
                                 </h5>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed max-w-[260px] mx-auto">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed max-w-65 mx-auto">
                                     {sections.length === 0 
                                         ? 'Please create classes and sections first to define your school profile and advisory assignment.' 
                                         : 'Specify which class is your official advisory under the Classes & Sections manager.'}
@@ -813,7 +813,7 @@ export function InstitutePage() {
                             <div className="flex flex-col items-center gap-3 text-center">
                                 <div>
                                     <span className="text-[8.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-1.5">Current Adviser</span>
-                                    <div className="text-lg font-black text-slate-800 dark:text-white truncate max-w-[240px]" title={displayAdviserName}>{displayAdviserName || 'Not Assigned'}</div>
+                                    <div className="text-lg font-black text-slate-800 dark:text-white truncate max-w-60" title={displayAdviserName}>{displayAdviserName || 'Not Assigned'}</div>
                                 </div>
                                 <div>
                                     <span className="text-[8.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-1.5">Class Assignment</span>

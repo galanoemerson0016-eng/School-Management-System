@@ -73,7 +73,7 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full h-[60px] text-left px-5 bg-white border-2 rounded-3xl flex items-center justify-between transition-all hover:border-slate-300 shadow-sm ${isOpen ? 'ring-8 ring-indigo-600/5 border-indigo-600 bg-indigo-50/10' : 'border-slate-100'}`}
+                className={`w-full h-15 text-left px-5 bg-white border-2 rounded-3xl flex items-center justify-between transition-all hover:border-slate-300 shadow-sm ${isOpen ? 'ring-8 ring-indigo-600/5 border-indigo-600 bg-indigo-50/10' : 'border-slate-100'}`}
             >
                 <div className="flex flex-col truncate">
                     <span className={`block truncate text-[13px] leading-tight ${selectedStudent ? 'text-slate-900 font-black' : 'text-slate-400 font-bold'}`}>
@@ -99,7 +99,7 @@ export const StudentSelector = ({ students, selectedStudentLrn, onSelect, disabl
                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute z-100 w-full mt-3 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.15)] rounded-3xl border border-slate-100 max-h-[400px] flex flex-col overflow-hidden backdrop-blur-xl"
+                        className="absolute z-100 w-full mt-3 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.15)] rounded-3xl border border-slate-100 max-h-100 flex flex-col overflow-hidden backdrop-blur-xl"
                     >
                         {/* Search Header */}
                         <div className="p-4 border-b border-slate-50 bg-slate-50/30">

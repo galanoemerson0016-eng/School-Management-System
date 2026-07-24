@@ -102,7 +102,7 @@ export function TugOfWar({ onBack }: TugOfWarProps) {
             isFullscreen ? 'fixed inset-0 z-50 h-screen w-screen justify-center' : ''
           }`}
         >
-          <div className={`relative flex justify-between items-center w-full min-h-[260px] pb-6 px-4`}>
+          <div className={`relative flex justify-between items-center w-full min-h-65 pb-6 px-4`}>
             {/* Ground Floor */}
             <div className="absolute left-2 right-2 bottom-6 h-1.5 bg-linear-to-r from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-600 rounded-full z-0" />
 

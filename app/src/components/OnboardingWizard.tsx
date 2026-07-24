@@ -521,10 +521,10 @@ export function OnboardingWizard({ onClose }: OnboardingWizardProps) {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
                 style={getPopoverStyle()}
-                className="w-full max-w-[340px] md:max-w-[460px] bg-white dark:bg-slate-900 rounded-4xl border border-slate-200/80 dark:border-white/10 shadow-[0_20px_50px_rgba(15,23,42,0.18)] overflow-hidden flex flex-col md:flex-row min-h-[300px]"
+                className="w-full max-w-85 md:max-w-115 bg-white dark:bg-slate-900 rounded-4xl border border-slate-200/80 dark:border-white/10 shadow-[0_20px_50px_rgba(15,23,42,0.18)] overflow-hidden flex flex-col md:flex-row min-h-75"
             >
                 {/* Popover Header/Left Color bar */}
-                <div className={`w-full md:w-[120px] bg-linear-to-br ${ActiveStep.color} p-4 flex flex-row md:flex-col justify-between text-white shrink-0 relative overflow-hidden`}>
+                <div className={`w-full md:w-30 bg-linear-to-br ${ActiveStep.color} p-4 flex flex-row md:flex-col justify-between text-white shrink-0 relative overflow-hidden`}>
                     <div className="absolute inset-0 bg-black/10" />
                     <div className="relative z-10 text-[10px] font-black uppercase tracking-[0.2em] bg-white/20 px-2 py-0.5 rounded-full border border-white/10 self-start">Tour</div>
                     

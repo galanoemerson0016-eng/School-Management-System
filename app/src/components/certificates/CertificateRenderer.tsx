@@ -95,13 +95,13 @@ export const CertificateRenderer: React.FC<CertificateRendererProps> = ({ data }
 
           <div className="mt-1 flex flex-col items-center text-center">
             <p className="line-region-tg font-bookman uppercase mb-0">{data.headerRegionTagalog}</p>
-            <p className="line-region-en font-bookman mb-[2px] uppercase">{data.headerRegionEnglish}</p>
+            <p className="line-region-en font-bookman mb-0.5 uppercase">{data.headerRegionEnglish}</p>
 
             <p className="line-division-tg font-bookman uppercase mb-0">{data.headerDivisionTagalog}</p>
-            <p className="line-division-en font-bookman mb-[2px] uppercase">{data.headerDivisionEnglish}</p>
+            <p className="line-division-en font-bookman mb-0.5 uppercase">{data.headerDivisionEnglish}</p>
 
             <p className="line-district-tg font-bookman uppercase mb-0">{data.headerDistrictTagalog}</p>
-            <p className="line-district-en font-bookman mb-[2px] uppercase">{data.headerDistrictEnglish}</p>
+            <p className="line-district-en font-bookman mb-0.5 uppercase">{data.headerDistrictEnglish}</p>
 
             <p className="line-school-name font-bookman uppercase mt-0">{data.headerSchoolName}</p>
           </div>

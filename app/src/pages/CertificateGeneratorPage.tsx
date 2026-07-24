@@ -909,7 +909,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 {batchStudents.length > 0 && (
                                     <div className="space-y-2">
                                         <p className="text-[9px] font-bold text-gray-400 uppercase ml-1">Honor Students ({batchStudents.length})</p>
-                                        <div className="max-h-[200px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                        <div className="max-h-50 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
                                             {batchStudents.map(student => (
                                                 <div 
                                                     key={student.lrn}
@@ -920,7 +920,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                             {student.average}
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{student.name}</p>
+                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-30">{student.name}</p>
                                                             <p className="text-[8px] text-gray-400 font-bold">{student.honors.english}</p>
                                                         </div>
                                                     </div>
@@ -947,7 +947,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 Toggle All
                                             </button>
                                         </div>
-                                        <div className="max-h-[200px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                        <div className="max-h-50 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
                                             {subjectAwards.map(award => (
                                                 <div 
                                                     key={award.subject}
@@ -958,7 +958,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                             {award.average}
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{award.subject}</p>
+                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-30">{award.subject}</p>
                                                             <p className="text-[8px] text-purple-400 font-bold">{award.student}</p>
                                                         </div>
                                                     </div>
@@ -985,7 +985,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 Toggle All
                                             </button>
                                         </div>
-                                        <div className="max-h-[250px] overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                                        <div className="max-h-62.5 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
                                             {customAwards.map(award => (
                                                 <div 
                                                     key={award.id}
@@ -996,7 +996,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                             {award.awardType.substring(0, 2).toUpperCase()}
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-[120px]">{award.excellenceAward.split(' (')[0]}</p>
+                                                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-200 uppercase truncate max-w-30">{award.excellenceAward.split(' (')[0]}</p>
                                                             <p className="text-[8px] text-amber-500 font-bold uppercase">{award.studentName}</p>
                                                         </div>
                                                     </div>
@@ -1030,10 +1030,10 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 {/* Honor Students */}
                                 {batchStudents.filter(s => s.selected).map(student => (
                                     <div key={`honor-${student.lrn}`} className="flex flex-col items-center group relative w-full">
-                                        <div className="absolute top-[-20px] left-1/2 translate-x-[-50%] bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute -top-5 left-1/2 translate-x-[-50%] bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                                             Preview: {student.name} (Honor)
                                         </div>
-                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm mb-[-120px] xl:mb-[-180px] 2xl:mb-[-100px]">
+                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm -mb-30 xl:-mb-45 2xl:-mb-25">
                                             <CertificateRenderer data={{
                                                 ...certData,
                                                 learnerName: student.name,
@@ -1050,10 +1050,10 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 {/* Subject Awards */}
                                 {subjectAwards.filter(s => s.selected).map(award => (
                                     <div key={`award-${award.subject}`} className="flex flex-col items-center group relative w-full mt-12">
-                                        <div className="absolute top-[-20px] left-1/2 translate-x-[-50%] bg-purple-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute -top-5 left-1/2 translate-x-[-50%] bg-purple-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                                             Preview: {award.subject} Excellence
                                         </div>
-                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm mb-[-120px] xl:mb-[-180px] 2xl:mb-[-100px]">
+                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm -mb-30 xl:-mb-45 2xl:-mb-25">
                                             <CertificateRenderer data={{
                                                 ...certData,
                                                 learnerName: award.student,
@@ -1071,10 +1071,10 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 {/* Custom nominated / classroom awards */}
                                 {customAwards.filter(s => s.selected).map(award => (
                                     <div key={`custom-${award.id}`} className="flex flex-col items-center group relative w-full mt-12">
-                                        <div className="absolute top-[-20px] left-1/2 translate-x-[-50%] bg-amber-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute -top-5 left-1/2 translate-x-[-50%] bg-amber-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase shadow-xl z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                                             Preview: {award.excellenceAward.split(' (')[0]} ({award.studentName})
                                         </div>
-                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm mb-[-120px] xl:mb-[-180px] 2xl:mb-[-100px]">
+                                        <div className="shadow-2xl origin-top scale-[0.35] xl:scale-[0.5] 2xl:scale-[0.7] bg-white rounded-sm -mb-30 xl:-mb-45 2xl:-mb-25">
                                             <CertificateRenderer data={{
                                                 ...certData,
                                                 learnerName: award.studentName,

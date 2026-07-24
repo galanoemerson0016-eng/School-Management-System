@@ -767,13 +767,13 @@ export function ReportsPage() {
                             <thead>
                                 <tr className="bg-linear-to-r from-deped-blue to-blue-700 text-white">
                                     <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wider">Student Name</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Report Card (SF9)</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Birth Cert (PSA)</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">SF10 / Form 137</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Good Moral</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">BEEF Form</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">ECCD Checklist</th>
-                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-[80px]">Undertaking</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Report Card (SF9)</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Birth Cert (PSA)</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">SF10 / Form 137</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Good Moral</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">BEEF Form</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">ECCD Checklist</th>
+                                    <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Undertaking</th>
                                     <th className="px-4 py-3.5 text-center font-bold uppercase tracking-wider">Progress</th>
                                     <th className="px-4 py-3.5 text-right font-bold uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -1875,7 +1875,7 @@ export function ReportsPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="overflow-x-auto max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                    <div className="overflow-x-auto max-h-75 overflow-y-auto custom-scrollbar">
                                                         <table className="w-full text-xs">
                                                             <thead>
                                                                 <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
@@ -1982,7 +1982,7 @@ export function ReportsPage() {
                                                                                     <span className="text-gray-300 italic">None</span>
                                                                                 )}
                                                                             </td>
-                                                                            <td className="py-3 text-gray-600 font-medium max-w-[200px] truncate">
+                                                                            <td className="py-3 text-gray-600 font-medium max-w-50 truncate">
                                                                                 {traitEval?.characterTraitTitle || '-'}
                                                                             </td>
                                                                             <td className="py-3 text-right">
@@ -2310,7 +2310,7 @@ export function ReportsPage() {
                                                                                         <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
                                                                                         <p className="text-[9px] text-gray-400">{s.lrn}</p>
                                                                                     </td>
-                                                                                    <td className="py-3 text-gray-700 font-medium max-w-[200px] truncate">
+                                                                                    <td className="py-3 text-gray-700 font-medium max-w-50 truncate">
                                                                                         {resEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
                                                                                     </td>
                                                                                     <td className="py-3 text-center font-bold">
@@ -2413,7 +2413,7 @@ export function ReportsPage() {
                                                                                         <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
                                                                                         <p className="text-[9px] text-gray-400">{s.lrn}</p>
                                                                                     </td>
-                                                                                    <td className="py-3 text-gray-700 font-medium max-w-[200px] truncate">
+                                                                                    <td className="py-3 text-gray-700 font-medium max-w-50 truncate">
                                                                                         {innEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
                                                                                     </td>
                                                                                     <td className="py-3 text-center font-bold">

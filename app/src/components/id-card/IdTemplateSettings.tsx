@@ -101,7 +101,7 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                         key={t.id}
                                         type="button"
                                         onClick={() => set('template', t.id)}
-                                        className={`text-center px-1 py-1.5 rounded-lg border transition-colors flex items-center justify-center min-h-[32px] cursor-pointer ${
+                                        className={`text-center px-1 py-1.5 rounded-lg border transition-colors flex items-center justify-center min-h-8 cursor-pointer ${
                                             config.template === t.id
                                                 ? 'border-deped-blue bg-deped-blue/5 ring-1 ring-deped-blue text-deped-blue'
                                                 : 'border-slate-200 hover:border-slate-350 text-slate-700'
@@ -217,7 +217,7 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                         className="w-full min-w-0 px-1.5 py-1 text-xs border border-slate-200 rounded-lg font-mono bg-white text-slate-800 focus:outline-none"
                                     />
                                 </div>
-                                <div className="flex flex-wrap gap-1 mt-1.5 max-w-[150px]">
+                                <div className="flex flex-wrap gap-1 mt-1.5 max-w-37.5">
                                     {QUICK_SWATCHES.map((hex) => (
                                         <button
                                             key={`p-swatch-${hex}`}
@@ -246,7 +246,7 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                         className="w-full min-w-0 px-1.5 py-1 text-xs border border-slate-200 rounded-lg font-mono bg-white text-slate-800 focus:outline-none"
                                     />
                                 </div>
-                                <div className="flex flex-wrap gap-1 mt-1.5 max-w-[150px]">
+                                <div className="flex flex-wrap gap-1 mt-1.5 max-w-37.5">
                                     {QUICK_SWATCHES.map((hex) => (
                                         <button
                                             key={`a-swatch-${hex}`}

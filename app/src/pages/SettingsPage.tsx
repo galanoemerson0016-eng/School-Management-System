@@ -1912,7 +1912,7 @@ export function SettingsPage() {
                                             onChange={handleToggleAnimations}
                                             className="sr-only peer" 
                                         />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
                                     </label>
                                 </div>
                             </div>
@@ -2117,7 +2117,7 @@ export function SettingsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
                                             <button
                                                 onClick={handleExportData}
                                                 disabled={isExporting}
@@ -2126,14 +2126,22 @@ export function SettingsPage() {
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>
-                                                {isExporting ? 'Exporting...' : 'Export Comprehensive Backup (.json)'}
+                                                {isExporting ? 'Exporting...' : 'Export Local Backup (.json)'}
+                                            </button>
+                                            <button
+                                                onClick={handleCloudSync}
+                                                disabled={isCloudSyncing}
+                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-600/15 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <Cloud className="h-4 w-4" />
+                                                {isCloudSyncing ? 'Syncing...' : 'Sync Full Backup to Google Drive'}
                                             </button>
                                             <button
                                                 onClick={() => setIsRestoreModalOpen(true)}
                                                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
                                             >
                                                 <Upload className="h-4 w-4 text-emerald-500" />
-                                                Restore Backup File
+                                                Restore
                                             </button>
                                         </div>
                                     </div>
@@ -2649,7 +2657,7 @@ export function SettingsPage() {
                                                 }}
                                                 className="sr-only peer" 
                                             />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:bg-slate-700 peer-checked:bg-indigo-600"></div>
                                         </label>
                                     </div>
                                 </div>
@@ -3247,7 +3255,7 @@ export function SettingsPage() {
                     )}
 
                     {activeTab === 'about' && (
-                        <div className="rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/10 h-[calc(100vh-220px)] min-h-[500px]">
+                        <div className="rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/10 h-[calc(100vh-220px)] min-h-125">
                             <AboutPage />
                         </div>
                     )}

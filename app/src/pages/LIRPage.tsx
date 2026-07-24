@@ -223,7 +223,7 @@ export function LIRPage() {
              {/* Sticky Premium Top Toolbar */}
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="flex items-center w-full h-14 select-none relative px-2 lg:px-3 gap-1.5 lg:gap-2 overflow-hidden">
                     
                     {/* Identity & Context Branding (Left Most Edge) */}
@@ -246,7 +246,7 @@ export function LIRPage() {
                     {/* Section Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-[90px] duration-200 truncate"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-22.5 duration-200 truncate"
                             value={selectedSection}
                             onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setSelectedSubject(''); }}
                         >
@@ -269,7 +269,7 @@ export function LIRPage() {
                     {/* Subject Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer w-full min-w-[90px] disabled:opacity-30 duration-200 truncate"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer w-full min-w-22.5 disabled:opacity-30 duration-200 truncate"
                             value={selectedSubject}
                             onChange={(e) => { setSelectedSubject(e.target.value); setSelectedStudent(null); }}
                             disabled={!selectedSection}
@@ -287,7 +287,7 @@ export function LIRPage() {
                     {/* Learner Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-[100px] truncate disabled:opacity-30 duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-25 truncate disabled:opacity-30 duration-200"
                             value={selectedStudent?.lrn || ''}
                             onChange={(e) => {
                                 const student = students.find(s => s.lrn === e.target.value) || null;
@@ -329,7 +329,7 @@ export function LIRPage() {
                         <select
                             value={paperSize}
                             onChange={(e) => setPaperSize(e.target.value as 'a4' | 'letter' | 'folio')}
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-[55px] duration-200"
+                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-13.75 duration-200"
                             title="Paper Size"
                         >
                             <option value="a4">A4</option>

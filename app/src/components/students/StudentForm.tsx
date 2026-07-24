@@ -1659,7 +1659,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                         <button type="button" onClick={onClose} className="px-6 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
                             Cancel
                         </button>
-                        <button type="submit" disabled={isLoading} className="btn-primary disabled:opacity-50 min-w-[140px]">
+                        <button type="submit" disabled={isLoading} className="btn-primary disabled:opacity-50 min-w-35">
                             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : student ? 'Update Student' : 'Add Student'}
                         </button>
                     </div>

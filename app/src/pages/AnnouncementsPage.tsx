@@ -250,7 +250,7 @@ export function AnnouncementsPage() {
                             onChange={(e) => setCloudSyncEnabled(e.target.checked)}
                             className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-white/20"></div>
+                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-white/20"></div>
                     </label>
                 </div>
                 <div className="p-4 flex flex-wrap items-center justify-between gap-4">
@@ -280,7 +280,7 @@ export function AnnouncementsPage() {
             {/* Redesigned Compact Filter & Action Row */}
             <div className="flex flex-wrap gap-3 items-center justify-between bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs">
                 <div className="flex flex-wrap gap-3 items-center flex-1">
-                    <div className="relative flex-1 min-w-[200px] max-w-xs group">
+                    <div className="relative flex-1 min-w-50 max-w-xs group">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"

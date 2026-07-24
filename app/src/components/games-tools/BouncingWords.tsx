@@ -367,7 +367,7 @@ export function BouncingWords({ onBack }: BouncingWordsProps) {
             {/* Built Sentence Panel */}
             <div className="w-full">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5 block">Built Sentence</span>
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl min-h-[56px] items-center">
+              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl min-h-14 items-center">
                 {builtSentence.map((w, i) => (
                   <div
                     key={`built-${w.originalIndex}-${i}`}

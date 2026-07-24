@@ -898,7 +898,7 @@ export function SF5Page() {
                                                                 <div className="relative">
                                                                     <p className="mb-3 text-left">PREPARED BY:</p>
                                                                     {showAdviserSig && schoolProfile?.adviser_signature_url && (
-                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[35px] w-24 h-10 flex items-center justify-center pointer-events-none z-10">
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-8.75 w-24 h-10 flex items-center justify-center pointer-events-none z-10">
                                                                             <img 
                                                                                 src={schoolProfile.adviser_signature_url} 
                                                                                 alt="Adviser Signature" 
@@ -917,7 +917,7 @@ export function SF5Page() {
                                                                 <div className="relative">
                                                                     <p className="mb-3 text-left">CERTIFIED CORRECT & SUBMITTED:</p>
                                                                     {showHeadSig && schoolProfile?.head_signature_url && (
-                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[35px] w-24 h-10 flex items-center justify-center pointer-events-none z-10">
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-8.75 w-24 h-10 flex items-center justify-center pointer-events-none z-10">
                                                                             <img 
                                                                                 src={schoolProfile.head_signature_url} 
                                                                                 alt="School Head Signature" 

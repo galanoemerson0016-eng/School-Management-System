@@ -2580,7 +2580,7 @@ const groupedSections = useMemo(() => {
                                         {/* Two Columns Layout */}
                                         <div className="mt-2 flex flex-col md:flex-row gap-6 items-start justify-start w-full print:break-inside-avoid" style={{ maxWidth: '1200px' }}>
                                             {/* Column A: Left Column */}
-                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-[550px]">
+                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-137.5">
                                                 {/* Learning Progress and Achievement */}
                                                 <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
                                                     <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">
@@ -2694,7 +2694,7 @@ const groupedSections = useMemo(() => {
                                             </div>
 
                                             {/* Column B: Right Column */}
-                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-[550px]">
+                                            <div className="flex flex-col gap-3 flex-1 w-full max-w-137.5">
                                                 {/* Summary of Promotion */}
                                                 <div className="border border-black overflow-hidden rounded-sm shadow-sm w-full">
                                                     <div className="bg-gray-200 p-1.5 font-bold text-[10px] border-b border-black text-center uppercase tracking-wider">

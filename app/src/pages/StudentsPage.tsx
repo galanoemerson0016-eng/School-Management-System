@@ -117,7 +117,11 @@ export function StudentsPage() {
     const isAdviserOfAny = userAdvisorySections.length > 0;
     const isAdviserOfCurrent = user?.uid && selectedSectionObj?.adviser_id === user.uid;
     const isCurrentSectionAdvisory = selectedSectionObj ? (selectedSectionObj.is_advisory ?? !selectedSectionObj.is_teaching_load) : true;
-    const isSimplifiedMode = viewMode === 'section_detail' && !isCurrentSectionAdvisory;
+    const targetSectionForForm = editingStudent
+        ? officialSections.find(s => s.section_name === editingStudent.student_section || s.id === editingStudent.student_section)
+        : selectedSectionObj;
+    const isTargetSectionAdvisory = targetSectionForForm ? (targetSectionForForm.is_advisory ?? !targetSectionForForm.is_teaching_load) : true;
+    const isSimplifiedMode = !isTargetSectionAdvisory;
 
     const canEdit = isAdmin || isAdviserOfCurrent;
     const canAddGlobally = isAdmin || isAdviserOfAny;
@@ -890,7 +894,7 @@ export function StudentsPage() {
                                 <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
                                     <img 
                                         src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
-                                        className="w-[500px] h-[500px] object-contain grayscale scale-125 rotate-6"
+                                        className="w-125 h-125 object-contain grayscale scale-125 rotate-6"
                                         alt=""
                                     />
                                 </div>

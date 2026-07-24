@@ -344,7 +344,7 @@ export function ActivationPage() {
                 </div>
 
                 {/* Doc Content Box */}
-                <div className="bg-slate-950/40 border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[320px]">
+                <div className="bg-slate-950/40 border border-white/5 rounded-2xl overflow-hidden flex flex-col h-80">
                   {/* Tab Selector */}
                   <div className="bg-slate-900 flex border-b border-white/5 p-1 gap-1 shrink-0">
                     <button

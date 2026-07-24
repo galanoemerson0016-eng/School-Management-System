@@ -2797,6 +2797,27 @@ export function SF9Page() {
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
+                                    className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-32 lg:min-w-36 duration-200"
+                                    value={selectedSection}
+                                    onChange={(e) => {
+                                        setSelectedSection(e.target.value);
+                                        setSelectedStudent(null);
+                                    }}
+                                >
+                                    <option value="">Select Advisory Section</option>
+                                    {filteredSections.map(s => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.section_grade_level} - {s.section_name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            </div>
+                        )}
+
+                        {!isBatchReady && (
+                            <div className="relative group shrink-0">
+                                <select 
                                     className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-35 lg:min-w-38.75 disabled:opacity-30 duration-200"
                                     value={selectedStudent?.lrn || ''}
                                     onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
@@ -3923,7 +3944,7 @@ function SF9LayoutModal({
                                             }}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>
 
@@ -4005,7 +4026,7 @@ function SF9LayoutModal({
                                             }}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>
 

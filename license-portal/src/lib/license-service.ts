@@ -12,7 +12,7 @@ import {
   addDoc
 } from 'firebase/firestore';
 
-let activeProduct: 'formease-pro' | 'anecdotal-record' = 'formease-pro';
+let activeProduct: 'formease-pro' | 'anecdotal-record' | 'id-generator' = 'formease-pro';
 let COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
 let REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
 let TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
@@ -29,18 +29,23 @@ const parseFirestoreDate = (date: any) => {
 };
 
 export const licenseService = {
-  setProduct(product: 'formease-pro' | 'anecdotal-record') {
+  setProduct(product: 'formease-pro' | 'anecdotal-record' | 'id-generator') {
     activeProduct = product;
     if (product === 'formease-pro') {
       COLLECTION_PATH = 'artifacts/g7-special/public/data/licenses';
       REQUESTS_PATH = 'artifacts/g7-special/admin/data/purchase_requests';
       TRIALS_PATH = 'artifacts/g7-special/public/data/trials';
       DOWNLOADS_DOC_PATH = 'artifacts/g7-special/public/data/downloads_info';
-    } else {
+    } else if (product === 'anecdotal-record') {
       COLLECTION_PATH = 'artifacts/anecdotal-record/public/data/licenses';
       REQUESTS_PATH = 'artifacts/anecdotal-record/admin/data/purchase_requests';
       TRIALS_PATH = 'artifacts/anecdotal-record/public/data/trials';
       DOWNLOADS_DOC_PATH = 'artifacts/anecdotal-record/public/data/downloads_info';
+    } else if (product === 'id-generator') {
+      COLLECTION_PATH = 'artifacts/id-generator/public/data/licenses';
+      REQUESTS_PATH = 'artifacts/id-generator/admin/data/purchase_requests';
+      TRIALS_PATH = 'artifacts/id-generator/public/data/trials';
+      DOWNLOADS_DOC_PATH = 'artifacts/id-generator/public/data/downloads_info';
     }
   },
 

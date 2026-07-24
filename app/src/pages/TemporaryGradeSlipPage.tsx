@@ -584,7 +584,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                 <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
                 <div className="w-45 mx-auto text-center mt-2.5 relative">
                     {schoolProfile.adviser_signature_url && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-3.5 w-20 h-10 flex items-center justify-center pointer-events-none z-10">
                             <img 
                                 src={schoolProfile.adviser_signature_url} 
                                 alt="Adviser Signature" 
@@ -1097,7 +1097,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                 <p className="text-[8px] mb-1 w-full text-center">Prepared by:</p>
                 <div className="w-45 mx-auto text-center mt-2.5 relative">
                     {schoolProfile.adviser_signature_url && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-3.5 w-20 h-10 flex items-center justify-center pointer-events-none z-10">
                             <img 
                                 src={schoolProfile.adviser_signature_url} 
                                 alt="Adviser Signature" 

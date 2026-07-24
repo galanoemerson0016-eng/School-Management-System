@@ -92,7 +92,7 @@ export function RaffleJar({ onBack }: RaffleJarProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start">
           {/* Raffle Jar Visual */}
-          <div className="relative aspect-square w-full max-w-[320px] mx-auto flex flex-col items-center justify-center border-4 border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/50 rounded-full shadow-inner overflow-hidden p-6">
+          <div className="relative aspect-square w-full max-w-80 mx-auto flex flex-col items-center justify-center border-4 border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/50 rounded-full shadow-inner overflow-hidden p-6">
             
             {/* The Glass Jar Shell */}
             <div className="absolute inset-4 rounded-full border border-white/20 shadow-lg backdrop-blur-[2px] flex items-center justify-center">

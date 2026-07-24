@@ -235,7 +235,7 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
 };
 
 export function SectionForm({ section, onClose }: SectionFormProps) {
-    const { sections, addSection, updateSection, subjects, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
+    const { addSection, updateSection, subjects, schoolProfile, updateSchoolProfile, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -261,14 +261,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     // Handle initial role defaults for NEW sections
     useEffect(() => {
         if (!section) {
-            const hasExistingAdvisory = sections.some(s => s.is_advisory ?? !s.is_teaching_load);
             setFormData(prev => ({
                 ...prev,
-                is_advisory: !hasExistingAdvisory,
-                is_teaching_load: hasExistingAdvisory
+                is_advisory: true,
+                is_teaching_load: false
             }));
         }
-    }, [sections, section]);
+    }, [section]);
 
     // Update adviser_name automatically if it's generic/empty and profile details appear
     useEffect(() => {
@@ -423,19 +422,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     }, [availableSubjects, formData.section_grade_level]);
 
     const handleAdvisoryChange = (checked: boolean) => {
-        if (checked) {
-            // Check if any other section is already an advisory class
-            // We use the legacy logic: if is_advisory is missing, it's an advisory class IF it's not a teaching load
-            const existingAdvisory = sections.find(s => {
-                const effectiveIsAdvisory = s.is_advisory ?? !s.is_teaching_load;
-                return effectiveIsAdvisory && s.id !== section?.id;
-            });
-
-            if (existingAdvisory) {
-                showNotification(`Role Conflict: ${existingAdvisory.section_grade_level} - ${existingAdvisory.section_name} is already your Advisory Class. You can only have ONE advisory class.`, 'error');
-                return;
-            }
-        }
         setFormData(prev => ({ 
             ...prev, 
             is_advisory: checked,
@@ -478,19 +464,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         if (!formData.section_name || !formData.section_grade_level) {
             showNotification('Please fill in all required fields.', 'error');
             return;
-        }
-
-        // Final validation for advisory
-        if (formData.is_advisory) {
-            const existingAdvisory = sections.find(s => {
-                const effectiveIsAdvisory = s.is_advisory ?? !s.is_teaching_load;
-                return effectiveIsAdvisory && s.id !== section?.id;
-            });
-            if (existingAdvisory) {
-                showNotification(`Cannot save: ${existingAdvisory.section_name} is already your Advisory Class.`, 'error');
-                setIsLoading(false);
-                return;
-            }
         }
 
         try {

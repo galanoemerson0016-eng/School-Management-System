@@ -459,7 +459,7 @@ export function SF8Page() {
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button 
@@ -486,7 +486,7 @@ export function SF8Page() {
                             <select 
                                 value={selectedSection}
                                 onChange={(e) => setSelectedSection(e.target.value)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[130px] lg:min-w-[150px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-32.5 lg:min-w-37.5 duration-200"
                             >
                                 <option value="">Select Section</option>
                                 {sortedSections.map(section => (
@@ -499,7 +499,7 @@ export function SF8Page() {
                         </div>
                     )}
 
-                    <div className="flex-1 min-w-[12px]" />
+                    <div className="flex-1 min-w-3" />
 
                     <div className="flex items-center gap-2 shrink-0">
                         {/* Paper Size Selector */}
@@ -507,7 +507,7 @@ export function SF8Page() {
                             <select
                                 value={paperSize}
                                 onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-[80px] lg:w-[90px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
                             >
                                 <option value="a4">A4</option>
                                 <option value="folio">Folio</option>
@@ -599,7 +599,7 @@ export function SF8Page() {
                             className="transition-all duration-700 ease-out origin-top print:scale-100"
                             style={{ transform: `scale(${zoom})` }}
                         >
-                            <div id="sf8-printable-area" className="sf8-page mx-auto w-full max-w-[1123px] bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
+                            <div id="sf8-printable-area" className="sf8-page mx-auto w-full max-w-280.75 bg-white text-black border border-black/10 shadow-[0_20px_50px_rgba(0,0,0,0.08)] print:shadow-none print:border-none">
                     <div className="sf8-page-content p-3 sm:p-4 flex flex-col">
                         <div className="flex items-start justify-between gap-3 mb-2">
                             <img src={`${import.meta.env.BASE_URL || '/'}deped_logo_left.png`} alt="DepEd" className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0" />

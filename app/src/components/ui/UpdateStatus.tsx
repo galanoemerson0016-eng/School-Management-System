@@ -53,7 +53,7 @@ export function UpdateStatus() {
 
       {/* Tooltip / Status Popover */}
       {status && (
-        <div className="absolute right-0 top-full mt-2 w-max max-w-[250px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-lg border border-slate-200 dark:border-white/10 p-3 z-50">
+        <div className="absolute right-0 top-full mt-2 w-max max-w-62.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-lg border border-slate-200 dark:border-white/10 p-3 z-50">
           <p className="text-xs font-medium text-slate-700 dark:text-slate-300 text-center">
             {status}
           </p>

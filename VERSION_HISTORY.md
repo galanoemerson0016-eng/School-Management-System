@@ -1,13 +1,41 @@
+<!-- markdownlint-disable MD024 -->
+
 # Version History
+
+## v2.6.0 (2026-07-24)
+
+### 🚀 New Features & Enhancements
+
+* **Multi-Advisory Class Management:**
+  * Removed single advisory class restriction in Section management (`SectionForm.tsx`), enabling teachers and multi-grade advisers to create and manage multiple advisory classes simultaneously.
+  * Ensured the Complete Student Information Form renders for all learners belonging to advisory sections in `StudentsPage.tsx`.
+  * Added a dedicated **Select Advisory Section** dropdown toolbar control in `SF9Page.tsx` to switch between advisory classes for SF9 report card preview, printing, and batch PDF export.
+  * Updated section selector availability in `SF10Page.tsx`.
+
+* **Google Drive & Database Auto-Backup Enhancements:**
+  * Added a prominent **Sync Full Backup to Google Drive** button in both the top Header Backup Options menu and Settings Data Management dashboard.
+  * Verified all auto-backups and cloud sync exports produce a 100% complete, uncompressed, unencrypted, raw `.json` snapshot of all database records.
+  * Refactored `AutoBackupManager.tsx` so database backup generation runs silently in the background when confirming application exit.
+
+### 🐞 Bug Fixes & Code Cleanup
+
+* Resolved section locking issue on the SF9 Report Card page by adding section selection controls.
+* Cleaned up unused state variable destructuring and satisfied lint rules across section forms.
+
+### 📝 Notes
+
+Backward compatible. No database migration required.
 
 ## v2.5.2 (2026-07-17)
 
 ### 🚀 New Features & Improvements
+
 * Updated default ID card watermark seal opacity to 7%.
 * Added signature scale and vertical offset configuration settings.
 * Positioned the School Head signatory block directly below the signature on the back of the card.
 
 ### 🐞 Bug Fixes
+
 * **ID Generator Layout:** Repaired left/right sidebar scrolling bounds to allow full scrolling.
 * **Floating Controls:** Moved the floating controls bar (zoom and sidebar toggles) to float at the top of the preview area to prevent overlapping card contents.
 * **Logo Persistence:** Fixed a bug where uploading/removing a logo from the Institute Profile would be overridden by stale config saves from the ID Generator page. Logo updates now auto-save immediately.
@@ -15,6 +43,7 @@
 * **TypeScript Fixes:** Resolved VM model type errors by adding missing `schoolYear` and `adviserSignatureUrl` to `IdCardViewModel`.
 
 ### 📝 Notes
+
 Backward compatible. No data migration required.
 
 ## v2.5.1 (2026-07-12)

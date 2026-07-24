@@ -129,7 +129,7 @@ export function Scoreboard({ onBack }: ScoreboardProps) {
                   type="text"
                   value={team.name}
                   onChange={(e) => renameTeam(team.id, e.target.value)}
-                  className={`text-center font-black text-lg bg-transparent border-b border-transparent hover:border-slate-300 focus:border-slate-400 focus:outline-none w-full max-w-[150px] mb-4 ${palette.text}`}
+                  className={`text-center font-black text-lg bg-transparent border-b border-transparent hover:border-slate-300 focus:border-slate-400 focus:outline-none w-full max-w-37.5 mb-4 ${palette.text}`}
                 />
 
                 <div className="text-6xl font-black text-slate-800 dark:text-white mb-6 select-none transition-transform duration-200 active:scale-110">

@@ -367,7 +367,7 @@ export function WheelOfNames({ onBack }: WheelOfNamesProps) {
         </div>
 
         <div ref={wheelContainerRef} className={`grid grid-cols-1 md:grid-cols-[1fr_320px] gap-6 items-start ${isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-[#0f172a] p-8 flex flex-col items-center justify-center' : ''}`}>
-          <div className="relative aspect-square w-full max-w-[450px] mx-auto flex items-center justify-center">
+          <div className="relative aspect-square w-full max-w-112.5 mx-auto flex items-center justify-center">
             <canvas ref={canvasRef} className="w-full h-full" />
             {showWinner && (
               <div className="absolute inset-0 bg-white/80 dark:bg-black/80 flex items-center justify-center rounded-full">

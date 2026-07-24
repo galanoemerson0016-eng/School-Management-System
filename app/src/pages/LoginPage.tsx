@@ -331,7 +331,7 @@ export const LoginPage = () => {
                     >
                         {/* Institute Profile Header */}
                         <div className="flex flex-col gap-0.5 mb-4 items-center">
-                            <img src={`${import.meta.env.BASE_URL}website-banner-2-1.png`} alt="Official Banner" className="h-[60px] object-contain drop-shadow-lg mb-1" />
+                            <img src={`${import.meta.env.BASE_URL}website-banner-2-1.png`} alt="Official Banner" className="h-15 object-contain drop-shadow-lg mb-1" />
                             <span className="text-white font-bold tracking-[0.3em] uppercase text-[11px] drop-shadow-md">
                                 {t.republic}
                             </span>
@@ -493,7 +493,7 @@ export const LoginPage = () => {
                 <motion.div
                     onHoverStart={() => setIsCardHovered(true)}
                     onHoverEnd={() => setIsCardHovered(false)}
-                    className={`w-full max-w-[420px] z-10 p-9 md:p-10 rounded-[24px] relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
+                    className={`w-full max-w-105 z-10 p-9 md:p-10 rounded-[24px] relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
                         ? 'bg-white/4 backdrop-blur-2xl border border-white/8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]'
                         : 'bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_60px_rgba(0,0,0,0.06)]'
                         } ${isCardHovered && !darkMode ? 'shadow-[0_25px_70px_rgba(10,61,145,0.08)]' : ''} ${isCardHovered && darkMode ? 'border-white/12 shadow-[0_25px_70px_rgba(0,0,0,0.5)]' : ''}`}
@@ -588,7 +588,7 @@ export const LoginPage = () => {
                                     value={credentials.id}
                                     onChange={(e) => setCredentials({ ...credentials, id: e.target.value })}
                                 />
-                                <User className={`absolute right-4 top-1/2 -translate-y-1/2 h-[18px] w-[18px] pointer-events-none transition-colors ${darkMode ? 'text-gray-600 group-focus-within:text-blue-400' : 'text-gray-300 group-focus-within:text-deped-blue-light'
+                                <User className={`absolute right-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 pointer-events-none transition-colors ${darkMode ? 'text-gray-600 group-focus-within:text-blue-400' : 'text-gray-300 group-focus-within:text-deped-blue-light'
                                     }`} />
                             </div>
                         </div>
@@ -621,11 +621,11 @@ export const LoginPage = () => {
                                     <AnimatePresence mode="wait">
                                         {showPassword ? (
                                             <motion.div key="off" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.15 }}>
-                                                <EyeOff className="h-[18px] w-[18px]" />
+                                                <EyeOff className="h-4.5 w-4.5" />
                                             </motion.div>
                                         ) : (
                                             <motion.div key="on" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.15 }}>
-                                                <Eye className="h-[18px] w-[18px]" />
+                                                <Eye className="h-4.5 w-4.5" />
                                             </motion.div>
                                         )}
                                     </AnimatePresence>

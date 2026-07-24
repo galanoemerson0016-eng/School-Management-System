@@ -652,15 +652,15 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                         <div className="grid grid-cols-4 gap-4 border-b border-slate-400 pb-2.5 mb-4 text-[10px]">
                             <div>
                                 <span className="font-extrabold text-slate-700">GRADE:</span> 
-                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-[50px] inline-block text-center">{student.grade_level}</span>
+                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-12.5 inline-block text-center">{student.grade_level}</span>
                             </div>
                             <div>
                                 <span className="font-extrabold text-slate-700">SECTION:</span> 
-                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-[80px] inline-block text-center">{student.student_section || ''}</span>
+                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-20 inline-block text-center">{student.student_section || ''}</span>
                             </div>
                             <div>
                                 <span className="font-extrabold text-slate-700">S.Y.:</span> 
-                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-[70px] inline-block text-center">{activeSchoolYear || ''}</span>
+                                <span className="ml-1.5 font-black uppercase text-slate-950 border-b border-slate-800 pb-0.5 px-3 min-w-17.5 inline-block text-center">{activeSchoolYear || ''}</span>
                             </div>
                             <div className="text-right">
                                 <span className="font-extrabold text-slate-700">Today's Date:</span> 
@@ -680,13 +680,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                         <div className="col-span-6 flex items-baseline">
                                             <span className="font-black text-slate-900 uppercase shrink-0">TRACK:</span>
-                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                 {student.track || ''}
                                             </span>
                                         </div>
                                         <div className="col-span-6 flex items-baseline">
                                             <span className="font-black text-slate-900 uppercase shrink-0">CLUSTER:</span>
-                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                 {student.strand || ''}
                                             </span>
                                         </div>
@@ -699,19 +699,19 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                          <span className="font-black text-slate-900 uppercase">NAME:</span>
                                      </div>
                                      <div className="flex-1 min-w-0">
-                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.last_name}</span>
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-3.5">{student.last_name}</span>
                                          <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Family Name)</span>
                                      </div>
                                      <div className="flex-1 min-w-0">
-                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.first_name}</span>
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-3.5">{student.first_name}</span>
                                          <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Given Name)</span>
                                      </div>
                                      <div className="flex-1 min-w-0">
-                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.middle_name || ''}</span>
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-3.5">{student.middle_name || ''}</span>
                                          <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Middle Name)</span>
                                      </div>
                                      <div className="w-14 shrink-0">
-                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-[14px]">{student.name_extension || ''}</span>
+                                         <span className="font-black text-slate-950 uppercase border-b border-slate-800 block pb-0.5 text-center leading-none min-h-3.5">{student.name_extension || ''}</span>
                                          <span className="text-[7.5px] text-slate-500 font-bold text-center block uppercase mt-0.5">(Extension)</span>
                                      </div>
                                      <div className="flex gap-2.5 pb-2.5 shrink-0">
@@ -760,7 +760,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                     <div className="col-span-12 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Complete Home Address:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                             {currentAddress}
                                         </span>
                                     </div>
@@ -770,13 +770,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                     <div className="col-span-7 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Email Address (student):</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                             {student.parent_email || ''}
                                         </span>
                                     </div>
                                     <div className="col-span-5 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Mobile Number:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-3.5">
                                             {student.contact_number || ''}
                                         </span>
                                     </div>
@@ -789,7 +789,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px] border-t border-dashed border-slate-200 pt-2">
                                             <div className="col-span-12 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Name of Kindergarten / Day Care Center COMPLETED:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school || ''}
                                                 </span>
                                             </div>
@@ -797,7 +797,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Address of Center:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school_address || ''}
                                                 </span>
                                             </div>
@@ -847,13 +847,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">NAME OF ELEMENTARY COMPLETED:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school || ''}
                                                 </span>
                                             </div>
                                             <div className="col-span-4 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">School ID:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school_id || ''}
                                                 </span>
                                             </div>
@@ -861,7 +861,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">ADDRESS OF SCHOOL:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school_address || ''}
                                                 </span>
                                             </div>
@@ -879,13 +879,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-4 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Gen. Average:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.average_grade || ''}
                                                 </span>
                                             </div>
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Citation (if any):</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.citation || ''}
                                                 </span>
                                             </div>
@@ -897,7 +897,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px] border-t border-dashed border-slate-200 pt-2">
                                             <div className="col-span-12 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Name of Elementary COMPLETED:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school || ''}
                                                 </span>
                                             </div>
@@ -905,7 +905,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Address of School:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.elementary_school_address || ''}
                                                 </span>
                                             </div>
@@ -929,7 +929,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px] border-t border-dashed border-slate-200 pt-1">
                                             <div className="col-span-12 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Name of JHS COMPLETED:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.jhs_school_name || ''}
                                                 </span>
                                             </div>
@@ -937,7 +937,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <div className="grid grid-cols-12 gap-2 mb-2 items-baseline text-[10px]">
                                             <div className="col-span-8 flex items-baseline">
                                                 <span className="font-black text-slate-900 uppercase shrink-0">Address of School:</span>
-                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                                <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                                     {student.jhs_school_address || ''}
                                                 </span>
                                             </div>
@@ -963,20 +963,20 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     <div className="col-span-9 flex items-baseline justify-between pr-4">
                                         <div className="flex items-baseline">
                                             <span className="font-extrabold text-slate-700 shrink-0">BMI:</span>
-                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-black text-slate-900 min-h-[14px] text-center min-w-[90px]">
+                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-black text-slate-900 min-h-3.5 text-center min-w-22.5">
                                                 {bmiVal ? `${bmiVal} (${bmiCategory})` : '     '}
                                             </span>
                                         </div>
                                         <div className="flex items-baseline">
                                             <span className="font-extrabold text-slate-700 shrink-0">Height:</span>
-                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-bold text-slate-900 min-h-[14px] text-center min-w-[60px]">
+                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-bold text-slate-900 min-h-3.5 text-center min-w-15">
                                                 {heightCm || '   '}
                                             </span>
                                             <span className="text-slate-600 font-extrabold ml-0.5 text-[8.5px]">cm.</span>
                                         </div>
                                         <div className="flex items-baseline">
                                             <span className="font-extrabold text-slate-700 shrink-0">Weight:</span>
-                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-bold text-slate-900 min-h-[14px] text-center min-w-[60px]">
+                                            <span className="ml-1.5 border-b border-slate-800 px-2 font-mono font-bold text-slate-900 min-h-3.5 text-center min-w-15">
                                                 {weightStr || '   '}
                                             </span>
                                             <span className="text-slate-600 font-extrabold ml-0.5 text-[8.5px]">kg.</span>
@@ -996,13 +996,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-4 mb-1.5 items-baseline text-[10px]">
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Mother's Name:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                             {student.mother_name || ''}
                                         </span>
                                     </div>
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Father's Name:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                             {student.father_name || ''}
                                         </span>
                                     </div>
@@ -1010,13 +1010,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-4 mb-1.5 items-baseline text-[10px]">
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Email Address:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                             {student.parent_email || ''}
                                         </span>
                                     </div>
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Email Address:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                             {student.parent_email || ''}
                                         </span>
                                     </div>
@@ -1024,13 +1024,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-4 mb-1.5 items-baseline text-[10px]">
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Mobile Number:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-3.5">
                                             {student.parent_contact || ''}
                                         </span>
                                     </div>
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Mobile Number:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-3.5">
                                             {student.parent_contact || ''}
                                         </span>
                                     </div>
@@ -1038,7 +1038,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-2 mb-1.5 items-baseline text-[10px]">
                                     <div className="col-span-12 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Complete Address of Parents:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                             {currentAddress}
                                         </span>
                                     </div>
@@ -1046,13 +1046,13 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                 <div className="grid grid-cols-12 gap-4 items-baseline text-[10px]">
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Guardian's Name:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold uppercase min-h-3.5">
                                             {student.guardian_name || ''}
                                         </span>
                                     </div>
                                     <div className="col-span-6 flex items-baseline">
                                         <span className="font-black text-slate-900 uppercase shrink-0">Mobile Number:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-mono font-bold min-h-3.5">
                                             {student.guardian_name ? student.parent_contact || '' : ''}
                                         </span>
                                     </div>
@@ -1129,7 +1129,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         </label>
                                         <div className="flex items-baseline mt-1.5">
                                             <span className="font-extrabold text-slate-700 shrink-0">Other Forms:</span>
-                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold text-[9px] min-h-[14px]">
+                                            <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold text-[9px] min-h-3.5">
                                                 {student.other_credentials || ''}
                                             </span>
                                         </div>
@@ -1191,7 +1191,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         <span>No</span>
                                     </label>
                                     <span className="font-bold text-slate-700 ml-6 shrink-0">If Yes, Household ID Number:</span>
-                                    <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                    <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                         {student.is_4ps ? student.household_id || '' : ''}
                                     </span>
                                 </div>
@@ -1227,7 +1227,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     </div>
                                     <div className="flex items-baseline">
                                         <span className="font-bold text-slate-700 shrink-0">School Last Attended:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                             {isSHS ? student.jhs_school_name || '' : isJHS ? student.elementary_school || '' : ''}
                                         </span>
                                     </div>
@@ -1252,7 +1252,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                     </label>
                                     <div className="flex items-baseline">
                                         <span className="font-bold text-slate-700 shrink-0">ALS Center Address:</span>
-                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-[14px]">
+                                        <span className="ml-2 border-b border-slate-800 flex-1 px-1 font-bold min-h-3.5">
                                             {student.als_center_address || ''}
                                         </span>
                                     </div>
@@ -1270,14 +1270,14 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                             
                             <div className="grid grid-cols-2 gap-16 px-12 mb-2">
                                 <div className="text-center">
-                                    <div className="border-b border-slate-900 pb-1 font-black uppercase text-[10px] text-slate-950 min-h-[16px]">
+                                    <div className="border-b border-slate-900 pb-1 font-black uppercase text-[10px] text-slate-950 min-h-4">
                                         {student.first_name} {student.middle_name ? student.middle_name.charAt(0) + '.' : ''} {student.last_name} {student.name_extension || ''}
                                     </div>
                                     <div className="text-[8px] text-slate-500 font-extrabold uppercase mt-1">Signature Over Printed Name of Student</div>
                                 </div>
                                 <div className="text-center relative">
                                     {schoolProfile?.adviser_signature_url && (
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-[18px] w-24 h-12 flex items-center justify-center pointer-events-none z-10">
+                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-4.5 w-24 h-12 flex items-center justify-center pointer-events-none z-10">
                                             <img 
                                                 src={schoolProfile.adviser_signature_url} 
                                                 alt="Adviser Signature" 
@@ -1285,7 +1285,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                             />
                                         </div>
                                     )}
-                                    <div className="border-b border-slate-900 pb-1 font-black uppercase text-[10px] text-slate-950 min-h-[16px]">
+                                    <div className="border-b border-slate-900 pb-1 font-black uppercase text-[10px] text-slate-950 min-h-4">
                                         {adviserName}
                                     </div>
                                     <div className="text-[8px] text-slate-500 font-extrabold uppercase mt-1">Signature Over Printed Name of Adviser</div>

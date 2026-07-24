@@ -31,7 +31,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [trials, setTrials] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeProduct, setActiveProduct] = useState<'formease-pro' | 'anecdotal-record'>('formease-pro');
+  const [activeProduct, setActiveProduct] = useState<'formease-pro' | 'anecdotal-record' | 'id-generator'>('formease-pro');
   const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement'>('generate');
   const [manageSubTab, setManageSubTab] = useState<'all' | 'windows' | 'mac'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'declined' | 'all'>('pending');
@@ -377,7 +377,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
             <select
               value={activeProduct}
               onChange={(e) => {
-                const prod = e.target.value as 'formease-pro' | 'anecdotal-record';
+                const prod = e.target.value as 'formease-pro' | 'anecdotal-record' | 'id-generator';
                 licenseService.setProduct(prod);
                 setActiveProduct(prod);
               }}
@@ -385,6 +385,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
             >
               <option value="formease-pro" className="bg-[#0A192F]">FormEase Pro (Student Management)</option>
               <option value="anecdotal-record" className="bg-[#0A192F]">ASRS Anecdotal Record</option>
+              <option value="id-generator" className="bg-[#0A192F]">FormEase ID Generator</option>
             </select>
           </div>
         </div>

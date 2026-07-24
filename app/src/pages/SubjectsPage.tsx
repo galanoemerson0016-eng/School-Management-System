@@ -1092,7 +1092,7 @@ export function SubjectsPage() {
             <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none z-0 overflow-hidden">
                 <img 
                     src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
-                    className="w-[800px] h-[800px] object-contain grayscale scale-150 -rotate-12"
+                    className="w-200 h-200 object-contain grayscale scale-150 -rotate-12"
                     alt=""
                 />
             </div>
@@ -1757,7 +1757,7 @@ export function SubjectsPage() {
                                                     onChange={(e) => setWizardIncludeCrossTrack(e.target.checked)}
                                                     className="sr-only peer"
                                                 />
-                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                                                 <span className="ml-3 text-xs font-black text-slate-600 uppercase tracking-wider">
                                                     Include Cross-Track Electives
                                                 </span>

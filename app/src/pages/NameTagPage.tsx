@@ -122,7 +122,7 @@ export function NameTagPage() {
             `}</style>
             {/* Header Toolbar */}
             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
+                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="flex items-center justify-start w-full h-16 select-none relative px-3 lg:px-4 gap-2 lg:gap-3 overflow-x-auto scrollbar-none">
                     
                     {/* Identity & Context (Left Most Edge) */}
@@ -145,7 +145,7 @@ export function NameTagPage() {
                     {/* Controls Block */}
                     <div className="relative group shrink-0">
                         <select 
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[120px] lg:min-w-[135px] duration-200"
+                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-30 lg:min-w-33.75 duration-200"
                             value={selectedSection}
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
@@ -169,7 +169,7 @@ export function NameTagPage() {
                         <select
                             value={template}
                             onChange={(e) => setTemplate(e.target.value as DesignTemplate)}
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[90px] lg:min-w-[100px] duration-200"
+                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-22.5 lg:min-w-25 duration-200"
                             title="Design Template"
                         >
                             <option value="classic">Classic</option>
@@ -187,7 +187,7 @@ export function NameTagPage() {
                             <select
                                 value={colorTheme}
                                 onChange={(e) => setColorTheme(e.target.value as ColorTheme)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-[80px] lg:min-w-[90px] duration-200"
+                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-20 lg:min-w-22.5 duration-200"
                                 title="Color Theme"
                             >
                                 <option value="blue">Blue</option>
@@ -403,7 +403,7 @@ function NameTagCard({ student, schoolProfile, section, template, colorTheme }: 
                             </div>
                             <p className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest pl-5 italic leading-none">Adviser: {schoolProfile.adviser_name || 'N/A'}</p>
                         </div>
-                        <div className={`px-3 py-1.5 ${theme.primary} text-white rounded-2xl shadow-lg shadow-current/20 flex flex-col items-center justify-center min-w-[90px] shrink-0`}>
+                        <div className={`px-3 py-1.5 ${theme.primary} text-white rounded-2xl shadow-lg shadow-current/20 flex flex-col items-center justify-center min-w-22.5 shrink-0`}>
                             <span className="text-[6px] font-black opacity-70 uppercase tracking-widest leading-none mb-0.5">LRN ID</span>
                             <span className="text-[10px] font-black tracking-widest tabular-nums leading-none">
                                 {student.lrn}

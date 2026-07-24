@@ -37,7 +37,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
         if (label.includes('Arabic') || label.includes('Islamic')) return '';
         if (!row.indent) return 'font-bold';
         if (label === 'Music and Arts' || label === 'Physical Education and Health') {
-            return 'pl-[30px]';
+            return 'pl-7.5';
         }
         return 'pl-10';
     };
@@ -89,7 +89,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
     if (pageNumber === 2) {
         return (
             <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
-                <div className="page w-[8.5in] h-[12.95in] bg-white p-[15pt_0.3in_0.3in_0.3in] flex flex-col justify-between box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
+                <div className="page w-204 h-[12.95in] bg-white p-[15pt_0.3in_0.3in_0.3in] flex flex-col justify-between box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.1]">
                     <style>{`
                         @page { size: 8.5in 13in; margin: 0in; }
                         body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
@@ -138,7 +138,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap">School:</span>
                                                         <span className="fill-blank flex-2 uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-[56px] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">District:</span>
@@ -146,21 +146,21 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-[25px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank min-w-6.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-[20px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-[65px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-16.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank grow uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-[50px]"></span>
+                                                        <span className="fill-blank min-w-12.5"></span>
                                                     </div>
                                                 </>
                                             ) : (
@@ -169,25 +169,25 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap">School:</span>
                                                         <span className="fill-blank flex-[1.7] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-[56px] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">District:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-[30px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank min-w-7.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-[50px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`)}</span>
+                                                        <span className="fill-blank min-w-12.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`)}</span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-[68px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-17 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
                                                         <span className="whitespace-nowrap ml-1">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank flex-[1.35] uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-[50px]"></span>
+                                                        <span className="fill-blank min-w-12.5"></span>
                                                     </div>
                                                 </div>
                                             )}
@@ -217,7 +217,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 <td rowSpan={2} className="w-[12%] leading-tight text-[8.8px]">FINAL<br/>RATING</td>
                                                                 <td rowSpan={2} className="w-[15%]">REMARKS</td>
                                                             </tr>
-                                                            <tr className="h-[14px] text-[8.3px]">
+                                                            <tr className="h-3.5 text-[8.3px]">
                                                                 <td className={`${is3Term ? "w-[11%]" : "w-[8.25%]"} border-l-black border-l`}>1</td>
                                                                 <td className={is3Term ? "w-[11%]" : "w-[8.25%]"}>2</td>
                                                                 <td className={is3Term ? "w-[11%]" : "w-[8.25%]"}>3</td>
@@ -232,7 +232,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 const shouldShowData = !isExtra || (displayLabel && displayLabel.trim() !== '');
 
                                                                 return (
-                                                                    <tr key={rIdx} className="h-[16px]">
+                                                                    <tr key={rIdx} className="h-4">
                                                                         <td className={`text-left px-1 ${getLearningAreaIndentClass(row)} ${(displayLabel && (displayLabel.includes("Arabic") || displayLabel.includes("Islamic"))) ? "text-[8.3px]" : ""}`}>
                                                                             {displayLabel}
                                                                         </td>
@@ -245,7 +245,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                     </tr>
                                                                 );
                                                             })}
-                                                            <tr className="font-bold h-[16px] border-t-black border-t">
+                                                            <tr className="font-bold h-4 border-t-black border-t">
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
                                                                 <td className="border-l-black border-l">{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
@@ -260,16 +260,16 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                         <div className="border-t border-black bg-white mt-auto">
                                             <table className="excel-table text-center w-full border-collapse" style={{ border: 'none' }}>
                                                 <thead>
-                                                    <tr className="h-[18px] bg-white">
+                                                    <tr className="h-4.5 bg-white">
                                                         <td className="text-center font-bold text-[9.3px] border-black border-b border-r" style={{ width: '30%' }}>Remedial Classes</td>
                                                         <td colSpan={4} className="text-left text-[9.3px] px-2 font-bold border-black border-b">
                                                             <span>Conducted from (mm/dd/yyyy)</span>
-                                                            <span className="fill-blank min-w-[80px] mx-1 h-4"></span>
+                                                            <span className="fill-blank min-w-20 mx-1 h-4"></span>
                                                             <span className="ml-8">to (mm/dd/yyyy)</span>
-                                                            <span className="fill-blank min-w-[80px] mx-1 h-4"></span>
+                                                            <span className="fill-blank min-w-20 mx-1 h-4"></span>
                                                         </td>
                                                     </tr>
-                                                    <tr className="h-[15px] font-bold uppercase text-[8.0px] bg-white">
+                                                    <tr className="h-3.75 font-bold uppercase text-[8.0px] bg-white">
                                                         <td className="border-black border-r" style={{ width: '30%' }}>Learning Areas</td>
                                                         <td className="border-black border-r" style={{ width: '15%' }}>Final Rating</td>
                                                         <td className="border-black border-r" style={{ width: '18%' }}>Remedial Class Mark</td>
@@ -279,7 +279,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                 </thead>
                                                 <tbody>
                                                     {[0, 1].map((rIdx) => (
-                                                        <tr key={rIdx} className="h-[14px]">
+                                                        <tr key={rIdx} className="h-3.5">
                                                             <td className="border-black border-r"></td>
                                                             <td className="border-black border-r"></td>
                                                             <td className="border-black border-r"></td>
@@ -311,37 +311,37 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                 <span className="mr-1 whitespace-nowrap">I CERTIFY that this is a true record of</span>
                                                 <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.recordOf`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.recordOf`, e.target.value)} placeholder="Enter Name" /></span>
                                                 <span className="mx-1 whitespace-nowrap">with LRN</span>
-                                                <span className="fill-blank min-w-[110px] px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.lrn`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lrn`, e.target.value)} /></span>
+                                                <span className="fill-blank min-w-27.5 px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.lrn`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lrn`, e.target.value)} /></span>
                                                 <span className="mx-1 whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
-                                                <span className="fill-blank min-w-[30px] px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.admissionGrade`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.admissionGrade`, e.target.value)} placeholder="Grade" /></span>
+                                                <span className="fill-blank min-w-7.5 px-1 uppercase"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.admissionGrade`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.admissionGrade`, e.target.value)} placeholder="Grade" /></span>
                                                 <span className="ml-0.5">.</span>
                                             </div>
                                             <div className="flex items-end mb-1 flex-nowrap shrink-0 gap-2">
                                                 <span className="mr-1 whitespace-nowrap">Name of School:</span>
                                                 <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.schoolName`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolName`, e.target.value)} placeholder="School Name" /></span>
                                                 <span className="whitespace-nowrap">School ID:</span>
-                                                <span className="fill-blank min-w-[70px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.schoolId`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolId`, e.target.value)} placeholder="ID" /></span>
+                                                <span className="fill-blank min-w-17.5 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.schoolId`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.schoolId`, e.target.value)} placeholder="ID" /></span>
                                                 {isES && <>
                                                     <span className="whitespace-nowrap">Division:</span>
                                                     <span className="fill-blank grow uppercase px-1"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.division`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.division`, e.target.value)} /></span>
                                                 </>}
                                                 <span className="whitespace-nowrap text-[11.3px]">Last School Year Attended:</span>
-                                                <span className="fill-blank min-w-[70px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.lastSchoolYearAttended`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lastSchoolYearAttended`, e.target.value)} placeholder="YYYY-YYYY" /></span>
+                                                <span className="fill-blank min-w-17.5 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal(`certification.page2_cert${certIdx}.lastSchoolYearAttended`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.lastSchoolYearAttended`, e.target.value)} placeholder="YYYY-YYYY" /></span>
                                             </div>
                                             <div className="flex justify-between items-end mt-1 px-4">
-                                                <div className="min-w-[120px] text-center">
-                                                    <div className="border-b border-black w-full mb-px min-h-[14px] font-bold text-center uppercase px-1">
+                                                <div className="min-w-30 text-center">
+                                                    <div className="border-b border-black w-full mb-px min-h-3.5 font-bold text-center uppercase px-1">
                                                         <input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.date`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.date`, e.target.value)} />
                                                     </div>
                                                     <div className="text-[10px] uppercase">Date</div>
                                                 </div>
                                                 <div className="grow mx-10 text-center">
-                                                    <div className="border-b border-black w-full mb-px min-h-[14px] flex items-center justify-center uppercase font-bold">
+                                                    <div className="border-b border-black w-full mb-px min-h-3.5 flex items-center justify-center uppercase font-bold">
                                                         <input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal(`certification.page2_cert${certIdx}.principalSignatureName`)} onChange={(e) => onUpdate?.(`certification.page2_cert${certIdx}.principalSignatureName`, e.target.value)} />
                                                     </div>
                                                     <div className="text-[10px] uppercase pt-1">Signature of Principal/School Head over Printed Name</div>
                                                 </div>
-                                                <div className="w-[140px] text-center">
+                                                <div className="w-35 text-center">
                                                     <div className="text-[10px] uppercase">(Affix School Seal Here)</div>
                                                 </div>
                                             </div>
@@ -374,7 +374,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
     return (
         <div className="sf10-container bg-white flex flex-col items-center font-['Arial_Narrow',Arial,sans-serif] antialiased p-8 print:p-0">
             
-            <div className="page w-[8.5in] h-[12.95in] bg-white p-[10pt_0.35in_0.15in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.05]">
+            <div className="page w-204 h-[12.95in] bg-white p-[10pt_0.35in_0.15in_0.35in] flex flex-col justify-start box-border relative print:m-0 border border-gray-200 print:border-none leading-[1.05]">
                 <style>{`
                     @page { size: 8.5in 13in; margin: 0in; }
                     body { font-family: "Arial Narrow", Arial, sans-serif; font-stretch: condensed; }
@@ -442,19 +442,19 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                         <div className="p-1 px-4 text-[11px]">
                             <div className="flex items-end mb-0.5 flex-nowrap shrink-0">
                                 <span className="mr-1 whitespace-nowrap">LAST NAME:</span>
-                                <span className="fill-blank min-w-[120px] px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('learner.lastName')}</span>
+                                <span className="fill-blank min-w-30 px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('learner.lastName')}</span>
                                 <span className="mx-1 whitespace-nowrap">FIRST NAME:</span>
                                 <span className="fill-blank grow px-2 uppercase" style={{ fontWeight: 'bold' }}>{getVal('learner.firstName')}</span>
                                 <span className="mx-1 whitespace-nowrap">NAME EXTN. (Jr,I,II):</span>
-                                <span className="fill-blank min-w-[50px] px-1 uppercase">{getVal('learner.nameExtension')}</span>
+                                <span className="fill-blank min-w-12.5 px-1 uppercase">{getVal('learner.nameExtension')}</span>
                                 <span className="mx-1 whitespace-nowrap">MIDDLE NAME:</span>
-                                <span className="fill-blank min-w-[100px] px-2 uppercase">{getVal('learner.middleName')}</span>
+                                <span className="fill-blank min-w-25 px-2 uppercase">{getVal('learner.middleName')}</span>
                             </div>
                             <div className="flex items-end mb-1 flex-nowrap shrink-0">
                                 <span className="mr-1 whitespace-nowrap">Learner Reference Number (LRN):</span>
-                                <span className="fill-blank min-w-[150px] px-4 uppercase" style={{ fontWeight: 'bold', fontSize: '13px' }}>{getVal('learner.lrn')}</span>
+                                <span className="fill-blank min-w-37.5 px-4 uppercase" style={{ fontWeight: 'bold', fontSize: '13px' }}>{getVal('learner.lrn')}</span>
                                 <span className="mx-4 whitespace-nowrap">Birthdate (mm/dd/yyyy):</span>
-                                <span className="fill-blank min-w-[100px] px-2 uppercase">{formatDate(getVal('learner.birthdate'))}</span>
+                                <span className="fill-blank min-w-25 px-2 uppercase">{formatDate(getVal('learner.birthdate'))}</span>
                                 <span className="mx-4 whitespace-nowrap">Sex:</span>
                                 <span className="fill-blank grow px-1 uppercase">{getVal('learner.sex')}</span>
                             </div>
@@ -472,26 +472,26 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                     <div className="border border-black p-1 mb-1 bg-white">
                                         <div className="flex items-end mb-1 flex-nowrap shrink-0">
                                             <span className="mr-1 whitespace-nowrap italic">Credential Presented for Grade 1:</span>
-                                            <div className="w-3.5 h-3.5 border border-black mb-[2px] mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                            <div className="w-3.5 h-3.5 border border-black mb-0.5 mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                                 {getRaw('eligibility.kinderProgressReport.checked') ? '✓' : ''}
                                             </div>
                                             <span className="mr-3 whitespace-nowrap text-[9.5pt]">Kinder Progress Report</span>
-                                            <div className="w-3.5 h-3.5 border border-black mb-[2px] mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                            <div className="w-3.5 h-3.5 border border-black mb-0.5 mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                                 {getRaw('eligibility.eccdChecklist.checked') ? '✓' : ''}
                                             </div>
                                             <span className="mr-3 whitespace-nowrap text-[9.5pt]">ECCD Checklist</span>
-                                            <div className="w-3.5 h-3.5 border border-black mb-[2px] mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                            <div className="w-3.5 h-3.5 border border-black mb-0.5 mx-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                                 {getRaw('eligibility.kinderCertificate.checked') ? '✓' : ''}
                                             </div>
                                             <span className="mr-1 whitespace-nowrap text-[9.5pt]">Kindergarten Certificate of Completion</span>
                                         </div>
                                         <div className="flex items-end flex-nowrap shrink-0">
                                             <span className="mr-1 whitespace-nowrap">Name of School:</span>
-                                            <span className="fill-blank min-w-[150px] grow px-2 uppercase text-[9.5pt] font-bold">
+                                            <span className="fill-blank min-w-37.5 grow px-2 uppercase text-[9.5pt] font-bold">
                                                 <AutoShrinkText align="left" text={getVal('eligibility.nameOfElementarySchool')} />
                                             </span>
                                             <span className="mx-2 whitespace-nowrap">School ID:</span>
-                                            <span className="fill-blank min-w-[60px] px-1 uppercase text-[9.5pt] font-bold">
+                                            <span className="fill-blank min-w-15 px-1 uppercase text-[9.5pt] font-bold">
                                                 <AutoShrinkText text={getVal('eligibility.schoolId')} />
                                             </span>
                                             <span className="mx-2 whitespace-nowrap">Address of School:</span>
@@ -502,28 +502,28 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                     </div>
                                     <div className="text-[10.3px] italic mt-1 font-bold">Other Credential Presented</div>
                                     <div className="flex items-end mb-1 flex-nowrap shrink-0">
-                                        <div className="w-3.5 h-3.5 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                        <div className="w-3.5 h-3.5 border border-black mb-0.5 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                             {getRaw('eligibility.peptPasser.checked') ? '✓' : ''}
                                         </div>
                                         <span className="mr-1 whitespace-nowrap">PEPT Passer</span>
                                         <span className="mx-2 whitespace-nowrap">Rating:</span>
-                                        <span className="fill-blank min-w-[50px] px-1 uppercase text-[9.5pt] font-bold">
+                                        <span className="fill-blank min-w-12.5 px-1 uppercase text-[9.5pt] font-bold">
                                             <AutoShrinkText text={getVal('eligibility.peptPasser.rating')} />
                                         </span>
                                         
-                                        <div className="w-3.5 h-3.5 border border-black mb-[2px] ml-6 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                        <div className="w-3.5 h-3.5 border border-black mb-0.5 ml-6 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                             {getRaw('eligibility.dateOfExamination.checked') || getVal('eligibility.dateOfExamination') ? '✓' : ''}
                                         </div>
                                         <span className="mr-2 whitespace-nowrap">Date of Examination/Assessment (mm/dd/yyyy):</span>
-                                        <span className="fill-blank min-w-[90px] px-2 uppercase text-[9.5pt] font-bold">
+                                        <span className="fill-blank min-w-22.5 px-2 uppercase text-[9.5pt] font-bold">
                                             <AutoShrinkText text={formatDate(getVal('eligibility.dateOfExamination'))} />
                                         </span>
 
-                                        <div className="w-3.5 h-3.5 border border-black mb-[2px] ml-6 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                        <div className="w-3.5 h-3.5 border border-black mb-0.5 ml-6 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                             {getRaw('eligibility.other.checked') ? '✓' : ''}
                                         </div>
                                         <span className="mr-1 whitespace-nowrap">Others (Pls. Specify):</span>
-                                        <span className="fill-blank min-w-[80px] grow px-1 uppercase text-[9.5pt] font-bold">
+                                        <span className="fill-blank min-w-20 grow px-1 uppercase text-[9.5pt] font-bold">
                                             <AutoShrinkText text={getVal('eligibility.other.specify')} />
                                         </span>
                                     </div>
@@ -533,7 +533,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                             <AutoShrinkText align="left" text={getVal('eligibility.testingCenter') || getVal('eligibility.nameAndAddressOfTestingCenter')} />
                                         </span>
                                         <span className="mx-2 whitespace-nowrap">Remark:</span>
-                                        <span className="fill-blank min-w-[150px] px-2 uppercase text-[8.5pt] font-bold">
+                                        <span className="fill-blank min-w-37.5 px-2 uppercase text-[8.5pt] font-bold">
                                             <AutoShrinkText align="left" text={getVal('eligibility.remark')} />
                                         </span>
                                     </div>
@@ -541,12 +541,12 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                             ) : (
                                 <>
                                     <div className="flex items-end mb-1 flex-nowrap shrink-0">
-                                            <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                            <div className="w-3 h-3 border border-black mb-0.5 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                                 {getRaw('eligibility.elementaryCompleter.checked') ? '✓' : ''}
                                             </div>
                                             <span className="mr-1 whitespace-nowrap">Elementary School Completer</span>
                                             <span className="mx-1 whitespace-nowrap">General Average:</span>
-                                            <span className="fill-blank min-w-[40px] px-1 uppercase text-[9.5pt]">
+                                            <span className="fill-blank min-w-10 px-1 uppercase text-[9.5pt]">
                                             <AutoShrinkText text={getVal('eligibility.elementaryCompleter.generalAverage')} />
                                         </span>
                                         <span className="mx-2 whitespace-nowrap">Citation (if any):</span>
@@ -556,11 +556,11 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                     </div>
                                     <div className="flex items-end mb-1 flex-nowrap shrink-0">
                                         <span className="mr-1 whitespace-nowrap">Name of Elementary School:</span>
-                                        <span className="fill-blank min-w-[150px] grow px-2 uppercase text-[9.5pt]">
+                                        <span className="fill-blank min-w-37.5 grow px-2 uppercase text-[9.5pt]">
                                             <AutoShrinkText align="left" text={getVal('eligibility.nameOfElementarySchool')} />
                                         </span>
                                         <span className="mx-2 whitespace-nowrap">School ID:</span>
-                                            <span className="fill-blank min-w-[60px] px-1 uppercase text-[9.5pt]">
+                                            <span className="fill-blank min-w-15 px-1 uppercase text-[9.5pt]">
                                             <AutoShrinkText text={getVal('eligibility.schoolId')} />
                                         </span>
                                         <span className="mx-2 whitespace-nowrap">Address of School:</span>
@@ -571,33 +571,33 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                 </>
                             )}
                             <div className="flex items-end mb-0 flex-nowrap shrink-0">
-                                <div className="w-3 h-3 border border-black mb-[2px] mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                <div className="w-3 h-3 border border-black mb-0.5 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                     {getRaw('eligibility.peptPasser.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">PEPT Passer</span>
                                 <span className="mx-2 whitespace-nowrap">Rating:</span>
-                                <span className="fill-blank min-w-[50px] px-1 uppercase text-[9.5pt]">
+                                <span className="fill-blank min-w-12.5 px-1 uppercase text-[9.5pt]">
                                     <AutoShrinkText text={getVal('eligibility.peptPasser.rating')} />
                                 </span>
-                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                <div className="w-3 h-3 border border-black mb-0.5 ml-4 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                     {getRaw('eligibility.alsPasser.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">ALS A&E Passer</span>
                                 <span className="mx-2 whitespace-nowrap">Rating:</span>
-                                <span className="fill-blank min-w-[50px] px-1 uppercase text-[9.5pt]">
+                                <span className="fill-blank min-w-12.5 px-1 uppercase text-[9.5pt]">
                                     <AutoShrinkText text={getVal('eligibility.alsPasser.rating')} />
                                 </span>
-                                <div className="w-3 h-3 border border-black mb-[2px] ml-4 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
+                                <div className="w-3 h-3 border border-black mb-0.5 ml-4 mr-2 flex items-center justify-center font-bold text-[10.3px] shrink-0">
                                     {getRaw('eligibility.other.checked') ? '✓' : ''}
                                 </div>
                                 <span className="mr-1 whitespace-nowrap">Others (Specify):</span>
-                                <span className="fill-blank min-w-[80px] grow px-1 uppercase text-[9.5pt]">
+                                <span className="fill-blank min-w-20 grow px-1 uppercase text-[9.5pt]">
                                     <AutoShrinkText text={getVal('eligibility.other.specify')} />
                                 </span>
                             </div>
                             <div className="flex items-end mb-1 mt-1 flex-nowrap shrink-0">
                                 <span className="mr-2 whitespace-nowrap">Date of Examination/Assessment (mm/dd/yyyy):</span>
-                                <span className="fill-blank min-w-[100px] px-2 uppercase text-[9.5pt]">
+                                <span className="fill-blank min-w-25 px-2 uppercase text-[9.5pt]">
                                     <AutoShrinkText text={formatDate(getVal('eligibility.dateOfExamination'))} />
                                 </span>
                                 <span className="mx-2 whitespace-nowrap">Name and Address of Testing Center:</span>
@@ -622,7 +622,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap">School:</span>
                                                         <span className="fill-blank flex-2 uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-[56px] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">District:</span>
@@ -630,21 +630,21 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-[25px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank min-w-6.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-[20px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-[65px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-16.25 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank grow uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-[50px]"></span>
+                                                        <span className="fill-blank min-w-12.5"></span>
                                                     </div>
                                                 </>
                                             ) : (
@@ -653,25 +653,25 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <span className="whitespace-nowrap">School:</span>
                                                         <span className="fill-blank flex-[1.7] uppercase font-bold text-[10.3px]"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].schoolName`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School ID:</span>
-                                                        <span className="fill-blank min-w-[56px] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
+                                                        <span className="fill-blank min-w-14 px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].schoolId`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">District:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].district`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Division:</span>
                                                         <span className="fill-blank flex-[1.2] px-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].division`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Region:</span>
-                                                        <span className="fill-blank min-w-[30px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
+                                                        <span className="fill-blank min-w-7.5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].region`)}</span>
                                                     </div>
                                                     <div className="flex items-end mb-0 flex-nowrap shrink-0 gap-1">
                                                         <span className="whitespace-nowrap">Classified as Grade:</span>
-                                                        <span className="fill-blank min-w-[20px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
+                                                        <span className="fill-blank min-w-5 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].gradeLevel`).replace(/\D/g, "")}</span>
                                                         <span className="whitespace-nowrap ml-1">Section:</span>
                                                         <span className="fill-blank flex-1 uppercase font-bold"><AutoShrinkText text={getVal(`scholasticRecords[${blockIdx}].section`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">School Year:</span>
-                                                        <span className="fill-blank min-w-[68px] px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
+                                                        <span className="fill-blank min-w-17 px-1 uppercase font-bold text-center">{getVal(`scholasticRecords[${blockIdx}].schoolYear`)}</span>
                                                         <span className="whitespace-nowrap ml-1">Name of Adviser/Teacher:</span>
                                                         <span className="fill-blank flex-[1.35] uppercase font-bold"><AutoShrinkText align="left" text={getVal(`scholasticRecords[${blockIdx}].adviserTeacher`)} /></span>
                                                         <span className="whitespace-nowrap ml-1">Signature:</span>
-                                                        <span className="fill-blank min-w-[50px]"></span>
+                                                        <span className="fill-blank min-w-12.5"></span>
                                                     </div>
                                                 </>
                                             )}
@@ -706,7 +706,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                 return (
                                                     <>
                                                         <thead className="bg-white font-bold">
-                                                            <tr className={isES ? "h-[15px]" : "h-[14px]"}>
+                                                            <tr className={isES ? "h-3.75" : "h-3.5"}>
                                                                 <td rowSpan={2} className={isES ? "w-[35%] border-r-black border-r text-[11.3px]" : "w-[30%] border-r-black border-r"}>LEARNING AREAS</td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="border-l-black border-l">
                                                                     {is3Term ? "Term Rating" : "Quarterly Rating"}
@@ -714,7 +714,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 <td rowSpan={2} className={isES ? "w-[12%] leading-tight text-[11.3px]" : "w-[10%] leading-tight"}>FINAL<br/>RATING</td>
                                                                 <td rowSpan={2} className={isES ? "w-[20%]" : "w-[16%]"}>REMARKS</td>
                                                             </tr>
-                                                            <tr className={isES ? "h-[14.5px] text-[10.3px]" : "h-[12px] text-[10.3px]"}>
+                                                            <tr className={isES ? "h-[14.5px] text-[10.3px]" : "h-3 text-[10.3px]"}>
                                                                 <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} border-l-black border-l`}>1</td>
                                                                 <td className={is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")}>2</td>
                                                                 <td className={is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")}>3</td>
@@ -725,7 +725,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                             {finalRows.map((row, rIdx) => {
                                                                 const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
                                                                 return (
-                                                                    <tr key={rIdx} className={isES ? "h-[15.6px]" : "h-[18px]"}>
+                                                                    <tr key={rIdx} className={isES ? "h-[15.6px]" : "h-4.5"}>
                                                                         <td className={`text-left ${getLearningAreaIndentClass(row)} ${isES ? "text-[11.8px]" : ""} ${row.label?.startsWith('*') ? 'italic font-normal' : ''}`}>
                                                                             {(row.key.startsWith("extra") || (!isES && blockIdx === 4)) ? (
                                                                                 <input type="text" className="w-full border-none bg-transparent focus:outline-none uppercase" value={getVal(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`) || (row.label !== " " ? row.label : "")} onChange={(e) => onUpdate?.(`scholasticRecords[${blockIdx}].subjects.${row.key}_label`, e.target.value)} placeholder={row.label === " " ? "" : row.label} />
@@ -740,7 +740,7 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                     </tr>
                                                                 );
                                                             })}
-                                                            <tr className={isES ? "font-bold h-[15.6px] bg-white" : "font-bold h-[18px]"}>
+                                                            <tr className={isES ? "font-bold h-[15.6px] bg-white" : "font-bold h-4.5"}>
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
                                                                 <td className={`border-l-black border-l ${isES ? "text-[11.3px]" : ""}`}>{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
@@ -754,16 +754,16 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                         <div className="border-t border-black bg-white mt-auto">
                                             <table className="excel-table text-[11.3px] text-center border-none w-full grow">
                                                 <thead>
-                                                    <tr className="h-[16px] font-bold text-[9.3px] bg-white">
+                                                    <tr className="h-4 font-bold text-[9.3px] bg-white">
                                                         <td className="border-black border-b border-r" style={{ width: '30%' }}>Remedial Classes</td>
                                                         <td colSpan={4} className="text-left text-[9.3px] px-2 font-bold border-black border-b">
                                                             <span>Conducted from:</span>
-                                                            <span className="fill-blank min-w-[60px] mx-1"></span>
+                                                            <span className="fill-blank min-w-15 mx-1"></span>
                                                             <span className="ml-6">to:</span>
-                                                            <span className="fill-blank min-w-[60px] mx-1"></span>
+                                                            <span className="fill-blank min-w-15 mx-1"></span>
                                                         </td>
                                                     </tr>
-                                                    <tr className="h-[14px] font-bold text-[9.3px] uppercase bg-white">
+                                                    <tr className="h-3.5 font-bold text-[9.3px] uppercase bg-white">
                                                         <td className="border-black border-r" style={{ width: '30%' }}>Learning Areas</td>
                                                         <td className="border-black border-r" style={{ width: '15%' }}>Final Rating</td>
                                                         <td className="border-black border-r" style={{ width: '18%' }}>Remedial Mark</td>
@@ -797,32 +797,32 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                         <span className="mr-1 whitespace-nowrap">I CERTIFY that this is a true record of</span>
                                         <span className="fill-blank grow uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.recordOf")} onChange={(e) => onUpdate?.("certification.page1.recordOf", e.target.value)} placeholder="Enter Name" /></span>
                                         <span className="mx-1 whitespace-nowrap">with LRN</span>
-                                        <span className="fill-blank min-w-[100px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lrn")} onChange={(e) => onUpdate?.("certification.page1.lrn", e.target.value)} /></span>
+                                        <span className="fill-blank min-w-25 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lrn")} onChange={(e) => onUpdate?.("certification.page1.lrn", e.target.value)} /></span>
                                         <span className="mx-1 whitespace-nowrap">and that he/she is eligible for admission to Grade</span>
-                                        <span className="fill-blank min-w-[60px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.eligibleForGrade")} onChange={(e) => onUpdate?.("certification.page1.eligibleForGrade", e.target.value)} placeholder="Grade" /></span>
+                                        <span className="fill-blank min-w-15 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.eligibleForGrade")} onChange={(e) => onUpdate?.("certification.page1.eligibleForGrade", e.target.value)} placeholder="Grade" /></span>
                                     </div>
                                     <div className="flex items-end mb-3 flex-nowrap shrink-0 gap-1">
                                         <span className="mr-1 whitespace-nowrap">Name of School:</span>
                                         <span className="fill-blank grow uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none placeholder:text-gray-300 print:placeholder:text-transparent" value={getVal("certification.page1.schoolName")} onChange={(e) => onUpdate?.("certification.page1.schoolName", e.target.value)} placeholder="School Name" /></span>
                                         <span className="mx-1 whitespace-nowrap">School ID:</span>
-                                        <span className="fill-blank min-w-[80px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.schoolId")} onChange={(e) => onUpdate?.("certification.page1.schoolId", e.target.value)} placeholder="ID" /></span>
+                                        <span className="fill-blank min-w-20 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.schoolId")} onChange={(e) => onUpdate?.("certification.page1.schoolId", e.target.value)} placeholder="ID" /></span>
                                         <span className="mx-1 whitespace-nowrap">Last School Year Attended:</span>
-                                        <span className="fill-blank min-w-[80px] uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lastSchoolYearAttended")} onChange={(e) => onUpdate?.("certification.page1.lastSchoolYearAttended", e.target.value)} placeholder="YYYY-YYYY" /></span>
+                                        <span className="fill-blank min-w-20 uppercase font-bold text-center"><input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.lastSchoolYearAttended")} onChange={(e) => onUpdate?.("certification.page1.lastSchoolYearAttended", e.target.value)} placeholder="YYYY-YYYY" /></span>
                                     </div>
                                     <div className="flex justify-between items-end gap-4 pt-2">
-                                        <div className="min-w-[100px] text-center">
-                                            <div className="border-b border-black w-full mb-[2px] min-h-[16px]">
+                                        <div className="min-w-25 text-center">
+                                            <div className="border-b border-black w-full mb-0.5 min-h-4">
                                                 <input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.date")} onChange={(e) => onUpdate?.("certification.page1.date", e.target.value)} />
                                             </div>
                                             <div className="text-[10px] uppercase leading-tight">Date</div>
                                         </div>
                                         <div className="grow text-center">
-                                            <div className="border-b border-black w-full mb-[2px] min-h-[16px] flex items-center justify-center">
+                                            <div className="border-b border-black w-full mb-0.5 min-h-4 flex items-center justify-center">
                                                 <input type="text" className="border-none bg-transparent w-full text-center font-bold uppercase focus:outline-none" value={getVal("certification.page1.principalSignatureName")} onChange={(e) => onUpdate?.("certification.page1.principalSignatureName", e.target.value)} />
                                             </div>
                                             <div className="text-[10px] uppercase leading-tight">Signature of Principal/School Head over Printed Name</div>
                                         </div>
-                                        <div className="min-w-[150px] text-center">
+                                        <div className="min-w-37.5 text-center">
                                             <div className="text-[10px] uppercase">(Affix School Seal Here)</div>
                                         </div>
                                     </div>

@@ -136,7 +136,7 @@ export function GroupYourself({ onBack }: GroupYourselfProps) {
 
         {/* Class Selector */}
         <div className="flex gap-4 items-end flex-wrap mb-6 border-b border-slate-100 dark:border-white/5 pb-6">
-          <div className="flex flex-col gap-1.5 min-w-[220px]">
+          <div className="flex flex-col gap-1.5 min-w-55">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Class / Section</label>
             <select
               value={selectedSectionName}

@@ -1089,7 +1089,7 @@ export function AttendancePage() {
                 schoolIdWidth: 'w-32',
                 schoolYearWidth: 'w-32',
                 monthWidth: 'w-40',
-                schoolNameWidth: 'w-[420px]',
+                schoolNameWidth: 'w-105',
                 gradeWidth: 'w-32',
                 sectionWidth: 'w-40',
                 headerMarginRight: 'mr-2',
@@ -1117,7 +1117,7 @@ export function AttendancePage() {
                 schoolIdWidth: 'w-36',
                 schoolYearWidth: 'w-36',
                 monthWidth: 'w-44',
-                schoolNameWidth: 'w-[480px]',
+                schoolNameWidth: 'w-120',
                 gradeWidth: 'w-36',
                 sectionWidth: 'w-44',
                 headerMarginRight: 'mr-6',
@@ -1145,7 +1145,7 @@ export function AttendancePage() {
                 schoolIdWidth: 'w-40',
                 schoolYearWidth: 'w-40',
                 monthWidth: 'w-48',
-                schoolNameWidth: 'w-[560px]',
+                schoolNameWidth: 'w-140',
                 gradeWidth: 'w-40',
                 sectionWidth: 'w-48',
                 headerMarginRight: 'mr-15',
@@ -1633,11 +1633,11 @@ export function AttendancePage() {
                         </table>
 
                         {/* Certification */}
-                        <div className="p-2 mt-[10px] bg-slate-50/50 pt-2 pb-0.5 space-y-2 flex flex-col">
+                        <div className="p-2 mt-2.5 bg-slate-50/50 pt-2 pb-0.5 space-y-2 flex flex-col">
                             <p className={`font-bold text-black text-[8.5px]`}>I certify that this is a true and correct report.</p>
                             <div className="text-center pt-0.5 relative">
                                 {showAdviserSig && schoolProfile?.adviser_signature_url && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-3.5 w-20 h-10 flex items-center justify-center pointer-events-none z-10">
                                         <img 
                                             src={schoolProfile.adviser_signature_url} 
                                             alt="Adviser Signature" 
@@ -1653,7 +1653,7 @@ export function AttendancePage() {
                             <div className={`font-bold text-black pt-1 text-[8.5px]`}>Attested by:</div>
                             <div className="text-center relative">
                                 {showHeadSig && schoolProfile?.head_signature_url && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[14px] w-20 h-10 flex items-center justify-center pointer-events-none z-10">
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-3.5 w-20 h-10 flex items-center justify-center pointer-events-none z-10">
                                         <img 
                                             src={schoolProfile.head_signature_url} 
                                             alt="School Head Signature" 

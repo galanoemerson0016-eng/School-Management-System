@@ -93,7 +93,7 @@ export function DiceRoller({ onBack }: DiceRollerProps) {
             </div>
           </div>
 
-          <div className="flex gap-5 flex-wrap justify-center min-h-[110px] items-end pb-2">
+          <div className="flex gap-5 flex-wrap justify-center min-h-27.5 items-end pb-2">
             {diceValues.map((val, i) => (
               <div
                 key={i}
@@ -114,7 +114,7 @@ export function DiceRoller({ onBack }: DiceRollerProps) {
                   </svg>
                 </div>
                 <div
-                  className={`w-[60px] h-2 bg-black/10 dark:bg-black/30 rounded-full mt-1 transition-all ${
+                  className={`w-15 h-2 bg-black/10 dark:bg-black/30 rounded-full mt-1 transition-all ${
                     rolling
                       ? 'animate-[shadowTumble_0.9s_ease-in-out]'
                       : !rolling && hasRolled
@@ -132,7 +132,7 @@ export function DiceRoller({ onBack }: DiceRollerProps) {
                     <rect x="4" y="4" width="92" height="92" rx="14" fill="none" stroke="currentColor" className="text-slate-300 dark:text-slate-700" strokeWidth="2" />
                   </svg>
                 </div>
-                <div className="w-[60px] h-2 bg-black/5 dark:bg-black/15 rounded-full mt-1" />
+                <div className="w-15 h-2 bg-black/5 dark:bg-black/15 rounded-full mt-1" />
               </div>
             ))}
           </div>

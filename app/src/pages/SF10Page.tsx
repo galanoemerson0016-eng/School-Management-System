@@ -212,7 +212,7 @@ export function SF10Page() {
                     <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
                         
                     {/* Section and Student Selectors */}
-                    {sortedSections.length > 1 && (
+                    {sortedSections.length >= 1 && (
                         <div className="relative group shrink-0">
                             <select 
                                 className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-30 lg:min-w-33.75 duration-200"

@@ -206,7 +206,17 @@ export function Header() {
                     {/* Backup Dropdown: Google Drive Cloud Backup + Full Local Export */}
                     <div className="relative hidden lg:block">
                         <button
-                            onClick={() => setShowBackupMenu(!showBackupMenu)}
+                            onClick={() => {
+                                const next = !showBackupMenu;
+                                setShowBackupMenu(next);
+                                if (next) {
+                                    CloudSyncService.getStateAsync().then(state => {
+                                        setIsGDriveLinked(state.linked);
+                                        setGdriveEmail(state.email);
+                                        setLastSyncTime(state.lastSync);
+                                    });
+                                }
+                            }}
                             disabled={isCloudSyncing || isExporting}
                             className={`flex items-center gap-1.5 h-9 px-3 rounded-md border transition-all font-bold text-[11px] uppercase tracking-widest active:scale-95 disabled:pointer-events-none ${
                                 isCloudSyncing || isExporting
@@ -225,7 +235,7 @@ export function Header() {
                                 <Cloud className="w-3.5 h-3.5 text-slate-500" />
                             )}
                             <span className="hidden xl:inline">
-                                {isCloudSyncing ? 'Syncing...' : isExporting ? 'Exporting...' : isGDriveLinked ? 'Backup' : 'Link Drive'}
+                                {isCloudSyncing ? 'Syncing...' : isExporting ? 'Exporting...' : isGDriveLinked ? 'Sync Drive' : 'Link Drive'}
                             </span>
                             {isGDriveLinked && !isCloudSyncing && !isExporting && (
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
@@ -236,7 +246,7 @@ export function Header() {
                         {showBackupMenu && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowBackupMenu(false)} />
-                                <div className="absolute right-0 top-full mt-3 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-[#E5E7EB] dark:border-white/10 z-50 overflow-hidden">
+                                <div className="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-[#E5E7EB] dark:border-white/10 z-50 overflow-hidden">
                                     <div className="p-3 border-b border-[#E5E7EB] dark:border-white/5 bg-slate-50 dark:bg-white/5">
                                         <h4 className="font-bold text-[#0f172a] dark:text-white text-xs tracking-wider uppercase">Backup Options</h4>
                                     </div>
@@ -257,12 +267,12 @@ export function Header() {
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-[13px] font-bold text-[#0f172a] dark:text-white">
-                                                    {isGDriveLinked ? 'Backup to Google Drive' : 'Link Google Drive'}
+                                                    {isGDriveLinked ? 'Sync Full Backup to Google Drive' : 'Sync Full Backup to Google Drive (Authorize)'}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
                                                     {isGDriveLinked
-                                                        ? `Upload an online backup to ${gdriveEmail || 'your Drive'}.`
-                                                        : 'Authorize Google Drive and upload an online backup.'}
+                                                        ? `Upload a complete uncompressed (.json) database backup to ${gdriveEmail || 'Google Drive'}.`
+                                                        : 'Authorize Google Drive and upload a complete uncompressed (.json) database backup.'}
                                                 </p>
                                             </div>
                                         </button>
@@ -277,7 +287,7 @@ export function Header() {
                                                 <HardDriveDownload className="w-4 h-4 text-indigo-500" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-[13px] font-bold text-[#0f172a] dark:text-white">Full Database Export</p>
+                                                <p className="text-[13px] font-bold text-[#0f172a] dark:text-white">Full Database Export (Local)</p>
                                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
                                                     Download a complete standalone backup (.json) of all school records to this device.
                                                 </p>

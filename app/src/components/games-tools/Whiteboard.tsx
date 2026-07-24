@@ -213,7 +213,7 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
               <button onClick={() => changeSize(-2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 hover:bg-slate-50">
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 min-w-[36px] text-center">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 min-w-9 text-center">
                 {brushSize}px
               </span>
               <button onClick={() => changeSize(2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 hover:bg-slate-50">

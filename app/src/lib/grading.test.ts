@@ -59,6 +59,10 @@ describe('transmuteGrade — SY 2026-2027 adjusted table', () => {
     expect(transmuteGrade(65.34, TRANSITION_SY)).toBe(74);
     expect(transmuteGrade(69.99, TRANSITION_SY)).toBe(74);
   });
+
+  it('correctly matches grades with floating point decimals to prevent gaps (e.g., 74.71111 → 78)', () => {
+    expect(transmuteGrade(74.71111, TRANSITION_SY)).toBe(78);
+  });
 });
 
 describe('transmuteGrade — DO 8 s. 2015 table (pre-2026 SYs)', () => {

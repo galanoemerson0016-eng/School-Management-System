@@ -217,7 +217,7 @@ export function WordSearch({ onBack }: WordSearchProps) {
           <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-6">
             {/* Grid display */}
             <div className="flex justify-center items-center">
-              <div className="grid grid-cols-12 gap-1 bg-slate-100 dark:bg-slate-900 p-2.5 border border-slate-200 dark:border-white/5 rounded-2xl max-w-[400px] w-full">
+              <div className="grid grid-cols-12 gap-1 bg-slate-100 dark:bg-slate-900 p-2.5 border border-slate-200 dark:border-white/5 rounded-2xl max-w-100 w-full">
                 {grid.map((row, rIdx) =>
                   row.map((letter, cIdx) => (
                     <div
