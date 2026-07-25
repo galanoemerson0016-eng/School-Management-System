@@ -1028,15 +1028,19 @@ export function AttendancePage() {
         const malePerc = maleRegistered > 0 ? (maleADA / maleRegistered) * 100 : 0;
         const femalePerc = femaleRegistered > 0 ? (femaleADA / femaleRegistered) * 100 : 0;
 
-        // 5 Consecutive Absences
+        // 5 Consecutive Absences (checks filled-in school dates using both dateKey and column index)
         const hasConsecutiveAbsences = (s: { lrn: string }) => {
-            const records = attendanceData[selectedMonth]?.[s.lrn] || {};
-            const validDays = days.filter(d => monthDateLabels[selectedMonth]?.[d]);
-
+            const record = currentAttendance[s.lrn] || {};
             let consecutive = 0;
-            for (const d of validDays) {
-                const status = records[d];
-                if (status === 'absent') {
+
+            for (let colIdx = 1; colIdx <= totalColumns; colIdx++) {
+                const dateVal = currentDateLabels[colIdx];
+                if (!dateVal || !dateVal.trim()) continue; // Skip non-school / unfilled date columns
+
+                const dateKey = `date_${dateVal.trim()}`;
+                const status = (record[dateKey] !== undefined ? record[dateKey] : record[colIdx]);
+
+                if (status === 'absent' || status === 'absent-excused' || status === 'absent-unexcused') {
                     consecutive++;
                     if (consecutive >= 5) return true;
                 } else {
