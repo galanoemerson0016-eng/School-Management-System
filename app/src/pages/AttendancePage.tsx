@@ -1040,7 +1040,7 @@ export function AttendancePage() {
                 const dateKey = `date_${dateVal.trim()}`;
                 const status = (record[dateKey] !== undefined ? record[dateKey] : record[colIdx]);
 
-                if (status === 'absent' || status === 'absent-excused' || status === 'absent-unexcused') {
+                if (status === 'absent' || status === 'absent-excused' || status === 'absent-unexcused' || status === 'X' || status === 'x') {
                     consecutive++;
                     if (consecutive >= 5) return true;
                 } else {
