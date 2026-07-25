@@ -718,7 +718,7 @@ export function AttendancePage() {
             case 'tardy-upper':
             case 'tardy':
                 return (
-                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-[2px] border border-black align-middle">
+                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-xs border border-black align-middle">
                         <span className="h-1/2 w-full bg-black/90" />
                         <span className="h-1/2 w-full bg-white" />
                     </span>
@@ -726,7 +726,7 @@ export function AttendancePage() {
             case 'tardy-lower':
             case 'cutting':
                 return (
-                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-[2px] border border-black align-middle">
+                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-xs border border-black align-middle">
                         <span className="h-1/2 w-full bg-white" />
                         <span className="h-1/2 w-full bg-black/90" />
                     </span>
@@ -1062,7 +1062,7 @@ export function AttendancePage() {
             malePerc, femalePerc, totalPerc: (maleRegistered + femaleRegistered) > 0 ? ((maleADA + femaleADA) / (maleRegistered + femaleRegistered)) * 100 : 0,
             maleConsecutive, femaleConsecutive, totalConsecutive: maleConsecutive + femaleConsecutive
         };
-    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, attendanceData, monthDateLabels, days]);
+    }, [displayStudents, selectedMonth, filledDaysCount, totalMalePresent, totalFemalePresent, currentAttendance, currentDateLabels, totalColumns]);
 
     const singleSection = sortedSections.length === 1 ? sortedSections[0] : null;
 
