@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, X, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, X, Trash2, Pencil, RotateCcw } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { canManageCalendarEvents } from '../lib/rbac';
 import { useAuthStore } from '../stores';
@@ -22,30 +22,33 @@ export function CalendarPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const storageKey = 'school_calendar_events';
     
-    // Initialize events from localStorage or use defaults
+    // Initialize events from localStorage (persistent) or seed defaults once
     const [events, setEvents] = useState<CalendarEvent[]>(() => {
         try {
             const stored = localStorage.getItem(storageKey);
-            const existingEvents: CalendarEvent[] = stored ? JSON.parse(stored) : [];
-            
-            // Merge logic: Ensure ALL official events are present.
-            // If they already exist (by ID), keep the official version to ensure updates propagate.
-            const officialIds = new Set(OFFICIAL_CALENDAR_2026_2027.map(e => e.id));
-            const userEvents = existingEvents.filter(e => !officialIds.has(e.id));
-            
-            return [...OFFICIAL_CALENDAR_2026_2027, ...userEvents];
+            if (stored !== null) {
+                return JSON.parse(stored);
+            }
+            // Seed official calendar defaults on first load
+            localStorage.setItem(storageKey, JSON.stringify(OFFICIAL_CALENDAR_2026_2027));
+            return OFFICIAL_CALENDAR_2026_2027;
         } catch (e) {
             console.warn('Failed to load events from localStorage', e);
             return OFFICIAL_CALENDAR_2026_2027;
         }
     });
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [formData, setFormData] = useState<Partial<CalendarEvent>>({ type: 'event' });
 
     // Persist events to localStorage whenever they change
     useEffect(() => {
-        localStorage.setItem('school_calendar_events', JSON.stringify(events));
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(events));
+        } catch (e) {
+            console.warn('Failed to persist events to localStorage', e);
+        }
     }, [events]);
 
     const year = currentDate.getFullYear();
@@ -105,23 +108,52 @@ export function CalendarPage() {
         setSelectedDate(dateStr);
     };
 
-    const handleAddEvent = () => {
+    const handleSaveEvent = () => {
         if (!formData.title || !formData.date) return;
-        const newEvent: CalendarEvent = {
-            id: `event-${Date.now()}`,
-            title: formData.title!,
-            date: formData.date!,
-            end_date: formData.end_date || undefined,
-            type: formData.type as CalendarEvent['type'] || 'event',
-            description: formData.description,
-        };
-        setEvents(prev => [...prev, newEvent]);
+
+        if (formData.id) {
+            // Edit existing event
+            setEvents(prev => prev.map(e => e.id === formData.id ? {
+                ...e,
+                title: formData.title!,
+                date: formData.date!,
+                end_date: formData.end_date || undefined,
+                type: (formData.type as CalendarEvent['type']) || 'event',
+                description: formData.description,
+            } : e));
+        } else {
+            // Create new event
+            const newEvent: CalendarEvent = {
+                id: `event-${Date.now()}`,
+                title: formData.title!,
+                date: formData.date!,
+                end_date: formData.end_date || undefined,
+                type: (formData.type as CalendarEvent['type']) || 'event',
+                description: formData.description,
+            };
+            setEvents(prev => [...prev, newEvent]);
+        }
+
         setIsModalOpen(false);
         setFormData({ type: 'event' });
     };
 
+    const handleEditEvent = (evt: CalendarEvent) => {
+        setFormData({ ...evt });
+        setIsModalOpen(true);
+    };
+
     const handleDeleteEvent = (id: string) => {
-        setEvents(prev => prev.filter(e => e.id !== id));
+        if (window.confirm('Are you sure you want to delete this event from the calendar?')) {
+            setEvents(prev => prev.filter(e => e.id !== id));
+        }
+    };
+
+    const handleResetDefaults = () => {
+        if (window.confirm('Reset calendar events to the official SY 2026-2027 defaults? This will restore deleted holidays and remove custom events.')) {
+            setEvents(OFFICIAL_CALENDAR_2026_2027);
+            localStorage.setItem(storageKey, JSON.stringify(OFFICIAL_CALENDAR_2026_2027));
+        }
     };
 
     const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
@@ -156,12 +188,21 @@ export function CalendarPage() {
                     <p className="text-[10px] text-gray-500 font-medium -mt-0.5">SY 2026-2027 Events & Holidays</p>
                 </div>
                 {canManageEvents && (
-                    <button
-                        onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate || todayStr }); }}
-                        className="px-5 py-2.5 bg-deped-blue text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" /> Add Event
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleResetDefaults}
+                            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="Reset to official calendar defaults"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5 text-slate-500" /> Reset Defaults
+                        </button>
+                        <button
+                            onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate || todayStr }); }}
+                            className="px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <Plus className="w-4 h-4" /> Add Event
+                        </button>
+                    </div>
                 )}
             </motion.div>
 
@@ -170,11 +211,11 @@ export function CalendarPage() {
                 <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col min-h-0">
                     {/* Month Navigation */}
                     <div className="flex items-center justify-between p-3 md:p-4 border-b border-gray-100 bg-linear-to-r from-deped-blue to-blue-600">
-                        <button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white">
+                        <button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white cursor-pointer">
                             <ChevronLeft className="w-5 h-5" />
                         </button>
                         <h3 className="text-lg md:text-xl font-black text-white tracking-wide">{monthName}</h3>
-                        <button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white">
+                        <button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white cursor-pointer">
                             <ChevronRight className="w-5 h-5" />
                         </button>
                     </div>
@@ -231,27 +272,48 @@ export function CalendarPage() {
                             animate={{ opacity: 1, y: 0 }}
                             className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                         >
-                            <div className="p-3 md:p-4 bg-deped-blue text-white">
-                                <h4 className="font-bold text-sm">
-                                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                            <div className="p-3 md:p-4 bg-deped-blue text-white flex justify-between items-center">
+                                <h4 className="font-bold text-xs lg:text-sm">
+                                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                                 </h4>
+                                {canManageEvents && (
+                                    <button
+                                        onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate }); }}
+                                        className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md text-[10px] font-bold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Event
+                                    </button>
+                                )}
                             </div>
-                            <div className="p-3 md:p-4 space-y-2">
+                            <div className="p-3 md:p-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                                 {selectedDateEvents.length > 0 ? (
                                     selectedDateEvents.map(evt => (
                                         <div key={evt.id} className={`p-3 rounded-xl border ${EVENT_TYPES[evt.type]?.border} ${EVENT_TYPES[evt.type]?.bg}`}>
-                                            <div className="flex justify-between items-start">
-                                                <div>
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div className="min-w-0 flex-1">
                                                     <span className={`text-[9px] font-black uppercase ${EVENT_TYPES[evt.type]?.text}`}>
                                                         {EVENT_TYPES[evt.type]?.label}
                                                     </span>
-                                                    <p className="font-bold text-sm text-gray-800">{evt.title}</p>
-                                                    {evt.description && <p className="text-xs text-gray-500 mt-1">{evt.description}</p>}
+                                                    <p className="font-bold text-xs text-gray-800 wrap-break-word">{evt.title}</p>
+                                                    {evt.description && <p className="text-[11px] text-gray-500 mt-0.5">{evt.description}</p>}
                                                 </div>
                                                 {canManageEvents && (
-                                                    <button onClick={() => handleDeleteEvent(evt.id)} className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600 transition-colors">
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }} 
+                                                            className="p-1 hover:bg-blue-100 rounded text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                                                            title="Edit Event"
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }} 
+                                                            className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                                            title="Delete Event"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -267,7 +329,7 @@ export function CalendarPage() {
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="p-3 md:p-4 border-b border-gray-100">
                             <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                                <CalendarIcon className="w-3 h-3 text-deped-blue" />
+                                <CalendarIcon className="w-3.5 h-3.5 text-deped-blue" />
                                 {currentDate.toLocaleString('default', { month: 'long' })} Activities
                             </h4>
                         </div>
@@ -277,15 +339,35 @@ export function CalendarPage() {
                                     <div
                                         key={evt.id}
                                         onClick={() => { setSelectedDate(evt.date); setCurrentDate(new Date(evt.date + 'T00:00:00')); }}
-                                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                                        className="group flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
                                     >
-                                        <div className={`w-2 h-8 rounded-full ${EVENT_TYPES[evt.type]?.color}`} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold text-gray-800 truncate">{evt.title}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold">
-                                                {new Date(evt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                            </p>
+                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                            <div className={`w-2 h-8 rounded-full ${EVENT_TYPES[evt.type]?.color} shrink-0`} />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-bold text-gray-800 truncate">{evt.title}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold">
+                                                    {new Date(evt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                </p>
+                                            </div>
                                         </div>
+                                        {canManageEvents && (
+                                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
+                                                    className="p-1 hover:bg-blue-100 rounded text-blue-500 hover:text-blue-700 transition-colors"
+                                                    title="Edit Event"
+                                                >
+                                                    <Pencil className="w-3 h-3" />
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }}
+                                                    className="p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600 transition-colors"
+                                                    title="Delete Event"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             ) : (
@@ -309,7 +391,7 @@ export function CalendarPage() {
                 </div>
             </div>
 
-            {/* Add Event Modal */}
+            {/* Add / Edit Event Modal */}
             <AnimatePresence>
                 {isModalOpen && (
                     <motion.div
@@ -327,8 +409,8 @@ export function CalendarPage() {
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div className="bg-deped-blue text-white px-6 py-4 flex justify-between items-center">
-                                <h3 className="text-lg font-bold">Add Event</h3>
-                                <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-white/20 rounded-lg">
+                                <h3 className="text-lg font-bold">{formData.id ? 'Edit Event' : 'Add Event'}</h3>
+                                <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-white/20 rounded-lg cursor-pointer">
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
@@ -369,8 +451,9 @@ export function CalendarPage() {
                                         {Object.entries(EVENT_TYPES).map(([key, val]) => (
                                             <button
                                                 key={key}
+                                                type="button"
                                                 onClick={() => setFormData({ ...formData, type: key as CalendarEvent['type'] })}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${formData.type === key
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${formData.type === key
                                                         ? `${val.color} text-white border-transparent`
                                                         : `border-gray-200 text-gray-600 hover:border-gray-300`
                                                     }`}
@@ -391,11 +474,11 @@ export function CalendarPage() {
                                     />
                                 </div>
                                 <div className="flex justify-end gap-3 pt-2">
-                                    <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium hover:bg-gray-50">
+                                    <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium hover:bg-gray-50 cursor-pointer">
                                         Cancel
                                     </button>
-                                    <button onClick={handleAddEvent} className="px-6 py-2 bg-deped-blue text-white rounded-lg font-bold hover:bg-blue-700 shadow-md">
-                                        Add Event
+                                    <button onClick={handleSaveEvent} className="px-6 py-2 bg-deped-blue text-white rounded-lg font-bold hover:bg-blue-700 shadow-md cursor-pointer">
+                                        {formData.id ? 'Save Changes' : 'Add Event'}
                                     </button>
                                 </div>
                             </div>

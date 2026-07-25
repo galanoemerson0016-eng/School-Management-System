@@ -350,8 +350,8 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
     if (normalized.includes('valueseducation') || normalized.includes('values')) return 'valuesEducation';
     if (normalized.includes('epp') || normalized.includes('tle')) return 'tle';
     if (normalized.includes('ict')) return 'ict';
-    if (normalized.includes('musicandarts') || normalized.includes('musicarts')) return 'musicAndArts';
-    if (normalized.includes('physicaleducationandhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth')) return 'peAndHealth';
+    if (normalized.includes('musicandarts') || normalized.includes('musicarts') || (normalized.includes('music') && normalized.includes('arts'))) return 'musicAndArts';
+    if (normalized.includes('physicaleducationandhealth') || normalized.includes('physicaleducationhealth') || normalized.includes('peandhealth') || normalized.includes('pehealth') || (normalized.includes('physicaleducation') && normalized.includes('health')) || (normalized.includes('pe') && normalized.includes('health'))) return 'peAndHealth';
     // Old curriculum individual MAPEH components
     if (normalized === 'music') return 'music';
     if (normalized === 'arts') return 'arts';
@@ -365,7 +365,7 @@ export function getSF10RowsForGrade(gradeLevel: string | number, customCurriculu
   const componentIndices: number[] = [];
   subjects.forEach((s, i) => {
     const norm = normalizeSubjectName(s.name);
-    if (s.code === 'MAPEH' || norm.includes('musicandarts') || norm.includes('physicaleducationandhealth')) {
+    if (s.code === 'MAPEH' || norm.includes('musicandarts') || norm.includes('musicarts') || norm.includes('physicaleducationandhealth') || norm.includes('physicaleducationhealth') || norm.includes('pehealth') || (norm.includes('physicaleducation') && norm.includes('health')) || (norm.includes('pe') && norm.includes('health'))) {
       componentIndices.push(i);
     }
   });

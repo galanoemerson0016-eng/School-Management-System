@@ -1,11 +1,15 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import type { Student, Section } from '../types';
-import { ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown } from 'lucide-react';
+import type { Student, Section, Subject } from '../types';
+import { 
+    ArrowLeft, Printer, FileText, Plus, Minus, ChevronDown, 
+    Download, Users, CheckSquare, Square, X, Loader2, Filter
+} from 'lucide-react';
 import { filterSubjectsForSection } from '../lib/rbac';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { LIRRenderer } from '../components/LIRRenderer';
+import { exportElementsToPdf, printElements } from '../utils/pdf-export';
 
 export function LIRPage() {
     const { students, sections, subjects, teachers, schoolProfile, activeSchoolYear, setCurrentView, classRecords, gradingSheetRecords, hpsRecords, sf2Sheets } = useAppStore();
@@ -18,6 +22,14 @@ export function LIRPage() {
     const [fillColor, setFillColor] = useState('#86efac');
     const [outlineColor, setOutlineColor] = useState('#22c55e');
     const [paperSize, setPaperSize] = useState<'a4' | 'letter' | 'folio'>('folio');
+
+    // Bulk Modal & Export State
+    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+    const [selectedBulkLrns, setSelectedBulkLrns] = useState<Set<string>>(new Set());
+    const [bulkSearchQuery, setBulkSearchQuery] = useState('');
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState(0);
+    const [exportStatusText, setExportStatusText] = useState('');
 
     const selectedSectionObj = useMemo(() => {
         return sections.find((s) => s.section_name === selectedSection || s.id === selectedSection);
@@ -43,23 +55,11 @@ export function LIRPage() {
 
     const teacherName = useMemo(() => {
         if (selectedSubjectObj?.teacher_id) {
-                 // Check both uid and displayName in stores
-                 const teacherObj = (teachers as { uid?: string; id?: string; displayName?: string; name?: string }[]).find(t => t.uid === selectedSubjectObj.teacher_id || t.id === selectedSubjectObj.teacher_id);
-                 if (teacherObj) return teacherObj.displayName || teacherObj.name;
+            const teacherObj = (teachers as { uid?: string; id?: string; displayName?: string; name?: string }[]).find(t => t.uid === selectedSubjectObj.teacher_id || t.id === selectedSubjectObj.teacher_id);
+            if (teacherObj) return teacherObj.displayName || teacherObj.name;
         }
         return selectedSectionObj?.adviser_name || '';
     }, [selectedSubjectObj, teachers, selectedSectionObj]);
-
-    const handlePrint = () => {
-        if (!selectedStudent) return;
-        const originalTitle = document.title;
-        const safeName = `${selectedStudent.last_name}_${selectedStudent.first_name}`.replace(/[^a-z0-9]/gi, '_');
-        document.title = `LIR_${safeName}_${activeSchoolYear}`;
-        window.print();
-        setTimeout(() => {
-            document.title = originalTitle;
-        }, 1000);
-    };
 
     const sortedSections = useMemo(() => {
         return [...sections].sort((a, b) => {
@@ -105,6 +105,7 @@ export function LIRPage() {
         const timer = setTimeout(() => {
             setSelectedSubject('');
             setSelectedStudent(null);
+            setSelectedBulkLrns(new Set());
         }, 0);
         return () => clearTimeout(timer);
     }, [selectedSection]);
@@ -115,24 +116,30 @@ export function LIRPage() {
         return students.filter(s => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
     }, [students, selectedSection, sections]);
 
-    const males = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'male').sort((a, b) => a.last_name.localeCompare(b.last_name));
-    const females = sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'female').sort((a, b) => a.last_name.localeCompare(b.last_name));
+    const males = useMemo(() => sectionStudents.filter(s => (s.gender || '').toLowerCase() === 'male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
+    const females = useMemo(() => sectionStudents.filter(s => (s.gender || '').toLowerCase() !== 'male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
 
-    const attendanceData = useMemo(() => {
-        if (!selectedStudent) return {};
+    const handleOpenBulkModal = () => {
+        if (selectedBulkLrns.size === 0 && sectionStudents.length > 0) {
+            setSelectedBulkLrns(new Set(sectionStudents.map(s => s.lrn)));
+        }
+        setIsBulkModalOpen(true);
+    };
+
+    // Student Data Calculation Helpers
+    const getAttendanceDataForStudent = useCallback((student: Student | null) => {
+        if (!student) return {};
         
         const monthlyAbsences: Record<string, number> = {};
         
-        // Filter sheets for this student's section and current school year
         const studentSheets = sf2Sheets.filter(sheet => 
             sheet.school_year === activeSchoolYear &&
             (sheet.section_id === selectedSectionObj?.id || sheet.section_id === selectedSection)
         );
 
         studentSheets.forEach(sheet => {
-            const studentAttendance = sheet.attendance?.[selectedStudent.lrn];
+            const studentAttendance = sheet.attendance?.[student.lrn];
             if (studentAttendance) {
-                // Count days where status is 'absent'
                 const absenceCount = Object.values(studentAttendance).filter(status => 
                     status?.toLowerCase() === 'absent'
                 ).length;
@@ -144,10 +151,10 @@ export function LIRPage() {
         });
 
         return monthlyAbsences;
-    }, [selectedStudent, sf2Sheets, activeSchoolYear, selectedSectionObj, selectedSection]);
+    }, [sf2Sheets, activeSchoolYear, selectedSectionObj, selectedSection]);
 
-    const gradeData = useMemo(() => {
-        if (!selectedStudent || !selectedSubject) return undefined;
+    const getGradeDataForStudent = useCallback((student: Student | null, subjectId: string, subjectObj?: Subject) => {
+        if (!student || !subjectId) return undefined;
         
         interface TermData {
             scores: {
@@ -167,27 +174,24 @@ export function LIRPage() {
 
         const data: Record<number, TermData> = {};
         [1, 2, 3].forEach(term => {
-            // Find class record with multiple fallback checks
             const record = classRecords.find(r => 
-                r.student_lrn === selectedStudent.lrn && 
+                r.student_lrn === student.lrn && 
                 r.school_year === activeSchoolYear &&
                 Number(r.quarter) === term &&
-                (r.subject_id === selectedSubjectObj?.id || r.subject_id === selectedSubject)
+                (r.subject_id === subjectObj?.id || r.subject_id === subjectId)
             ) || gradingSheetRecords.find(r => 
-                r.student_lrn === selectedStudent.lrn && 
+                r.student_lrn === student.lrn && 
                 r.school_year === activeSchoolYear &&
                 Number(r.quarter) === term &&
-                (r.subject_id === selectedSubjectObj?.id || r.subject_id === selectedSubject)
+                (r.subject_id === subjectObj?.id || r.subject_id === subjectId)
             );
 
-            // Find HPS record
             const hpsRec = hpsRecords.find(r => 
-                (r.subject_id === selectedSubjectObj?.id || r.subject_id === selectedSubject) && 
+                (r.subject_id === subjectObj?.id || r.subject_id === subjectId) && 
                 r.school_year === activeSchoolYear && 
                 Number(r.quarter) === term
             );
 
-            // Normalize scores to LIR slot counts
             const normalize = (arr: (number | string)[] | undefined, count: number) => {
                 const src = Array.isArray(arr) ? arr : [];
                 return Array.from({ length: count }, (_, i) => src[i] ?? '');
@@ -196,7 +200,6 @@ export function LIRPage() {
             const recordWithSummative = (record as unknown) as (Record<string, unknown> & { summative_tests?: (number | string)[] });
             const hpsWithSummative = (hpsRec as unknown) as (Record<string, unknown> & { summative_tests?: (number | string)[] });
 
-            // Extract scores and ensure they are numbers or empty strings
             const clean = (val: unknown) => (val === '' || val === null || val === undefined) ? '' : (val as number | string);
 
             data[term] = {
@@ -216,17 +219,179 @@ export function LIRPage() {
             };
         });
         return data;
-    }, [selectedStudent, selectedSubject, selectedSubjectObj, classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear]);
+
+    const attendanceData = useMemo(() => {
+        return getAttendanceDataForStudent(selectedStudent);
+    }, [selectedStudent, getAttendanceDataForStudent]);
+
+    const gradeData = useMemo(() => {
+        return getGradeDataForStudent(selectedStudent, selectedSubject, selectedSubjectObj);
+    }, [selectedStudent, selectedSubject, selectedSubjectObj, getGradeDataForStudent]);
+
+    const sortedSectionStudents = useMemo(() => {
+        return [...males, ...females];
+    }, [males, females]);
+
+    // Active Bulk Learners List (Male learners A-Z first, then Female learners A-Z)
+    const bulkSelectedStudents = useMemo(() => {
+        return sortedSectionStudents.filter(s => selectedBulkLrns.has(s.lrn));
+    }, [sortedSectionStudents, selectedBulkLrns]);
+
+    const filteredBulkStudents = useMemo(() => {
+        if (!bulkSearchQuery.trim()) return sectionStudents;
+        const q = bulkSearchQuery.toLowerCase();
+        return sectionStudents.filter(s => 
+            s.last_name.toLowerCase().includes(q) || 
+            s.first_name.toLowerCase().includes(q) || 
+            s.lrn.includes(q)
+        );
+    }, [sectionStudents, bulkSearchQuery]);
+
+    const filteredMales = useMemo(() => filteredBulkStudents.filter(s => (s.gender || '').toLowerCase() === 'male'), [filteredBulkStudents]);
+    const filteredFemales = useMemo(() => filteredBulkStudents.filter(s => (s.gender || '').toLowerCase() === 'female'), [filteredBulkStudents]);
+
+    const handlePrintSingle = () => {
+        if (!selectedStudent) return;
+        const originalTitle = document.title;
+        const safeName = `${selectedStudent.last_name}_${selectedStudent.first_name}`.replace(/[^a-z0-9]/gi, '_');
+        document.title = `LIR_${safeName}_${activeSchoolYear}`;
+        window.print();
+        setTimeout(() => {
+            document.title = originalTitle;
+        }, 1000);
+    };
+
+    // Bulk Print Execution
+    const handleBulkPrint = async () => {
+        if (bulkSelectedStudents.length === 0) return;
+        
+        setIsExporting(true);
+        setExportProgress(10);
+        setExportStatusText('Preparing LIR sheets for bulk printing...');
+
+        try {
+            await new Promise(r => setTimeout(r, 400));
+            const bulkContainer = document.getElementById('lir-bulk-render-container');
+            const sheetElements = bulkContainer ? Array.from(bulkContainer.querySelectorAll('.lir-bulk-sheet')) as HTMLElement[] : [];
+
+            if (sheetElements.length === 0) {
+                alert('No sheets ready for printing. Please try again.');
+                setIsExporting(false);
+                return;
+            }
+
+            setExportProgress(50);
+            setExportStatusText(`Opening print stream for ${sheetElements.length} learners...`);
+
+            await printElements({
+                elements: sheetElements,
+                paperSize,
+                orientation: 'portrait',
+                title: `Bulk_LIR_${selectedSectionObj?.section_name || 'Section'}_${selectedSubjectObj?.subject_name || 'Subject'}`
+            });
+
+            setExportProgress(100);
+            setExportStatusText('Bulk print stream launched successfully.');
+            setTimeout(() => {
+                setIsExporting(false);
+                setIsBulkModalOpen(false);
+            }, 600);
+        } catch (err) {
+            console.error('Bulk print error:', err);
+            alert('Failed to launch bulk print.');
+            setIsExporting(false);
+        }
+    };
+
+    // Bulk PDF Download Execution
+    const handleBulkPdfDownload = async () => {
+        if (bulkSelectedStudents.length === 0) return;
+
+        setIsExporting(true);
+        setExportProgress(5);
+        setExportStatusText('Initializing vector PDF export pipeline...');
+
+        try {
+            await new Promise(r => setTimeout(r, 400));
+            const bulkContainer = document.getElementById('lir-bulk-render-container');
+            const sheetElements = bulkContainer ? Array.from(bulkContainer.querySelectorAll('.lir-bulk-sheet')) as HTMLElement[] : [];
+
+            if (sheetElements.length === 0) {
+                alert('No sheets ready for PDF export.');
+                setIsExporting(false);
+                return;
+            }
+
+            const sectionName = (selectedSectionObj?.section_name || selectedSection || 'Section').replace(/[^a-z0-9]/gi, '_');
+            const subjectName = (selectedSubjectObj?.subject_name || 'Subject').replace(/[^a-z0-9]/gi, '_');
+            const filename = `LIR_${sectionName}_${subjectName}_${activeSchoolYear}`;
+
+            const result = await exportElementsToPdf({
+                elements: sheetElements,
+                filename,
+                paperSize,
+                orientation: 'portrait',
+                title: filename,
+                onProgressChange: (progress: number) => {
+                    setExportProgress(progress);
+                    setExportStatusText(`Processing LIR PDF pages: ${progress}% complete...`);
+                }
+            });
+
+            if (result.success) {
+                setExportProgress(100);
+                setExportStatusText('PDF download complete!');
+                setTimeout(() => {
+                    setIsExporting(false);
+                    setIsBulkModalOpen(false);
+                }, 800);
+            } else if (!result.cancelled) {
+                alert(`Export failed: ${result.error || 'Unknown error'}`);
+                setIsExporting(false);
+            } else {
+                setIsExporting(false);
+            }
+        } catch (err) {
+            console.error('Bulk PDF download error:', err);
+            alert('Failed to generate PDF download.');
+            setIsExporting(false);
+        }
+    };
+
+    const toggleStudentSelection = (lrn: string) => {
+        setSelectedBulkLrns(prev => {
+            const next = new Set(prev);
+            if (next.has(lrn)) next.delete(lrn);
+            else next.add(lrn);
+            return next;
+        });
+    };
+
+    const selectAllStudents = () => {
+        setSelectedBulkLrns(new Set(sectionStudents.map(s => s.lrn)));
+    };
+
+    const selectMalesOnly = () => {
+        setSelectedBulkLrns(new Set(males.map(s => s.lrn)));
+    };
+
+    const selectFemalesOnly = () => {
+        setSelectedBulkLrns(new Set(females.map(s => s.lrn)));
+    };
+
+    const clearAllSelection = () => {
+        setSelectedBulkLrns(new Set());
+    };
 
     return (
         <div className="lir-print-root flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
-             {/* Sticky Premium Top Toolbar */}
              {/* Sticky Premium Top Toolbar */}
              <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="flex items-center w-full h-14 select-none relative px-2 lg:px-3 gap-1.5 lg:gap-2 overflow-hidden">
                     
-                    {/* Identity & Context Branding (Left Most Edge) */}
+                    {/* Identity & Context Branding */}
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
@@ -382,18 +547,53 @@ export function LIRPage() {
                         </button>
                     </div>
 
-                    {/* Print Button */}
+                    {/* Bulk Selection / Manage Button */}
                     <button
-                        onClick={handlePrint}
+                        onClick={handleOpenBulkModal}
+                        disabled={!selectedSection || !selectedSubject || sectionStudents.length === 0}
+                        className="ml-auto h-8 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-black text-[8px] uppercase tracking-wider shadow-sm active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0 cursor-pointer"
+                        title="Filter / Select Learners"
+                    >
+                        <Users className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                        Select ({selectedBulkLrns.size})
+                    </button>
+
+                    {/* Direct Bulk PDF Export */}
+                    <button
+                        onClick={handleBulkPdfDownload}
+                        disabled={!selectedSection || !selectedSubject || bulkSelectedStudents.length === 0}
+                        className="h-8 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[8px] uppercase tracking-wider shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0 cursor-pointer"
+                        title="Bulk Download PDF for selected learners"
+                    >
+                        <Download className="w-3 h-3 group-hover:-translate-y-0.5 transition-transform" />
+                        Bulk PDF
+                    </button>
+
+                    {/* Direct Bulk Print */}
+                    <button
+                        onClick={handleBulkPrint}
+                        disabled={!selectedSection || !selectedSubject || bulkSelectedStudents.length === 0}
+                        className="h-8 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-[8px] uppercase tracking-wider shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0 cursor-pointer"
+                        title="Bulk Print for selected learners"
+                    >
+                        <Printer className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        Bulk Print
+                    </button>
+
+                    {/* Single Print Button */}
+                    <button
+                        onClick={handlePrintSingle}
                         disabled={!selectedStudent}
-                        className="ml-auto h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[8px] uppercase tracking-wider shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0"
+                        className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[8px] uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0 cursor-pointer"
+                        title="Print single active learner"
                     >
                         <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
-                        Print
+                        Print Single
                     </button>
                 </div>
              </div>
 
+             {/* Main Single Preview Viewport */}
              <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
                 <div className="w-full min-h-full flex flex-col items-center justify-start py-20 px-10 relative print:overflow-visible print:py-0 print:px-0">
                     {selectedStudent ? (
@@ -443,13 +643,278 @@ export function LIRPage() {
                             <div className="space-y-4">
                                 <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Individual Record</h2>
                                 <p className="text-slate-400 font-bold max-w-sm mx-auto leading-relaxed uppercase text-[10px] tracking-[0.3em] opacity-60">
-                                    Select a learner from the toolbar above to preview their individual record card.
+                                    Select a learner from the toolbar above to preview single LIR, or use Bulk Actions for printing and downloading entire sections.
                                 </p>
                             </div>
                         </div>
                     )}
                 </div>
              </div>
+
+             {/* Hidden DOM Container for Multi-Page Bulk Operations */}
+             <div id="lir-bulk-render-container" className="fixed top-0 pointer-events-none opacity-100 -z-50 print:static print:left-0 print:z-auto print:block" style={{ left: '-9999px' }}>
+                {bulkSelectedStudents.map((student) => {
+                    const studentGrades = getGradeDataForStudent(student, selectedSubject, selectedSubjectObj);
+                    const studentAttendance = getAttendanceDataForStudent(student);
+                    return (
+                        <div key={student.lrn} className="lir-bulk-sheet lir-print-sheet print:break-after-page print:page-break-after-always">
+                            <LIRRenderer 
+                                pageNumber={1}
+                                student={student}
+                                profile={schoolProfile}
+                                schoolYear={activeSchoolYear}
+                                subject={selectedSubjectObj?.subject_name || ''}
+                                teacher={teacherName}
+                                fillColor={fillColor}
+                                outlineColor={outlineColor}
+                                gradeData={studentGrades}
+                                attendanceData={studentAttendance}
+                                paperSize={paperSize}
+                            />
+                        </div>
+                    );
+                })}
+             </div>
+
+             {/* BULK OPERATIONS MODAL */}
+             {isBulkModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Header */}
+                        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between relative shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400">
+                                    <Users className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-wide text-white">Bulk LIR Operations</h3>
+                                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
+                                        {selectedSectionObj?.section_grade_level} - {selectedSectionObj?.section_name} | {selectedSubjectObj?.subject_name}
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsBulkModalOpen(false)}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Controls Toolbar */}
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                            {/* Search */}
+                            <div className="relative flex-1 min-w-48">
+                                <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text"
+                                    placeholder="Filter learners by name or LRN..."
+                                    value={bulkSearchQuery}
+                                    onChange={(e) => setBulkSearchQuery(e.target.value)}
+                                    className="w-full h-8 pl-8 pr-3 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                />
+                            </div>
+
+                            {/* Batch Selection Presets */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    onClick={selectAllStudents}
+                                    className="h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-[10px] font-bold text-slate-700 transition-colors flex items-center gap-1"
+                                >
+                                    <CheckSquare className="w-3 h-3 text-indigo-600" />
+                                    All ({sectionStudents.length})
+                                </button>
+                                <button
+                                    onClick={selectMalesOnly}
+                                    className="h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-[10px] font-bold text-slate-700 transition-colors flex items-center gap-1"
+                                >
+                                    Males ({males.length})
+                                </button>
+                                <button
+                                    onClick={selectFemalesOnly}
+                                    className="h-7 px-2.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-[10px] font-bold text-slate-700 transition-colors flex items-center gap-1"
+                                >
+                                    Females ({females.length})
+                                </button>
+                                <button
+                                    onClick={clearAllSelection}
+                                    className="h-7 px-2.5 rounded-md bg-slate-200/60 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition-colors flex items-center gap-1"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Learners Selection Table / List */}
+                        <div className="flex-1 overflow-auto p-4 custom-scrollbar bg-slate-100/50 space-y-4">
+                            {/* MALE GROUP */}
+                            {filteredMales.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                            Male Learners ({filteredMales.length})
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {filteredMales.map(student => {
+                                            const isSelected = selectedBulkLrns.has(student.lrn);
+                                            const hasGrades = selectedSubject && (
+                                                classRecords.some(r => r.student_lrn === student.lrn && r.subject_id === selectedSubject && r.school_year === activeSchoolYear) ||
+                                                gradingSheetRecords.some(r => r.student_lrn === student.lrn && r.subject_id === selectedSubject && r.school_year === activeSchoolYear)
+                                            );
+                                            return (
+                                                <div 
+                                                    key={student.lrn}
+                                                    onClick={() => toggleStudentSelection(student.lrn)}
+                                                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                                        isSelected 
+                                                            ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-500/20 shadow-sm' 
+                                                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        {isSelected ? (
+                                                            <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                                                        )}
+                                                        <div className="truncate">
+                                                            <p className="text-xs font-bold text-slate-800 truncate">
+                                                                {student.last_name}, {student.first_name} {student.middle_name ? student.middle_name[0] + '.' : ''}
+                                                            </p>
+                                                            <p className="text-[9px] font-medium text-slate-400">LRN: {student.lrn}</p>
+                                                        </div>
+                                                    </div>
+                                                    {hasGrades && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[8px] font-bold shrink-0">
+                                                            ✓ Grades
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* FEMALE GROUP */}
+                            {filteredFemales.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                            Female Learners ({filteredFemales.length})
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {filteredFemales.map(student => {
+                                            const isSelected = selectedBulkLrns.has(student.lrn);
+                                            const hasGrades = selectedSubject && (
+                                                classRecords.some(r => r.student_lrn === student.lrn && r.subject_id === selectedSubject && r.school_year === activeSchoolYear) ||
+                                                gradingSheetRecords.some(r => r.student_lrn === student.lrn && r.subject_id === selectedSubject && r.school_year === activeSchoolYear)
+                                            );
+                                            return (
+                                                <div 
+                                                    key={student.lrn}
+                                                    onClick={() => toggleStudentSelection(student.lrn)}
+                                                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                                        isSelected 
+                                                            ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-500/20 shadow-sm' 
+                                                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        {isSelected ? (
+                                                            <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                                                        )}
+                                                        <div className="truncate">
+                                                            <p className="text-xs font-bold text-slate-800 truncate">
+                                                                {student.last_name}, {student.first_name} {student.middle_name ? student.middle_name[0] + '.' : ''}
+                                                            </p>
+                                                            <p className="text-[9px] font-medium text-slate-400">LRN: {student.lrn}</p>
+                                                        </div>
+                                                    </div>
+                                                    {hasGrades && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[8px] font-bold shrink-0">
+                                                            ✓ Grades
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {filteredBulkStudents.length === 0 && (
+                                <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                                    No learners found matching "{bulkSearchQuery}".
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer Actions */}
+                        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                            <div className="text-xs font-bold text-slate-600">
+                                <span className="text-indigo-600 font-black">{selectedBulkLrns.size}</span> of {sectionStudents.length} learners selected
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleBulkPdfDownload}
+                                    disabled={selectedBulkLrns.size === 0}
+                                    className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download PDF
+                                </button>
+                                <button
+                                    onClick={handleBulkPrint}
+                                    disabled={selectedBulkLrns.size === 0}
+                                    className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 active:scale-95 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    Bulk Print
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             )}
+
+             {/* EXPORT / PRINT PROGRESS OVERLAY */}
+             {isExporting && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-lg animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-2xl max-w-md w-full text-center space-y-6">
+                        <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                            <div className="absolute inset-0 rounded-2xl bg-indigo-500/10 animate-ping" />
+                            <div className="relative w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
+                                <Loader2 className="w-8 h-8 animate-spin" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">Processing LIR Records</h3>
+                            <p className="text-xs font-semibold text-slate-500">{exportStatusText}</p>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="space-y-1.5">
+                            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                                <div 
+                                    className="h-full bg-linear-to-r from-indigo-500 via-blue-500 to-emerald-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.max(5, exportProgress)}%` }}
+                                />
+                            </div>
+                            <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                <span>Export Pipeline</span>
+                                <span>{exportProgress}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             )}
 
              <style>{`
                 @media print {
@@ -459,16 +924,15 @@ export function LIRPage() {
                     }
                     html, body {
                         width: ${paperSize === 'a4' ? '210mm' : '8.5in'} !important;
-                        height: ${paperSize === 'a4' ? '297mm' : paperSize === 'letter' ? '11in' : '13in'} !important;
+                        height: auto !important;
                         margin: 0 !important;
                         padding: 0 !important;
-                        overflow: hidden !important;
+                        overflow: visible !important;
                         background: #fff !important;
                     }
                     .lir-print-root {
                         display: block !important;
                         width: ${paperSize === 'a4' ? '210mm' : '8.5in'} !important;
-                        height: ${paperSize === 'a4' ? '297mm' : paperSize === 'letter' ? '11in' : '13in'} !important;
                         background: #fff !important;
                     }
                     .lir-print-sheet {
@@ -476,6 +940,12 @@ export function LIRPage() {
                         height: ${paperSize === 'a4' ? '297mm' : paperSize === 'letter' ? '11in' : '13in'} !important;
                         margin: 0 !important;
                         box-shadow: none !important;
+                        break-after: page !important;
+                        page-break-after: always !important;
+                    }
+                    .lir-print-sheet:last-child {
+                        break-after: auto !important;
+                        page-break-after: auto !important;
                     }
                 }
              `}</style>

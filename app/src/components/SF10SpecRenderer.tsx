@@ -231,6 +231,10 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 const isExtra = row.key.startsWith('extra_reserved_');
                                                                 const shouldShowData = !isExtra || (displayLabel && displayLabel.trim() !== '');
 
+                                                                const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(row.key) || (row.indent && row.key !== 'mapeh');
+                                                                const finalRatingVal = isComponent ? '' : (shouldShowData ? formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel) : '');
+                                                                const remarksVal = isComponent ? '' : (shouldShowData ? asString(sub.remarks) : '');
+
                                                                 return (
                                                                     <tr key={rIdx} className="h-4">
                                                                         <td className={`text-left px-1 ${getLearningAreaIndentClass(row)} ${(displayLabel && (displayLabel.includes("Arabic") || displayLabel.includes("Islamic"))) ? "text-[8.3px]" : ""}`}>
@@ -240,8 +244,8 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                         <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q2), blockGradeLevel) : ''}</td>
                                                                         <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q3), blockGradeLevel) : ''}</td>
                                                                         {(!is3Term) && <td>{shouldShowData ? formatGradeForDisplay(asString(sub.q4), blockGradeLevel) : ''}</td>}
-                                                                        <td className="font-bold">{shouldShowData ? formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel) : ''}</td>
-                                                                        <td className="uppercase text-[8.3px]">{shouldShowData ? asString(sub.remarks) : ''}</td>
+                                                                        <td className="font-bold">{finalRatingVal}</td>
+                                                                        <td className="uppercase text-[8.3px]">{remarksVal}</td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -249,7 +253,13 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
                                                                 <td className="border-l-black border-l">{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
-                                                                <td className="uppercase text-[8.3px]">{getVal(`scholasticRecords[${blockIdx}].subjects.remarks`) || (parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)) >= 75 ? "PASSED" : "")}</td>
+                                                                <td className="uppercase text-[8.3px]">{(() => {
+                                                                    const r = getVal(`scholasticRecords[${blockIdx}].subjects.remarks`);
+                                                                    if (r === 'PASSED') return 'PROMOTED';
+                                                                    if (r) return r;
+                                                                    const genAvg = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
+                                                                    return genAvg >= 75 ? 'PROMOTED' : genAvg > 0 ? 'RETAINED' : '';
+                                                                })()}</td>
                                                             </tr>
                                                     </tbody>
                                                     </>
@@ -724,6 +734,10 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                         <tbody>
                                                             {finalRows.map((row, rIdx) => {
                                                                 const sub = (getRaw(`scholasticRecords[${blockIdx}].subjects.${row.key}`) as AnyObject) || {};
+                                                                const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(row.key) || (row.indent && row.key !== 'mapeh');
+                                                                const finalRatingVal = isComponent ? '' : formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel);
+                                                                const remarksVal = isComponent ? '' : asString(sub.remarks);
+
                                                                 return (
                                                                     <tr key={rIdx} className={isES ? "h-[15.6px]" : "h-4.5"}>
                                                                         <td className={`text-left ${getLearningAreaIndentClass(row)} ${isES ? "text-[11.8px]" : ""} ${row.label?.startsWith('*') ? 'italic font-normal' : ''}`}>
@@ -735,8 +749,8 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                         <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q2), blockGradeLevel)}</td>
                                                                         <td className={`${is3Term ? "w-[11%]" : (isES ? "w-[8.25%]" : "w-[11%]")} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q3), blockGradeLevel)}</td>
                                                                         {(!is3Term) && <td className={`${isES ? "w-[8.25%]" : "w-[11%]"} ${isES ? "text-[11.8px]" : ""}`}>{formatGradeForDisplay(asString(sub.q4), blockGradeLevel)}</td>}
-                                                                        <td className={`font-bold ${isES ? "text-[11.3px]" : ""}`}>{formatGradeForDisplay(asString(sub.finalRating), blockGradeLevel)}</td>
-                                                                        <td className={`uppercase ${isES ? "text-[10.3px]" : "text-[9.3px]"}`}>{asString(sub.remarks)}</td>
+                                                                        <td className={`font-bold ${isES ? "text-[11.3px]" : ""}`}>{finalRatingVal}</td>
+                                                                        <td className={`uppercase ${isES ? "text-[10.3px]" : "text-[9.3px]"}`}>{remarksVal}</td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -744,7 +758,13 @@ export const SF10SpecRenderer: React.FC<SF10RendererProps> = ({ pageNumber, data
                                                                 <td></td>
                                                                 <td colSpan={is3Term ? 3 : 4} className="text-center italic font-bold text-[10.3px]">General Average</td>
                                                                 <td className={`border-l-black border-l ${isES ? "text-[11.3px]" : ""}`}>{formatGradeForDisplay(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`), blockGradeLevel)}</td>
-                                                                <td className="uppercase text-[10.3px]">{getVal(`scholasticRecords[${blockIdx}].subjects.remarks`) || (parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`)) >= 75 ? "PASSED" : "")}</td>
+                                                                <td className="uppercase text-[10.3px]">{(() => {
+                                                                    const r = getVal(`scholasticRecords[${blockIdx}].subjects.remarks`);
+                                                                    if (r === 'PASSED') return 'PROMOTED';
+                                                                    if (r) return r;
+                                                                    const genAvg = parseFloat(getVal(`scholasticRecords[${blockIdx}].subjects.generalAverage`));
+                                                                    return genAvg >= 75 ? 'PROMOTED' : genAvg > 0 ? 'RETAINED' : '';
+                                                                })()}</td>
                                                             </tr>
                                                         </tbody>
                                                     </>

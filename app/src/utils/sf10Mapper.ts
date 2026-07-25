@@ -62,8 +62,8 @@ function matchSubjectKey(subjectName: string, subjectsData: SubjectsData): strin
   else if (name.includes('edukasyon') || name === 'esp' || name.includes('pagpapakatao')) key = 'esp';
   else if (name.includes('epp') || name.includes('tle') || name.includes('technologyandlivelihood')) key = 'tle';
   else if (name.includes('ict')) key = 'ict';
-  else if (name.includes('musicandarts') || name.includes('musicarts')) key = 'musicAndArts';
-  else if (name.includes('physicaleducationandhealth') || name.includes('peandhealth') || name.includes('pehealth')) key = 'peAndHealth';
+  else if (name.includes('musicandarts') || name.includes('musicarts') || (name.includes('music') && name.includes('arts'))) key = 'musicAndArts';
+  else if (name.includes('physicaleducationandhealth') || name.includes('physicaleducationhealth') || name.includes('peandhealth') || name.includes('pehealth') || (name.includes('physicaleducation') && name.includes('health')) || (name.includes('pe') && name.includes('health'))) key = 'peAndHealth';
   else if (name.includes('mapeh')) key = 'mapeh';
   else if (name.includes('music') || name.includes('musika')) key = 'music';
   else if (name.includes('arts') || name.includes('sining')) key = 'arts';
@@ -425,7 +425,13 @@ export function mapStudentToSpecData({
         
         const isComplete = is3Term ? terms.length === 3 : terms.length === 4;
 
-        if (isComplete) {
+        const isComponent = excludedFromGPA.includes(s.key) || s.indent || (s.code === 'MAPEH' && s.key !== 'mapeh');
+
+        if (isComponent) {
+          // MAPEH components do not have a final rating or remarks in SF10
+          sub.finalRating = '';
+          sub.remarks = '';
+        } else if (isComplete) {
           const avg = Math.round(terms.reduce((a: number, b: number) => a + b, 0) / terms.length);
           sub.finalRating = String(avg);
           sub.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
@@ -480,7 +486,9 @@ export function mapStudentToSpecData({
       });
 
       if (countFinal > 0) {
-        subjectsData.generalAverage = String(Math.round(totalFinal / countFinal));
+        const genAvg = Math.round(totalFinal / countFinal);
+        subjectsData.generalAverage = String(genAvg);
+        subjectsData.remarks = genAvg >= 75 ? 'PROMOTED' : 'RETAINED';
       }
     }
 

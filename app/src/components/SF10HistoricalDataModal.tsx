@@ -152,7 +152,17 @@ export function SF10HistoricalDataModal({
         const isExtra = subjectKey.startsWith('extra_reserved_');
         const hasLabel = isExtra ? (subjectGrade.label?.trim() || '') !== '' : true;
 
-        if (filledQuarters.length > 0 && hasLabel) {
+        const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(subjectKey) || (row?.indent && row?.key !== 'mapeh');
+
+        if (isComponent) {
+            // MAPEH components should not have final rating or remarks in SF10
+            subjectGrade.finalRating = '';
+            subjectGrade.remarks = '';
+            const base = `scholasticRecords[${blockIdx}].subjects.${subjectKey}`;
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.${quarter}`, value);
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.finalRating`, '');
+            setOverride(student.lrn, `page_${pageNum}`, `${base}.remarks`, '');
+        } else if (filledQuarters.length > 0 && hasLabel) {
             const avg = Math.round(filledQuarters.reduce((a, b) => a + b, 0) / filledQuarters.length);
             subjectGrade.finalRating = avg.toString();
             subjectGrade.remarks = avg >= 75 ? 'PASSED' : 'FAILED';
@@ -477,16 +487,31 @@ export function SF10HistoricalDataModal({
                                                         />
                                                     </td>
                                                 ))}
-                                                <td className="px-4 text-center border-r border-slate-200">
-                                                    <span className={`inline-block px-3 py-1 rounded-lg font-black tabular-nums ${parseFloat(rowGrade?.finalRating || '') > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.finalRating || '--') : '--'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 text-center">
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${rowGrade?.remarks === 'PASSED' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.remarks || '--') : '--'}
-                                                    </span>
-                                                </td>
+                                                {(() => {
+                                                    const isComponentRow = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(row.key) || (row.indent && row.key !== 'mapeh');
+                                                    return (
+                                                        <>
+                                                            <td className="px-4 text-center border-r border-slate-200">
+                                                                {!isComponentRow ? (
+                                                                    <span className={`inline-block px-3 py-1 rounded-lg font-black tabular-nums ${parseFloat(rowGrade?.finalRating || '') > 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.finalRating || '--') : '--'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 font-medium">--</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-6 text-center">
+                                                                {!isComponentRow ? (
+                                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${rowGrade?.remarks === 'PASSED' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                        {(rowGrade?.label?.trim() !== '' || !row.key.startsWith('extra_')) ? (rowGrade?.remarks || '--') : '--'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 font-medium">--</span>
+                                                                )}
+                                                            </td>
+                                                        </>
+                                                    );
+                                                })()}
                                             </tr>
                                         );
                                     })}

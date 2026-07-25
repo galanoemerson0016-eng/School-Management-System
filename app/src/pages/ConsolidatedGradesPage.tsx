@@ -1146,18 +1146,28 @@ const groupedSections = useMemo(() => {
         }
 
         // 4. Post-process: Identify MAPEH and EC&MK groups for all items in the list
+        const isMusicArtsSubject = (name: string) => {
+            const n = normalizeSubjectName(name);
+            return n.includes('musicandarts') || n.includes('musicarts') || (n.includes('music') && n.includes('arts')) || n === 'music' || n === 'arts';
+        };
+
+        const isPeHealthSubject = (name: string) => {
+            const n = normalizeSubjectName(name);
+            return n.includes('physicaleducationandhealth') || 
+                   n.includes('physicaleducationhealth') || 
+                   n.includes('peandhealth') || 
+                   n.includes('pehealth') || 
+                   (n.includes('physicaleducation') && n.includes('health')) || 
+                   (n.includes('pe') && n.includes('health')) ||
+                   n === 'physicaleducation' || n === 'pe' || n === 'health';
+        };
+
         const withGroupData = baseList.map(base => {
             const norm = normalizeSubjectName(base.subject_name);
             if (norm === 'mapeh' && !isSHS) {
-                const musicArts = sectionDbSubjects.filter(s => {
-                    const n = normalizeSubjectName(s.subject_name);
-                    return n.includes('musicandarts') || n.includes('musicarts');
-                });
-                const peHealth = sectionDbSubjects.filter(s => {
-                    const n = normalizeSubjectName(s.subject_name);
-                    return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
-                });
-                if (musicArts.length > 0 && peHealth.length > 0) {
+                const musicArts = sectionDbSubjects.filter(s => isMusicArtsSubject(s.subject_name));
+                const peHealth = sectionDbSubjects.filter(s => isPeHealthSubject(s.subject_name));
+                if (musicArts.length > 0 || peHealth.length > 0) {
                     return {
                         ...base,
                         _mapehGroups: {
@@ -1185,8 +1195,7 @@ const groupedSections = useMemo(() => {
         // 6. Filter out individual MAPEH components and EC/MK components from the main row list (they are sub-columns under their parent header)
         return sortedSubjects.filter(sub => {
             const norm = normalizeSubjectName(sub.subject_name);
-            const isMapehComponent = !isSHS && (norm.includes('musicandarts') || norm.includes('musicarts') || 
-                               norm.includes('physicaleducationandhealth') || norm.includes('peandhealth') || norm.includes('pehealth'));
+            const isMapehComponent = !isSHS && (isMusicArtsSubject(sub.subject_name) || isPeHealthSubject(sub.subject_name));
             
             // Filter out EC/MK individual components only if a parent group exists
             const hasEcmkParentInList = sortedSubjects.some(s => isEcmkParent(s.subject_name));
@@ -1490,8 +1499,10 @@ const groupedSections = useMemo(() => {
             if (subjectCount > 0) {
                 genAvg = totalFinal / subjectCount;
                 studentData.generalAverage = String(Math.round(genAvg));
+                studentData.termAverage = genAvg.toFixed(2);
             } else {
                 studentData.generalAverage = '';
+                studentData.termAverage = '';
             }
 
             // Calculate average for the selected term using visible subject columns
@@ -1524,8 +1535,8 @@ const groupedSections = useMemo(() => {
                     // Term Average uses 2 decimal places for precision
                     const computedTermAverage = avg.toFixed(2);
                     studentData.termAverage = computedTermAverage;
-                    // General Average is rounded to the nearest whole number
-                    studentData.generalAverage = String(Math.round(genAvg));
+                    // General Average for the active term report is the rounded average of the active term grades
+                    studentData.generalAverage = String(Math.round(avg));
                 } else {
                     studentData.termAverage = '';
                     studentData.generalAverage = '';

@@ -123,6 +123,17 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
         signatureAreaShift = '-11px';
     }
 
+    const getDynamicFontSize = (text: string | undefined, baseRem: number) => {
+        const str = (text || '').trim();
+        if (str.length > 32) return baseRem * 0.65;
+        if (str.length > 24) return baseRem * 0.78;
+        if (str.length > 16) return baseRem * 0.88;
+        return baseRem;
+    };
+
+    const subjectFontSize = getDynamicFontSize(subject, subjectTeacherFontSize * scale);
+    const teacherFontSize = getDynamicFontSize(teacher, subjectTeacherFontSize * scale);
+
     return (
         <div className="lir-container bg-white flex flex-col items-center font-['Inter',sans-serif] antialiased p-8 print:p-0">
             <div 
@@ -197,6 +208,12 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         table-layout: fixed;
                     }
 
+                    .header-subject-table {
+                        width: auto !important;
+                        table-layout: auto !important;
+                        border-collapse: collapse !important;
+                    }
+
                     th, td {
                         border: 1px solid ${outlineColor};
                         padding: ${1.5 * scale}px;
@@ -204,6 +221,14 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         height: ${24 * scale}px;
                         overflow: hidden;
                         text-overflow: ellipsis;
+                    }
+
+                    .header-subject-table td {
+                        overflow: visible !important;
+                        text-overflow: clip !important;
+                        white-space: nowrap !important;
+                        width: auto !important;
+                        height: auto !important;
                     }
 
                     .term-label {
@@ -391,14 +416,14 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                                 </div>
                             </div>
 
-                            <div className="w-auto ml-4 overflow-hidden">
-                                <table className="border-collapse border-2" style={{ borderColor: outlineColor, tableLayout: 'auto' }}>
+                            <div className="shrink-0 ml-auto">
+                                <table className="header-subject-table border-collapse border-2" style={{ borderColor: outlineColor }}>
                                     <tbody>
                                         <tr>
-                                            <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 4 * scale}px`, borderColor: outlineColor }}>SUBJECT</td>
-                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 4 * scale}px`, borderColor: outlineColor }}>{subject}</td>
-                                            <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 4 * scale}px`, borderColor: outlineColor }}>TEACHER</td>
-                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 4 * scale}px`, borderColor: outlineColor }}>{teacher}</td>
+                                            <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2 * scale}px`, borderColor: outlineColor }}>SUBJECT</td>
+                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: subjectFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{subject}</td>
+                                            <td className="label-green border-2 whitespace-nowrap" style={{ fontSize: subjectTeacherFontSize * scale + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2 * scale}px`, borderColor: outlineColor }}>TEACHER</td>
+                                            <td className="data-field font-extrabold border-2 whitespace-nowrap" style={{ fontSize: teacherFontSize + 'rem', padding: `${headerTablePadding * scale}px ${headerTablePadding * 2.5 * scale}px`, borderColor: outlineColor }}>{teacher}</td>
                                         </tr>
                                     </tbody>
                                 </table>

@@ -8,8 +8,9 @@ import { useAppStore } from '../stores';
 import { extractLrnFromScan } from '../utils/scan-utils';
 import type { AttendanceRecord, Student } from '../types';
 import {
-    ClipboardCheck, ScanLine, Camera, X, Search, CheckCircle2, AlertCircle,
+    ClipboardCheck, ScanLine, Camera, X, Search, CheckCircle2, AlertCircle, QrCode, Download, Printer, FileDown,
 } from 'lucide-react';
+import { generateQrDataUrl } from '../services/id-card/codes';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -100,6 +101,185 @@ export function DailyAttendancePage() {
     const [cameraOpen, setCameraOpen] = useState(false);
     const [cameraError, setCameraError] = useState('');
     const [lastScan, setLastScan] = useState<{ ok: boolean; text: string; lrn?: string } | null>(null);
+    const schoolProfile = useAppStore((s) => s.schoolProfile);
+    const [showQrModal, setShowQrModal] = useState(false);
+    const [selectedStudentForQr, setSelectedStudentForQr] = useState<Student | null>(null);
+    const [studentQrDataUrl, setStudentQrDataUrl] = useState<string>('');
+
+    useEffect(() => {
+        if (!selectedStudentForQr) return;
+        let cancelled = false;
+        void generateQrDataUrl(selectedStudentForQr.lrn, { size: 360, margin: 1 }).then((url) => {
+            if (!cancelled) setStudentQrDataUrl(url);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedStudentForQr]);
+
+    const downloadStudentQrCard = useCallback(async (student: Student) => {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 600;
+            canvas.height = 750;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // 1. Clear & draw outer white card background
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(0, 0, 600, 750, 24);
+            } else {
+                ctx.rect(0, 0, 600, 750);
+            }
+            ctx.fill();
+
+            // 2. Card Border (Subtle slate border)
+            ctx.strokeStyle = '#CBD5E1';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(12, 12, 576, 726, 20);
+            } else {
+                ctx.rect(12, 12, 576, 726);
+            }
+            ctx.stroke();
+
+            // 3. Header: School Name (Emerald Green)
+            ctx.fillStyle = '#059669';
+            ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            const schoolName = (schoolProfile?.name || 'School Attendance').toUpperCase();
+            ctx.fillText(schoolName, 300, 65);
+
+            // 4. Subtitle: ATTENDANCE QR BADGE (Muted Slate Gray)
+            ctx.fillStyle = '#64748B';
+            ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+            ctx.fillText('ATTENDANCE QR BADGE', 300, 98);
+
+            // 5. QR Code (Centered on white)
+            const qrDataUrl = await generateQrDataUrl(student.lrn, { size: 360, margin: 1 });
+            if (qrDataUrl) {
+                const img = new Image();
+                img.src = qrDataUrl;
+                await new Promise((resolve) => { img.onload = resolve; });
+                ctx.drawImage(img, 120, 130, 360, 360);
+            }
+
+            // 6. Student Full Name (Dark Slate)
+            ctx.fillStyle = '#0F172A';
+            ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
+            const fullName = composeName(student);
+            ctx.fillText(fullName, 300, 545);
+
+            // 7. LRN Number (Monospace Slate)
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 22px monospace';
+            ctx.fillText(`LRN: ${student.lrn}`, 300, 595);
+
+            // 8. Grade & Section (Sky Blue)
+            ctx.fillStyle = '#0284C7';
+            ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+            const secText = [student.grade_level, student.student_section].filter(Boolean).join(' — ');
+            ctx.fillText(secText || 'Student Record', 300, 640);
+
+            // Download PNG link
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = `QR_Attendance_${student.last_name}_${student.first_name}_${student.lrn}.png`;
+            a.click();
+            showNotification(`Downloaded QR Card for ${student.first_name}`, 'success');
+        } catch (err) {
+            console.error('Failed to download QR card:', err);
+            showNotification('Failed to generate QR card', 'error');
+        }
+    }, [schoolProfile, showNotification]);
+
+    const downloadPureQrCode = useCallback(async (student: Student) => {
+        try {
+            const qrDataUrl = await generateQrDataUrl(student.lrn, { size: 512, margin: 1 });
+            if (!qrDataUrl) return;
+            const a = document.createElement('a');
+            a.href = qrDataUrl;
+            a.download = `QR_${student.last_name}_${student.first_name}_${student.lrn}.png`;
+            a.click();
+            showNotification(`Downloaded QR Code PNG for ${student.first_name}`, 'success');
+        } catch (err) {
+            console.error('Failed to download QR code:', err);
+        }
+    }, [showNotification]);
+
+    const handleBatchDownloadAllQrCards = useCallback(async (studentList: Student[]) => {
+        if (studentList.length === 0) return;
+        showNotification(`Generating ${studentList.length} QR Code Cards...`, 'info');
+        for (let i = 0; i < studentList.length; i++) {
+            await downloadStudentQrCard(studentList[i]);
+            await new Promise((r) => setTimeout(r, 200));
+        }
+        showNotification(`Finished downloading ${studentList.length} QR Cards!`, 'success');
+    }, [downloadStudentQrCard, showNotification]);
+
+    const handlePrintQrSheet = useCallback(async (studentList: Student[]) => {
+        if (studentList.length === 0) return;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            showNotification('Please allow popups to print QR Sheet', 'error');
+            return;
+        }
+
+        const schoolName = schoolProfile?.name || 'FormEase Pro School';
+
+        const qrItems = await Promise.all(
+            studentList.map(async (s) => ({
+                student: s,
+                qrUrl: await generateQrDataUrl(s.lrn, { size: 256, margin: 1 }),
+            }))
+        );
+
+        const cardsHtml = qrItems
+            .map(
+                ({ student, qrUrl }) => `
+                <div class="qr-card">
+                    <div class="header">${schoolName}</div>
+                    <div class="subtitle">ATTENDANCE QR BADGE</div>
+                    <img src="${qrUrl}" class="qr-img" />
+                    <div class="student-name">${student.last_name}, ${student.first_name}</div>
+                    <div class="lrn">LRN: ${student.lrn}</div>
+                    <div class="section">${student.grade_level || ''} ${student.student_section ? `— ${student.student_section}` : ''}</div>
+                </div>
+            `
+            )
+            .join('');
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Student Attendance QR Badges Sheet</title>
+                <style>
+                    @page { size: A4; margin: 10mm; }
+                    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; background: #fff; color: #0f172a; }
+                    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+                    .qr-card { border: 2px solid #cbd5e1; border-radius: 12px; padding: 12px; text-align: center; background: #fff; page-break-inside: avoid; }
+                    .header { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #059669; }
+                    .subtitle { font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 1px; margin-bottom: 6px; }
+                    .qr-img { width: 130px; height: 130px; margin: 0 auto; display: block; }
+                    .student-name { font-size: 12px; font-weight: 800; color: #0f172a; margin-top: 6px; }
+                    .lrn { font-size: 10px; font-family: monospace; font-weight: 700; color: #475569; }
+                    .section { font-size: 9px; font-weight: 700; color: #0284c7; margin-top: 2px; }
+                </style>
+            </head>
+            <body>
+                <div class="grid">${cardsHtml}</div>
+                <script>
+                    window.onload = () => { window.print(); };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }, [schoolProfile, showNotification]);
 
     useEffect(() => {
         try {
@@ -429,8 +609,16 @@ export function DailyAttendancePage() {
                     />
                 </div>
 
-                {/* Scan controls */}
+                {/* Scan & QR controls */}
                 <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={() => setShowQrModal(true)}
+                        className="h-10 px-3.5 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+                        title="Download or print student QR codes for daily attendance scanning"
+                    >
+                        <QrCode className="w-4 h-4" />
+                        Download QR Codes
+                    </button>
                     <div className="flex items-center gap-2 h-10 px-3 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                         <span>Auto scan</span>
                         <span className="text-slate-500 dark:text-slate-400 normal-case font-semibold tracking-normal">Late after</span>
@@ -559,10 +747,21 @@ export function DailyAttendancePage() {
                                             }`}
                                         >
                                             <td className="px-4 py-2.5">
-                                                <p className="text-[13px] font-bold text-slate-800 dark:text-white leading-tight">{composeName(student)}</p>
-                                                <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                                                    {[student.grade_level, student.student_section].filter(Boolean).join(' — ') || 'No section assigned'}
-                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-[13px] font-bold text-slate-800 dark:text-white leading-tight">{composeName(student)}</p>
+                                                        <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                                                            {[student.grade_level, student.student_section].filter(Boolean).join(' — ') || 'No section assigned'}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setSelectedStudentForQr(student)}
+                                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:border-emerald-300 dark:hover:border-emerald-500/30 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all shrink-0 cursor-pointer active:scale-95"
+                                                        title={`View & Download QR Code for ${composeName(student)}`}
+                                                    >
+                                                        <QrCode className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                             {STATUSES.map((s) => (
                                                 <td key={s.id} className="px-2 py-2.5 text-center">
@@ -802,6 +1001,138 @@ export function DailyAttendancePage() {
                                 <p className={`text-xs font-bold ${lastScan.ok ? 'text-emerald-500' : 'text-red-500'}`}>
                                     Last: {lastScan.text}
                                 </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Single Student QR Modal */}
+            {selectedStudentForQr && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setSelectedStudentForQr(null)} />
+                    <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                            <h4 className="font-black text-slate-800 dark:text-white text-sm flex items-center gap-2">
+                                <QrCode className="w-4 h-4 text-emerald-500" />
+                                Attendance QR Code
+                            </h4>
+                            <button onClick={() => setSelectedStudentForQr(null)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer">
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="p-6 text-center space-y-4">
+                            <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-slate-150 dark:border-white/10 inline-block">
+                                {studentQrDataUrl ? (
+                                    <img src={studentQrDataUrl} alt="Student QR Code" className="w-48 h-48 mx-auto" />
+                                ) : (
+                                    <div className="w-48 h-48 flex items-center justify-center text-slate-400 font-semibold text-xs">Generating QR...</div>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white leading-snug">{composeName(selectedStudentForQr)}</h3>
+                                <p className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-0.5">LRN: {selectedStudentForQr.lrn}</p>
+                                <p className="text-xs font-bold text-sky-600 dark:text-sky-400 mt-1">
+                                    {[selectedStudentForQr.grade_level, selectedStudentForQr.student_section].filter(Boolean).join(' — ') || 'Student Record'}
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                <button
+                                    onClick={() => void downloadStudentQrCard(selectedStudentForQr)}
+                                    className="h-10 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download Card
+                                </button>
+                                <button
+                                    onClick={() => void downloadPureQrCode(selectedStudentForQr)}
+                                    className="h-10 px-3 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                    <FileDown className="w-4 h-4 text-sky-500" />
+                                    Pure QR Code
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bulk Section QR Codes Download Modal */}
+            {showQrModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setShowQrModal(false)} />
+                    <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between shrink-0">
+                            <div>
+                                <h4 className="font-black text-slate-800 dark:text-white text-base flex items-center gap-2">
+                                    <QrCode className="w-5 h-5 text-emerald-500" />
+                                    Download Student Attendance QR Codes
+                                </h4>
+                                <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                                    {roster.length} learner(s) in {sectionFilter === 'all' ? 'All Sections' : sectionFilter}
+                                </p>
+                            </div>
+                            <button onClick={() => setShowQrModal(false)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors cursor-pointer">
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Action Bar */}
+                        <div className="p-4 bg-slate-50 dark:bg-white/2 border-b border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                Export QR code badges for daily attendance scanning.
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => void handlePrintQrSheet(roster)}
+                                    disabled={roster.length === 0}
+                                    className="h-9 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
+                                >
+                                    <Printer className="w-4 h-4" />
+                                    Print QR Sheet
+                                </button>
+                                <button
+                                    onClick={() => void handleBatchDownloadAllQrCards(roster)}
+                                    disabled={roster.length === 0}
+                                    className="h-9 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download All Cards
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Student Roster QR Download Table */}
+                        <div className="p-4 overflow-y-auto flex-1 space-y-2">
+                            {roster.length === 0 ? (
+                                <div className="py-12 text-center text-sm font-semibold text-slate-400">
+                                    No students found for the current selection.
+                                </div>
+                            ) : (
+                                roster.map((s) => (
+                                    <div key={s.lrn} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all">
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-800 dark:text-white">{composeName(s)}</p>
+                                            <p className="text-xs font-semibold text-slate-400">LRN: {s.lrn} · {[s.grade_level, s.student_section].filter(Boolean).join(' — ')}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => void downloadStudentQrCard(s)}
+                                                className="h-8 px-2.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 rounded-lg text-[11px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                            >
+                                                <Download className="w-3.5 h-3.5" />
+                                                Card
+                                            </button>
+                                            <button
+                                                onClick={() => void downloadPureQrCode(s)}
+                                                className="h-8 px-2.5 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded-lg text-[11px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+                                            >
+                                                <FileDown className="w-3.5 h-3.5 text-sky-500" />
+                                                PNG
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
                             )}
                         </div>
                     </div>
