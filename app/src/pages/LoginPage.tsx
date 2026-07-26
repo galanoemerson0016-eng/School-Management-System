@@ -493,7 +493,7 @@ export const LoginPage = () => {
                 <motion.div
                     onHoverStart={() => setIsCardHovered(true)}
                     onHoverEnd={() => setIsCardHovered(false)}
-                    className={`w-full max-w-105 z-10 p-9 md:p-10 rounded-[24px] relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
+                    className={`w-full max-w-105 z-10 p-9 md:p-10 rounded-3xl relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
                         ? 'bg-white/4 backdrop-blur-2xl border border-white/8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]'
                         : 'bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_60px_rgba(0,0,0,0.06)]'
                         } ${isCardHovered && !darkMode ? 'shadow-[0_25px_70px_rgba(10,61,145,0.08)]' : ''} ${isCardHovered && darkMode ? 'border-white/12 shadow-[0_25px_70px_rgba(0,0,0,0.5)]' : ''}`}
@@ -755,7 +755,7 @@ export const LoginPage = () => {
                                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                                 animate={{ scale: 1, opacity: 1, y: 0 }}
                                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                className={`relative w-full max-w-md p-8 rounded-[32px] shadow-2xl border ${
+                                className={`relative w-full max-w-md p-8 rounded-4xl shadow-2xl border ${
                                     darkMode ? 'bg-[#0d1225] border-white/10' : 'bg-white border-gray-200'
                                 }`}
                             >
@@ -853,7 +853,7 @@ export const LoginPage = () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-6">
-                                        <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-[24px] text-center">
+                                        <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-3xl text-center">
                                             <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
                                             <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Password Reset Successful</h4>
                                             <p className={`text-sm mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -887,7 +887,11 @@ export const LoginPage = () => {
                 cancelLabel="Cancel"
                 onConfirm={() => {
                     setShowCloseConfirm(false);
-                    window.electronAPI?.closeApp();
+                    if (window.electronAPI?.closeApp) {
+                        window.electronAPI.closeApp(true);
+                    } else {
+                        window.close();
+                    }
                 }}
                 onCancel={() => setShowCloseConfirm(false)}
             />

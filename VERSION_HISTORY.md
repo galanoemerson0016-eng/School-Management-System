@@ -2,6 +2,32 @@
 
 # Version History
 
+## v2.7.0 (2026-07-26)
+
+### 🚀 New Features & Enhancements
+
+* **Interactive Games & Classroom Tools Suite:**
+  * **Bomb Pass / Hot Potato:** Ticking bomb timer with secret random suspense mode, Web Audio API pitch-shifting ticks, dark studio animations, and explosive shockwave blast effects.
+  * **Quiz Show / Jeopardy Board:** Interactive category quiz board with $100–$500 point tiles, answer reveal fanfares, and 3-team score tracking (*Team Alpha, Team Bravo, Team Charlie*).
+  * **Save the Balloon (Word Guessing Game):** Kid-friendly vocabulary guessing game with floating balloons, subject presets, and Web Audio API pop & victory chime sound effects.
+  * **Crossword Puzzle Generator:** Interactive crossword solver with automatic layout generator engine, custom word/clue entry manager, built-in subject presets, and 1-click printable review worksheets.
+  * **3D Wheel of Names Overhaul:** 3D metallic gold rim with 24 peg studs, radial along-ray text engine supporting 50+ student rosters without text overlap, 1-click name display format switcher (*Full Name / Last Only / First Only*), and confetti particle cannon.
+  * **3D Coin Flip Simulator:** Metallic gold 3D coin flip physics with Web Audio API landing clinks, Heads/Tails prediction mode, and probability stats breakdown.
+  * **3D Dice Roller:** Roll 1 to 5 dice with Web Audio API clatter sounds, red pip markers, automatic sum calculator, and roll history log.
+  * **Tug of War Recitation Battle:** Team score tracking, customizable team names, rope pull grunts, and victory fanfare celebrations.
+  * **Raffle Ticket Jar:** Glass jar stage with real-time ticket shuffling audio ticks, confetti cannon celebration, 1-click winner removal, and class roster loading.
+  * **Bouncing Words Sentence Rebuilder:** Glowing neon 3D physics word bubbles, pop audio feedback, subject presets, and victory confetti blasts.
+  * **Collapsible Category Accordions:** Interactive expand/collapse category section headers and 1-click "Expand All / Collapse All" toolbar control on the Games & Tools dashboard.
+
+### 🐞 Bug Fixes & Code Improvements
+
+* **Certificate Generator Header:** Corrected Tagalog Division Name formatting to `Lalawigan ng Tarlac` and `Tarlac Province`.
+* **Login Page Exit Fix:** Resolved exit button non-responsiveness on the Login screen by forcing unconditioned application exit via Electron's close API.
+
+### 📝 Notes
+
+Backward compatible. No database migration required.
+
 ## v2.6.0 (2026-07-24)
 
 ### 🚀 New Features & Enhancements

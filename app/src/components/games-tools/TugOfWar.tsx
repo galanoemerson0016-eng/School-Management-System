@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Scale, Trophy, RotateCcw, CheckCircle, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Trophy, RotateCcw, CheckCircle, Maximize2, Minimize2, Volume2, VolumeX, Sparkles } from 'lucide-react';
 
 interface TugOfWarProps {
   onBack: () => void;
@@ -9,16 +9,78 @@ export function TugOfWar({ onBack }: TugOfWarProps) {
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const [teamAName, setTeamAName] = useState<string>('Team Alpha');
+  const [teamBName, setTeamBName] = useState<string>('Team Bravo');
+  const [teamAScore, setTeamAScore] = useState<number>(0);
+  const [teamBScore, setTeamBScore] = useState<number>(0);
+
   const [ropePosition, setRopePosition] = useState(50);
   const [winner, setWinner] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
   const [pullingTeam, setPullingTeam] = useState<'a' | 'b' | null>(null);
   const [lastPull, setLastPull] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const getAudioContext = () => {
+    if (!audioCtxRef.current) {
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      audioCtxRef.current = new AudioContextClass();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') void ctx.resume();
+    return ctx;
+  };
+
+  const playPullSound = () => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch {
+      // Audio fallback
+    }
+  };
+
+  const playVictoryFanfare = () => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      const now = ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.3, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.35);
+      });
+    } catch {
+      // Audio fallback
+    }
+  };
 
   const pull = (team: 'a' | 'b') => {
     if (winner || pulling) return;
     setPulling(true);
     setPullingTeam(team);
+    playPullSound();
 
     const strength = Math.floor(Math.random() * 10) + 1;
     setLastPull(strength);
@@ -28,15 +90,19 @@ export function TugOfWar({ onBack }: TugOfWarProps) {
     setRopePosition(nextPos);
 
     if (nextPos <= 0) {
-      setWinner('Team A');
+      setWinner(teamAName);
+      setTeamAScore((prev) => prev + 1);
+      playVictoryFanfare();
     } else if (nextPos >= 100) {
-      setWinner('Team B');
+      setWinner(teamBName);
+      setTeamBScore((prev) => prev + 1);
+      playVictoryFanfare();
     }
 
     setTimeout(() => {
       setPulling(false);
       setPullingTeam(null);
-    }, 600);
+    }, 500);
   };
 
   const resetGame = () => {
@@ -68,173 +134,173 @@ export function TugOfWar({ onBack }: TugOfWarProps) {
   }, []);
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-4">
-      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/5 p-6 shadow-sm relative">
-        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-          <div className="flex items-center gap-4 flex-wrap">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-slate-200 text-sm font-semibold transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
-                <Scale className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Tug of War</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Ask any question — click the team with the correct answer to pull the rope.</p>
-              </div>
-            </div>
+    <div className="w-full max-w-5xl mx-auto p-4 lg:p-6 space-y-6 animate-fade-in">
+      {/* Top Header */}
+      <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/5 p-4 lg:p-6 shadow-xs">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-2xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+              ⚔️ Classroom Tug of War Battle
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Classroom group quiz competition — correct answers pull the rope!
+            </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`p-2.5 rounded-2xl border transition-all cursor-pointer ${
+              soundEnabled
+                ? 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-500/30'
+                : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:border-white/5'
+            }`}
+            title="Toggle Sound Effects"
+          >
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
           <button
             onClick={toggleFullscreen}
-            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300"
+            className="p-2.5 rounded-2xl border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300 cursor-pointer"
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
         </div>
+      </div>
 
-        <div
-          ref={gameAreaRef}
-          className={`relative flex flex-col gap-6 items-center p-4 bg-slate-50 dark:bg-[#090d16] rounded-2xl border border-slate-100 dark:border-white/5 overflow-hidden ${
-            isFullscreen ? 'fixed inset-0 z-50 h-screen w-screen justify-center' : ''
-          }`}
-        >
-          <div className={`relative flex justify-between items-center w-full min-h-65 pb-6 px-4`}>
-            {/* Ground Floor */}
-            <div className="absolute left-2 right-2 bottom-6 h-1.5 bg-linear-to-r from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-600 rounded-full z-0" />
-
-            {/* Rope Track */}
-            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-3 flex items-center z-10 overflow-visible">
-              <div
-                className="h-2 bg-amber-800 border-y border-amber-900 rounded-l-md transition-all duration-500 ease-out"
-                style={{ width: `${ropePosition}%` }}
-              />
-              <div
-                className="flex-1 h-2 bg-amber-800 border-y border-amber-900 rounded-r-md transition-all duration-500 ease-out"
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md transition-all duration-500 ease-out"
-                style={{ left: `${ropePosition}%` }}
-              />
-            </div>
-
-            {/* Team A Kids */}
-            <div className={`flex items-end gap-2 z-20`}>
-              {[0, 1, 2].map((idx) => (
-                <div
-                  key={idx}
-                  className={`origin-bottom ${
-                    pullingTeam === 'a'
-                      ? 'animate-[struggleA_0.12s_ease-in-out_infinite]'
-                      : pullingTeam === 'b'
-                      ? 'animate-[pulledForwardA_0.18s_ease-in-out_infinite]'
-                      : 'animate-[idleBobA_2.2s_ease-in-out_infinite]'
-                  }`}
-                  style={{ animationDelay: `${idx * 0.35}s` }}
-                >
-                  <svg width="80" height="150" viewBox="0 0 56 90" style={{ overflow: 'visible' }}>
-                    <circle cx="24" cy="18" r="11" fill="#FFD1A9" />
-                    <circle cx="26" cy="17" r="1.5" fill="#111827" />
-                    <circle cx="33" cy="17" r="1.5" fill="#111827" />
-                    <path d="M27,23 Q30,25 33,23" fill="none" stroke="#B45309" strokeWidth="1.2" strokeLinecap="round" />
-                    <rect x="14" y="30" width="28" height="26" rx="7" fill="#2563EB" transform="rotate(-22 28 43)" />
-                    <rect x="34" y="34" width="26" height="7" rx="3" fill="#FFD1A9" transform="rotate(-4 47 37.5)" />
-                    <circle cx="60" cy="37" r="4" fill="#FFD1A9" />
-                    <rect x="14" y="52" width="28" height="14" rx="5" fill="#DC2626" transform="rotate(-22 28 59)" />
-                    <rect x="14" y="62" width="9" height="22" rx="4" fill="#FFD1A9" transform="rotate(20 18.5 73)" />
-                    <ellipse cx="15" cy="84" rx="7" ry="4" fill="#FACC15" transform="rotate(20 15 84)" />
-                  </svg>
-                </div>
-              ))}
-            </div>
-
-            {/* Team B Kids */}
-            <div className={`flex items-end gap-2 z-20`}>
-              {[0, 1, 2].map((idx) => (
-                <div
-                  key={idx}
-                  className={`origin-bottom ${
-                    pullingTeam === 'b'
-                      ? 'animate-[struggleB_0.12s_ease-in-out_infinite]'
-                      : pullingTeam === 'a'
-                      ? 'animate-[pulledForwardB_0.18s_ease-in-out_infinite]'
-                      : 'animate-[idleBobB_2.2s_ease-in-out_infinite]'
-                  }`}
-                  style={{ animationDelay: `${idx * 0.35}s` }}
-                >
-                  <svg width="80" height="150" viewBox="0 0 56 90" style={{ overflow: 'visible' }}>
-                    <circle cx="32" cy="18" r="11" fill="#FFD1A9" />
-                    <circle cx="23" cy="17" r="1.5" fill="#111827" />
-                    <circle cx="30" cy="17" r="1.5" fill="#111827" />
-                    <path d="M27,23 Q24,25 21,23" fill="none" stroke="#B45309" strokeWidth="1.2" strokeLinecap="round" />
-                    <rect x="14" y="30" width="28" height="26" rx="7" fill="#DC2626" transform="rotate(22 28 43)" />
-                    <rect x="-4" y="34" width="26" height="7" rx="3" fill="#FFD1A9" transform="rotate(4 9 37.5)" />
-                    <circle cx="-4" cy="37" r="4" fill="#FFD1A9" />
-                    <rect x="14" y="52" width="28" height="14" rx="5" fill="#F97316" transform="rotate(22 28 59)" />
-                    <rect x="33" y="62" width="9" height="22" rx="4" fill="#FFD1A9" transform="rotate(-20 37.5 73)" />
-                    <ellipse cx="41" cy="84" rx="7" ry="4" fill="#FACC15" transform="rotate(-20 41 84)" />
-                  </svg>
-                </div>
-              ))}
-            </div>
+      {/* Main Arena */}
+      <div
+        ref={gameAreaRef}
+        className={`relative flex flex-col gap-6 items-center p-6 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden select-none ${
+          isFullscreen ? 'fixed inset-0 z-50 h-screen w-screen justify-center bg-white dark:bg-slate-900 p-8' : ''
+        }`}
+      >
+        {/* Team Score Header */}
+        <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
+          <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-center space-y-1">
+            <input
+              type="text"
+              value={teamAName}
+              onChange={(e) => setTeamAName(e.target.value)}
+              className="w-full text-center bg-transparent text-sm font-black text-blue-600 dark:text-blue-400 outline-none uppercase tracking-wider"
+            />
+            <div className="text-3xl font-black text-blue-600 dark:text-blue-400">{teamAScore} <span className="text-xs font-bold text-slate-400">Wins</span></div>
           </div>
-
-          {/* Controls */}
-          <div className="flex w-full justify-between items-center gap-4 px-4 flex-wrap mt-4">
-            <div className="flex flex-col items-center gap-2">
-              <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-bold rounded-full text-xs">Team A</span>
-              {!winner && (
-                <button
-                  onClick={() => pull('a')}
-                  disabled={pulling}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl transition"
-                >
-                  <CheckCircle className="w-4 h-4" /> Correct
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center">
-              {lastPull > 0 && (
-                <button
-                  onClick={resetGame}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-white/10 hover:border-amber-500 rounded-xl text-slate-700 dark:text-slate-300 font-semibold transition"
-                >
-                  <RotateCcw className="w-4 h-4" /> Reset
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center gap-2">
-              <span className="px-3 py-1 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 font-bold rounded-full text-xs">Team B</span>
-              {!winner && (
-                <button
-                  onClick={() => pull('b')}
-                  disabled={pulling}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl transition"
-                >
-                  <CheckCircle className="w-4 h-4" /> Correct
-                </button>
-              )}
-            </div>
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-center space-y-1">
+            <input
+              type="text"
+              value={teamBName}
+              onChange={(e) => setTeamBName(e.target.value)}
+              className="w-full text-center bg-transparent text-sm font-black text-red-600 dark:text-red-400 outline-none uppercase tracking-wider"
+            />
+            <div className="text-3xl font-black text-red-600 dark:text-red-400">{teamBScore} <span className="text-xs font-bold text-slate-400">Wins</span></div>
           </div>
-
-          {winner && (
-            <div className="absolute inset-0 bg-white/95 dark:bg-[#0f172a]/95 flex flex-col items-center justify-center z-30 animate-fade-in p-6">
-              <Trophy className="w-16 h-16 text-amber-500 mb-2 animate-bounce" />
-              <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-4">{winner} Wins!</h3>
-              <button
-                onClick={resetGame}
-                className="flex items-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-xl shadow-md transition"
-              >
-                <RotateCcw className="w-4 h-4" /> Rematch
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Rope Track Stage */}
+        <div className="relative flex justify-between items-center w-full min-h-64 px-4 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-200/50 dark:border-white/5 overflow-hidden">
+          {/* Ground Line */}
+          <div className="absolute left-4 right-4 bottom-6 h-2 bg-slate-300 dark:bg-slate-700 rounded-full z-0" />
+
+          {/* Rope Track */}
+          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-3 flex items-center z-10 overflow-visible">
+            <div
+              className="h-3 bg-amber-700 border-y border-amber-900 rounded-l-md transition-all duration-300 ease-out shadow-xs"
+              style={{ width: `${ropePosition}%` }}
+            />
+            <div className="flex-1 h-3 bg-amber-700 border-y border-amber-900 rounded-r-md transition-all duration-300 ease-out shadow-xs" />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow-lg transition-all duration-300 ease-out flex items-center justify-center text-[9px] font-black text-white"
+              style={{ left: `${ropePosition}%` }}
+            >
+              🚩
+            </div>
+          </div>
+
+          {/* Team A Pullers */}
+          <div className="flex items-end gap-1 z-20">
+            {[0, 1, 2].map((idx) => (
+              <div
+                key={idx}
+                className={`origin-bottom transition-all ${
+                  pullingTeam === 'a' ? 'animate-bounce' : ''
+                }`}
+              >
+                <div className="text-5xl lg:text-6xl select-none">🧑‍🤝‍🧑</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Team B Pullers */}
+          <div className="flex items-end gap-1 z-20 scale-x-[-1]">
+            {[0, 1, 2].map((idx) => (
+              <div
+                key={idx}
+                className={`origin-bottom transition-all ${
+                  pullingTeam === 'b' ? 'animate-bounce' : ''
+                }`}
+              >
+                <div className="text-5xl lg:text-6xl select-none">🧑‍🤝‍🧑</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pull Actions */}
+        <div className="flex w-full justify-between items-center gap-4 px-4 flex-wrap">
+          <button
+            onClick={() => pull('a')}
+            disabled={pulling || !!winner}
+            className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <CheckCircle className="w-5 h-5" /> {teamAName} Correct Answer (+Pull!)
+          </button>
+
+          {lastPull > 0 && (
+            <button
+              onClick={resetGame}
+              className="px-4 py-4 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-2xl flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <RotateCcw className="w-4 h-4" /> Reset Rope
+            </button>
+          )}
+
+          <button
+            onClick={() => pull('b')}
+            disabled={pulling || !!winner}
+            className="flex-1 py-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-red-500/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <CheckCircle className="w-5 h-5" /> {teamBName} Correct Answer (+Pull!)
+          </button>
+        </div>
+
+        {/* Victory Celebration Overlay */}
+        {winner && (
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center z-30 animate-fade-in p-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-500 flex items-center justify-center shadow-inner animate-bounce">
+              <Trophy className="w-10 h-10" />
+            </div>
+            <div>
+              <span className="text-xs font-black text-amber-500 uppercase tracking-widest flex items-center justify-center gap-1">
+                <Sparkles className="w-4 h-4" /> VICTORY CELEBRATION <Sparkles className="w-4 h-4" />
+              </span>
+              <h3 className="text-3xl lg:text-4xl font-black text-white mt-1">{winner} Wins the Tug of War!</h3>
+            </div>
+            <button
+              onClick={resetGame}
+              className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/30 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" /> Play Next Round
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

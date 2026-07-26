@@ -400,6 +400,7 @@ function App() {
   if (!isAuthenticated) {
     return (
       <Suspense fallback={<LoadingSplash />}>
+        <AutoBackupManager />
         <LoginPage />
       </Suspense>
     );

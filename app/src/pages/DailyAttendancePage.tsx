@@ -377,6 +377,24 @@ export function DailyAttendancePage() {
         }
     }, [roster, date, upsertAttendanceRecords, showNotification]);
 
+    const bulkSetUnmarkedToPresent = useCallback(async () => {
+        const unmarkedStudents = roster.filter((s) => !marks.has(s.lrn));
+        if (unmarkedStudents.length === 0) return;
+        const records: AttendanceRecord[] = unmarkedStudents.map((s) => ({
+            id: `${s.lrn}_${date}`,
+            student_lrn: s.lrn,
+            date,
+            status: 'present',
+            section_id: s.student_section || '',
+        }));
+        try {
+            await upsertAttendanceRecords(records);
+            showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
+        } catch {
+            showNotification('Auto-mark failed', 'error');
+        }
+    }, [roster, marks, date, upsertAttendanceRecords, showNotification]);
+
     const bulkClear = useCallback(async () => {
         const ids = roster.filter((s) => marks.has(s.lrn)).map((s) => `${s.lrn}_${date}`);
         if (ids.length === 0) return;
@@ -681,6 +699,9 @@ export function DailyAttendancePage() {
                             Daily Attendance Sheet
                         </h3>
                         <div className="flex flex-wrap items-center gap-1.5">
+                            {summary.unmarked > 0 && (
+                                <button onClick={() => void bulkSetUnmarkedToPresent()} className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm animate-pulse">Fill Unmarked Present ({summary.unmarked})</button>
+                            )}
                             <button onClick={() => void bulkSet('present')} className="h-8 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">All Present</button>
                             <button onClick={() => void bulkSet('absent')} className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">All Absent</button>
                             <button onClick={() => void bulkSet('late')} className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">All Late</button>
@@ -688,6 +709,21 @@ export function DailyAttendancePage() {
                             <button onClick={() => void bulkClear()} className="h-8 px-3 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer">Clear</button>
                         </div>
                     </div>
+
+                    {summary.unmarked > 0 && roster.length > 0 && (
+                        <div className="bg-emerald-50/90 dark:bg-emerald-500/15 border-b border-emerald-100 dark:border-emerald-500/20 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                                <span>Notice: <strong>{summary.unmarked}</strong> student(s) in this section are currently unmarked.</span>
+                            </span>
+                            <button
+                                onClick={() => void bulkSetUnmarkedToPresent()}
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95"
+                            >
+                                Mark All {summary.unmarked} Unmarked as Present ✓
+                            </button>
+                        </div>
+                    )}
 
                     <div className="overflow-x-auto">
                         <table className="w-full">

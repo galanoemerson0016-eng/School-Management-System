@@ -1,13 +1,17 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, type Ref } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
-import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Download, ShieldCheck } from 'lucide-react';
+import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Download, ShieldCheck, Eye, FileSpreadsheet, X } from 'lucide-react';
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 import { db } from '../services/database';
+import { exportSF2ToExcel } from '../services/excel-export';
 
 import type { Section, Student, SF2Sheet, CalendarEvent } from '../types';
+
+const MONTHS = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
 
 
 type AttendanceDayStatus = string;
@@ -197,7 +201,11 @@ export function AttendancePage() {
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('JUNE');
     const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
-    const [zoom, setZoom] = useState(0.8);
+    const [zoom, setZoom] = useState(0.85);
+
+    // Interactive Preview Modal State
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [previewModalZoom, setPreviewModalZoom] = useState(0.85);
     const [isDownloading, setIsDownloading] = useState(false);
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
@@ -718,18 +726,16 @@ export function AttendancePage() {
             case 'tardy-upper':
             case 'tardy':
                 return (
-                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-xs border border-black align-middle">
-                        <span className="h-1/2 w-full bg-black/90" />
-                        <span className="h-1/2 w-full bg-white" />
-                    </span>
+                    <svg className="w-full h-full p-px" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points="0,0 100,0 100,100" fill="#000000" />
+                    </svg>
                 );
             case 'tardy-lower':
             case 'cutting':
                 return (
-                    <span className="inline-flex h-3.5 w-3.5 overflow-hidden rounded-xs border border-black align-middle">
-                        <span className="h-1/2 w-full bg-white" />
-                        <span className="h-1/2 w-full bg-black/90" />
-                    </span>
+                    <svg className="w-full h-full p-px" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points="0,0 100,100 0,100" fill="#000000" />
+                    </svg>
                 );
             default: return '';
         }
@@ -754,11 +760,12 @@ export function AttendancePage() {
 
     // Pre-calculate student attendance counts to avoid O(N * D) rendering operations
     const studentStats = useMemo(() => {
-        const stats: Record<string, { absent: number; present: number }> = {};
+        const stats: Record<string, { absent: number; tardy: number; present: number }> = {};
 
         sectionStudents.forEach(student => {
             const record = currentAttendance[student.lrn] || {};
             let absentCount = 0;
+            let tardyCount = 0;
             
             for (let colIdx = 1; colIdx <= totalColumns; colIdx++) {
                 const dateVal = currentDateLabels[colIdx];
@@ -767,12 +774,15 @@ export function AttendancePage() {
                     ? (record[dateKey] !== undefined ? record[dateKey] : record[colIdx])
                     : record[colIdx];
                 
-                if (status === 'absent') {
+                if (status === 'absent' || status === 'X' || status === 'x') {
                     absentCount++;
+                } else if (status === 'tardy' || status === 'tardy-upper' || status === 'tardy-lower' || status === 'cutting') {
+                    tardyCount++;
                 }
             }
             stats[student.lrn] = {
                 absent: absentCount,
+                tardy: tardyCount,
                 present: Math.max(0, filledDaysCount - absentCount)
             };
         });
@@ -826,6 +836,9 @@ export function AttendancePage() {
     const countStats = (studentId: string, type: string) => {
         if (type === 'absent') {
             return studentStats[studentId]?.absent || 0;
+        }
+        if (type === 'tardy') {
+            return studentStats[studentId]?.tardy || 0;
         }
         return studentStats[studentId]?.present || 0;
     };
@@ -1336,13 +1349,20 @@ export function AttendancePage() {
                     </th>
                 ))}
             </tr>
-            {/* Row 4: ABSENT / PRESENT headers */}
+            {/* Row 4: ABSENT / TARDY headers */}
             <tr className="bg-slate-50">
-                {days.map((d, i) => (
-                    <th key={d} className={`border border-black bg-slate-50 p-0 h-4${getBorderClass(i)}`}></th>
-                ))}
+                {days.map((d, i) => {
+                    const isUnfilled = !currentDateLabels[d] || !currentDateLabels[d].trim();
+                    return (
+                        <th 
+                            key={d} 
+                            className={`border border-black p-0 h-4${getBorderClass(i)}`}
+                            style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : undefined}
+                        />
+                    );
+                })}
                 <th className={`border border-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
-                <th className={`border border-black border-r-2 border-r-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
+                <th className={`border border-black border-r-2 border-r-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>TARDY</th>
             </tr>
         </thead>
     );
@@ -1376,14 +1396,21 @@ export function AttendancePage() {
             >
                 {formatLearnerName(student)}
             </td>
-            {days.map((d, i) => (
-                <td key={d} className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
-                    onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}>
-                    {getStatusSymbol(getStudentStatus(student.lrn, d))}
-                </td>
-            ))}
+            {days.map((d, i) => {
+                const isUnfilled = !currentDateLabels[d] || !currentDateLabels[d].trim();
+                return (
+                    <td 
+                        key={d} 
+                        className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
+                        style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : undefined}
+                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}
+                    >
+                        {getStatusSymbol(getStudentStatus(student.lrn, d))}
+                    </td>
+                );
+            })}
             <td className={`border border-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
-            <td className={`border border-black border-r-2 border-r-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{filledDaysCount - countStats(student.lrn, 'absent')}</td>
+            <td className={`border border-black border-r-2 border-r-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'tardy')}</td>
             <td className={`border border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
                 <DebouncedInput
                     type="text"
@@ -1921,11 +1948,22 @@ export function AttendancePage() {
                             </button>
                         </div>
 
+                        {/* Preview SF2 Modal Button */}
+                        <button
+                            onClick={() => setIsPreviewModalOpen(true)}
+                            disabled={!selectedSection}
+                            className="h-7 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[8px] uppercase tracking-wider shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200 shrink-0 cursor-pointer"
+                            title="Open Interactive SF2 Preview Modal"
+                        >
+                            <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                            Preview SF2
+                        </button>
+
                         {/* Download PDF Button */}
                         <button
                             onClick={handleDownloadAttendance}
                             disabled={!selectedSection || isDownloading}
-                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200 cursor-pointer"
                             title="Download PDF"
                         >
                             <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
@@ -1935,7 +1973,7 @@ export function AttendancePage() {
                         <button
                             onClick={handlePrint}
                             disabled={!selectedSection}
-                            className="w-7 h-7 rounded-lg bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200"
+                            className="w-7 h-7 rounded-lg bg-blue-600 text-white font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200 cursor-pointer"
                             title="Print Official SF2"
                         >
                             <Printer className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
@@ -2080,6 +2118,155 @@ export function AttendancePage() {
         }
     }
 `}</style>
-</div>
-);
+
+            {/* SF2 - Interactive Preview Modal */}
+            <AnimatePresence>
+                {isPreviewModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 lg:p-6"
+                        onClick={() => setIsPreviewModalOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Modal Header Bar */}
+                            <div className="bg-white px-6 py-3.5 border-b border-slate-200 flex justify-between items-center shrink-0 shadow-xs">
+                                <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                                    SF2 - Interactive Preview
+                                </h3>
+
+                                <div className="flex items-center gap-2">
+                                    {/* Zoom Controls */}
+                                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+                                        <button
+                                            onClick={() => setPreviewModalZoom(prev => Math.min(1.4, prev + 0.1))}
+                                            className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all cursor-pointer"
+                                            title="Zoom In"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            onClick={() => setPreviewModalZoom(prev => Math.max(0.4, prev - 0.1))}
+                                            className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-white rounded transition-all cursor-pointer"
+                                            title="Zoom Out"
+                                        >
+                                            <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Month Switcher */}
+                                    <div className="relative group shrink-0">
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => setSelectedMonth(e.target.value)}
+                                            className="appearance-none h-7 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 rounded-lg px-3 pr-7 text-xs font-black text-slate-900 outline-none cursor-pointer"
+                                        >
+                                            {MONTHS.map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    </div>
+
+                                    {/* Close Modal Button */}
+                                    <button
+                                        onClick={() => setIsPreviewModalOpen(false)}
+                                        className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Document Canvas Container */}
+                            <div className="flex-1 overflow-auto bg-slate-600 p-8 flex justify-center items-start custom-scrollbar">
+                                <div
+                                    className="origin-top transition-transform duration-150"
+                                    style={{
+                                        transform: `scale(${previewModalZoom})`,
+                                        width: paperDimensions[paperSize]?.pixelWidth || 1248,
+                                    }}
+                                >
+                                    {/* Sheet Content Render */}
+                                    <div className="sf2-print-container bg-white shadow-2xl p-8 border border-slate-300 rounded-sm">
+                                        {renderHeaderBlock()}
+                                        <table className={`w-full border-collapse border-2 border-black mb-0 ${layoutConfig.tableTextSize}`} style={{ tableLayout: 'fixed' }}>
+                                            {renderColgroup()}
+                                            {renderTableHeadRows()}
+                                            <tbody>
+                                                {bodyRows.map((row, rowIdx) => renderBodyRow(row, row.type === 'student' ? row.student.lrn : `${row.type}-${rowIdx}`))}
+                                            </tbody>
+                                        </table>
+                                        {renderFooterBlock(true)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer Action Bar */}
+                            <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex justify-between items-center shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            exportSF2ToExcel({
+                                                schoolName: schoolProfile?.name || 'School',
+                                                schoolId: schoolProfile?.school_id || '',
+                                                schoolYear: activeSchoolYear,
+                                                month: selectedMonth,
+                                                gradeLevel: sections.find(s => s.section_name === selectedSection)?.section_grade_level || '',
+                                                sectionName: selectedSection,
+                                                males: displayStudents.males,
+                                                females: displayStudents.females,
+                                                attendanceData: attendanceData[selectedMonth] || {},
+                                                monthDateLabels: currentDateLabels,
+                                                remarksData: remarksData[selectedMonth] || {},
+                                                totalColumns
+                                            });
+                                        }}
+                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                    >
+                                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                        Export Excel (.xlsx)
+                                    </button>
+
+                                    <button
+                                        onClick={handleDownloadAttendance}
+                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                    >
+                                        <Download className="w-3.5 h-3.5 text-red-600" />
+                                        Export PDF (.pdf)
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setIsPreviewModalOpen(false)}
+                                        className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            handlePrint();
+                                        }}
+                                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Printer className="w-3.5 h-3.5" />
+                                        Print Document
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 }

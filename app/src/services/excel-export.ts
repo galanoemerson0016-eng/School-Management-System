@@ -165,3 +165,95 @@ export function exportMasterDataToExcel(
 
   XLSX.writeFile(workbook, `FormEase_System_Portability_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
+
+/**
+ * Export official SF2 Daily Attendance report to formatted Excel file (.xlsx)
+ */
+export function exportSF2ToExcel(options: {
+  schoolName: string;
+  schoolId: string;
+  schoolYear: string;
+  month: string;
+  gradeLevel: string;
+  sectionName: string;
+  males: Student[];
+  females: Student[];
+  attendanceData: Record<string, Record<string, string>>;
+  monthDateLabels: Record<number, string>;
+  remarksData: Record<string, string>;
+  totalColumns?: number;
+}) {
+  const {
+    schoolName, schoolId, schoolYear, month, gradeLevel, sectionName,
+    males, females, attendanceData, monthDateLabels, remarksData, totalColumns = 25
+  } = options;
+
+  const aoa: (string | number)[][] = [];
+
+  // Header Rows
+  aoa.push(['School Form 2 (SF2) Daily Attendance Report of Learners']);
+  aoa.push(['(This replaced Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)']);
+  aoa.push([]);
+  aoa.push(['School ID:', schoolId, '', 'School Year:', schoolYear, '', '', '', '', '', '', '', '', '', '', '', '', '', 'Report for the Month of:', month]);
+  aoa.push(['Name of School:', schoolName, '', '', '', '', '', '', '', '', '', 'Grade Level:', gradeLevel, '', '', 'Section:', sectionName]);
+  aoa.push([]);
+
+  // Table Headers
+  const dateHeaderRow: (string | number)[] = ['No.', 'LEARNER\'S NAME (Last Name, First Name, Middle Name)'];
+  const dayLetterHeaderRow: (string | number)[] = ['', ''];
+
+  const daysPattern = ['M', 'T', 'W', 'TH', 'F'];
+  for (let col = 1; col <= totalColumns; col++) {
+    const dateVal = monthDateLabels[col] || '';
+    dateHeaderRow.push(dateVal);
+    dayLetterHeaderRow.push(daysPattern[(col - 1) % daysPattern.length]);
+  }
+
+  dateHeaderRow.push('ABSENT', 'TARDY', 'REMARKS');
+  dayLetterHeaderRow.push('', '', '');
+
+  aoa.push(dateHeaderRow);
+  aoa.push(dayLetterHeaderRow);
+
+  // Student Helper
+  const addStudentRows = (list: Student[], genderLabel: string) => {
+    aoa.push([genderLabel]);
+    list.forEach((s, idx) => {
+      const nameStr = `${s.last_name}, ${s.first_name}${s.middle_name ? ' ' + s.middle_name : ''}`.toUpperCase();
+      const rec = attendanceData[s.lrn] || {};
+      const rowData: (string | number)[] = [idx + 1, nameStr];
+
+      let absent = 0;
+      let tardy = 0;
+
+      for (let col = 1; col <= totalColumns; col++) {
+        const dateVal = monthDateLabels[col];
+        const dateKey = (dateVal && dateVal.trim()) ? `date_${dateVal.trim()}` : '';
+        const status = dateKey ? (rec[dateKey] !== undefined ? rec[dateKey] : rec[col]) : rec[col];
+
+        if (status === 'absent' || status === 'X' || status === 'x') {
+          absent++;
+          rowData.push('X');
+        } else if (status === 'tardy' || status === 'tardy-upper' || status === 'tardy-lower' || status === 'cutting') {
+          tardy++;
+          rowData.push('T');
+        } else {
+          rowData.push('');
+        }
+      }
+
+      rowData.push(absent, tardy, remarksData[s.lrn] || '');
+      aoa.push(rowData);
+    });
+  };
+
+  addStudentRows(males, 'MALE');
+  addStudentRows(females, 'FEMALE');
+
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'SF2_Attendance');
+
+  const fileName = `SF2_${schoolName.replace(/\s+/g, '_')}_${sectionName.replace(/\s+/g, '_')}_${month}_${schoolYear}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+}

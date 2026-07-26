@@ -188,11 +188,21 @@ export function CertificateGeneratorPage() {
         givenInEnglish: (schoolProfile?.division?.toLowerCase().includes('city') ? 'City of ' : 'Province of ') + (schoolProfile?.division?.replace(/Schools Division of/i, '').replace(/Province/i, '').replace(/City/i, '').trim() || 'Matatag'),
         headerRegionTagalog: schoolProfile?.region?.replace(/Region/i, 'Rehiyon') || 'Rehiyon III',
         headerRegionEnglish: schoolProfile?.region || 'REGION III',
-        headerDivisionTagalog: (schoolProfile?.division || 'Sangay ng Lalawigan ng Tarlac')
-            .replace(/Schools Division of/i, 'Sangay ng')
-            .replace(/Province/i, 'Lalawigan')
-            .replace(/City/i, 'Lungsod'),
-        headerDivisionEnglish: schoolProfile?.division || 'SCHOOLS DIVISION OF TARLAC PROVINCE',
+        headerDivisionTagalog: (() => {
+            const raw = schoolProfile?.division || 'Tarlac Province';
+            const clean = raw.replace(/Schools Division of/i, '').replace(/Sangay ng/i, '').trim();
+            if (clean.toLowerCase().includes('tarlac')) return 'Lalawigan ng Tarlac';
+            if (clean.toLowerCase().endsWith(' province') || clean.toLowerCase().endsWith(' lalawigan')) {
+                return `Lalawigan ng ${clean.replace(/province/i, '').replace(/lalawigan/i, '').trim()}`;
+            }
+            return clean;
+        })(),
+        headerDivisionEnglish: (() => {
+            const raw = schoolProfile?.division || 'Tarlac Province';
+            const clean = raw.replace(/Schools Division of/i, '').replace(/Sangay ng/i, '').trim();
+            if (clean.toLowerCase() === 'tarlac lalawigan') return 'Tarlac Province';
+            return clean;
+        })(),
         headerDistrictTagalog: (() => {
             const d = schoolProfile?.district || 'Victoria East District';
             const base = d.replace(/District/i, '').trim();
@@ -230,8 +240,21 @@ export function CertificateGeneratorPage() {
                         : prev.givenInEnglish,
                     headerRegionTagalog: prev.headerRegionTagalog === 'Rehiyon III' || prev.headerRegionTagalog === '' ? schoolProfile.region?.replace(/Region/i, 'Rehiyon') : prev.headerRegionTagalog,
                     headerRegionEnglish: prev.headerRegionEnglish === 'REGION III' || prev.headerRegionEnglish === '' ? schoolProfile.region : prev.headerRegionEnglish,
-                    headerDivisionTagalog: prev.headerDivisionTagalog === 'Sangay ng Lalawigan ng Tarlac' || prev.headerDivisionTagalog === '' ? schoolProfile.division?.replace(/Schools Division of/i, 'Sangay ng').replace(/Province/i, 'Lalawigan').replace(/City/i, 'Lungsod') : prev.headerDivisionTagalog,
-                    headerDivisionEnglish: prev.headerDivisionEnglish === 'SCHOOLS DIVISION OF TARLAC PROVINCE' || prev.headerDivisionEnglish === '' ? schoolProfile.division : prev.headerDivisionEnglish,
+                    headerDivisionTagalog: prev.headerDivisionTagalog === 'Sangay ng Lalawigan ng Tarlac' || prev.headerDivisionTagalog === 'Tarlac Lalawigan' || prev.headerDivisionTagalog === '' ? (() => {
+                        const raw = schoolProfile.division || 'Tarlac Province';
+                        const clean = raw.replace(/Schools Division of/i, '').replace(/Sangay ng/i, '').trim();
+                        if (clean.toLowerCase().includes('tarlac')) return 'Lalawigan ng Tarlac';
+                        if (clean.toLowerCase().endsWith(' province') || clean.toLowerCase().endsWith(' lalawigan')) {
+                            return `Lalawigan ng ${clean.replace(/province/i, '').replace(/lalawigan/i, '').trim()}`;
+                        }
+                        return clean;
+                    })() : prev.headerDivisionTagalog,
+                    headerDivisionEnglish: prev.headerDivisionEnglish === 'SCHOOLS DIVISION OF TARLAC PROVINCE' || prev.headerDivisionEnglish === '' ? (() => {
+                        const raw = schoolProfile.division || 'Tarlac Province';
+                        const clean = raw.replace(/Schools Division of/i, '').replace(/Sangay ng/i, '').trim();
+                        if (clean.toLowerCase() === 'tarlac lalawigan') return 'Tarlac Province';
+                        return clean;
+                    })() : prev.headerDivisionEnglish,
                     headerDistrictTagalog: prev.headerDistrictTagalog === 'Distrito ng Silangang Victoria' || prev.headerDistrictTagalog === '' ? (() => {
                         const d = schoolProfile.district;
                         const base = d.replace(/District/i, '').trim();
