@@ -152,7 +152,8 @@ export function SF10HistoricalDataModal({
         const isExtra = subjectKey.startsWith('extra_reserved_');
         const hasLabel = isExtra ? (subjectGrade.label?.trim() || '') !== '' : true;
 
-        const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(subjectKey) || (row?.indent && row?.key !== 'mapeh');
+        const targetRow = rows.find(r => r.key === subjectKey);
+        const isComponent = ['music', 'arts', 'physicalEducation', 'health', 'musicAndArts', 'peAndHealth', 'musicarts', 'pehealth'].includes(subjectKey) || (targetRow?.indent && targetRow?.key !== 'mapeh');
 
         if (isComponent) {
             // MAPEH components should not have final rating or remarks in SF10
