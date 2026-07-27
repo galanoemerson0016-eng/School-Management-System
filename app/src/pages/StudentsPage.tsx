@@ -659,7 +659,18 @@ export function StudentsPage() {
     }, [officialSections]);
 
     return (
-        <div className="space-y-6 pb-8">
+        <div className="space-y-6 pb-8 relative min-h-[80vh] overflow-hidden">
+            {/* School Logo Background Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none z-0">
+                <img 
+                    src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
+                    className="w-160 h-160 max-w-none object-contain grayscale scale-125 -rotate-6"
+                    alt=""
+                    onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                    }}
+                />
+            </div>
             {/* Header */}
             {/* Redesigned Compact Header & Action Row - Rendered only in section_detail mode */}
             {viewMode === 'section_detail' && (
@@ -794,7 +805,7 @@ export function StudentsPage() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="space-y-8"
+                        className="space-y-8 relative z-10"
                     >
                         <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2.5 rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.02)]">
                             {/* Segmented Capsule Toggles (Left aligned) */}

@@ -25,11 +25,31 @@ import type { SchoolProfile } from '../types';
 import { canManageSchoolProfile } from '../lib/rbac';
 
 export function InstitutePage() {
-    const { schoolProfile, updateSchoolProfile, sections, setCurrentView } = useAppStore();
+    const { schoolProfile, updateSchoolProfile, sections, setCurrentView, students } = useAppStore();
     const { user } = useAuthStore();
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const canEdit = canManageSchoolProfile(user);
+
+    const advisorySections = useMemo(() => {
+        const getGradeNum = (gl: string) => {
+            const str = (gl || '').toLowerCase();
+            if (str.includes('kinder')) return 0;
+            const match = str.match(/\d+/);
+            return match ? parseInt(match[0], 10) : 99;
+        };
+
+        const list = sections.filter(sec => 
+            sec.is_advisory || (sec.adviser_name && sec.adviser_name.trim() !== '' && sec.adviser_name.toLowerCase() !== 'tba')
+        );
+
+        return [...list].sort((a, b) => {
+            const gA = getGradeNum(a.section_grade_level);
+            const gB = getGradeNum(b.section_grade_level);
+            if (gA !== gB) return gA - gB;
+            return (a.section_name || '').localeCompare(b.section_name || '');
+        });
+    }, [sections]);
 
     const handleOpenEdit = () => {
         setFormData(safeProfile);
@@ -647,57 +667,66 @@ export function InstitutePage() {
             </div>
         );
     }
-
     return (
-        <div className="h-[calc(100vh-146px)] max-w-350 mx-auto flex flex-col gap-3 overflow-hidden select-none">
+        <div className="h-[calc(100vh-120px)] max-w-7xl mx-auto w-full flex flex-col gap-3.5 overflow-hidden select-none relative">
+            {/* School Logo Background Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.035] dark:opacity-[0.05] pointer-events-none select-none z-0 overflow-hidden">
+                <img 
+                    src={schoolProfile.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
+                    className="w-180 h-180 max-w-none object-contain grayscale scale-125 -rotate-6"
+                    alt=""
+                    onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                    }}
+                />
+            </div>
+
             {/* Top Row: Restored Premium Brand Hero Card */}
             <motion.div 
                 initial={{ opacity: 0, y: -15 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-xl shadow-slate-100/50 dark:shadow-none flex items-center justify-between shrink-0 relative overflow-hidden"
+                className="bg-linear-to-br from-slate-900 via-slate-800 to-indigo-950 text-white border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex items-center justify-between shrink-0 relative overflow-hidden z-10"
             >
-                {/* Background visual decorations */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none -mr-24 -mt-24" />
-                <div className="absolute -left-12 -bottom-12 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                {/* Background visual ambient glow */}
+                <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
 
                 <div className="flex items-center gap-4 relative z-10">
                     {/* Logo wrapper with overlapping verified badge */}
                     <div className="relative shrink-0">
-                        <div className="w-20 h-20 rounded-2xl bg-white border border-slate-100/80 dark:border-slate-800/80 shadow-sm overflow-hidden flex items-center justify-center p-2 transition-transform duration-300 hover:scale-105">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-slate-700/80 shadow-md overflow-hidden flex items-center justify-center p-2 transition-transform duration-300 hover:scale-105">
                             <img 
                                 src={schoolProfile.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
                                 alt="School Logo" 
                                 className="max-w-full max-h-full object-contain" 
                             />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full flex items-center justify-center shadow-md">
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-2 border-slate-900 rounded-full flex items-center justify-center shadow-md">
                             <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                         </div>
                     </div>
                     
                     <div>
-                        <div className="flex items-center gap-1.5 bg-[#0c408a]/10 dark:bg-emerald-500/10 px-3 py-0.5 rounded-full text-[9px] font-black text-[#0c408a] dark:text-emerald-400 uppercase tracking-widest w-fit mb-1.5">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Professional Institute</span>
+                        <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-0.5 rounded-full text-[9px] font-black text-emerald-300 border border-white/10 uppercase tracking-widest w-fit mb-1.5">
+                            <Sparkles className="w-3 h-3 text-emerald-400" />
+                            <span>DepEd Official Institution Profile</span>
                         </div>
 
-                        <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight uppercase leading-none">
+                        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight uppercase leading-none">
                             {displaySchoolName || 'My School Name'}
                         </h1>
 
-                        <div className="flex items-center gap-2 mt-2.5 text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                            <div className="flex items-center gap-1.5">
-                                <Globe className="w-3 h-3 text-slate-400" />
+                        <div className="flex flex-wrap items-center gap-2 mt-2 text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+                            <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+                                <Globe className="w-3 h-3 text-indigo-400" />
                                 <span>{displayRegion || 'Not Specified'}</span>
                             </div>
-                            <span className="text-slate-300 dark:text-slate-700">•</span>
-                            <div className="flex items-center gap-1.5">
-                                <Building2 className="w-3 h-3 text-slate-400" />
+                            <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+                                <Building2 className="w-3 h-3 text-blue-400" />
                                 <span>{displayDivision || 'Not Specified'}</span>
                             </div>
-                            <span className="text-slate-300 dark:text-slate-700">•</span>
-                            <div className="flex items-center gap-1.5">
-                                <MapPin className="w-3 h-3 text-slate-400" />
+                            <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+                                <MapPin className="w-3 h-3 text-emerald-400" />
                                 <span>{displayDistrict || 'Not Specified'}</span>
                             </div>
                         </div>
@@ -709,9 +738,9 @@ export function InstitutePage() {
                     {canEdit && (
                         <button
                             onClick={handleOpenEdit}
-                            className="h-10 px-5 bg-[#0c408a] hover:bg-[#093069] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md shadow-[#0c408a]/20 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-1.5 cursor-pointer border border-blue-900/10"
+                            className="h-10 px-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9.5px] font-black uppercase tracking-widest shadow-md shadow-indigo-600/30 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 cursor-pointer border border-indigo-400/20"
                         >
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            <SlidersHorizontal className="w-4 h-4" />
                             Edit Institute Profile
                         </button>
                     )}
@@ -723,21 +752,21 @@ export function InstitutePage() {
                 variants={containerVariants} 
                 initial="hidden" 
                 animate="visible" 
-                className="flex-1 min-h-0 grid grid-cols-12 gap-3"
+                className="flex-1 min-h-0 grid grid-cols-12 gap-3 relative z-10"
             >
                 {/* Left Column: Institutional Data */}
                 <motion.div 
                     variants={itemVariants}
-                    className="col-span-7 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col overflow-hidden"
+                    className="col-span-7 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-5 shadow-sm flex flex-col overflow-hidden"
                 >
-                    <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-850 shrink-0">
-                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                            <School className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
+                            <School className="w-4 h-4" />
                         </div>
-                        <h4 className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Institutional Data</h4>
+                        <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Institutional Data</h4>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-y-4.5 gap-x-8 pt-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
+                    <div className="grid grid-cols-2 gap-3 pt-3 overflow-y-auto custom-scrollbar flex-1 pr-1">
                         <GridFieldItem label="School Name" value={displaySchoolName} icon={<School />} />
                         <GridFieldItem label="School ID" value={displaySchoolId} icon={<GraduationCap />} />
                         <GridFieldItem label="Region" value={displayRegion} icon={<MapPin />} />
@@ -755,49 +784,34 @@ export function InstitutePage() {
                     </div>
                 </motion.div>
 
-                {/* Right Column: Advisory Details */}
+                {/* Right Column: Advisory & Teacher Profile */}
                 <motion.div 
                     variants={itemVariants}
-                    className="col-span-5 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col justify-between overflow-hidden relative"
+                    className="col-span-5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4.5 shadow-sm flex flex-col justify-between overflow-y-auto custom-scrollbar relative"
                 >
                     <div className="absolute top-0 right-0 w-36 h-36 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
                     <div className="absolute bottom-0 left-0 w-44 h-44 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-                    <div className="relative z-10 shrink-0">
-                        <div className="w-fit bg-slate-50/80 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 px-3 py-1 rounded-2xl flex items-center gap-2">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-                            <span className="text-[9px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-widest">Advisory Details</span>
+                    <div className="relative z-10 shrink-0 flex items-center justify-between mb-2.5">
+                        <div className="w-fit bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                                Advisory Roster & Profile
+                            </span>
                         </div>
+                        <button
+                            onClick={() => setCurrentView('sections')}
+                            className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-wider cursor-pointer"
+                        >
+                            Manage →
+                        </button>
                     </div>
 
-                    {!schoolProfile.grade_level || !schoolProfile.section ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 relative z-10 gap-5">
-                            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/5">
-                                <Shield className="w-8 h-8 animate-pulse" />
-                            </div>
-                            <div className="space-y-2">
-                                <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
-                                    {sections.length === 0 ? 'No Classes Created' : 'Advisory Class Not Set'}
-                                </h5>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed max-w-65 mx-auto">
-                                    {sections.length === 0 
-                                        ? 'Please create classes and sections first to define your school profile and advisory assignment.' 
-                                        : 'Specify which class is your official advisory under the Classes & Sections manager.'}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setCurrentView('sections')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-slate-850 dark:hover:bg-slate-750 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
-                            >
-                                {sections.length === 0 ? 'Create Sections' : 'Go to Classes & Sections'}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center gap-4 py-2 relative z-10 overflow-y-auto custom-scrollbar w-full pr-1">
-                            {/* Adviser Photo Circle */}
-                            <div className="relative">
-                                <div className="w-20 h-20 rounded-full border-4 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 overflow-hidden flex items-center justify-center p-1 shadow-md shadow-slate-200/20 dark:shadow-none transition-transform duration-500 hover:scale-105">
+                    <div className="flex-1 flex flex-col justify-between relative z-10 w-full gap-2.5">
+                        {/* Featured Adviser Profile Card */}
+                        <div className="p-2.5 rounded-xl bg-linear-to-br from-indigo-50/70 via-slate-50 to-white dark:from-slate-800/60 dark:via-slate-850 dark:to-slate-900 border border-indigo-100 dark:border-slate-800 shadow-2xs flex items-center gap-3 shrink-0">
+                            <div className="relative shrink-0">
+                                <div className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-800 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center p-0.5 shadow-sm ring-2 ring-indigo-500/20">
                                     {schoolProfile.adviser_image_url ? (
                                         <img 
                                             src={schoolProfile.adviser_image_url} 
@@ -805,50 +819,108 @@ export function InstitutePage() {
                                             className="w-full h-full object-cover rounded-full"
                                         />
                                     ) : (
-                                        <User className="w-10 h-10 text-slate-400 dark:text-slate-550" />
+                                        <User className="w-6 h-6 text-slate-400" />
                                     )}
                                 </div>
                             </div>
-
-                            <div className="flex flex-col items-center gap-3 text-center">
-                                <div>
-                                    <span className="text-[8.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-1.5">Current Adviser</span>
-                                    <div className="text-lg font-black text-slate-800 dark:text-white truncate max-w-60" title={displayAdviserName}>{displayAdviserName || 'Not Assigned'}</div>
-                                </div>
-                                <div>
-                                    <span className="text-[8.5px] text-slate-450 dark:text-slate-500 font-black uppercase tracking-widest block leading-none mb-1.5">Class Assignment</span>
-                                    <div className="text-sm font-extrabold text-slate-600 dark:text-slate-355">{displayGradeLevel} • {displaySection}</div>
+                            <div className="min-w-0 flex-1">
+                                <span className="text-[7.5px] text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-widest block mb-0.5">Current Adviser</span>
+                                <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate" title={displayAdviserName}>
+                                    {displayAdviserName || 'Adviser Not Assigned'}
+                                </h4>
+                                <div className="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-extrabold text-[9px] border border-indigo-500/20">
+                                    {advisorySections.length > 1 
+                                        ? `${advisorySections.length} Advisory Classes Assigned` 
+                                        : `${advisorySections[0]?.section_grade_level || displayGradeLevel || 'Grade'} • ${advisorySections[0]?.section_name || displaySection || 'Section'}`}
                                 </div>
                             </div>
-                            
-                            {/* Digital Signatures Preview */}
-                            <div className="w-full mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                                <span className="text-[8.5px] text-slate-450 dark:text-slate-550 font-black uppercase tracking-widest block text-center mb-2">Registered Digital Signatures</span>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="flex flex-col items-center bg-slate-50/50 dark:bg-slate-900/30 p-1.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-[7.5px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-wider mb-1">School Head</span>
-                                        <div className="h-8 w-full bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 rounded-lg flex items-center justify-center p-1">
-                                            {schoolProfile.head_signature_url ? (
-                                                <img src={schoolProfile.head_signature_url} alt="Head Signature" className="max-h-full object-contain" />
-                                            ) : (
-                                                <span className="text-[7.5px] text-slate-350 dark:text-slate-550 font-bold uppercase">Not Set</span>
-                                            )}
+                        </div>
+
+                        {/* Advisory Classes Cards Roster */}
+                        <div className="flex-1 min-h-35 max-h-55 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
+                            <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest block mb-1">Active Class Sections ({advisorySections.length > 0 ? advisorySections.length : 1})</span>
+                            {(advisorySections.length > 0 ? advisorySections : [{
+                                id: 'single',
+                                section_name: displaySection,
+                                section_grade_level: displayGradeLevel,
+                                adviser_name: displayAdviserName,
+                                is_advisory: true
+                            }]).map((sec) => {
+                                const secStudentsCount = students.filter(st => st.student_section === sec.id || st.student_section === sec.section_name).length;
+                                return (
+                                    <div 
+                                        key={sec.id}
+                                        className="p-2 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between hover:border-indigo-500/30 transition-all"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-[9px] border border-indigo-500/20 shrink-0">
+                                                {sec.section_grade_level ? sec.section_grade_level.replace('Grade ', 'G') : 'ADV'}
+                                            </div>
+                                            <div>
+                                                <h5 className="text-[10.5px] font-black text-slate-900 dark:text-white leading-tight">
+                                                    {sec.section_grade_level || displayGradeLevel} • {sec.section_name || displaySection}
+                                                </h5>
+                                                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold leading-snug">
+                                                    Adviser: <strong className="text-slate-800 dark:text-slate-200">{sec.adviser_name || displayAdviserName || 'Not Assigned'}</strong>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-wider border border-emerald-500/20 block mb-0.5">
+                                                Advisory
+                                            </span>
+                                            <span className="text-[8px] font-bold text-slate-400">
+                                                {secStudentsCount} Learners
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-center bg-slate-50/50 dark:bg-slate-900/30 p-1.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-[7.5px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-wider mb-1">Class Adviser</span>
-                                        <div className="h-8 w-full bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 rounded-lg flex items-center justify-center p-1">
-                                            {schoolProfile.adviser_signature_url ? (
-                                                <img src={schoolProfile.adviser_signature_url} alt="Adviser Signature" className="max-h-full object-contain" />
-                                            ) : (
-                                                <span className="text-[7.5px] text-slate-350 dark:text-slate-550 font-bold uppercase">Not Set</span>
-                                            )}
-                                        </div>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* Digital Signatures Preview & Direct Upload Shortcut */}
+                        <div className="w-full pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                            <div className="flex items-center justify-between mb-1">
+                                <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest block">Registered Digital Signatures</span>
+                                {canEdit && (
+                                    <button 
+                                        onClick={handleOpenEdit}
+                                        className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                    >
+                                        Upload / Edit
+                                    </button>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="flex flex-col items-center bg-slate-50/80 dark:bg-slate-800/40 p-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">School Head</span>
+                                    <div className="h-7 w-full bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700 rounded-lg flex items-center justify-center p-1">
+                                        {schoolProfile.head_signature_url ? (
+                                            <img src={schoolProfile.head_signature_url} alt="Head Signature" className="max-h-full object-contain" />
+                                        ) : (
+                                            <span className="text-[7.5px] text-slate-400 font-bold uppercase">Not Set</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center bg-slate-50/80 dark:bg-slate-800/40 p-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Class Adviser</span>
+                                    <div 
+                                        onClick={() => canEdit && handleOpenEdit()}
+                                        className={`h-7 w-full bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700 rounded-lg flex items-center justify-center p-1 ${canEdit ? 'cursor-pointer hover:border-indigo-400' : ''}`}
+                                        title={canEdit ? 'Click to upload Class Adviser digital signature' : ''}
+                                    >
+                                        {schoolProfile.adviser_signature_url ? (
+                                            <img src={schoolProfile.adviser_signature_url} alt="Adviser Signature" className="max-h-full object-contain" />
+                                        ) : (
+                                            <span className="text-[7.5px] text-amber-600 dark:text-amber-400 font-extrabold uppercase flex items-center gap-1">
+                                                Not Set {canEdit && '• Upload'}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </motion.div>
             </motion.div>
         </div>
@@ -861,14 +933,14 @@ function GridFieldItem({ label, value, icon }: {
     icon: React.ReactNode; 
 }) {
     return (
-        <div className="space-y-1 transition-all duration-300 hover:translate-x-0.5">
-            <span className="flex items-center gap-1.5 text-[8.5px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest leading-none">
-                <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 [&_svg]:w-3 [&_svg]:h-3 text-slate-400 dark:text-slate-500">
+        <div className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-500/30 transition-all duration-200">
+            <span className="flex items-center gap-1.5 text-[8.5px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest leading-none mb-1">
+                <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 [&_svg]:w-3 [&_svg]:h-3 text-indigo-500 dark:text-indigo-400">
                     {icon}
                 </span>
                 {label}
             </span>
-            <p className="text-xs font-black text-slate-800 dark:text-slate-200 pl-5 leading-tight truncate" title={value || 'Not Specified'}>
+            <p className="text-xs font-black text-slate-900 dark:text-white leading-snug truncate" title={value || 'Not Specified'}>
                 {value || 'Not Specified'}
             </p>
         </div>

@@ -20,7 +20,8 @@ import {
     ClipboardCheck,
     Layers,
     Gamepad2,
-    IdCard
+    IdCard,
+    Sparkles
 } from 'lucide-react';
 import { canAccessView, type AppView } from '../../lib/rbac';
 
@@ -120,6 +121,7 @@ export function Sidebar() {
         { id: 'announcements', label: 'Announcements', icon: Megaphone },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'games-tools', label: 'Games & Tools', icon: Gamepad2 },
+        { id: 'online-generators', label: 'Online Generators', icon: Sparkles },
     ];
 
     const handleNavClick = (id: string) => {

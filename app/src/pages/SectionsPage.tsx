@@ -159,9 +159,21 @@ export function SectionsPage() {
     );
 
     return (
-        <div className="space-y-6 pb-16">
+        <div className="space-y-6 pb-16 relative min-h-[80vh] overflow-hidden">
+            {/* School Logo Background Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none z-0">
+                <img 
+                    src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
+                    className="w-160 h-160 max-w-none object-contain grayscale scale-125 -rotate-6"
+                    alt=""
+                    onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                    }}
+                />
+            </div>
+
             {/* Toolbar */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative z-10">
                 <div className="flex items-center bg-slate-100 rounded-lg p-1 self-start">
                     {Object.keys(groupedSections).map((group) => {
                         const isActive = !searchTerm && activeCategory === group;
@@ -229,7 +241,7 @@ export function SectionsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="space-y-10"
+                    className="space-y-10 relative z-10"
                 >
                     {visibleGroups.map(([group, groupSections]) => (
                         <section key={group} className="space-y-4">

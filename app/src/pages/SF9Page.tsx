@@ -15,7 +15,7 @@ try {
 }
 
 import { useAppStore, useAuthStore } from '../stores';
-import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings } from '../types';
+import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, PenTool } from 'lucide-react';
@@ -977,7 +977,13 @@ function computeStudentValues(student: Student, observedValues: ObservedValues[]
     return values;
 }
 
-function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoolYear: string, sectionObj?: Section) {
+function computeStudentAttendance(
+    student: Student, 
+    sf2Sheets: SF2Sheet[], 
+    schoolYear: string, 
+    sectionObj?: Section,
+    attendanceRecords: AttendanceRecord[] = []
+) {
     const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
     const schoolDays: number[] = [];
     const daysPresent: number[] = [];
@@ -1150,8 +1156,11 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     ) || sectionObj;
 
     const targetSectionTokens = new Set<string>([
+        normalizeSectionToken(student.student_section),
         normalizeSectionToken(advisorySection?.id),
-        normalizeSectionToken(advisorySection?.section_name)
+        normalizeSectionToken(advisorySection?.section_name),
+        normalizeSectionToken(sectionObj?.id),
+        normalizeSectionToken(sectionObj?.section_name)
     ].filter(Boolean));
 
     const targetSchoolYear = normalizeText(schoolYear);
@@ -1161,7 +1170,7 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
 
     const isSchoolYearMatch = (sheetYearRaw?: string) => {
         const sheetYear = normalizeText(sheetYearRaw);
-        if (!sheetYear) return !targetSchoolYear;
+        if (!sheetYear) return true;
         if (sheetYear === targetSchoolYear) return true;
         if (sheetYear.includes(targetSchoolYear) || targetSchoolYear.includes(sheetYear)) return true;
 
@@ -1170,7 +1179,10 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
     };
 
     const getSectionTokensForSheet = (sheet: SF2Sheet) => {
-        const baseTokens = [normalizeSectionToken(sheet.section_id)];
+        const baseTokens = [
+            normalizeSectionToken(sheet.section_id),
+            normalizeSectionToken(sheet.id)
+        ];
         const fromId = sheet.id?.split('_').filter(Boolean) || [];
         if (fromId.length >= 3) {
             baseTokens.push(normalizeSectionToken(fromId.slice(0, fromId.length - 2).join('_')));
@@ -1178,7 +1190,15 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
         return baseTokens.filter(Boolean);
     };
 
+    const targetLRN = (student?.lrn ?? '').toString().trim().toLowerCase();
+
     const isSectionMatch = (sheet: SF2Sheet) => {
+        if (targetLRN) {
+            const attendanceKeys = Object.keys(sheet.attendance || {});
+            if (attendanceKeys.some(k => k.toString().trim().toLowerCase() === targetLRN)) {
+                return true;
+            }
+        }
         if (!targetSectionTokens.size) return true;
         const sheetTokens = getSectionTokensForSheet(sheet);
         if (!sheetTokens.length) return false;
@@ -1229,14 +1249,38 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
         }
     });
 
+    const studentDailyRecords = (attendanceRecords || []).filter(r => 
+        (r?.student_lrn ?? '').toString().trim().toLowerCase() === targetLRN
+    );
+
+    const monthIndexMap: Record<string, number> = {
+        JANUARY: 0, FEBRUARY: 1, MARCH: 2, APRIL: 3, MAY: 4, JUNE: 5,
+        JULY: 6, AUGUST: 7, SEPTEMBER: 8, OCTOBER: 9, NOVEMBER: 10, DECEMBER: 11
+    };
+
+    const isAbsentStatus = (st?: string | number) => {
+        if (st == null) return false;
+        const s = st.toString().toLowerCase().trim();
+        return s === 'absent' || s === 'excused' || s === 'x' || s === 'a' || s === 'abs' || s === 'ab' || s === 'unexcused';
+    };
+
     months.forEach(month => {
         const sheet = sf2MonthlySheetMap.get(month);
+        const monthIdx = monthIndexMap[month];
+
+        const dailyRecordsForMonth = studentDailyRecords.filter(r => {
+            if (!r.date) return false;
+            const parts = r.date.split('-');
+            if (parts.length === 3) {
+                const mNum = parseInt(parts[1], 10) - 1;
+                return mNum === monthIdx;
+            }
+            const d = new Date(r.date);
+            return !isNaN(d.getTime()) && d.getMonth() === monthIdx;
+        });
 
         if (sheet) {
             const dateLabels = sheet.date_labels || {};
-            
-            // Aggressive fuzzy LRN match
-            const targetLRN = student.lrn.toString().trim().toLowerCase();
             const attendanceKeys = Object.keys(sheet.attendance || {});
             const matchedKey = attendanceKeys.find(k => k.toString().trim().toLowerCase() === targetLRN);
             const studentAttendance = matchedKey ? sheet.attendance[matchedKey] : {};
@@ -1244,34 +1288,55 @@ function computeStudentAttendance(student: Student, sf2Sheets: SF2Sheet[], schoo
             let mAbsent = 0;
             let mFilled = 0;
 
-            // Get all days that have a valid date label (this defines a school day)
             const dayKeys = Object.keys(dateLabels);
-            dayKeys.forEach(dayKey => {
-                const label = (dateLabels as Record<string, string | number>)[dayKey];
-                if (label && label.toString().trim() !== '') {
-                    mFilled++;
-                    
-                    // Check student's status for this specific school day
-                    const dateKey = `date_${label.toString().trim()}`;
-                    const status = (studentAttendance as Record<string, string | number>)[dateKey] ?? (studentAttendance as Record<string, string | number>)[dayKey];
-                    const normalizedStatus = (status || '').toString().toLowerCase().trim();
-                    
-                    // Standard DEPED absence markers
-                    if (normalizedStatus === 'absent' || normalizedStatus === 'x' || normalizedStatus === 'a') {
-                        mAbsent++;
+            if (dayKeys.length > 0) {
+                dayKeys.forEach(dayKey => {
+                    const labelRaw = (dateLabels as Record<string, string | number>)[dayKey];
+                    if (labelRaw && labelRaw.toString().trim() !== '') {
+                        mFilled++;
+                        const dayNumStr = labelRaw.toString().trim();
+                        const dayNum = Number(dayNumStr);
+                        const paddedDay = !isNaN(dayNum) ? String(dayNum).padStart(2, '0') : dayNumStr;
+
+                        const attRecord = studentAttendance as Record<string, string | number>;
+                        let status: string | number | undefined = attRecord[`date_${dayNumStr}`]
+                            ?? attRecord[`date_${paddedDay}`]
+                            ?? attRecord[dayNumStr]
+                            ?? attRecord[paddedDay]
+                            ?? attRecord[dayKey];
+
+                        if (!isAbsentStatus(status) && !isNaN(dayNum)) {
+                            const dailyRec = dailyRecordsForMonth.find(r => {
+                                const dayOfRec = parseInt(r.date.split('-')[2] || '0', 10) || new Date(r.date).getDate();
+                                return dayOfRec === dayNum;
+                            });
+                            if (dailyRec && isAbsentStatus(dailyRec.status)) {
+                                status = dailyRec.status;
+                            }
+                        }
+
+                        if (isAbsentStatus(status)) {
+                            mAbsent++;
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                const sf2Absents = Object.values(studentAttendance).filter(isAbsentStatus).length;
+                const dailyAbsents = dailyRecordsForMonth.filter(r => isAbsentStatus(r.status)).length;
+                mAbsent = Math.max(sf2Absents, dailyAbsents);
+                mFilled = getFallbackSchoolDays(month);
+            }
             
             schoolDays.push(mFilled);
             daysAbsent.push(mAbsent);
             daysPresent.push(Math.max(0, mFilled - mAbsent));
         } else {
-            // Auto-fill missing SF2 month with calendar defaults to avoid blank SF9 cells.
             const fallbackDays = getFallbackSchoolDays(month);
+            const dailyAbsents = dailyRecordsForMonth.filter(r => isAbsentStatus(r.status)).length;
+
             schoolDays.push(fallbackDays);
-            daysPresent.push(fallbackDays);
-            daysAbsent.push(0);
+            daysAbsent.push(dailyAbsents);
+            daysPresent.push(Math.max(0, fallbackDays - dailyAbsents));
         }
     });
 
@@ -1546,7 +1611,7 @@ function SF9Pages({
 
     const calculateTotal = (dataArr: number[]) => {
         if (printMode === 'term1' || printMode === 'term2') return '';
-        const values = dataArr.slice(0, 10);
+        const values = dataArr.slice(0, 11);
         const sum = values.filter(v => v >= 0).reduce((a, b) => a + b, 0);
         const hasAnyData = values.some(v => v >= 0);
         return hasAnyData ? sum : '';
@@ -2035,6 +2100,7 @@ interface SF9BatchDocumentProps {
     activeSchoolYear: string;
     observedValues: ObservedValues[];
     sf2Sheets: SF2Sheet[];
+    attendanceRecords?: AttendanceRecord[];
     adviser: string;
     pageSize: 'A4' | 'LETTER';
     printMode?: SF9PrintMode;
@@ -2044,7 +2110,7 @@ interface SF9BatchDocumentProps {
 const SF9PagesMemo = React.memo(SF9Pages);
 
 export function SF9BatchDocument({
-    students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, adviser, pageSize, printMode = 'full', subjectSelections
+    students, sections, sectionObj, subjects, gradingSheetRecords, schoolProfile, activeSchoolYear, observedValues, sf2Sheets, attendanceRecords = [], adviser, pageSize, printMode = 'full', subjectSelections
 }: SF9BatchDocumentProps) {
     const sigSettings = sectionObj.section_metadata?.sf9SignatureSettings || {};
 
@@ -2058,7 +2124,7 @@ export function SF9BatchDocument({
             }).map((student) => {
                 const { subjects: computedSubjects, grades } = computeStudentGrades(student, sectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, subjectSelections);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
-                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj);
+                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, sectionObj, attendanceRecords);
                 
                 // Resolve student's section name (supports both ID and name stored in student_section)
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
@@ -2114,12 +2180,14 @@ export function SF9Page() {
     const subjects = useAppStore(state => state.subjects);
     const observedValues = useAppStore(state => state.observedValues);
     const storeSf2Sheets = useAppStore(state => state.sf2Sheets);
+    const storeAttendanceRecords = useAppStore(state => state.attendanceRecords);
     const setSF2Sheets = useAppStore(state => state.setSF2Sheets);
     const updateObservedValue = useAppStore(state => state.updateObservedValue);
     const setCurrentView = useAppStore(state => state.setCurrentView);
     const teachers = useAppStore(state => state.teachers);
     const { user } = useAuthStore();
     const [hydratedSf2Sheets, setHydratedSf2Sheets] = useState<SF2Sheet[]>([]);
+    const [hydratedAttendanceRecords, setHydratedAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
     const [selectedSection, setSelectedSection] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -2160,18 +2228,22 @@ export function SF9Page() {
     useEffect(() => {
         let isMounted = true;
 
-        const hydrateSf2Sheets = async () => {
+        const hydrateData = async () => {
             try {
-                const allSf2Sheets = await db.getAllRecords<SF2Sheet>('sf2Sheets');
+                const [allSf2Sheets, allAttendanceRecords] = await Promise.all([
+                    db.getAllRecords<SF2Sheet>('sf2Sheets'),
+                    db.getAllRecords<AttendanceRecord>('attendanceRecords')
+                ]);
                 if (isMounted) {
                     setHydratedSf2Sheets(allSf2Sheets);
+                    setHydratedAttendanceRecords(allAttendanceRecords);
                 }
             } catch (error) {
-                console.error('Failed to hydrate SF2 sheets for SF9:', error);
+                console.error('Failed to hydrate SF2 sheets/attendance for SF9:', error);
             }
         };
 
-        hydrateSf2Sheets();
+        hydrateData();
 
         return () => {
             isMounted = false;
@@ -2184,6 +2256,13 @@ export function SF9Page() {
         storeSf2Sheets.forEach((sheet) => byId.set(sheet.id, sheet));
         return Array.from(byId.values());
     }, [hydratedSf2Sheets, storeSf2Sheets]);
+
+    const attendanceRecords = useMemo(() => {
+        const byId = new Map<string, AttendanceRecord>();
+        hydratedAttendanceRecords.forEach((r) => byId.set(r.id, r));
+        storeAttendanceRecords.forEach((r) => byId.set(r.id, r));
+        return Array.from(byId.values());
+    }, [hydratedAttendanceRecords, storeAttendanceRecords]);
 
     const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
 
@@ -2453,7 +2532,7 @@ export function SF9Page() {
     const singleDocument = useMemo(() => {
         if (!selectedStudent || !selectedSectionObj) return null;
         
-        const attendance = computeStudentAttendance(selectedStudent, sf2Sheets, activeSchoolYear, selectedSectionObj);
+        const attendance = computeStudentAttendance(selectedStudent, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
 
         const studentResolvedSection = sections.find(s => s.id === selectedStudent.student_section || s.section_name === selectedStudent.student_section);
         const resolvedSectionName = studentResolvedSection?.section_name || selectedSectionObj.section_name;
@@ -2492,7 +2571,7 @@ export function SF9Page() {
                 headSigOffset={headSigOffset}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -2588,7 +2667,7 @@ export function SF9Page() {
                 // Map student data
                 const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
-                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj);
+                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                 const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
                 const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';

@@ -1087,7 +1087,7 @@ export function SubjectsPage() {
     };
 
     return (
-        <div className="space-y-8 pb-12 relative min-h-[80vh]">
+        <div className="space-y-4 pb-6 relative min-h-[80vh]">
             {/* Global Page Watermark */}
             <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none z-0 overflow-hidden">
                 <img 
@@ -1098,7 +1098,7 @@ export function SubjectsPage() {
             </div>
 
             {/* Redesigned Compact Header Row */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs relative z-10">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-slate-200/80 p-2.5 rounded-2xl shadow-2xs relative z-10">
                 <div className="flex items-center gap-3">
                     {/* Compact Navigation / Breadcrumbs */}
                     <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -1128,7 +1128,7 @@ export function SubjectsPage() {
                     {viewMode !== 'grades' && (
                         <button 
                             onClick={handleBackToGrades}
-                            className="h-9 px-4 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                            className="h-8 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             Back
@@ -1138,7 +1138,7 @@ export function SubjectsPage() {
                         <button 
                             onClick={() => setShowAutoLoadConfirm(true)} 
                             disabled={isLoadingTemplate}
-                            className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+                            className="h-8 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
                         >
                             <Sparkles className="w-3.5 h-3.5" />
                             Auto-Load All
@@ -1149,7 +1149,7 @@ export function SubjectsPage() {
                             {filteredSubjects.length > 0 && (
                                 <button 
                                     onClick={() => setShowDeleteAllConfirm(true)}
-                                    className="h-9 px-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-100 active:scale-95 cursor-pointer"
+                                    className="h-8 px-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-100 active:scale-95 cursor-pointer"
                                     title="Delete all subjects in this view"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1158,7 +1158,7 @@ export function SubjectsPage() {
                             )}
                             <button 
                                 onClick={openAddModal} 
-                                className="h-9 px-4 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                className="h-8 px-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 Add Subject
@@ -1175,75 +1175,168 @@ export function SubjectsPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="space-y-8 relative"
+                        className="space-y-4 relative"
                     >
                         {!selectedCategory ? (
                             <>
-                                {/* Quick Guide Header */}
+                                {/* Quick Guide Header — Compact Modern Workflow Banner */}
                                 <motion.div 
                                     initial={{ opacity: 0, y: 15 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 }}
-                                    className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 pb-6"
+                                    className="relative z-10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden mb-4"
                                 >
-                                    <div className="space-y-3 flex flex-col items-center text-center">
-                                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shadow-2xs">
-                                            <BookOpen className="w-5 h-5" />
+                                    {/* Ambient Glow */}
+                                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/5 dark:bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+                                    <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                    {/* Section Header Badge */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="flex h-2.5 w-2.5 relative">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                                            </span>
+                                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">
+                                                DepEd Curriculum & Subject Management Workflow
+                                            </h3>
                                         </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">1. Select Level</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Choose a department (Elementary, JHS, or SHS) to explore its specific grade levels and curriculum tracks.</p>
-                                        </div>
+                                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/50">
+                                            3-Step Automated Setup
+                                        </span>
                                     </div>
-                                    <div className="space-y-3 flex flex-col items-center text-center">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-2xs">
-                                            <Settings className="w-5 h-5" />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                                        {/* Step 1 */}
+                                        <div className="group relative bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-500/30 transition-all hover:bg-white dark:hover:bg-slate-800/60 shadow-2xs">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+                                                    <BookOpen className="w-4 h-4" />
+                                                </div>
+                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-blue-500/40 transition-colors">01</span>
+                                            </div>
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                                1. Select Department
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                                                Choose Elementary, JHS, or SHS to explore grade levels and curriculum tracks.
+                                            </p>
                                         </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">2. Configure Subjects</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Inside each grade, you can add subjects manually or load standard DepEd templates to ensure academic compliance.</p>
+
+                                        {/* Step 2 */}
+                                        <div className="group relative bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-500/30 transition-all hover:bg-white dark:hover:bg-slate-800/60 shadow-2xs">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+                                                    <Settings className="w-4 h-4" />
+                                                </div>
+                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-indigo-500/40 transition-colors">02</span>
+                                            </div>
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                                2. Configure Subjects
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                                                Add custom subjects or auto-load standard DepEd templates per grade level.
+                                            </p>
                                         </div>
-                                    </div>
-                                    <div className="space-y-3 flex flex-col items-center text-center">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
-                                            <Sparkles className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-1">3. Automate Workflow</h4>
-                                            <p className="text-[11px] text-slate-500 leading-relaxed font-bold uppercase tracking-wider opacity-80">Configured subjects are automatically synced to class records and SF9/SF10 reports for seamless grading.</p>
+
+                                        {/* Step 3 */}
+                                        <div className="group relative bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 transition-all hover:bg-white dark:hover:bg-slate-800/60 shadow-2xs">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
+                                                    <Sparkles className="w-4 h-4" />
+                                                </div>
+                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-emerald-500/40 transition-colors">03</span>
+                                            </div>
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                                3. Automate Workflow
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                                                Subjects automatically sync with class records, E-Class sheets, and SF9/SF10 reports.
+                                            </p>
                                         </div>
                                     </div>
                                 </motion.div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
-                                    {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, category]) => (
-                                        <motion.button
-                                            key={key}
-                                            whileHover={{ scale: 1.02, y: -5 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={() => setSelectedCategory(key)}
-                                            className="relative group bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-slate-300/50 transition-all text-center overflow-hidden h-full flex flex-col items-center"
-                                        >
-                                            <div className={`absolute top-0 right-0 w-32 h-32 ${category.bg} rounded-bl-[5rem] -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
-                                            
-                                            <div className={`w-16 h-16 rounded-3xl bg-linear-to-br ${category.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
-                                                <category.icon className="w-8 h-8" />
-                                            </div>
+                                {/* Category Cards Grid — Compact Viewport Layout */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative z-10">
+                                    {(Object.entries(CATEGORIES) as [keyof typeof CATEGORIES, typeof CATEGORIES[keyof typeof CATEGORIES]][]).map(([key, category]) => {
+                                        const gradeList = category.grades;
+                                        const totalSubjectsInDept = subjects.filter(s => gradeList.includes(s.grade_level) && !s.is_teaching_load).length;
+                                        const activeSectionsCount = sections.filter(sec => gradeList.some(g => sectionMatchesGrade(sec, g))).length;
 
-                                            <div className="flex-1 w-full">
-                                                <h3 className="text-2xl font-black text-slate-900 mb-1">{category.title}</h3>
-                                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{category.range}</p>
-                                                <p className="text-slate-500 text-sm leading-relaxed mb-6">{category.description}</p>
-                                            </div>
+                                        return (
+                                            <motion.button
+                                                key={key}
+                                                whileHover={{ y: -4, scale: 1.01 }}
+                                                whileTap={{ scale: 0.98 }}
+                                                onClick={() => setSelectedCategory(key)}
+                                                className="relative group bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-md hover:shadow-xl hover:border-indigo-500/40 transition-all duration-300 text-left overflow-hidden h-full flex flex-col justify-between"
+                                            >
+                                                {/* Background Accent Mesh Gradient */}
+                                                <div className={`absolute top-0 right-0 w-36 h-36 bg-linear-to-br ${category.color} opacity-10 blur-2xl rounded-full group-hover:opacity-20 transition-opacity pointer-events-none`} />
 
-                                            <div className="flex items-center justify-between pt-6 border-t border-slate-50 mt-auto w-full">
-                                                <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Open Category</span>
-                                                <div className={`w-10 h-10 rounded-full bg-slate-50 group-hover:bg-linear-to-br ${category.color} flex items-center justify-center text-slate-400 group-hover:text-white transition-all`}>
-                                                    <ArrowRight className="w-5 h-5" />
+                                                {/* Background Icon Watermark */}
+                                                <div className="absolute -right-5 -bottom-5 opacity-[0.05] dark:opacity-[0.08] group-hover:opacity-[0.12] transition-all duration-500 pointer-events-none transform -rotate-12 group-hover:rotate-0 group-hover:scale-110 text-slate-800 dark:text-white">
+                                                    <category.icon className="w-32 h-32" />
                                                 </div>
-                                            </div>
-                                        </motion.button>
-                                    ))}
+
+                                                <div className="relative z-10">
+                                                    {/* Top Row: Icon & Range Badge */}
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className={`w-11 h-11 rounded-xl bg-linear-to-br ${category.color} flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 group-hover:rotate-3 transition-all duration-300`}>
+                                                            <category.icon className="w-5.5 h-5.5" />
+                                                        </div>
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
+                                                            {category.range}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Title & Description */}
+                                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1.5 tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                        {category.title}
+                                                    </h3>
+                                                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mb-4 font-medium line-clamp-2">
+                                                        {category.description}
+                                                    </p>
+
+                                                    {/* Grade Level Chips Preview */}
+                                                    <div className="flex flex-wrap gap-1 mb-4">
+                                                        {category.grades.map((g) => {
+                                                            const shortLabel = g.replace('Grade ', 'G');
+                                                            return (
+                                                                <span 
+                                                                    key={g} 
+                                                                    className="px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50 group-hover:border-indigo-200 transition-colors"
+                                                                >
+                                                                    {shortLabel}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Footer Info & CTA */}
+                                                <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between relative z-10">
+                                                    <div className="flex items-center gap-3 text-xs">
+                                                        <div>
+                                                            <span className="font-black text-slate-900 dark:text-white">{totalSubjectsInDept}</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold ml-1">Subjects</span>
+                                                        </div>
+                                                        <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+                                                        <div>
+                                                            <span className="font-black text-slate-900 dark:text-white">{activeSectionsCount}</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold ml-1">Sections</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 group-hover:bg-linear-to-r ${category.color} text-slate-700 dark:text-slate-200 group-hover:text-white transition-all shadow-2xs group-hover:shadow-sm`}>
+                                                        <span>Explore</span>
+                                                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                                    </div>
+                                                </div>
+                                            </motion.button>
+                                        );
+                                    })}
                                 </div>
                             </>
                         ) : (
@@ -1252,13 +1345,13 @@ export function SubjectsPage() {
                                     <div className="flex items-center gap-4">
                                         <button 
                                             onClick={handleBackToCategories}
-                                            className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-deped-blue hover:border-deped-blue transition-all shadow-sm"
+                                            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-all shadow-xs active:scale-95 cursor-pointer"
                                         >
-                                            <ChevronLeft className="w-6 h-6" />
+                                            <ChevronLeft className="w-5 h-5" />
                                         </button>
                                         <div>
                                             <h2 className="text-2xl font-black text-slate-900 leading-tight">{CATEGORIES[selectedCategory].title}</h2>
-                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1273,35 +1366,44 @@ export function SubjectsPage() {
                                         return (
                                             <motion.div
                                                 key={grade}
-                                                whileHover={{ scale: 1.03, y: -5 }}
+                                                whileHover={{ scale: 1.02, y: -4 }}
                                                 whileTap={{ scale: 0.98 }}
                                                 onClick={() => handleGradeClick(grade)}
-                                                className="group bg-white rounded-4xl p-6 border border-slate-100 shadow-lg shadow-slate-200/50 hover:shadow-2xl transition-all cursor-pointer overflow-hidden relative"
+                                                className="group bg-white rounded-3xl p-6 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all cursor-pointer overflow-hidden relative flex flex-col justify-between"
                                             >
-                                                <div className={`absolute top-0 right-0 w-24 h-24 ${meta.bg} rounded-bl-full -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform`} />
+                                                <div className={`absolute top-0 right-0 w-28 h-28 ${meta.bg} rounded-bl-full -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform pointer-events-none`} />
                                                 
                                                 <div className="relative z-10">
-                                                    <div className={`w-12 h-12 rounded-2xl bg-linear-to-br ${meta.color} flex items-center justify-center text-white shadow-lg mb-6 group-hover:rotate-6 transition-transform`}>
-                                                        <Icon className="w-6 h-6" />
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className={`w-12 h-12 rounded-2xl bg-linear-to-br ${meta.color} flex items-center justify-center text-white shadow-md group-hover:rotate-6 transition-transform`}>
+                                                            <Icon className="w-6 h-6" />
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                                            {grade}
+                                                        </span>
                                                     </div>
 
                                                     <h3 className="text-xl font-black text-slate-900 mb-2">{grade}</h3>
                                                     <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6 line-clamp-2">
                                                         {meta.description}
                                                     </p>
+                                                </div>
 
-                                                    <div className="flex items-center gap-6 pt-6 border-t border-slate-50">
-                                                        <div className="flex flex-col">
-                                                            <div className="text-xl font-black text-slate-900 leading-none mb-1">{count}</div>
+                                                <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto relative z-10">
+                                                    <div className="flex items-center gap-4">
+                                                        <div>
+                                                            <div className="text-lg font-black text-slate-900 leading-none mb-0.5">{count}</div>
                                                             <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subjects</div>
                                                         </div>
-                                                        <div className="flex flex-col">
-                                                            <div className="text-xl font-black text-slate-900 leading-none mb-1">{sectionCount}</div>
+                                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
+                                                        <div>
+                                                            <div className="text-lg font-black text-slate-900 leading-none mb-0.5">{sectionCount}</div>
                                                             <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sections</div>
                                                         </div>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-auto group-hover:text-deped-blue transition-colors">
-                                                            Open Subjects
-                                                        </span>
+                                                    </div>
+
+                                                    <div className="w-8 h-8 rounded-full bg-slate-50 group-hover:bg-indigo-600 flex items-center justify-center text-slate-400 group-hover:text-white transition-all">
+                                                        <ArrowRight className="w-4 h-4" />
                                                     </div>
                                                 </div>
                                             </motion.div>

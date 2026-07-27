@@ -365,7 +365,7 @@ export function GamesAndToolsPage() {
               </span>
             </h2>
             <p className="text-xs lg:text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Classroom interactive games, team division tools, and real-time utilities
+              Classroom interactive games, lesson exemplars, team division tools, and real-time utilities
             </p>
           </div>
 

@@ -28,4 +28,5 @@ export { LIRPage } from './LIRPage';
 export { TemporaryGradeSlipPage } from './TemporaryGradeSlipPage';
 export { ShsEClassRecord } from './ShsEClassRecord';
 export { GamesAndToolsPage } from './GamesAndToolsPage';
+export { OnlineGeneratorsPage } from './OnlineGeneratorsPage';
 

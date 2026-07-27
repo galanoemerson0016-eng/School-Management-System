@@ -3112,14 +3112,17 @@ export function ReportsPage() {
 
     // ==== LANDING PAGE (Report Cards) ====
     return (
-        <div className="space-y-8">
-            <div>
-                <h2 className="text-3xl font-bold text-deped-blue">Reports & Analytics</h2>
-                <p className="text-gray-600 mt-2">Generate insights and view consolidated performance data.</p>
+        <div className="h-[calc(100vh-120px)] max-w-7xl mx-auto w-full flex flex-col justify-between overflow-hidden select-none relative gap-2.5">
+            {/* Header section */}
+            <div className="flex items-center justify-between shrink-0">
+                <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white tracking-tight">Reports & Analytics</h2>
+                    <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-400">Generate insights and view consolidated performance data.</p>
+                </div>
             </div>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Quick Stats Row */}
+            <div className="grid grid-cols-3 gap-3 shrink-0">
                 {[
                     { label: 'Honor Students', value: honorRoll.length, icon: Award, color: 'emerald', action: () => openReport('quarterly') },
                     { label: 'At-Risk Learners', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, icon: AlertTriangle, color: 'red', action: () => openReport('at-risk') },
@@ -3128,155 +3131,167 @@ export function ReportsPage() {
                     <div 
                         key={stat.label} 
                         onClick={stat.action ? stat.action : undefined}
-                        className={`bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all ${stat.action ? 'cursor-pointer' : ''}`}
+                        className={`bg-white dark:bg-[#0f172a] p-3 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex items-center gap-3 transition-all ${stat.action ? 'cursor-pointer hover:border-indigo-500/30' : ''}`}
                     >
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-lg ${stat.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : stat.color === 'red' ? 'bg-red-100 text-red-600' : stat.color === 'blue' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                                <stat.icon className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                <p className="text-2xl font-black text-gray-800">{stat.value}</p>
-                            </div>
+                        <div className={`p-2 rounded-lg shrink-0 ${stat.color === 'emerald' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : stat.color === 'red' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
+                            <stat.icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <p className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">{stat.label}</p>
+                            <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{stat.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Certificate Generator Card */}
+            {/* Main Cards Grid — 4 Columns Compact Viewport Fit */}
+            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 overflow-y-auto custom-scrollbar pr-0.5">
+                {/* 1. Certificate Generator Card */}
                 {canViewReport(user, 'certificate-generator') && (
-                <div className="bg-linear-to-br from-indigo-50 to-white p-6 rounded-xl shadow-lg border border-indigo-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-indigo-100 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
-                            <Award className="w-8 h-8 text-indigo-600 group-hover:text-white" />
+                <div className="bg-linear-to-br from-indigo-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-indigo-100 dark:border-slate-800 flex flex-col justify-between hover:border-indigo-400/50 transition-all duration-200 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-indigo-100 dark:bg-indigo-950/80 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
+                                <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400 group-hover:text-white" />
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-2xs">NEW TOOL</span>
+                                <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 text-[8px] font-bold px-1.5 py-0.5 rounded">DepEd Format</span>
+                            </div>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                            <span className="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full animate-pulse shadow-sm shadow-indigo-200">NEW TOOL</span>
-                            <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded">DepEd Format</span>
-                        </div>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Certificate Generator</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            Create pixel-perfect DepEd Certificates of Recognition for awardees and honor students.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Certificate Generator</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        Create pixel-perfect DepEd Certificates of Recognition for awardees and honor students.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all font-medium flex items-center justify-center gap-2">
-                         Open Generator <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-indigo-200 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                         Open Generator <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-
-                {/* Term Summaries */}
+                {/* 2. Term Summaries */}
                 {canViewReport(user, 'quarterly-summaries') && (
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('quarterly')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-green-50 rounded-lg group-hover:bg-green-600 transition-colors duration-300">
-                            <BarChart3 className="w-8 h-8 text-green-600 group-hover:text-white" />
+                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('quarterly')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg group-hover:bg-emerald-600 transition-colors duration-300">
+                                <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
                         </div>
-                        <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Term Summaries</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            View Mean Percentage Scores (MPS), Grade Distribution, and Pass/Fail rates.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Term Summaries</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        View Mean Percentage Scores (MPS), Grade Distribution, and Pass/Fail rates.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-gray-200 text-gray-600 hover:border-green-600 hover:text-green-600 transition-colors font-medium flex items-center justify-center gap-2">
-                        Generate Report <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-600 hover:text-emerald-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        Generate Report <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-                {/* Subject Performance */}
+                {/* 3. Subject Performance */}
                 {canViewReport(user, 'subject-performance') && (
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('subject')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-purple-50 rounded-lg group-hover:bg-purple-600 transition-colors duration-300">
-                            <PieChartIcon className="w-8 h-8 text-purple-600 group-hover:text-white" />
+                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-purple-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('subject')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-purple-50 dark:bg-purple-950/60 rounded-lg group-hover:bg-purple-600 transition-colors duration-300">
+                                <PieChartIcon className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
                         </div>
-                        <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Subject Performance</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            Compare performance statistics across different learning areas.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Subject Performance</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        Compare performance statistics across different learning areas.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-gray-200 text-gray-600 hover:border-purple-600 hover:text-purple-600 transition-colors font-medium flex items-center justify-center gap-2">
-                        View Comparison <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-purple-600 hover:text-purple-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        View Comparison <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-                {/* Learner Progress */}
+                {/* 4. Learner Progress */}
                 {canViewReport(user, 'learner-progress') && (
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('progress')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-orange-50 rounded-lg group-hover:bg-orange-600 transition-colors duration-300">
-                            <TrendingUp className="w-8 h-8 text-orange-600 group-hover:text-white" />
+                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-amber-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('progress')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 rounded-lg group-hover:bg-amber-600 transition-colors duration-300">
+                                <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
                         </div>
-                        <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Learner Progress</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            Track academic growth and milestones over time across all terms.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Learner Progress</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        Track academic growth and milestones over time across all terms.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-gray-200 text-gray-600 hover:border-orange-600 hover:text-orange-600 transition-colors font-medium flex items-center justify-center gap-2">
-                        Track Progress <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-600 hover:text-amber-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        Track Progress <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-                {/* At-Risk Students */}
+                {/* 5. At-Risk Students */}
                 {canViewReport(user, 'at-risk-students') && (
-                <div className="bg-white p-6 rounded-xl shadow border border-gray-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('at-risk')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-red-50 rounded-lg group-hover:bg-red-600 transition-colors duration-300">
-                            <AlertTriangle className="w-8 h-8 text-red-600 group-hover:text-white" />
+                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-rose-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('at-risk')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-rose-50 dark:bg-rose-950/60 rounded-lg group-hover:bg-rose-600 transition-colors duration-300">
+                                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
                         </div>
-                        <span className="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">At-Risk Students</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            Identify and export students with grades below 75 for intervention tracking.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">At-Risk Students</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        Identify and export students with grades below 75 for intervention tracking.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-gray-200 text-gray-600 hover:border-red-600 hover:text-red-600 transition-colors font-medium flex items-center justify-center gap-2">
-                        View Report <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-rose-600 hover:text-rose-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        View Report <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-                {/* Honor Roll */}
+                {/* 6. Honor Roll / Academic Excellence */}
                 {canViewReport(user, 'honor-roll') && (
-                <div className="bg-linear-to-br from-green-50 to-white p-6 rounded-xl shadow border border-green-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('honor-roll')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-900 transition-colors duration-300">
-                            <Award className="w-8 h-8 text-green-900 group-hover:text-white" />
+                <div className="bg-linear-to-br from-emerald-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-emerald-100 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-500/50 transition-all duration-200 group cursor-pointer" onClick={() => openReport('honor-roll')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/80 rounded-lg group-hover:bg-emerald-600 transition-colors duration-300">
+                                <Award className="w-5 h-5 text-emerald-700 dark:text-emerald-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
                         </div>
-                        <span className="bg-green-100 text-green-900 text-xs font-semibold px-2.5 py-0.5 rounded">Working</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Academic Excellence Awards</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            View detailed list of students qualifying for the Academic Excellence Award per Term and EOSY calculations.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Academic Excellence Awards</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        View detailed list of students qualifying for the Academic Excellence Award per Term and EOSY calculations.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-green-800 text-green-900 hover:bg-green-900 hover:text-white transition-all font-medium flex items-center justify-center gap-2">
-                        View Awardees <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-emerald-200 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        View Awardees <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}
 
-                {/* Checklist of Requirements */}
+                {/* 7. Checklist of Requirements */}
                 {canViewReport(user, 'requirements-checklist') && (
-                <div className="bg-linear-to-br from-blue-50 to-white p-6 rounded-xl shadow border border-blue-100 hover:shadow-lg transition-all duration-300 group cursor-pointer" onClick={() => openReport('requirements')}>
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-600 transition-colors duration-300">
-                            <ClipboardList className="w-8 h-8 text-blue-600 group-hover:text-white" />
+                <div className="bg-linear-to-br from-blue-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-blue-100 dark:border-slate-800 flex flex-col justify-between hover:border-blue-500/50 transition-all duration-200 group cursor-pointer" onClick={() => openReport('requirements')}>
+                    <div>
+                        <div className="flex items-start justify-between mb-2">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-950/80 rounded-lg group-hover:bg-blue-600 transition-colors duration-300">
+                                <ClipboardList className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-white" />
+                            </div>
+                            <span className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[8px] font-bold px-2 py-0.5 rounded">Advisory Class</span>
                         </div>
-                        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">Advisory Class</span>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Checklist of Requirements</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
+                            Track submissions of Learner's Report Card (SF9), Birth Certificate (PSA), and other essential DepEd requirements.
+                        </p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Checklist of Requirements</h3>
-                    <p className="text-gray-600 mb-6 text-sm">
-                        Track submissions of Learner's Report Card (SF9), Birth Certificate (PSA), and other essential DepEd requirements.
-                    </p>
-                    <button className="w-full py-3 rounded-lg border border-blue-250 text-blue-600 hover:bg-blue-600 hover:text-white hover:border-transparent transition-all font-medium flex items-center justify-center gap-2">
-                        Open Tracker <ArrowRight className="w-4 h-4" />
+                    <button className="w-full py-1.5 mt-2 rounded-lg border border-blue-200 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        Open Tracker <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
                 )}

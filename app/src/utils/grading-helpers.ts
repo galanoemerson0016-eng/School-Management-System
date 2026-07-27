@@ -347,9 +347,24 @@ export function getStudentAbsences(
     else monthsToInclude = ['june', 'july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april'];
 
     const monthsWithSF2 = new Set<string>();
+    const isAbsentStatus = (st?: string | number) => {
+        if (st == null) return false;
+        const s = st.toString().toLowerCase().trim();
+        return s === 'absent' || s === 'excused' || s === 'x' || s === 'a' || s === 'abs' || s === 'ab' || s === 'unexcused';
+    };
+
+    const targetLRN = (studentLrn || '').toString().trim().toLowerCase();
+    const normalizeToken = (v?: string | number) => (v ?? '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const targetSectionToken = normalizeToken(sectionId);
 
     // 1. Check SF2Sheets
-    const sheets = sf2Sheets.filter(s => s.section_id === sectionId && s.school_year === schoolYear);
+    const sheets = sf2Sheets.filter(s => {
+        if (s.school_year && schoolYear && s.school_year !== schoolYear && !s.school_year.includes(schoolYear) && !schoolYear.includes(s.school_year)) return false;
+        if (!targetSectionToken) return true;
+        const sheetTokens = [normalizeToken(s.section_id), normalizeToken(s.id)];
+        return sheetTokens.some(st => st === targetSectionToken || st.includes(targetSectionToken) || targetSectionToken.includes(st));
+    });
+
     sheets.forEach(sheet => {
         const m = sheet.month.toLowerCase();
         const matchesTerm = monthsToInclude.some(mi => mi.startsWith(m) || m.startsWith(mi));
@@ -357,29 +372,36 @@ export function getStudentAbsences(
 
         monthsWithSF2.add(m);
 
-        const studentAttendance = sheet.attendance[studentLrn];
+        const attendanceKeys = Object.keys(sheet.attendance || {});
+        const matchedKey = attendanceKeys.find(k => k.toString().trim().toLowerCase() === targetLRN);
+        const studentAttendance = matchedKey ? sheet.attendance[matchedKey] : {};
+
         if (studentAttendance) {
             const hasDateLabels = sheet.date_labels && Object.keys(sheet.date_labels).length > 0;
             if (hasDateLabels) {
-                // Iterate through valid columns defined in date_labels to avoid counting empty space or double counting
                 Object.keys(sheet.date_labels).forEach(colKeyStr => {
                     const colKey = Number(colKeyStr);
                     const dateVal = sheet.date_labels[colKey];
                     if (dateVal && dateVal.trim() !== '') {
-                        const dateKey = `date_${dateVal.trim()}`;
-                        const status = studentAttendance[dateKey] !== undefined 
-                            ? studentAttendance[dateKey] 
-                            : (studentAttendance[colKey] !== undefined ? studentAttendance[colKey] : studentAttendance[colKeyStr]);
+                        const dayNumStr = dateVal.trim();
+                        const dayNum = Number(dayNumStr);
+                        const paddedDay = !isNaN(dayNum) ? String(dayNum).padStart(2, '0') : dayNumStr;
+
+                        const status = studentAttendance[`date_${dayNumStr}`]
+                            ?? studentAttendance[`date_${paddedDay}`]
+                            ?? studentAttendance[dayNumStr]
+                            ?? studentAttendance[paddedDay]
+                            ?? studentAttendance[colKey]
+                            ?? studentAttendance[colKeyStr];
                         
-                        if (status === 'absent') {
+                        if (isAbsentStatus(status)) {
                             count++;
                         }
                     }
                 });
             } else {
-                // Legacy / Test fallback: count all "absent" values in the record
                 Object.values(studentAttendance).forEach(status => {
-                    if (status === 'absent') {
+                    if (isAbsentStatus(status)) {
                         count++;
                     }
                 });
@@ -388,7 +410,9 @@ export function getStudentAbsences(
     });
 
     // 2. Also check individual attendanceRecords for months that DO NOT have an SF2 sheet yet
-    const records = attendanceRecords.filter(r => r.student_lrn === studentLrn && r.status === 'absent');
+    const records = attendanceRecords.filter(r => 
+        r.student_lrn.toString().trim().toLowerCase() === targetLRN && isAbsentStatus(r.status)
+    );
     records.forEach(r => {
         const dateObj = new Date(r.date);
         const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();

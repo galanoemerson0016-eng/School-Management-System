@@ -29,7 +29,8 @@ export type AppView =
     | 'lir'
     | 'tgs'
     | 'student-id-generator'
-    | 'games-tools';
+    | 'games-tools'
+    | 'online-generators';
 
 export type SubjectArea =
     | 'English'

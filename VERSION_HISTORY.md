@@ -2,6 +2,33 @@
 
 # Version History
 
+## v2.7.1 (2026-07-27)
+
+### 🚀 New Features & Enhancements
+
+* **Online Generators Hub & Lesson Planners:**
+  * Added dedicated **Online Generators** sidebar page with 34+ DepEd-compliant AI prompt generators, ILAW lesson logs, Matatag weekly logs, and Looker Studio K-12 Lesson Exemplars.
+  * Embedded direct links and interactive template preview/copy generator for all ILAW, MATATAG, 4A's, 7E's, and Trimester lesson logs.
+
+* **Institute Profile & Advisory Roster:**
+  * Added multi-advisory section listing sorted numerically by Grade Level (Kinder -> G12).
+  * Restored featured adviser avatar card and added direct signature upload shortcut.
+
+* **Reports & Analytics Page Redesign:**
+  * Re-architected landing layout into a 4-column compact grid fitting 100% in desktop viewport without vertical scrollbars while preserving card aesthetics.
+
+* **Subjects Page Workflow Banner:**
+  * Upgraded DepEd Curriculum & Subject Management banner to a clean white glassmorphic card compatible with light and dark themes.
+
+### 🐞 Bug Fixes & Refactoring
+
+* **Games & Tools Cleanup:** Streamlined Games & Tools dashboard by moving lesson plan generators into the dedicated Online Generators tab.
+* **Code Quality & Lints:** Resolved TypeScript type errors, unused icon imports, and fixed Tailwind class linter warnings across all updated components.
+
+### 📝 Notes
+
+Backward compatible. No database migration required.
+
 ## v2.7.0 (2026-07-26)
 
 ### 🚀 New Features & Enhancements
