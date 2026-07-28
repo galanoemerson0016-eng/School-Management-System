@@ -2,6 +2,24 @@
 
 # Version History
 
+## v2.7.2 (2026-07-28)
+
+### 🐞 Bug Fixes & Refactoring
+
+* **School Form 2 Navigation:** Fixed School Form 2 button in School Forms page redirecting to Dashboard instead of Attendance page.
+* **Student Information & Modal Scroll Fix:** Resolved fixed backdrop overlay clipping and scrolling issues in Student Information page and Add Learner modal.
+* **Age Alert Badge Removal:** Stripped out outdated age warning calculation, badge markup, and unused `AlertTriangle` imports from Learner records.
+
+### ⚡ Improvements & Enhancements
+
+* **Online Generators & Lesson Planners Interactivity:**
+  * Assigned valid URLs and interactive template launchers to all 34+ DepEd generator cards in `OnlineGeneratorsPage.tsx` and `LessonPlannerTemplates.tsx`.
+  * Added **"Use Template"** primary launcher button alongside **"Copy Template Outline"** quick action with clipboard toast feedback.
+
+### 📝 Notes
+
+Backward compatible. Bug fix and template interactivity patch.
+
 ## v2.7.1 (2026-07-27)
 
 ### 🚀 New Features & Enhancements

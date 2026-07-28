@@ -15,7 +15,7 @@ import type { Section, Student } from '../types';
 import { StudentForm } from '../components/students/StudentForm';
 import { StudentProfilePrintModal } from '../components/students/StudentProfilePrintModal';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles, Printer, LayoutGrid, List, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, Search, MapPin, Edit3, Trash, ChevronRight, ChevronLeft, Download, RotateCcw, FileSpreadsheet, BookOpen, School, Sparkles, Printer, LayoutGrid, List } from 'lucide-react';
 import { exportToCSV } from '../utils/csv-export';
 import { parseSF1 } from '../utils/sf1-parser';
 import { downloadEnrollmentTemplate, parseEnrollmentTemplate } from '../utils/enrollment-template';
@@ -481,26 +481,11 @@ export function StudentsPage() {
                     accessorFn: (row) => `${row.last_name}, ${row.first_name} ${row.middle_name ? row.middle_name.charAt(0) + '.' : ''}`,
                     cell: (info) => {
                         const student = info.row.original;
-                        const isAgeInvalid = student.age && student.grade_level && (
-                            () => {
-                                const num = parseInt(student.grade_level.replace(/\D/g, '')) || 0;
-                                if (num === 0) return false;
-                                return student.age < num + 5 || student.age > num + 8;
-                            }
-                        )();
                         const isLrnInvalid = student.lrn && !/^\d{12}$/.test(student.lrn) && !student.lrn.startsWith('TEMP-');
                         
                         return (
                             <div className="flex items-center gap-2">
                                 <span className="font-bold text-gray-800 uppercase">{info.getValue() as string}</span>
-                                {isAgeInvalid && (
-                                    <span 
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-200 text-[9px] font-bold uppercase tracking-wider"
-                                        title={`Age (${student.age}) is unusual for ${student.grade_level}`}
-                                    >
-                                        <AlertTriangle className="w-3 h-3 text-amber-500" /> Age Alert
-                                    </span>
-                                )}
                                 {isLrnInvalid && (
                                     <span 
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold uppercase tracking-wider"
@@ -659,9 +644,9 @@ export function StudentsPage() {
     }, [officialSections]);
 
     return (
-        <div className="space-y-6 pb-8 relative min-h-[80vh] overflow-hidden">
+        <div className="space-y-6 pb-8 relative min-h-[80vh]">
             {/* School Logo Background Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none z-0">
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none select-none z-0 overflow-hidden">
                 <img 
                     src={schoolProfile?.logo_url || `${import.meta.env.BASE_URL}school-logo.png`} 
                     className="w-160 h-160 max-w-none object-contain grayscale scale-125 -rotate-6"
@@ -1477,27 +1462,12 @@ export function StudentsPage() {
 
             <AnimatePresence>
                 {isModalOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                        onClick={handleCloseModal}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <StudentForm
-                                student={editingStudent}
-                                onClose={handleCloseModal}
-                                initialData={formDataForModal}
-                                isSimplified={isSimplifiedMode}
-                            />
-                        </motion.div>
-                    </motion.div>
+                    <StudentForm
+                        student={editingStudent}
+                        onClose={handleCloseModal}
+                        initialData={formDataForModal}
+                        isSimplified={isSimplifiedMode}
+                    />
                 )}
             </AnimatePresence>
 

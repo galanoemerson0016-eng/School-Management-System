@@ -310,7 +310,7 @@ export function SchoolFormsPage() {
         if (!user) return;
         if (id === 'attendance') {
             void pushActivity('attendance', 'Opened SF2 Attendance', 'Navigated to SF2 Daily Attendance module', user.uid);
-            setCurrentView('daily_attendance');
+            setCurrentView('attendance');
         } else if (id === 'sf5') {
             void pushActivity('sf5', 'Opened SF5 Report', 'Navigated to SF5 Report on Promotion module', user.uid);
             setCurrentView('sf5');
