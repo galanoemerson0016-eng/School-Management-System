@@ -13,8 +13,15 @@ export function TemporaryGradeSlipPage() {
     const [zoom, setZoom] = useState(1);
 
     const sortedSections = useMemo(() => {
-        const advisory = sections.filter(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
-        return [...advisory].sort((a, b) => {
+        if (!sections || sections.length === 0) return [];
+        // Return all sections sorted by grade level and section name, prioritizing advisory classes
+        return [...sections].sort((a, b) => {
+            const aIsAdv = a.is_advisory || (a as Section & { is_advisory_class?: boolean }).is_advisory_class;
+            const bIsAdv = b.is_advisory || (b as Section & { is_advisory_class?: boolean }).is_advisory_class;
+            
+            if (aIsAdv && !bIsAdv) return -1;
+            if (!aIsAdv && bIsAdv) return 1;
+
             const glCompare = (a.section_grade_level || '').localeCompare(b.section_grade_level || '', undefined, { numeric: true });
             if (glCompare !== 0) return glCompare;
             return (a.section_name || '').localeCompare(b.section_name || '');
@@ -237,17 +244,27 @@ export function TemporaryGradeSlipPage() {
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div>
-                        <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Temporary Grade Slip</h2>
-                        <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">
-                            {selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : 'Student Resource Tool'}
-                        </p>
-                    </div>
-
-                    <div className="h-8 w-px bg-slate-200 mx-2" />
 
                     <div className="flex items-center gap-3">
-                        {/* Advisory class loaded automatically */}
+                        {/* Section Selection Dropdown */}
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:inline-block">Section:</label>
+                            <select 
+                                className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer min-w-55"
+                                value={selectedSection}
+                                onChange={(e) => setSelectedSection(e.target.value)}
+                            >
+                                {sortedSections.length === 0 ? (
+                                    <option value="">No sections available</option>
+                                ) : (
+                                    sortedSections.map(sec => (
+                                        <option key={sec.id || sec.section_name} value={sec.section_name}>
+                                            {sec.section_grade_level} - {sec.section_name}
+                                        </option>
+                                    ))
+                                )}
+                            </select>
+                        </div>
 
                         <select 
                             className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer"

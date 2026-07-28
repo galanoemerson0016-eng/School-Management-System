@@ -2,6 +2,21 @@
 
 # Version History
 
+## v2.7.4 (2026-07-28)
+
+### 🐞 Bug Fixes & Refactoring
+
+* **Grade Slips Section Selector:**
+  * Added Section selection dropdown in Temporary Grade Slip toolbar enabling teachers to browse and print grade slips for any section in the school.
+  * Prioritized advisory classes at the top of the dropdown list.
+* **Toolbar UI Cleanup:**
+  * Removed redundant header title and subtitle text to declutter the toolbar.
+  * Resolved Tailwind class linter warning by converting `min-w-[220px]` to standard `min-w-55`.
+
+### 📝 Notes
+
+Backward compatible. Temporary Grade Slip module enhancement release.
+
 ## v2.7.3 (2026-07-28)
 
 ### 🚀 New Features & Enhancements
