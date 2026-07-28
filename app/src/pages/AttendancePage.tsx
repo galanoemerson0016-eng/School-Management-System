@@ -1362,7 +1362,7 @@ export function AttendancePage() {
                     );
                 })}
                 <th className={`border border-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>ABSENT</th>
-                <th className={`border border-black border-r-2 border-r-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>TARDY</th>
+                <th className={`border border-black border-r-2 border-r-black bg-slate-50 font-black text-black px-0 py-0.5 ${layoutConfig.absentPresentHeaderSize}`}>PRESENT</th>
             </tr>
         </thead>
     );
@@ -1410,7 +1410,7 @@ export function AttendancePage() {
                 );
             })}
             <td className={`border border-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'absent')}</td>
-            <td className={`border border-black border-r-2 border-r-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'tardy')}</td>
+            <td className={`border border-black border-r-2 border-r-black text-center font-black text-black bg-slate-50/50 ${layoutConfig.studentNameSize}`}>{countStats(student.lrn, 'present')}</td>
             <td className={`border border-black px-1 text-left align-middle ${layoutConfig.tableTextSize}`}>
                 <DebouncedInput
                     type="text"

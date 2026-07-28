@@ -209,11 +209,13 @@ export function exportSF2ToExcel(options: {
     dayLetterHeaderRow.push(daysPattern[(col - 1) % daysPattern.length]);
   }
 
-  dateHeaderRow.push('ABSENT', 'TARDY', 'REMARKS');
+  dateHeaderRow.push('ABSENT', 'PRESENT', 'REMARKS');
   dayLetterHeaderRow.push('', '', '');
 
   aoa.push(dateHeaderRow);
   aoa.push(dayLetterHeaderRow);
+
+  const filledDaysCount = Object.values(monthDateLabels).filter(v => v && v.trim()).length;
 
   // Student Helper
   const addStudentRows = (list: Student[], genderLabel: string) => {
@@ -224,7 +226,6 @@ export function exportSF2ToExcel(options: {
       const rowData: (string | number)[] = [idx + 1, nameStr];
 
       let absent = 0;
-      let tardy = 0;
 
       for (let col = 1; col <= totalColumns; col++) {
         const dateVal = monthDateLabels[col];
@@ -235,14 +236,14 @@ export function exportSF2ToExcel(options: {
           absent++;
           rowData.push('X');
         } else if (status === 'tardy' || status === 'tardy-upper' || status === 'tardy-lower' || status === 'cutting') {
-          tardy++;
           rowData.push('T');
         } else {
           rowData.push('');
         }
       }
 
-      rowData.push(absent, tardy, remarksData[s.lrn] || '');
+      const present = Math.max(0, filledDaysCount - absent);
+      rowData.push(absent, present, remarksData[s.lrn] || '');
       aoa.push(rowData);
     });
   };

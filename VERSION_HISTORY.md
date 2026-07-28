@@ -2,6 +2,19 @@
 
 # Version History
 
+## v2.7.5 (2026-07-28)
+
+### 🐞 Bug Fixes & Refactoring
+
+* **SF2 Summary Columns & Header Alignment:**
+  * Restored summary column 2 header in School Form 2 (Daily Attendance) from `TARDY` back to `PRESENT`.
+  * Synchronized student row totals to display total Present days (`countStats(student.lrn, 'present')`), matching the Male/Female/Combined total rows.
+  * Synchronized Excel export headers (`ABSENT`, `PRESENT`, `REMARKS`) and calculated learner present counts.
+
+### 📝 Notes
+
+Backward compatible. SF2 Daily Attendance summary headers and Excel sync patch release.
+
 ## v2.7.4 (2026-07-28)
 
 ### 🐞 Bug Fixes & Refactoring
