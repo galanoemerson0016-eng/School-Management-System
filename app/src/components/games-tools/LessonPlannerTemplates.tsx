@@ -39,7 +39,7 @@ export function LessonPlannerTemplates({
             badge: 'Daily ILAW',
             badgeColor: 'amber',
             description: 'ILAW-based Daily Lesson Log with individual sections for each instructional day of the week.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/4c7a51091c42'
           },
           {
             id: 'dll_ilaw_daily_selectable',
@@ -47,7 +47,7 @@ export function LessonPlannerTemplates({
             badge: 'Daily ILAW',
             badgeColor: 'amber',
             description: 'ILAW-based Daily Lesson Log with selectable Lesson Flow elements and individual sections for each day.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/5bcb25b0daa3'
           },
           {
             id: 'dlp_ilaw_2',
@@ -99,7 +99,7 @@ export function LessonPlannerTemplates({
             badge: 'Weekly ILAW',
             badgeColor: 'teal',
             description: 'ILAW-structured weekly Daily Lesson Log consolidating all instructional days in a single view.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/bcac87affd11'
           },
           {
             id: 'dll_ilaw_weekly_selectable',
@@ -107,7 +107,7 @@ export function LessonPlannerTemplates({
             badge: 'Weekly ILAW',
             badgeColor: 'slate',
             description: 'ILAW-structured weekly Daily Lesson Log consolidating all instructional days with selectable Lesson Flow.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/b213e0a2aefb'
           }
         ];
 
@@ -119,7 +119,7 @@ export function LessonPlannerTemplates({
             badge: 'Semi-Detailed ILAW',
             badgeColor: 'fuchsia',
             description: 'A streamlined lesson planner focusing on Intentions (I), Learning Experiences (L), Assessment (A), and Ways Forward (W).',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/8d696fc086ec'
           }
         ];
 
@@ -259,7 +259,7 @@ export function LessonPlannerTemplates({
             badge: 'Trimester',
             badgeColor: 'slate',
             description: 'Comprehensive semi-detailed planner designed for schools following a trimester academic calendar.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/9a7491b432ca'
           },
           {
             id: 'dll_trimester_weekly',
@@ -267,7 +267,7 @@ export function LessonPlannerTemplates({
             badge: 'Trimester',
             badgeColor: 'slate',
             description: 'Efficient weekly Daily Lesson Log format optimized for trimester schedules.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/d8c230ab537a'
           },
           {
             id: 'dll_trimester_daily',
@@ -275,7 +275,7 @@ export function LessonPlannerTemplates({
             badge: 'Trimester',
             badgeColor: 'slate',
             description: 'Detailed Daily Lesson Log format with distinct sections for each instructional day.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/ffd12f51f1f3'
           }
         ];
 
@@ -288,7 +288,7 @@ export function LessonPlannerTemplates({
             badge: 'Comprehensive',
             badgeColor: 'slate',
             description: 'Full script format covering teacher\'s activity and student\'s expected response.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/f98c14afc2e9'
           },
           {
             id: 'dlp_4a',
@@ -296,7 +296,7 @@ export function LessonPlannerTemplates({
             badge: '4A\'s Expert',
             badgeColor: 'purple',
             description: 'Deep dive into the 4A\'s with specific prompts for each stage.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/e4c200369e65'
           },
           {
             id: 'dlp_matatag',
@@ -304,7 +304,7 @@ export function LessonPlannerTemplates({
             badge: 'New Matatag',
             badgeColor: 'blue',
             description: 'Detailed script aligned with the new Matatag curriculum structure.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/658da4b65b61'
           },
           {
             id: 'dlp_7e',
@@ -312,7 +312,7 @@ export function LessonPlannerTemplates({
             badge: '7E Cycle',
             badgeColor: 'emerald',
             description: 'Inquiry-based model: Elicit, Engage, Explore, Explain, Elaborate, Evaluate, Extend.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/7fa907ce9a59'
           },
           {
             id: 'dlp_annotated',
@@ -320,7 +320,15 @@ export function LessonPlannerTemplates({
             badge: 'With Notes',
             badgeColor: 'amber',
             description: 'Includes side-columns for teacher annotations and post-lesson reflections.',
-            url: 'https://gemini.google.com/'
+            url: 'https://gemini.google.com/share/4560eeb21b7f'
+          },
+          {
+            id: 'dlp_exemplar',
+            title: 'Daily Lesson Log (DLL) + Exemplar',
+            badge: 'DLL + Exemplar',
+            badgeColor: 'blue',
+            description: 'One-day DLL format with integrated lesson exemplar upload for streamlined daily preparation.',
+            url: 'https://gemini.google.com/share/3bc0dd129f42'
           }
         ];
     }

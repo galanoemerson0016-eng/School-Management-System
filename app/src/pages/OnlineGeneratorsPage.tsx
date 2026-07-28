@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Sparkles, BookOpen, ExternalLink, Search, Bot, Monitor, Copy, Check
+  Sparkles, ExternalLink, Search, Bot, Monitor, Copy, Check
 } from 'lucide-react';
 import { LessonPlannerTemplates } from '../components/games-tools/LessonPlannerTemplates';
 
@@ -32,7 +32,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Daily ILAW',
     badgeColor: 'amber',
     description: 'ILAW-based Daily Lesson Log with individual sections for each instructional day of the week.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/4c7a51091c42',
     category: 'daily-ilaw'
   },
   {
@@ -41,7 +41,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Daily ILAW',
     badgeColor: 'amber',
     description: 'ILAW-based Daily Lesson Log with selectable Lesson Flow elements and individual sections for each day.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/5bcb25b0daa3',
     category: 'daily-ilaw'
   },
   {
@@ -96,7 +96,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Weekly ILAW',
     badgeColor: 'teal',
     description: 'ILAW-structured weekly Daily Lesson Log consolidating all instructional days in a single view.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/bcac87affd11',
     category: 'weekly-ilaw'
   },
   {
@@ -105,7 +105,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Weekly ILAW',
     badgeColor: 'slate',
     description: 'ILAW-structured weekly Daily Lesson Log consolidating all instructional days with selectable Lesson Flow.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/b213e0a2aefb',
     category: 'weekly-ilaw'
   },
   // SEMI-DETAILED (ILAW)
@@ -115,7 +115,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Semi-Detailed ILAW',
     badgeColor: 'fuchsia',
     description: 'A streamlined lesson planner focusing on Intentions (I), Learning Experiences (L), Assessment (A), and Ways Forward (W).',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/8d696fc086ec',
     category: 'semi-ilaw'
   },
   // WEEKLY LESSON PLANNER
@@ -262,7 +262,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Trimester',
     badgeColor: 'slate',
     description: 'Comprehensive semi-detailed planner designed for schools following a trimester academic calendar.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/9a7491b432ca',
     category: 'trimester'
   },
   {
@@ -271,7 +271,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Trimester',
     badgeColor: 'slate',
     description: 'Efficient weekly Daily Lesson Log format optimized for trimester schedules.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/d8c230ab537a',
     category: 'trimester'
   },
   {
@@ -280,7 +280,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Trimester',
     badgeColor: 'slate',
     description: 'Detailed Daily Lesson Log format with distinct sections for each instructional day.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/ffd12f51f1f3',
     category: 'trimester'
   },
   // DETAILED LESSON PLANNER
@@ -290,7 +290,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'Comprehensive',
     badgeColor: 'slate',
     description: 'Full script format covering teacher\'s activity and student\'s expected response.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/f98c14afc2e9',
     category: 'detailed'
   },
   {
@@ -299,7 +299,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: '4A\'s Expert',
     badgeColor: 'purple',
     description: 'Deep dive into the 4A\'s with specific prompts for each stage.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/e4c200369e65',
     category: 'detailed'
   },
   {
@@ -308,7 +308,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'New Matatag',
     badgeColor: 'blue',
     description: 'Detailed script aligned with the new Matatag curriculum structure.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/658da4b65b61',
     category: 'detailed'
   },
   {
@@ -317,7 +317,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: '7E Cycle',
     badgeColor: 'green',
     description: 'Inquiry-based model: Elicit, Engage, Explore, Explain, Elaborate, Evaluate, Extend.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/7fa907ce9a59',
     category: 'detailed'
   },
   {
@@ -326,7 +326,16 @@ const ALL_GENERATORS: GeneratorCard[] = [
     badge: 'With Notes',
     badgeColor: 'amber',
     description: 'Includes side-columns for teacher annotations and post-lesson reflections.',
-    url: 'https://gemini.google.com/',
+    url: 'https://gemini.google.com/share/4560eeb21b7f',
+    category: 'detailed'
+  },
+  {
+    id: 'dlp_exemplar',
+    title: 'Daily Lesson Log (DLL) + Exemplar',
+    badge: 'DLL + Exemplar',
+    badgeColor: 'blue',
+    description: 'One-day DLL format with integrated lesson exemplar upload for streamlined daily preparation.',
+    url: 'https://gemini.google.com/share/3bc0dd129f42',
     category: 'detailed'
   }
 ];

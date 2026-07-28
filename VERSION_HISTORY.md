@@ -2,6 +2,22 @@
 
 # Version History
 
+## v2.7.3 (2026-07-28)
+
+### 🚀 New Features & Enhancements
+
+* **100% Decoded Gemini Hyperlinks Integration:**
+  * Updated all 35 DepEd-compliant AI prompt generators and lesson log templates with exact decoded Gemini share links across all 8 Planner categories (*Daily ILAW, Weekly ILAW, Semi-Detailed ILAW, Weekly Planner, Semi-Detailed Planner, Trimester Planner, Detailed Planner, Looker Studio*).
+  * Added 35th template card: **Daily Lesson Log (DLL) + Exemplar** (`https://gemini.google.com/share/3bc0dd129f42`).
+
+### 🐞 Bug Fixes & Refactoring
+
+* **Linter & Code Quality:** Resolved unused `BookOpen` import error in `OnlineGeneratorsPage.tsx`.
+
+### 📝 Notes
+
+Backward compatible. Decoded hyperlink patch release.
+
 ## v2.7.2 (2026-07-28)
 
 ### 🐞 Bug Fixes & Refactoring
