@@ -2,6 +2,18 @@
 
 # Version History
 
+## v2.7.6 (2026-07-28)
+
+### 🚀 New Features & Enhancements
+
+* **Post-Update Version Description Display:**
+  * Embedded dedicated **Version Description (What's New in vX.X.X)** section inside the post-update **Data Reconciliation Report** modal.
+  * Preserved target release notes through pre-update system state serialization to ensure release details display seamlessly after system restarts.
+
+### 📝 Notes
+
+Backward compatible. Reconciliation report UX enhancement release.
+
 ## v2.7.5 (2026-07-28)
 
 ### 🐞 Bug Fixes & Refactoring

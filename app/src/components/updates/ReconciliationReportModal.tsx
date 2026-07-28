@@ -1,5 +1,5 @@
 import { useUpdateStore } from '../../stores/update-store';
-import { ShieldCheck, ShieldAlert, ArrowLeftRight, Check, X, Undo2 } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ArrowLeftRight, Check, X, Undo2, Sparkles } from 'lucide-react';
 
 export function ReconciliationReportModal() {
   const { reconciliationReport, clearReconciliationReport, rollbackToPreUpdateBackup } = useUpdateStore();
@@ -36,6 +36,21 @@ export function ReconciliationReportModal() {
               Checked at: {new Date(reconciliationReport.timestamp).toLocaleString()}
             </p>
           </div>
+
+          {/* Version Description / Release Notes */}
+          {reconciliationReport.notes && reconciliationReport.notes.length > 0 && (
+            <div className="bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 space-y-2 text-left">
+              <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Version Description (What's New in v{reconciliationReport.toVersion})
+              </h4>
+              <ul className="text-xs text-slate-700 dark:text-gray-300 space-y-1 list-disc list-inside font-medium leading-relaxed">
+                {reconciliationReport.notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Table counts list */}
           <div className="space-y-2.5">

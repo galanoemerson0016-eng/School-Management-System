@@ -13,6 +13,7 @@ export interface UpdateChecklist {
 export interface ReconciliationReport {
   fromVersion: string;
   toVersion: string;
+  notes?: string[];
   timestamp: number;
   backupFilename?: string;
   status: 'success' | 'mismatch';
@@ -303,6 +304,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
+          notes: get().updateInfo?.notes || [],
           timestamp: Date.now(),
           backupFilename,
           counts
@@ -372,6 +374,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         const report: ReconciliationReport = {
           fromVersion: preState.fromVersion,
           toVersion: preState.toVersion,
+          notes: preState.notes || [],
           timestamp: preState.timestamp,
           backupFilename: preState.backupFilename,
           status: hasMismatch ? 'mismatch' : 'success',
