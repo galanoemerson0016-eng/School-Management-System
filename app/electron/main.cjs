@@ -330,7 +330,9 @@ if (autoUpdater) {
   ipcMain.on('quit-and-install', () => {
     if (autoUpdater) {
       isQuitting = true;
-      autoUpdater.quitAndInstall();
+      setImmediate(() => {
+        autoUpdater.quitAndInstall(false, true);
+      });
     }
   });
 }
