@@ -472,7 +472,7 @@ export function StudentsPage() {
                     cell: (info: { getValue: () => unknown }) => {
                         const val = info.getValue() as string;
                         const displayVal = (val && val.startsWith('TEMP-')) ? '' : val;
-                        return <span className="font-mono text-xs text-gray-500">{displayVal}</span>;
+                        return <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{displayVal}</span>;
                     },
                 }] : []),
                 {
@@ -485,10 +485,10 @@ export function StudentsPage() {
                         
                         return (
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-gray-800 uppercase">{info.getValue() as string}</span>
+                                <span className="font-bold text-gray-800 dark:text-white uppercase">{info.getValue() as string}</span>
                                 {isLrnInvalid && (
                                     <span 
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold uppercase tracking-wider"
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 text-[9px] font-bold uppercase tracking-wider"
                                         title="LRN must be exactly 12 digits"
                                     >
                                         Invalid LRN
@@ -504,7 +504,7 @@ export function StudentsPage() {
                     cell: (info) => {
                         const gender = info.getValue() as string;
                         return (
-                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${gender === 'Male' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'}`}>
                                 {gender}
                             </span>
                         );
@@ -515,11 +515,11 @@ export function StudentsPage() {
                     header: 'Birthday',
                     cell: (info: { getValue: () => unknown }) => {
                         const dateStr = info.getValue() as string;
-                        if (!dateStr) return <span className="text-gray-300 italic text-xs">N/A</span>;
+                        if (!dateStr) return <span className="text-gray-300 dark:text-slate-600 italic text-xs">N/A</span>;
                         const parts = dateStr.split('-');
                         if (parts.length === 3) {
                             const [y, m, d] = parts;
-                            return <span className="font-mono text-xs text-gray-600">{`${m}/${d}/${y}`}</span>;
+                            return <span className="font-mono text-xs text-gray-600 dark:text-slate-300">{`${m}/${d}/${y}`}</span>;
                         }
                         return dateStr;
                     },
@@ -659,16 +659,16 @@ export function StudentsPage() {
             {/* Header */}
             {/* Redesigned Compact Header & Action Row - Rendered only in section_detail mode */}
             {viewMode === 'section_detail' && (
-                <div className="flex flex-wrap items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs relative z-10">
+                <div className="flex flex-wrap items-center justify-between gap-4 bg-white/70 dark:bg-[#0d1225]/80 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 p-3 rounded-2xl shadow-2xs relative z-10">
                     <div className="flex flex-wrap items-center gap-3.5">
                         <div className="flex items-center gap-2.5">
-                            <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                            <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
                                 {selectedSectionDisplayName}
                             </h2>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[8px] font-black rounded-md uppercase tracking-wider border border-slate-200/50">
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[8px] font-black rounded-md uppercase tracking-wider border border-slate-200/50 dark:border-white/5">
                                 {selectedSectionGradeDisplay}
                             </span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none border-l border-slate-200/80 pl-3">
+                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest leading-none border-l border-slate-200/80 dark:border-white/10 pl-3">
                                 Adviser: {selectedSectionAdviser}
                             </span>
                         </div>
@@ -678,7 +678,7 @@ export function StudentsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             onClick={() => setViewMode('overview')}
-                            className="h-9 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
                             <ChevronLeft className="w-3.5 h-3.5" />
                             Back
@@ -686,7 +686,7 @@ export function StudentsPage() {
 
                         <button
                             onClick={handleExportStudents}
-                            className="h-9 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white font-bold text-xs shadow-3xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
                             <Download className="w-3.5 h-3.5" />
                             Export CSV
@@ -703,7 +703,7 @@ export function StudentsPage() {
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isImporting}
-                                className="h-9 px-3.5 bg-white text-emerald-600 border border-emerald-200 rounded-xl font-bold text-xs hover:bg-emerald-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                                className="h-9 px-3.5 bg-white dark:bg-white/5 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-xl font-bold text-xs hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all flex items-center gap-1.5 cursor-pointer"
                             >
                                 <FileSpreadsheet className="w-3.5 h-3.5" />
                                 {isImporting ? 'Importing...' : 'Import SF1'}
@@ -714,7 +714,7 @@ export function StudentsPage() {
                             <>
                                 <button
                                     onClick={handleDownloadTemplate}
-                                    className="h-9 px-3.5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold text-xs hover:bg-blue-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    className="h-9 px-3.5 bg-white dark:bg-white/5 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 rounded-xl font-bold text-xs hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <Download className="w-3.5 h-3.5" />
                                     Download Template
@@ -730,7 +730,7 @@ export function StudentsPage() {
                                 <button
                                     onClick={() => templateInputRef.current?.click()}
                                     disabled={isImporting}
-                                    className="h-9 px-3.5 bg-white text-indigo-600 border border-indigo-200 rounded-xl font-bold text-xs hover:bg-indigo-50 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    className="h-9 px-3.5 bg-white dark:bg-white/5 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-xl font-bold text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <FileSpreadsheet className="w-3.5 h-3.5" />
                                     {isImporting ? 'Importing Template...' : 'Import Template'}
@@ -749,7 +749,7 @@ export function StudentsPage() {
                                         });
                                     }
                                 }}
-                                className="h-9 px-3 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl font-bold text-xs hover:bg-rose-100 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                className="h-9 px-3 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 rounded-xl font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                                 title="Delete All Students in Section"
                             >
                                 <Trash className="w-3.5 h-3.5" />
@@ -772,7 +772,7 @@ export function StudentsPage() {
                                     }
                                     setIsModalOpen(true);
                                 }}
-                                className="h-9 px-4 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
+                                className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
                             >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 Add Learner
@@ -792,9 +792,9 @@ export function StudentsPage() {
                         exit="exit"
                         className="space-y-8 relative z-10"
                     >
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2.5 rounded-3xl border border-slate-200/80 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.02)]">
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-[#0d1225] p-2.5 rounded-3xl border border-slate-200/80 dark:border-white/10 shadow-[0_8px_30px_-6px_rgba(0,0,0,0.02)]">
                             {/* Segmented Capsule Toggles (Left aligned) */}
-                            <div className="flex bg-slate-100/90 p-1 rounded-2xl border border-slate-200/40 relative max-w-full overflow-x-auto scrollbar-none shrink-0">
+                            <div className="flex bg-slate-100/90 dark:bg-white/5 p-1 rounded-2xl border border-slate-200/40 dark:border-white/5 relative max-w-full overflow-x-auto scrollbar-none shrink-0">
                                 {/* All Levels button */}
                                 <button 
                                     onClick={() => {
@@ -802,14 +802,14 @@ export function StudentsPage() {
                                         setOverviewSearch('');
                                     }}
                                     className={`relative px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap ${
-                                        activeCategory === null ? 'text-white' : 'text-slate-500 hover:text-slate-800'
+                                        activeCategory === null ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                                     }`}
                                 >
                                     {activeCategory === null && (
                                         <motion.div 
                                             layoutId="active-student-segment"
                                             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                                            className="absolute inset-0 rounded-xl shadow-md bg-[#527083] -z-10"
+                                            className="absolute inset-0 rounded-xl shadow-md bg-[#527083] dark:bg-blue-600 -z-10"
                                         />
                                     )}
                                     All Levels
@@ -827,14 +827,14 @@ export function StudentsPage() {
                                                 setOverviewSearch('');
                                             }}
                                             className={`relative px-6 py-2.5 text-xs font-black rounded-xl transition-all duration-300 z-10 select-none cursor-pointer whitespace-nowrap ${
-                                                isActive ? 'text-white' : 'text-slate-500 hover:text-slate-800'
+                                                isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                                             }`}
                                         >
                                             {isActive && (
                                                 <motion.div 
                                                     layoutId="active-student-segment"
                                                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                                                    className="absolute inset-0 rounded-xl shadow-md bg-[#527083] -z-10"
+                                                    className="absolute inset-0 rounded-xl shadow-md bg-[#527083] dark:bg-blue-600 -z-10"
                                                 />
                                             )}
                                             {label}
@@ -846,21 +846,21 @@ export function StudentsPage() {
                             {/* Search (Centered) */}
                             <div className="relative group w-full md:w-80 max-w-md md:mx-auto">
                                 <div className="absolute -inset-0.5 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl blur-xs opacity-5 group-focus-within:opacity-20 transition duration-300" />
-                                <div className="relative bg-slate-50 border border-slate-200/80 p-1 rounded-2xl shadow-2xs transition-all duration-300 flex items-center gap-2 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400">
-                                    <div className="pl-3.5 pr-1 text-slate-400 group-focus-within:text-blue-500 transition-colors flex items-center">
+                                <div className="relative bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 p-1 rounded-2xl shadow-2xs transition-all duration-300 flex items-center gap-2 focus-within:bg-white dark:focus-within:bg-[#070a12] focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-400">
+                                    <div className="pl-3.5 pr-1 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors flex items-center">
                                         <Search className="w-3.5 h-3.5" />
                                     </div>
                                     <input 
                                         type="text" 
                                         placeholder="Search section, adviser..."
-                                        className="w-full bg-transparent border-none py-1.5 pr-3 text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none"
+                                        className="w-full bg-transparent border-none py-1.5 pr-3 text-xs font-bold text-slate-700 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none"
                                         value={overviewSearch}
                                         onChange={(e) => setOverviewSearch(e.target.value)}
                                     />
                                     {overviewSearch.trim() && (
                                         <button 
                                             onClick={() => setOverviewSearch('')}
-                                            className="mr-1.5 px-2 py-1 text-[8px] font-black text-slate-400 hover:text-slate-600 bg-slate-100 rounded-md uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+                                            className="mr-1.5 px-2 py-1 text-[8px] font-black text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 dark:bg-white/10 rounded-md uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
                                         >
                                             Clear
                                         </button>
@@ -872,7 +872,7 @@ export function StudentsPage() {
                             {canAddGlobally && (
                                 <button
                                     onClick={handleAdd}
-                                    className="w-full md:w-auto px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-wider shadow-sm hover:bg-slate-800 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                                    className="w-full md:w-auto px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-black text-[9px] uppercase tracking-wider shadow-sm hover:bg-slate-800 dark:hover:bg-gray-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                                 >
                                     <UserPlus className="w-3.5 h-3.5" />
                                     Add Learner
@@ -897,31 +897,31 @@ export function StudentsPage() {
                                 
                                 <div className="relative z-10 space-y-8 max-w-lg px-8">
                                     <div className="relative">
-                                        <div className="w-28 h-28 bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100 border border-white flex items-center justify-center mx-auto transition-all duration-700 hover:rotate-6 hover:scale-110">
-                                            <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center">
-                                                <School className="w-10 h-10 text-deped-blue/60" />
+                                        <div className="w-28 h-28 bg-white dark:bg-white/10 rounded-[2.5rem] shadow-2xl shadow-blue-100 dark:shadow-none border border-white dark:border-white/10 flex items-center justify-center mx-auto transition-all duration-700 hover:rotate-6 hover:scale-110">
+                                            <div className="w-20 h-20 rounded-3xl bg-blue-50 dark:bg-white/5 flex items-center justify-center">
+                                                <School className="w-10 h-10 text-deped-blue/60 dark:text-blue-400" />
                                             </div>
                                         </div>
-                                        <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-2xl shadow-lg border border-slate-50 flex items-center justify-center animate-bounce-slow">
+                                        <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white dark:bg-[#0d1225] rounded-2xl shadow-lg border border-slate-50 dark:border-white/10 flex items-center justify-center animate-bounce-slow">
                                             <Sparkles className="w-5 h-5 text-amber-400" />
                                         </div>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Ready to manage learners?</h3>
-                                        <p className="text-slate-500 font-medium leading-relaxed">
+                                        <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Ready to manage learners?</h3>
+                                        <p className="text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                                             Click on any of the grade level categories above to explore sections, enroll new students, and manage institutional records.
                                         </p>
                                     </div>
                                     
                                     <div className="pt-6 flex flex-wrap items-center justify-center gap-6">
-                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em] bg-slate-50 dark:bg-white/5 px-4 py-2 rounded-full border border-slate-100 dark:border-white/5">
                                             <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" /> Elementary
                                         </div>
-                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em] bg-slate-50 dark:bg-white/5 px-4 py-2 rounded-full border border-slate-100 dark:border-white/5">
                                             <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" /> Junior High
                                         </div>
-                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                                        <div className="flex items-center gap-2.5 text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em] bg-slate-50 dark:bg-white/5 px-4 py-2 rounded-full border border-slate-100 dark:border-white/5">
                                             <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" /> Senior High
                                         </div>
                                     </div>
@@ -937,10 +937,10 @@ export function StudentsPage() {
                             >
                                 <div className="h-8 w-1.5 bg-deped-blue rounded-full" />
                                 <div>
-                                    <h2 className="text-xl font-black text-gray-800 tracking-tight">
+                                    <h2 className="text-xl font-black text-gray-800 dark:text-white tracking-tight">
                                         {activeCategory ? activeCategory : 'Search Results'}
                                     </h2>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <p className="text-[10px] font-black text-gray-400 dark:text-slate-400 uppercase tracking-widest">
                                         {filteredSectionsList.length} Sections Found
                                     </p>
                                 </div>
@@ -975,24 +975,24 @@ export function StudentsPage() {
                                                 whileHover={!isEmpty ? { y: -4 } : {}}
                                                 whileTap={!isEmpty ? { scale: 0.98 } : {}}
                                                 onClick={() => handleSectionClick(section.id)}
-                                                className={`group relative bg-white rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full ${
+                                                className={`group relative bg-white dark:bg-[#0d1225] rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full ${
                                                     isEmpty 
-                                                        ? 'border-2 border-dashed border-slate-200 opacity-60 hover:opacity-100 hover:border-slate-300' 
-                                                        : 'border border-slate-200 shadow-sm hover:shadow-xl hover:border-deped-blue/30'
+                                                        ? 'border-2 border-dashed border-slate-200 dark:border-white/10 opacity-60 hover:opacity-100 hover:border-slate-300 dark:hover:border-white/20' 
+                                                        : 'border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-xl hover:border-deped-blue/30 dark:hover:border-blue-500/30'
                                                 }`}
                                             >
                                                 {/* Clean Top Header */}
                                                 <div className="p-5 flex-1">
                                                     <div className="flex justify-between items-start gap-4 mb-3">
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">
+                                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 truncate">
                                                                 {section.section_grade_level || 'No Grade'}
                                                             </p>
-                                                            <h4 className={`text-lg font-black tracking-tight leading-tight truncate ${isEmpty ? 'text-slate-500' : 'text-slate-800'}`}>
+                                                            <h4 className={`text-lg font-black tracking-tight leading-tight truncate ${isEmpty ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>
                                                                 {sectionDisplayName}
                                                             </h4>
                                                         </div>
-                                                        <div className={`flex flex-col items-end shrink-0 ${isEmpty ? 'text-slate-400' : 'text-deped-blue'}`}>
+                                                        <div className={`flex flex-col items-end shrink-0 ${isEmpty ? 'text-slate-400 dark:text-slate-500' : 'text-deped-blue dark:text-blue-400'}`}>
                                                             <span className="text-2xl font-black leading-none">{count}</span>
                                                             <span className="text-[9px] uppercase tracking-widest font-bold mt-1">Learners</span>
                                                         </div>
@@ -1001,18 +1001,18 @@ export function StudentsPage() {
                                                     {/* Inline Stats */}
                                                     {!isEmpty ? (
                                                         <div className="space-y-2 mt-4">
-                                                            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                                                                <span className="text-blue-600">{maleCount} M ({malePercent}%)</span>
-                                                                <span className="text-pink-600">{femaleCount} F ({femalePercent}%)</span>
+                                                            <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                                <span className="text-blue-600 dark:text-blue-400">{maleCount} M ({malePercent}%)</span>
+                                                                <span className="text-pink-600 dark:text-pink-400">{femaleCount} F ({femalePercent}%)</span>
                                                             </div>
-                                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                            <div className="h-1.5 w-full bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden flex">
                                                                 <div className="h-full bg-blue-500" style={{ width: `${malePercent}%` }} />
                                                                 <div className="h-full bg-pink-500" style={{ width: `${femalePercent}%` }} />
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="mt-4 py-2 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100">
-                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                        <div className="mt-4 py-2 flex items-center justify-center bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
+                                                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                                                 <Users className="w-3 h-3" /> Awaiting Enrollment
                                                             </span>
                                                         </div>
@@ -1020,14 +1020,14 @@ export function StudentsPage() {
                                                 </div>
 
                                                 {/* Footer Bar */}
-                                                <div className={`px-5 py-3 border-t ${isEmpty ? 'border-slate-100 bg-transparent' : 'border-slate-50 bg-slate-50/50'} flex items-center justify-between`}>
+                                                <div className={`px-5 py-3 border-t ${isEmpty ? 'border-slate-100 dark:border-white/5 bg-transparent' : 'border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-white/5'} flex items-center justify-between`}>
                                                     <div className="flex items-center gap-2 min-w-0">
-                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isEmpty ? 'bg-slate-200 text-slate-400' : 'bg-deped-blue/10 text-deped-blue'}`}>
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isEmpty ? 'bg-slate-200 dark:bg-white/10 text-slate-400 dark:text-slate-500' : 'bg-deped-blue/10 dark:bg-deped-blue/20 text-deped-blue dark:text-blue-400'}`}>
                                                             {section.is_advisory ? <School className="w-3 h-3" /> : <BookOpen className="w-3 h-3" />}
                                                         </div>
                                                         <div className="truncate">
-                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none mb-0.5">{section.is_advisory ? 'Adviser' : 'Teacher'}</p>
-                                                            <p className={`text-xs font-bold truncate ${isEmpty ? 'text-slate-500' : 'text-slate-700'}`}>{adviserDisplayName}</p>
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 leading-none mb-0.5">{section.is_advisory ? 'Adviser' : 'Teacher'}</p>
+                                                            <p className={`text-xs font-bold truncate ${isEmpty ? 'text-slate-500 dark:text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>{adviserDisplayName}</p>
                                                         </div>
                                                     </div>
 
@@ -1040,14 +1040,14 @@ export function StudentsPage() {
                                                                     setFormDataForModal({ grade_level: section.section_grade_level, student_section: section.section_name });
                                                                     setIsModalOpen(true);
                                                                 }}
-                                                                className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 hover:bg-slate-200' : 'text-slate-500 hover:text-deped-blue hover:bg-blue-50'}`}
+                                                                className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-deped-blue dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10'}`}
                                                                 title="Add Learner"
                                                             >
                                                                 <UserPlus className="w-4 h-4" />
                                                             </button>
                                                         )}
                                                         <button 
-                                                            className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 hover:bg-slate-200' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
+                                                            className={`p-1.5 rounded-lg transition-colors ${isEmpty ? 'text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10'}`}
                                                             title="View Class"
                                                         >
                                                             <ChevronRight className="w-4 h-4" />
@@ -1102,9 +1102,9 @@ export function StudentsPage() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="bg-white/70 backdrop-blur-md rounded-3xl shadow-lg border border-white/20 overflow-hidden"
+                        className="bg-white dark:bg-[#0d1225] backdrop-blur-md rounded-3xl shadow-lg border border-slate-200 dark:border-white/10 overflow-hidden text-slate-800 dark:text-white"
                     >
-                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-linear-to-r from-gray-50/80 to-white/80 border-b border-gray-100">
+                        <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-linear-to-r from-gray-50/80 to-white/80 dark:from-white/2 dark:to-white/2 border-b border-gray-100 dark:border-white/10">
                             {[
                                 { label: 'Total', value: sectionStudents.length, icon: '👥', filter: 'All', color: 'blue' },
                                 { label: 'Male', value: sectionStudents.filter(s => s.gender === 'Male').length, icon: '♂️', filter: 'Male', color: 'sky' },
@@ -1115,45 +1115,45 @@ export function StudentsPage() {
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={() => { setGenderFilter(stat.filter as 'All' | 'Male' | 'Female'); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-                                    className={`bg-white p-4 rounded-2xl shadow-sm border-2 cursor-pointer transition-all flex items-center gap-3 ${genderFilter === stat.filter
-                                        ? stat.color === 'blue' ? 'border-blue-400 bg-blue-50/50'
-                                            : stat.color === 'sky' ? 'border-sky-400 bg-sky-50/50'
-                                                : 'border-pink-400 bg-pink-50/50'
-                                        : 'border-transparent hover:border-gray-200'
+                                    className={`bg-white dark:bg-white/5 p-4 rounded-2xl shadow-xs border-2 cursor-pointer transition-all flex items-center gap-3 ${genderFilter === stat.filter
+                                        ? stat.color === 'blue' ? 'border-blue-400 dark:border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/40'
+                                            : stat.color === 'sky' ? 'border-sky-400 dark:border-sky-500/50 bg-sky-50/50 dark:bg-sky-950/40'
+                                                : 'border-pink-400 dark:border-pink-500/50 bg-pink-50/50 dark:bg-pink-950/40'
+                                        : 'border-slate-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
                                         }`}
                                 >
                                     <div className="text-2xl">{stat.icon}</div>
                                     <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{stat.label}</p>
-                                        <p className={`text-xl font-black ${stat.color === 'blue' ? 'text-gray-800' : stat.color === 'sky' ? 'text-sky-600' : 'text-pink-500'}`}>{stat.value}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                                        <p className={`text-xl font-black ${stat.color === 'blue' ? 'text-gray-800 dark:text-white' : stat.color === 'sky' ? 'text-sky-600 dark:text-sky-400' : 'text-pink-500 dark:text-pink-400'}`}>{stat.value}</p>
                                     </div>
                                 </motion.div>
                             ))}
 
                             {isCurrentSectionAdvisory && (
                                 <>
-                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+                                    <div className="bg-white dark:bg-white/5 p-4 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 flex items-center gap-3">
                                         <div className="text-2xl">🎂</div>
                                         <div>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Avg Age</p>
-                                            <p className="text-xl font-black text-orange-500">
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider">Avg Age</p>
+                                            <p className="text-xl font-black text-orange-500 dark:text-orange-400">
                                                 {sectionStudents.length > 0 ? Math.round(sectionStudents.reduce((acc, s) => acc + (s.age || 0), 0) / sectionStudents.length) : 0}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
-                                        <MapPin className="w-5 h-5 text-emerald-500" />
+                                    <div className="bg-white dark:bg-white/5 p-4 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 flex items-center gap-3">
+                                        <MapPin className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Location</p>
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-wider mb-1">Location</p>
                                             <select
                                                 value={addressFilter}
                                                 onChange={(e) => { setAddressFilter(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-                                                className="w-full text-xs font-bold border-none p-0 focus:ring-0 cursor-pointer text-gray-700 bg-transparent truncate"
+                                                className="w-full text-xs font-bold border-none p-0 focus:ring-0 cursor-pointer text-gray-700 dark:text-slate-200 bg-transparent truncate"
                                             >
-                                                <option value="All">All ({uniqueAddresses.length})</option>
+                                                <option value="All" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All ({uniqueAddresses.length})</option>
                                                 {uniqueAddresses.map(([addr, count]) => (
-                                                    <option key={addr} value={addr}>{addr} ({count})</option>
+                                                    <option key={addr} value={addr} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{addr} ({count})</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -1162,29 +1162,29 @@ export function StudentsPage() {
                             )}
                         </div>
 
-                        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 justify-between items-center">
+                        <div className="p-4 border-b border-gray-100 dark:border-white/10 flex flex-wrap gap-3 justify-between items-center bg-slate-50/50 dark:bg-white/2">
                             <div className="relative max-w-md flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-400" />
                                 <input
                                     type="text"
                                     value={globalFilter}
                                     onChange={(e) => setGlobalFilter(e.target.value)}
                                     placeholder="Search by name or LRN..."
-                                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-deped-blue/20 focus:border-deped-blue transition-all"
                                 />
                             </div>
                             <div className="flex items-center gap-3 ml-auto">
-                                <p className="text-sm text-gray-500 font-medium">
-                                    Showing <span className="font-bold text-gray-800">{displayedStudents.length}</span> students
+                                <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
+                                    Showing <span className="font-bold text-gray-800 dark:text-white">{displayedStudents.length}</span> students
                                 </p>
 
-                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                <div className="flex bg-slate-100 dark:bg-white/5 p-0.5 rounded-lg border border-slate-200 dark:border-white/10">
                                     <button
                                         onClick={() => setListMode('table')}
                                         className={`p-1 px-1.5 rounded-md transition-all cursor-pointer ${
                                             listMode === 'table' 
-                                                ? 'bg-white text-slate-800 shadow-3xs' 
-                                                : 'text-slate-400 hover:text-slate-600'
+                                                ? 'bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white shadow-3xs' 
+                                                : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                                         }`}
                                         title="Table View"
                                     >
@@ -1194,8 +1194,8 @@ export function StudentsPage() {
                                         onClick={() => setListMode('grid')}
                                         className={`p-1 px-1.5 rounded-md transition-all cursor-pointer ${
                                             listMode === 'grid' 
-                                                ? 'bg-white text-slate-800 shadow-3xs' 
-                                                : 'text-slate-400 hover:text-slate-600'
+                                                ? 'bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white shadow-3xs' 
+                                                : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                                         }`}
                                         title="Photo Grid View"
                                     >
@@ -1206,7 +1206,7 @@ export function StudentsPage() {
                                 {hasActiveFilters && (
                                     <button
                                         onClick={resetDetailFilters}
-                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-white/5 text-xs font-bold cursor-pointer"
                                     >
                                         <RotateCcw className="w-3.5 h-3.5" />
                                         Reset Filters
@@ -1217,16 +1217,16 @@ export function StudentsPage() {
 
                         {displayedStudents.length === 0 ? (
                             <div className="text-center py-16">
-                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Users className="w-8 h-8 text-gray-300" />
+                                <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Users className="w-8 h-8 text-gray-300 dark:text-slate-500" />
                                 </div>
-                                <p className="text-gray-500 font-medium mb-4">
+                                <p className="text-gray-500 dark:text-slate-400 font-medium mb-4">
                                     {sectionStudents.length > 0 ? 'No learners match your current filters.' : 'No students enrolled yet.'}
                                 </p>
                                 {sectionStudents.length > 0 && hasActiveFilters && (
                                     <button
                                         onClick={resetDetailFilters}
-                                        className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm mr-3"
+                                        className="px-4 py-2 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-slate-200 rounded-xl font-bold text-sm mr-3 cursor-pointer"
                                     >
                                         Clear Filters
                                     </button>
@@ -1252,12 +1252,12 @@ export function StudentsPage() {
                                                     key={student.lrn}
                                                     variants={cardVariants}
                                                     whileHover={{ y: -4 }}
-                                                    className="group bg-white rounded-2xl border border-slate-200/80 hover:border-deped-blue/30 shadow-2xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col justify-between"
+                                                    className="group bg-white dark:bg-[#0d1225] rounded-2xl border border-slate-200/80 dark:border-white/10 hover:border-deped-blue/30 shadow-2xs hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col justify-between"
                                                 >
                                                     {/* Card Header & Photo */}
                                                     <div className="p-4 flex flex-col items-center text-center">
                                                         {/* Photo Frame */}
-                                                        <div className="w-18 h-18 rounded-full border-2 border-slate-100 bg-slate-50 flex items-center justify-center relative overflow-hidden mb-3 shadow-inner shrink-0">
+                                                        <div className="w-18 h-18 rounded-full border-2 border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-white/5 flex items-center justify-center relative overflow-hidden mb-3 shadow-inner shrink-0">
                                                             {student.photo_url ? (
                                                                 <img 
                                                                     src={student.photo_url} 
@@ -1266,7 +1266,7 @@ export function StudentsPage() {
                                                                 />
                                                             ) : (
                                                                 <div className={`w-full h-full flex items-center justify-center text-sm font-black ${
-                                                                    student.gender === 'Male' ? 'bg-blue-50/70 text-blue-600' : 'bg-pink-50/70 text-pink-600'
+                                                                    student.gender === 'Male' ? 'bg-blue-50/70 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : 'bg-pink-50/70 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400'
                                                                 }`}>
                                                                     {initials}
                                                                 </div>
@@ -1274,12 +1274,12 @@ export function StudentsPage() {
                                                         </div>
 
                                                         {/* Name and LRN */}
-                                                        <h5 className="font-extrabold text-xs text-slate-800 uppercase tracking-tight line-clamp-1 mb-1" title={fullName}>
+                                                        <h5 className="font-extrabold text-xs text-slate-800 dark:text-white uppercase tracking-tight line-clamp-1 mb-1" title={fullName}>
                                                             {fullName}
                                                         </h5>
                                                         
                                                         {displayLrn ? (
-                                                            <span className="font-mono text-[9px] text-slate-400 font-bold mb-2">
+                                                            <span className="font-mono text-[9px] text-slate-400 dark:text-slate-400 font-bold mb-2">
                                                                 {displayLrn}
                                                             </span>
                                                         ) : (
@@ -1289,23 +1289,23 @@ export function StudentsPage() {
                                                         {/* Badges */}
                                                         <div className="flex items-center gap-1 flex-wrap justify-center mb-1">
                                                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                                                                student.gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                                                                student.gender === 'Male' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' : 'bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300'
                                                             }`}>
                                                                 {student.gender}
                                                             </span>
                                                             {student.age && (
-                                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[8px] font-black rounded-full uppercase tracking-wider">
+                                                                <span className="px-2 py-0.5 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 text-[8px] font-black rounded-full uppercase tracking-wider">
                                                                     {student.age} yrs
                                                                 </span>
                                                             )}
                                                         </div>
 
                                                         {/* Birthday & Address */}
-                                                        <div className="text-[10px] text-slate-500 font-medium space-y-0.5 mt-2 w-full truncate">
+                                                        <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium space-y-0.5 mt-2 w-full truncate">
                                                             {student.birthday && (
                                                                 <p className="truncate text-left flex items-center justify-center gap-1">
                                                                     <span className="text-slate-400">🎂</span>
-                                                                    <span className="font-semibold text-slate-600">
+                                                                    <span className="font-semibold text-slate-600 dark:text-slate-300">
                                                                         {(() => {
                                                                             const parts = student.birthday.split('-');
                                                                             if (parts.length === 3) {
@@ -1320,20 +1320,20 @@ export function StudentsPage() {
                                                             {student.address && (
                                                                 <p className="truncate text-left flex items-center justify-center gap-1" title={student.address}>
                                                                     <span className="text-slate-400">📍</span>
-                                                                    <span className="font-semibold text-slate-600">{student.address.split(',')[0]}</span>
+                                                                    <span className="font-semibold text-slate-600 dark:text-slate-300">{student.address.split(',')[0]}</span>
                                                                 </p>
                                                             )}
                                                         </div>
                                                     </div>
 
                                                     {/* Action Bar */}
-                                                    <div className="bg-slate-50/50 border-t border-slate-100 px-3 py-1.5 flex items-center justify-center gap-0.5">
+                                                    <div className="bg-slate-50/50 dark:bg-white/5 border-t border-slate-100 dark:border-white/10 px-3 py-1.5 flex items-center justify-center gap-0.5">
                                                         <button
                                                             onClick={() => {
                                                                 setPrintingStudent(student);
                                                                 setIsPrintModalOpen(true);
                                                             }}
-                                                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors cursor-pointer"
+                                                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/40 text-green-600 dark:text-green-400 transition-colors cursor-pointer"
                                                             title="Print Profile Form"
                                                         >
                                                             <Printer className="w-3.5 h-3.5" />
@@ -1342,14 +1342,14 @@ export function StudentsPage() {
                                                             <>
                                                                 <button 
                                                                     onClick={() => handleEdit(student)} 
-                                                                    className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors cursor-pointer" 
+                                                                    className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer" 
                                                                     title="Edit"
                                                                 >
                                                                     <Edit3 className="w-3.5 h-3.5" />
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleDelete(student)} 
-                                                                    className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors cursor-pointer" 
+                                                                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 dark:text-red-400 transition-colors cursor-pointer" 
                                                                     title="Delete"
                                                                 >
                                                                     <Trash className="w-3.5 h-3.5" />
@@ -1364,22 +1364,22 @@ export function StudentsPage() {
                                 </div>
 
                                 {table.getPageCount() > 1 && (
-                                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
-                                        <span className="text-xs text-slate-500 font-medium">
+                                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/2">
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
                                         </span>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => table.previousPage()}
                                                 disabled={!table.getCanPreviousPage()}
-                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors cursor-pointer"
                                             >
                                                 Previous
                                             </button>
                                             <button
                                                 onClick={() => table.nextPage()}
                                                 disabled={!table.getCanNextPage()}
-                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors cursor-pointer"
                                             >
                                                 Next
                                             </button>
@@ -1405,11 +1405,11 @@ export function StudentsPage() {
                                             </tr>
                                         ))}
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-gray-100 dark:divide-white/10 text-slate-800 dark:text-slate-200">
                                         {table.getRowModel().rows.map((row) => (
                                             <motion.tr
                                                 key={row.id}
-                                                className="group hover:bg-blue-50/50 transition-colors"
+                                                className="group hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors"
                                             >
                                                 {row.getVisibleCells().map((cell) => (
                                                     <td key={cell.id} className="py-3.5 px-5">
@@ -1421,22 +1421,22 @@ export function StudentsPage() {
                                     </tbody>
                                 </table>
                                 {table.getPageCount() > 1 && (
-                                    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-                                        <span className="text-xs text-gray-500 font-medium">
+                                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/2">
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
                                         </span>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => table.previousPage()}
                                                 disabled={!table.getCanPreviousPage()}
-                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors cursor-pointer"
                                             >
                                                 Previous
                                             </button>
                                             <button
                                                 onClick={() => table.nextPage()}
                                                 disabled={!table.getCanNextPage()}
-                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                                                className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors cursor-pointer"
                                             >
                                                 Next
                                             </button>

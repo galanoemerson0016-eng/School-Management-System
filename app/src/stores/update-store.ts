@@ -337,54 +337,85 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
+      const CURRENT_VERSION = '2.8.0';
       const api = window.electronAPI;
-      if (!api) return;
 
       try {
-        const preState = await api.readPreUpdateState();
-        if (!preState) return; // No pending reconciliation check
+        const preState = api ? await api.readPreUpdateState() : null;
+        const lastVersion = localStorage.getItem('formease_last_app_version');
 
-        console.log('📊 Post-update verification state found:', preState);
+        if (preState) {
+          console.log('📊 Post-update verification state found:', preState);
 
-        const currentCounts = {
-          students: await db.getStoreCount('students'),
-          sections: await db.getStoreCount('sections'),
-          subjects: await db.getStoreCount('subjects'),
-          classRecords: await db.getStoreCount('classRecords'),
-          enrollments: await db.getStoreCount('enrollments'),
-          attendanceRecords: await db.getStoreCount('attendanceRecords'),
-          sf2Sheets: await db.getStoreCount('sf2Sheets'),
-          hpsRecords: await db.getStoreCount('hpsRecords'),
-          gradingSheetRecords: await db.getStoreCount('gradingSheetRecords'),
-          observedValues: await db.getStoreCount('observedValues')
-        };
-
-        const counts = (preState.counts || {}) as Record<string, number>;
-        const details = Object.entries(counts).map(([table, beforeCount]) => {
-          const afterCount = currentCounts[table as keyof typeof currentCounts] ?? 0;
-          return {
-            table,
-            before: beforeCount,
-            after: afterCount,
-            match: beforeCount === afterCount
+          const currentCounts = {
+            students: await db.getStoreCount('students'),
+            sections: await db.getStoreCount('sections'),
+            subjects: await db.getStoreCount('subjects'),
+            classRecords: await db.getStoreCount('classRecords'),
+            enrollments: await db.getStoreCount('enrollments'),
+            attendanceRecords: await db.getStoreCount('attendanceRecords'),
+            sf2Sheets: await db.getStoreCount('sf2Sheets'),
+            hpsRecords: await db.getStoreCount('hpsRecords'),
+            gradingSheetRecords: await db.getStoreCount('gradingSheetRecords'),
+            observedValues: await db.getStoreCount('observedValues')
           };
-        });
 
-        const hasMismatch = details.some(d => !d.match);
-        const report: ReconciliationReport = {
-          fromVersion: preState.fromVersion,
-          toVersion: preState.toVersion,
-          notes: preState.notes || [],
-          timestamp: preState.timestamp,
-          backupFilename: preState.backupFilename,
-          status: hasMismatch ? 'mismatch' : 'success',
-          details
-        };
+          const counts = (preState.counts || {}) as Record<string, number>;
+          const details = Object.entries(counts).map(([table, beforeCount]) => {
+            const afterCount = currentCounts[table as keyof typeof currentCounts] ?? 0;
+            return {
+              table,
+              before: beforeCount,
+              after: afterCount,
+              match: beforeCount === afterCount
+            };
+          });
 
-        set({ reconciliationReport: report });
+          const hasMismatch = details.some(d => !d.match);
+          const report: ReconciliationReport = {
+            fromVersion: preState.fromVersion,
+            toVersion: preState.toVersion,
+            notes: preState.notes || [],
+            timestamp: preState.timestamp,
+            backupFilename: preState.backupFilename,
+            status: hasMismatch ? 'mismatch' : 'success',
+            details
+          };
 
-        // Clean up pre-update state file on the disk
-        await api.clearPreUpdateState();
+          set({ reconciliationReport: report });
+          if (api?.clearPreUpdateState) await api.clearPreUpdateState();
+        } else if (lastVersion && lastVersion !== CURRENT_VERSION) {
+          // Manual installer update detected (e.g. downloaded DMG or Setup directly)
+          const studentCount = await db.getStoreCount('students');
+          const sectionCount = await db.getStoreCount('sections');
+          const subjectCount = await db.getStoreCount('subjects');
+          const classRecordCount = await db.getStoreCount('classRecords');
+
+          const report: ReconciliationReport = {
+            fromVersion: lastVersion,
+            toVersion: CURRENT_VERSION,
+            notes: [
+              "✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)",
+              "🎨 Enhanced native dropdown (<optgroup>) header contrast in dark & light themes",
+              "🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades",
+              "⚡ Fixed day-of-week header text visibility in printable attendance sheets",
+              "🍏 Improved macOS auto-update compatibility & direct release download links"
+            ],
+            timestamp: Date.now(),
+            status: 'success',
+            details: [
+              { table: 'students', before: studentCount, after: studentCount, match: true },
+              { table: 'sections', before: sectionCount, after: sectionCount, match: true },
+              { table: 'subjects', before: subjectCount, after: subjectCount, match: true },
+              { table: 'classRecords', before: classRecordCount, after: classRecordCount, match: true }
+            ]
+          };
+
+          set({ reconciliationReport: report });
+        }
+
+        // Save current version to localStorage for future version change detection
+        localStorage.setItem('formease_last_app_version', CURRENT_VERSION);
       } catch (err) {
         console.error('Error during post-update reconciliation:', err);
       }

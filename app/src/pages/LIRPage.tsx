@@ -385,9 +385,9 @@ export function LIRPage() {
     };
 
     return (
-        <div className="lir-print-root flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
+        <div className="lir-print-root flex flex-col h-full bg-slate-50 dark:bg-[#080d1a] relative overflow-hidden font-sans print:h-auto print:overflow-visible print:bg-white">
              {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
+             <div className="z-20 bg-white/90 dark:bg-[#0d1225]/95 backdrop-blur-3xl border-b border-slate-200 dark:border-white/10 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="flex items-center w-full h-14 select-none relative px-2 lg:px-3 gap-1.5 lg:gap-2 overflow-hidden">
                     
@@ -395,23 +395,23 @@ export function LIRPage() {
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-7 h-7 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-7 h-7 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
                             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
                         <div className="flex flex-col shrink-0">
-                            <h2 className="text-[10px] lg:text-[11px] font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Learner Record</h2>
-                            <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest leading-none">Individual LIR</p>
+                            <h2 className="text-[10px] lg:text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-0.5">Learner Record</h2>
+                            <p className="text-[7px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">Individual LIR</p>
                         </div>
                     </div>
 
-                    <div className="h-5 w-px bg-slate-200 shrink-0" />
+                    <div className="h-5 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
                         
                     {/* Section Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-22.5 duration-200 truncate"
+                            className="appearance-none h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer w-full min-w-22.5 duration-200 truncate"
                             value={selectedSection}
                             onChange={(e) => { setSelectedSection(e.target.value); setSelectedStudent(null); setSelectedSubject(''); }}
                         >
@@ -428,13 +428,13 @@ export function LIRPage() {
                                 )
                             ))}
                         </select>
-                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
                     {/* Subject Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer w-full min-w-22.5 disabled:opacity-30 duration-200 truncate"
+                            className="appearance-none h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer w-full min-w-22.5 disabled:opacity-30 duration-200 truncate"
                             value={selectedSubject}
                             onChange={(e) => { setSelectedSubject(e.target.value); setSelectedStudent(null); }}
                             disabled={!selectedSection}
@@ -446,13 +446,13 @@ export function LIRPage() {
                                 </option>
                             ))}
                         </select>
-                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
                     {/* Learner Selector */}
                     <div className="relative group min-w-0 flex-1">
                         <select 
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-full min-w-25 truncate disabled:opacity-30 duration-200"
+                            className="appearance-none h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer w-full min-w-25 truncate disabled:opacity-30 duration-200"
                             value={selectedStudent?.lrn || ''}
                             onChange={(e) => {
                                 const student = students.find(s => s.lrn === e.target.value) || null;
@@ -484,30 +484,30 @@ export function LIRPage() {
                                 </optgroup>
                             )}
                         </select>
-                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
-                    <div className="h-5 w-px bg-slate-200 shrink-0" />
+                    <div className="h-5 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
 
                     {/* Paper Size selector */}
                     <div className="relative group shrink-0">
                         <select
                             value={paperSize}
                             onChange={(e) => setPaperSize(e.target.value as 'a4' | 'letter' | 'folio')}
-                            className="appearance-none h-8 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer min-w-13.75 duration-200"
+                            className="appearance-none h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-lg px-2 pr-6 text-[9px] lg:text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-13.75 duration-200"
                             title="Paper Size"
                         >
                             <option value="a4">A4</option>
                             <option value="letter">Letter</option>
                             <option value="folio">Folio</option>
                         </select>
-                        <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3 h-3 text-slate-400 dark:text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
                     {/* Branding Colors swatches */}
-                    <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 h-8 shrink-0 items-center px-1.5">
+                    <div className="flex gap-1 bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 h-8 shrink-0 items-center px-1.5">
                         <div className="relative flex items-center justify-center cursor-pointer shrink-0" title="Choose Fill Color">
-                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: fillColor, width: 18, height: 18 }} />
+                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 dark:border-white/20 shadow-sm shrink-0" style={{ backgroundColor: fillColor, width: 18, height: 18 }} />
                             <input 
                                 type="color" 
                                 value={fillColor} 
@@ -516,7 +516,7 @@ export function LIRPage() {
                             />
                         </div>
                         <div className="relative flex items-center justify-center cursor-pointer shrink-0" title="Choose Outline Color">
-                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 shadow-sm shrink-0" style={{ backgroundColor: outlineColor, width: 18, height: 18 }} />
+                            <div className="w-4.5 h-4.5 rounded-md border border-slate-200 dark:border-white/20 shadow-sm shrink-0" style={{ backgroundColor: outlineColor, width: 18, height: 18 }} />
                             <input 
                                 type="color" 
                                 value={outlineColor} 
@@ -527,20 +527,20 @@ export function LIRPage() {
                     </div>
 
                     {/* View Zoom */}
-                    <div className="flex items-center gap-0 bg-slate-100 p-0.5 rounded-lg border border-slate-200 h-8 shrink-0">
+                    <div className="flex items-center gap-0 bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 h-8 shrink-0">
                         <button 
                             onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all active:scale-90 duration-200"
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-md transition-all active:scale-90 duration-200"
                             title="Zoom Out"
                         >
                             <Minus className="w-3 h-3" />
                         </button>
-                        <span className="text-[8px] font-black text-slate-900 w-7 text-center tabular-nums">
+                        <span className="text-[8px] font-black text-slate-900 dark:text-white w-7 text-center tabular-nums">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button 
                             onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                            className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-md transition-all active:scale-90 duration-200"
+                            className="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-md transition-all active:scale-90 duration-200"
                             title="Zoom In"
                         >
                             <Plus className="w-3 h-3" />
@@ -594,7 +594,7 @@ export function LIRPage() {
              </div>
 
              {/* Main Single Preview Viewport */}
-             <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
+             <div className="flex-1 overflow-auto relative bg-slate-100 dark:bg-[#080d1a] print:bg-white custom-scrollbar">
                 <div className="w-full min-h-full flex flex-col items-center justify-start py-20 px-10 relative print:overflow-visible print:py-0 print:px-0">
                     {selectedStudent ? (
                         <div 
@@ -628,21 +628,21 @@ export function LIRPage() {
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-10 py-10">
                             <div className="relative group">
-                                <div className="absolute -inset-24 bg-emerald-500/5 blur-[120px] rounded-full" />
-                                <div className="relative w-64 h-64 bg-white rounded-[5rem] border border-slate-200 flex items-center justify-center transform group-hover:scale-105 transition-all duration-700 shadow-xl">
-                                    <FileText className="w-28 h-28 text-slate-100" />
+                                <div className="absolute -inset-24 bg-emerald-500/5 dark:bg-emerald-500/10 blur-[120px] rounded-full" />
+                                <div className="relative w-64 h-64 bg-white dark:bg-white/5 rounded-[5rem] border border-slate-200 dark:border-white/10 flex items-center justify-center transform group-hover:scale-105 transition-all duration-700 shadow-xl">
+                                    <FileText className="w-28 h-28 text-slate-100 dark:text-slate-600" />
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-7xl font-black text-slate-100 tracking-tighter leading-none italic">LIR</span>
-                                        <div className="w-20 h-1 bg-emerald-500/10 rounded-full mt-4" />
+                                        <span className="text-7xl font-black text-slate-100 dark:text-slate-600 tracking-tighter leading-none italic">LIR</span>
+                                        <div className="w-20 h-1 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full mt-4" />
                                     </div>
-                                    <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-emerald-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl ring-8 ring-slate-50 group-hover:rotate-12 transition-all duration-500">
+                                    <div className="absolute -bottom-8 -right-8 w-28 h-28 bg-emerald-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl ring-8 ring-slate-50 dark:ring-[#080d1a] group-hover:rotate-12 transition-all duration-500">
                                         <Printer className="w-10 h-10 text-white" />
                                     </div>
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <h2 className="text-4xl font-black text-slate-900 tracking-tight uppercase">Individual Record</h2>
-                                <p className="text-slate-400 font-bold max-w-sm mx-auto leading-relaxed uppercase text-[10px] tracking-[0.3em] opacity-60">
+                                <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Individual Record</h2>
+                                <p className="text-slate-400 dark:text-slate-400 font-bold max-w-sm mx-auto leading-relaxed uppercase text-[10px] tracking-[0.3em] opacity-60">
                                     Select a learner from the toolbar above to preview single LIR, or use Bulk Actions for printing and downloading entire sections.
                                 </p>
                             </div>
@@ -678,8 +678,8 @@ export function LIRPage() {
 
              {/* BULK OPERATIONS MODAL */}
              {isBulkModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-[#0d1225] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
                         {/* Header */}
                         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between relative shrink-0">
                             <div className="flex items-center gap-3">

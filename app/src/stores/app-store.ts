@@ -222,6 +222,8 @@ interface AppState extends GradingSlice, AttendanceSlice, AnnouncementsSlice {
   setSF9Layout: (layout: AppState['sf9Layout']) => void;
 
   // UI State
+  theme: 'light' | 'dark' | 'system';
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
   currentView: string;
   setCurrentView: (view: string) => void;
   selectedSection: string | null;
@@ -284,6 +286,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   ...createGradingSlice(set, get),
   ...createAttendanceSlice(set, get),
   ...createAnnouncementsSlice(set, get),
+
+  // ==================== UI THEME ====================
+  theme: (getLocalStorageValue('formease-theme') as 'light' | 'dark' | 'system') || 'system',
+  setTheme: (theme) => {
+    set({ theme });
+    setLocalStorageValue('formease-theme', theme);
+  },
 
   // ==================== SCHOOL PROFILE ====================
   schoolProfile: defaultSchoolProfile,

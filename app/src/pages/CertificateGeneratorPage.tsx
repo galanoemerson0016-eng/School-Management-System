@@ -719,13 +719,13 @@ const section = sections.find(s => s.id === selectedSectionId);
                             <div className="space-y-4">
                                 {sortedSections.length > 1 ? (
                                     <select 
-                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-xl px-4 py-3 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                                         value={selectedSectionId}
                                         onChange={(e) => setSelectedSectionId(e.target.value)}
                                     >
-                                        <option value="">Choose Grade & Section...</option>
+                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Choose Grade & Section...</option>
                                         {sortedSections.map(section => (
-                                            <option key={section.id} value={section.id}>
+                                            <option key={section.id} value={section.id} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
                                                 {section.section_grade_level} - {section.section_name}
                                             </option>
                                         ))}

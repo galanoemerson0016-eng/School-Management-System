@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles } from 'lucide-react';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
 import { CloudSyncService } from '../services/cloud-sync';
@@ -64,6 +64,8 @@ export function SettingsPage() {
         updateStudent,
         updateSection,
         updateSubject,
+        theme,
+        setTheme,
     } = useAppStore();
     const canPurge = canPurgeMaintenance(user);
 
@@ -1731,14 +1733,14 @@ export function SettingsPage() {
 
     return (
         <div className="w-full space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-slate-50 via-white to-sky-50 p-6">
-                <h2 className="text-3xl font-black tracking-tight text-slate-900">Settings</h2>
-                <p className="mt-1 text-sm font-medium text-slate-600">Manage account access, backup, and maintenance.</p>
+            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-linear-to-r from-slate-50 via-white to-sky-50 dark:from-[#0d1225] dark:via-[#0d1225] dark:to-[#0d1225] p-6 text-slate-800 dark:text-white">
+                <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Settings</h2>
+                <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">Manage account access, backup, and maintenance.</p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                    <span className="rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
                         S.Y. {activeSchoolYear}
                     </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold capitalize text-slate-700">
+                    <span className="rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1 text-xs font-semibold capitalize text-slate-700 dark:text-slate-300">
                         Role: {user?.role || 'N/A'}
                     </span>
                 </div>
@@ -1900,6 +1902,52 @@ export function SettingsPage() {
                                 </div>
                             </div>
                             <div className="space-y-4">
+                                {/* App Visual Theme Mode */}
+                                <div className="p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2 space-y-3">
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-700 dark:text-gray-200">App Visual Theme Mode</h4>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select your preferred color scheme or synchronize with your operating system settings.</p>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3 max-w-md pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTheme('light')}
+                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                theme === 'light'
+                                                    ? 'bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/20'
+                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <Sun className="w-4 h-4" />
+                                            <span>Light</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTheme('dark')}
+                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                theme === 'dark'
+                                                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm shadow-indigo-600/20'
+                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <Moon className="w-4 h-4" />
+                                            <span>Dark</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTheme('system')}
+                                            className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                theme === 'system'
+                                                    ? 'bg-blue-600 text-white border-blue-700 shadow-sm shadow-blue-600/20'
+                                                    : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10'
+                                            }`}
+                                        >
+                                            <Monitor className="w-4 h-4" />
+                                            <span>System</span>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="flex items-center justify-between p-4 rounded-xl border border-slate-150 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
                                     <div>
                                         <h4 className="text-sm font-bold text-slate-700 dark:text-gray-200">Disable UI Animations & Effects</h4>

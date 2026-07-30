@@ -535,20 +535,20 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative bg-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[95vh]"
+                className="relative bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[95vh] border border-slate-200 dark:border-white/10"
             >
                 {/* Header */}
-                <div className="bg-deped-blue p-8 text-white relative shrink-0">
+                <div className="bg-deped-blue dark:bg-[#0f172a] p-8 text-white relative shrink-0 border-b border-deped-blue/30 dark:border-white/10">
                     <button 
                         onClick={onClose}
-                        className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-xl transition-colors"
+                        className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                     >
                         <X className="w-5 h-5" />
                     </button>
                     <h3 className="text-2xl font-black tracking-tight mb-1">
                         {section ? 'Edit Section' : 'Create New Section'}
                     </h3>
-                    <p className="text-blue-200/60 font-bold uppercase tracking-widest text-[9px]">
+                    <p className="text-blue-200/60 dark:text-blue-300/60 font-bold uppercase tracking-widest text-[9px]">
                         {section ? `Modifying ${section.section_name}` : (formData.is_advisory ? 'Setup your official advisory class' : 'Add a section for your teaching load')}
                     </p>
                 </div>
@@ -557,25 +557,25 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     <div className="grid grid-cols-2 gap-5">
                         {/* Grade Level First */}
                         <div className="col-span-2 md:col-span-1">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Grade Level *</label>
+                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">Grade Level *</label>
                             <select 
                                 required
-                                className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                 value={formData.section_grade_level}
                                 onChange={(e) => setFormData({ ...formData, section_grade_level: e.target.value })}
                             >
-                                {GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
+                                {GRADE_LEVELS.map(g => <option key={g} value={g} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{g}</option>)}
                             </select>
                         </div>
 
                         {/* Section Name Second */}
                         <div className="col-span-2 md:col-span-1">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Section Name *</label>
+                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">Section Name *</label>
                             <input 
                                 type="text" 
                                 required
                                 placeholder="e.g. Einstein"
-                                className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none"
+                                className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 value={formData.section_name}
                                 onChange={(e) => setFormData({ ...formData, section_name: e.target.value })}
                             />
@@ -584,25 +584,25 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                         {/* Track Selection (SHS only: Grade 11 or Grade 12) */}
                         {(formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12')) && (
                             <div className="col-span-2 md:col-span-1">
-                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">SHS Track *</label>
+                                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">SHS Track *</label>
                                 <select 
                                     required
-                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                     value={formData.track || ''}
                                     onChange={(e) => setFormData({ ...formData, track: e.target.value, strand: '' })}
                                 >
-                                    <option value="">Select SHS Track</option>
+                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select SHS Track</option>
                                     {formData.section_grade_level?.includes('Grade 11') ? (
                                         <>
-                                            <option value="Academic">Academic</option>
-                                            <option value="TechPro">TechPro</option>
+                                            <option value="Academic" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Academic</option>
+                                            <option value="TechPro" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">TechPro</option>
                                         </>
                                     ) : (
                                         <>
-                                            <option value="Academic">Academic</option>
-                                            <option value="TVL">TVL</option>
-                                            <option value="Sports">Sports</option>
-                                            <option value="Arts and Design">Arts and Design</option>
+                                            <option value="Academic" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Academic</option>
+                                            <option value="TVL" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">TVL</option>
+                                            <option value="Sports" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Sports</option>
+                                            <option value="Arts and Design" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Arts and Design</option>
                                         </>
                                     )}
                                 </select>
@@ -612,55 +612,55 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                         {/* Strand Selection (SHS only: Grade 12 and Track selected) */}
                         {formData.section_grade_level?.includes('Grade 12') && formData.track && (
                             <div className="col-span-2 md:col-span-1">
-                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1">SHS Strand *</label>
+                                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">SHS Strand *</label>
                                 <select 
                                     required
-                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500/20 focus:bg-white rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                     value={formData.strand || ''}
                                     onChange={(e) => setFormData({ ...formData, strand: e.target.value })}
                                 >
-                                    <option value="">Select SHS Strand</option>
+                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select SHS Strand</option>
                                     {getStrandsForTrack(formData.track, formData.section_grade_level).map((s) => (
-                                        <option key={s} value={s}>{s}</option>
+                                        <option key={s} value={s} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s}</option>
                                     ))}
                                 </select>
                             </div>
                         )}
 
                         {/* ROLE CONFIGURATION */}
-                        <div className="col-span-2 bg-slate-50/50 rounded-2.5xl p-5 border border-slate-100">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Role Configuration</label>
+                        <div className="col-span-2 bg-slate-50/50 dark:bg-white/5 rounded-2.5xl p-5 border border-slate-100 dark:border-white/10">
+                            <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-4 ml-1">Role Configuration</label>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {/* Advisory Role */}
-                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_advisory ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_advisory ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-100 text-slate-400'}`}>
+                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_advisory ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/40 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}>
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_advisory ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-slate-300'}`}>
                                         <Shield className="w-5 h-5" />
                                     </div>
                                     <div className="flex-1">
-                                        <div className={`text-xs font-black ${formData.is_advisory ? 'text-indigo-900' : 'text-slate-600'}`}>Advisory</div>
-                                        <div className="text-[8px] font-bold text-slate-400 uppercase">Class Adviser</div>
+                                        <div className={`text-xs font-black ${formData.is_advisory ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>Advisory</div>
+                                        <div className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase">Class Adviser</div>
                                     </div>
                                     <input 
                                         type="checkbox" 
-                                        className="w-4 h-4 rounded border-2 border-slate-200 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" 
+                                        className="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" 
                                         checked={formData.is_advisory}
                                         onChange={(e) => handleAdvisoryChange(e.target.checked)}
                                     />
                                 </label>
 
                                 {/* Teaching Role */}
-                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_teaching_load ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_teaching_load ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-slate-100 text-slate-400'}`}>
+                                <label className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border-2 ${formData.is_teaching_load ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/40 shadow-xs' : 'bg-white dark:bg-white/5 border-transparent hover:border-slate-200 dark:hover:border-white/10'}`}>
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${formData.is_teaching_load ? 'bg-amber-500 text-white shadow-lg shadow-amber-200 dark:shadow-none' : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-slate-300'}`}>
                                         <BookOpen className="w-5 h-5" />
                                     </div>
                                     <div className="flex-1">
-                                        <div className={`text-xs font-black ${formData.is_teaching_load ? 'text-amber-900' : 'text-slate-600'}`}>Teaching</div>
-                                        <div className="text-[8px] font-bold text-slate-400 uppercase">Subject Teacher</div>
+                                        <div className={`text-xs font-black ${formData.is_teaching_load ? 'text-amber-900 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>Teaching</div>
+                                        <div className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase">Subject Teacher</div>
                                     </div>
                                     <input 
                                         type="checkbox" 
-                                        className="w-4 h-4 rounded border-2 border-slate-200 text-amber-500 focus:ring-amber-500 transition-all cursor-pointer" 
+                                        className="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 text-amber-500 focus:ring-amber-500 transition-all cursor-pointer" 
                                         checked={formData.is_teaching_load}
                                         onChange={(e) => setFormData({ ...formData, is_teaching_load: e.target.checked })}
                                     />
@@ -672,9 +672,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 <motion.div 
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
-                                    className="mt-6 border-t border-slate-100 pt-6"
+                                    className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
                                 >
-                                    <label className="block text-[9px] font-black text-amber-500 uppercase tracking-widest mb-4 ml-1">
+                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest mb-4 ml-1">
                                         Subjects Taught ({formData.taught_subjects?.length || 0})
                                     </label>
                                     
@@ -686,19 +686,19 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                 const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
                                                 
                                                 return (
-                                                    <div key={category} className="bg-slate-50 border border-slate-200/50 rounded-2xl overflow-hidden shadow-xs">
+                                                    <div key={category} className="bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl overflow-hidden shadow-xs">
                                                         {/* Category Header */}
                                                         {category && (
-                                                            <div className="bg-slate-100/80 px-4 py-3 flex items-center justify-between border-b border-slate-200/50">
+                                                            <div className="bg-slate-100/80 dark:bg-white/10 px-4 py-3 flex items-center justify-between border-b border-slate-200/50 dark:border-white/10">
                                                                 <div 
                                                                     onClick={() => toggleCategory(category)}
                                                                     className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
                                                                 >
                                                                     <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
-                                                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider truncate">
+                                                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider truncate">
                                                                         {category}
                                                                     </span>
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-500">
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300">
                                                                         {list.length}
                                                                     </span>
                                                                 </div>
@@ -706,15 +706,15 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => selectAllInCategory(list)}
-                                                                        className="text-indigo-600 hover:text-indigo-800 transition-colors font-bold animate-pulse hover:animate-none"
+                                                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
                                                                     >
                                                                         Select All
                                                                     </button>
-                                                                    <span className="text-slate-300">|</span>
+                                                                    <span className="text-slate-300 dark:text-slate-600">|</span>
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => clearAllInCategory(list)}
-                                                                        className="text-slate-400 hover:text-slate-600 transition-colors font-bold"
+                                                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
                                                                     >
                                                                         Clear All
                                                                     </button>
@@ -724,19 +724,19 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
                                                         {/* Category Grid */}
                                                         {!isCollapsed && (
-                                                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
+                                                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white dark:bg-[#0f172a]">
                                                                 {list.map((subj) => (
                                                                     <div 
                                                                         key={subj.name}
                                                                         onClick={() => toggleSubject(subj.name)}
-                                                                        className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-2.5 ${formData.taught_subjects?.includes(subj.name) ? 'bg-white border-amber-400 shadow-sm' : 'bg-white/50 border-slate-100 hover:border-amber-200'}`}
+                                                                        className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-2.5 ${formData.taught_subjects?.includes(subj.name) ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
                                                                     >
-                                                                        <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${formData.taught_subjects?.includes(subj.name) ? 'bg-amber-500 border-amber-500 text-white shadow-sm' : 'border-slate-200 group-hover:border-amber-400'}`}>
+                                                                        <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${formData.taught_subjects?.includes(subj.name) ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
                                                                             {formData.taught_subjects?.includes(subj.name) && (
                                                                                 <Check className="w-3 h-3 stroke-[3.5]" />
                                                                             )}
                                                                         </div>
-                                                                        <span className={`text-[9px] font-black uppercase tracking-tight truncate ${formData.taught_subjects?.includes(subj.name) ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                                        <span className={`text-[9px] font-black uppercase tracking-tight truncate ${formData.taught_subjects?.includes(subj.name) ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`}>
                                                                             {subj.name}
                                                                         </span>
                                                                     </div>
@@ -748,16 +748,16 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                             })}
                                         </div>
                                     ) : (
-                                        <p className="text-[10px] font-bold text-slate-400 italic">No standard subjects found.</p>
+                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">No standard subjects found.</p>
                                     )}
                                     
                                     {/* Manual Subject Fallback */}
                                     <div className="mt-5">
-                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Other Subjects (Comma separated)</label>
+                                        <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-3 ml-1">Other Subjects (Comma separated)</label>
                                         <input 
                                             type="text" 
                                             placeholder="e.g. Robotics, Research"
-                                            className="w-full bg-white border-2 border-slate-100 rounded-xl px-5 py-3 text-xs font-bold transition-all outline-none focus:border-amber-500/20"
+                                            className="w-full bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold transition-all outline-none focus:border-amber-500/20 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                             value={formData.subject_name || ''}
                                             onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
                                         />
@@ -768,27 +768,27 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
                         {/* Adviser / Teacher (LOCKED) */}
                         <div className="col-span-2">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5 ml-1 flex items-center gap-2">
+                            <label className="text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1 flex items-center gap-2">
                                 {formData.is_advisory ? 'Adviser Name' : 'Subject Teacher Name'} (LOCKED)
-                                <Shield className="w-3 h-3 text-blue-500" />
+                                <Shield className="w-3 h-3 text-blue-500 dark:text-blue-400" />
                             </label>
                             <div className="relative group/locked">
                                 <input 
                                     readOnly
-                                    className="w-full bg-slate-100 border-2 border-slate-200/50 rounded-2xl px-5 py-3.5 text-sm font-black text-slate-500 outline-none cursor-not-allowed transition-all"
+                                    className="w-full bg-slate-100 dark:bg-white/10 border-2 border-slate-200/50 dark:border-white/10 rounded-2xl px-5 py-3.5 text-sm font-black text-slate-500 dark:text-slate-200 outline-none cursor-not-allowed transition-all"
                                     value={formData.is_advisory ? (formData.adviser_name || '') : (schoolProfile?.adviser_name || user?.displayName || '')}
                                 />
                                 <div className="absolute right-5 top-1/2 -translate-y-1/2">
-                                    <Shield className="w-4 h-4 text-slate-300" />
+                                    <Shield className="w-4 h-4 text-slate-300 dark:text-slate-500" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Info Alert */}
-                    <div className="flex gap-4 p-4 bg-blue-50/50 rounded-2.5xl border border-blue-100/50">
-                        <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                        <p className="text-[9px] font-black text-blue-700 leading-relaxed uppercase tracking-tighter">
+                    <div className="flex gap-4 p-4 bg-blue-50/50 dark:bg-blue-950/40 rounded-2.5xl border border-blue-100/50 dark:border-blue-800/40">
+                        <AlertCircle className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] font-black text-blue-700 dark:text-blue-300 leading-relaxed uppercase tracking-tighter">
                             Advisory classes will appear in official SF forms, while teaching roles are for Grade management and E-Class Record.
                         </p>
                     </div>
@@ -798,14 +798,14 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                         <button 
                             type="button" 
                             onClick={onClose}
-                            className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+                            className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-300 hover:text-slate-600 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-all cursor-pointer"
                         >
                             Cancel
                         </button>
                         <button 
                             type="submit" 
                             disabled={isLoading}
-                            className="flex-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                             {isLoading ? 'Saving...' : (
                                 <>

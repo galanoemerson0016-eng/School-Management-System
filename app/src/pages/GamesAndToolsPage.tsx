@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  Sparkles, Volume2, Paintbrush, Watch, Ruler, Shuffle, Users, Scale, 
-  CircleDollarSign, Dices, Trophy, Layers, HelpCircle, Ticket, Grid, Search, 
-  Gamepad2, Users2, Wrench, LayoutGrid, ArrowRight, Bomb, Grid3X3, ChevronDown, ChevronRight
+  Sparkles, Volume2, Paintbrush, Watch, Ruler, Users, Scale, 
+  CircleDollarSign, Dices, Trophy, Layers, Ticket, Grid, Search, 
+  Gamepad2, Users2, Wrench, LayoutGrid, ArrowRight, ArrowLeft, Bomb, Grid3X3, ChevronDown, ChevronRight,
+  Maximize2, Minimize2
 } from 'lucide-react';
 
 // Import subcomponents
@@ -46,6 +47,31 @@ export function GamesAndToolsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeToolRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = (targetRef?: React.RefObject<HTMLDivElement | null>) => {
+    const el = targetRef?.current || containerRef.current || document.documentElement;
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch((err) => console.error(err));
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   const tools: ToolItem[] = useMemo(() => [
     {
@@ -150,9 +176,9 @@ export function GamesAndToolsPage() {
     {
       id: 'bouncing-words',
       title: 'Bouncing Words',
-      description: 'Input a sentence and watch the words bounce around jumbled. Students click them in the correct order to rebuild the sentence.',
-      icon: Shuffle,
-      color: '#DB2777',
+      description: 'A fun floating physics game where customized vocabulary words bounce off walls.',
+      icon: Sparkles,
+      color: '#EC4899',
       bgColor: '#FCE7F3',
       category: 'games',
       categoryLabel: 'Games & Recitation',
@@ -161,43 +187,43 @@ export function GamesAndToolsPage() {
     {
       id: 'group-yourself',
       title: 'Group Yourself',
-      description: 'Load learners from any class and randomly shuffle them into groups. Choose by group size or number of groups.',
+      description: 'Randomly group learners from any class section by size or total number of teams.',
       icon: Users,
-      color: '#7C3AED',
-      bgColor: '#F5F3FF',
+      color: '#059669',
+      bgColor: '#D1FAE5',
       category: 'groupings',
-      categoryLabel: 'Groupings & Teams',
+      categoryLabel: 'Group Division Tools',
       component: GroupYourself,
     },
     {
       id: 'random-groupings',
-      title: 'Random Groupings Generator',
-      description: 'A dedicated, highly configurable tool to quickly divide students into random groups or pairs with export capability.',
-      icon: Grid,
-      color: '#10B981',
-      bgColor: '#ECFDF5',
+      title: 'Quick Team Splitter',
+      description: 'Instantly split names or students into balanced teams with custom team labels.',
+      icon: Users,
+      color: '#059669',
+      bgColor: '#D1FAE5',
       category: 'groupings',
-      categoryLabel: 'Groupings & Teams',
+      categoryLabel: 'Group Division Tools',
       component: RandomGroupings,
     },
     {
       id: 'scoreboard',
-      title: 'Scoreboard',
-      description: 'Track team points and scores during classroom games and group quizzes.',
+      title: 'Classroom Scoreboard',
+      description: 'Track points for multiple teams or rows in real-time during class competitions.',
       icon: Trophy,
-      color: '#F59E0B',
-      bgColor: '#FEF3C7',
-      category: 'groupings',
-      categoryLabel: 'Groupings & Teams',
+      color: '#7C3AED',
+      bgColor: '#F3E8FF',
+      category: 'games',
+      categoryLabel: 'Games & Recitation',
       component: Scoreboard,
     },
     {
       id: 'flashcards',
-      title: 'Flashcards & Match',
-      description: 'Study custom term decks with flipping cards or play a timed memory card matching game.',
+      title: 'Study Flashcards',
+      description: 'Interactive double-sided flip flashcards for subject review and vocabulary drills.',
       icon: Layers,
-      color: '#4F46E5',
-      bgColor: '#EEF2FF',
+      color: '#0D9488',
+      bgColor: '#CCFBF1',
       category: 'utilities',
       categoryLabel: 'Classroom Utilities',
       component: Flashcards,
@@ -205,32 +231,32 @@ export function GamesAndToolsPage() {
     {
       id: 'soundboard',
       title: 'Classroom Soundboard',
-      description: 'Play transition cues, ticking clock suspense, applause, and correct/incorrect retro sound effects.',
+      description: 'Fun audio sound effects (applause, buzzer, drum roll, cheer) for instant student feedback.',
       icon: Volume2,
-      color: '#2563EB',
-      bgColor: '#EFF6FF',
+      color: '#DB2777',
+      bgColor: '#FCE7F3',
       category: 'utilities',
       categoryLabel: 'Classroom Utilities',
       component: Soundboard,
     },
     {
       id: 'word-search',
-      title: 'Word Search Generator',
-      description: 'Generate customizable word search puzzle boards dynamically from your spelling list.',
-      icon: HelpCircle,
-      color: '#EC4899',
-      bgColor: '#FDF2F8',
+      title: 'Word Search Creator',
+      description: 'Generate and solve interactive custom word search puzzle grids for lesson terms.',
+      icon: Grid,
+      color: '#2563EB',
+      bgColor: '#DBEAFE',
       category: 'games',
       categoryLabel: 'Games & Recitation',
       component: WordSearch,
     },
     {
       id: 'raffle-jar',
-      title: 'Raffle Ticket Jar',
-      description: 'Draw random student names out of a beautifully animated ticket jar.',
+      title: 'Raffle Fishbowl',
+      description: 'Interactive animated raffle jar for mystery student selection or reward draws.',
       icon: Ticket,
-      color: '#D97706',
-      bgColor: '#FEF3C7',
+      color: '#DC2626',
+      bgColor: '#FEE2E2',
       category: 'games',
       categoryLabel: 'Games & Recitation',
       component: RaffleJar,
@@ -238,7 +264,7 @@ export function GamesAndToolsPage() {
     {
       id: 'tug-of-war',
       title: 'Tug of War',
-      description: 'Split your class into two teams and battle it out! Click "Pull!" to randomly tug the rope.',
+      description: 'Engaging team vs team battle game for classroom recitation and quick quiz face-offs.',
       icon: Scale,
       color: '#EA580C',
       bgColor: '#FFEDD5',
@@ -249,7 +275,7 @@ export function GamesAndToolsPage() {
     {
       id: 'coin-flip',
       title: 'Coin Flip',
-      description: 'Flip a virtual coin to decide between Heads or Tails. Tracks your flip history with a running tally.',
+      description: 'Realistic 3D animated coin flip for quick classroom decisions, heads or tails.',
       icon: CircleDollarSign,
       color: '#D97706',
       bgColor: '#FEF3C7',
@@ -259,11 +285,11 @@ export function GamesAndToolsPage() {
     },
     {
       id: 'dice-roller',
-      title: 'Dice Roller',
-      description: 'Roll up to 5 virtual dice with a single click. Keeps a running history of your rolls and totals.',
+      title: '3D Dice Roller',
+      description: 'Roll up to 6 animated dice for math exercises, board games, or probability lessons.',
       icon: Dices,
-      color: '#DC2626',
-      bgColor: '#FEE2E2',
+      color: '#2563EB',
+      bgColor: '#DBEAFE',
       category: 'games',
       categoryLabel: 'Games & Recitation',
       component: DiceRoller,
@@ -271,10 +297,10 @@ export function GamesAndToolsPage() {
   ], []);
 
   const categories = useMemo(() => [
-    { id: 'all', label: 'All Items', icon: LayoutGrid, count: tools.length },
-    { id: 'games', label: 'Interactive Games & Recitation', icon: Gamepad2, count: tools.filter(t => t.category === 'games').length },
-    { id: 'groupings', label: 'Groupings & Team Work', icon: Users2, count: tools.filter(t => t.category === 'groupings').length },
-    { id: 'utilities', label: 'Classroom Utilities', icon: Wrench, count: tools.filter(t => t.category === 'utilities').length },
+    { id: 'all', label: 'All Modules', icon: LayoutGrid, count: tools.length },
+    { id: 'games', label: 'Games & Recitation', icon: Gamepad2, count: tools.filter((t) => t.category === 'games').length },
+    { id: 'groupings', label: 'Group Division', icon: Users2, count: tools.filter((t) => t.category === 'groupings').length },
+    { id: 'utilities', label: 'Classroom Utilities', icon: Wrench, count: tools.filter((t) => t.category === 'utilities').length },
   ], [tools]);
 
   const filteredTools = useMemo(() => {
@@ -282,7 +308,8 @@ export function GamesAndToolsPage() {
       const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
       const matchesSearch = searchQuery.trim() === '' || 
         tool.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        tool.description.toLowerCase().includes(searchQuery.toLowerCase());
+        tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.categoryLabel.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [tools, selectedCategory, searchQuery]);
@@ -293,7 +320,7 @@ export function GamesAndToolsPage() {
       return [
         {
           id: selectedCategory,
-          title: catObj?.label || 'Category',
+          title: catObj?.label || 'Selected Tools',
           icon: catObj?.icon || LayoutGrid,
           tools: filteredTools
         }
@@ -303,16 +330,16 @@ export function GamesAndToolsPage() {
     return [
       {
         id: 'games',
-        title: 'Interactive Games & Recitation',
+        title: 'Games & Interactive Recitation',
         icon: Gamepad2,
         badgeBg: 'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-500/30',
         tools: filteredTools.filter(t => t.category === 'games')
       },
       {
         id: 'groupings',
-        title: 'Groupings & Team Work',
+        title: 'Group Division & Team Generators',
         icon: Users2,
-        badgeBg: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-500/30',
+        badgeBg: 'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-500/30',
         tools: filteredTools.filter(t => t.category === 'groupings')
       },
       {
@@ -349,11 +376,58 @@ export function GamesAndToolsPage() {
 
   if (selectedTool) {
     const ActiveComponent = selectedTool.component;
-    return <ActiveComponent onBack={handleBack} />;
+    return (
+      <div 
+        ref={activeToolRef} 
+        className={`w-full relative transition-all duration-300 ${
+          isFullscreen 
+            ? 'fixed inset-0 z-9999 bg-[#090d16] p-3 md:p-5 flex flex-col h-screen w-screen overflow-hidden' 
+            : 'w-full h-full flex flex-col flex-1'
+        }`}
+      >
+        {/* Dedicated Top Action Bar for Active Tool */}
+        <div className="flex items-center justify-between gap-4 mb-4 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-md p-3 px-4 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs shrink-0">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <span>Back to Games & Tools</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden md:inline-block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-2">
+              {selectedTool.title}
+            </span>
+            <button
+              onClick={() => toggleFullscreen(activeToolRef)}
+              title={isFullscreen ? 'Exit Fullscreen Mode (Esc)' : 'Enter Fullscreen Mode'}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs transition cursor-pointer shadow-sm shadow-amber-500/20 active:scale-95"
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4" />
+                  <span>Exit Fullscreen</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4" />
+                  <span>Fullscreen Mode</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          <ActiveComponent onBack={handleBack} />
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 lg:p-6 space-y-6 animate-fade-in">
+    <div ref={containerRef} className="w-full max-w-7xl mx-auto p-4 lg:p-6 space-y-6 animate-fade-in">
       {/* Header Banner */}
       <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/5 p-6 lg:p-8 shadow-xs relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -381,6 +455,25 @@ export function GamesAndToolsPage() {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900 transition-all placeholder:text-slate-400"
               />
             </div>
+
+            {/* Fullscreen Button */}
+            <button
+              onClick={() => toggleFullscreen(containerRef)}
+              className="px-3.5 py-2.5 bg-slate-900 dark:bg-white/10 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs shrink-0 cursor-pointer transition-all border border-slate-200 dark:border-white/10 flex items-center gap-2 shadow-xs"
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen Mode"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">Exit Fullscreen</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">Fullscreen</span>
+                </>
+              )}
+            </button>
 
             {/* Collapse All Toggle Button */}
             {selectedCategory === 'all' && (

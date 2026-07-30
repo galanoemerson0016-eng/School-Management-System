@@ -596,20 +596,20 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
     const isStrandLocked = !!(selectedSectionObj && selectedSectionObj.strand);
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-deped-blue text-white px-6 py-4 flex justify-between items-center sticky top-0">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-deped-blue dark:bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center sticky top-0 z-10 border-b border-deped-blue/30 dark:border-white/10">
                     <h3 className="text-xl font-bold">{student ? 'Edit Student' : 'Add New Student'}</h3>
-                    <button onClick={onClose} className="text-white hover:text-gray-200 text-2xl">×</button>
+                    <button onClick={onClose} className="text-white hover:text-gray-200 text-2xl cursor-pointer">×</button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                     {/* Personal Information */}
                     <div>
-                        <h4 className="text-lg font-bold text-deped-blue mb-4">Personal Information</h4>
+                        <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4">Personal Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">
                                     LRN (12 digits) {isSimplified && <span className="text-xs font-normal text-slate-400">(Optional)</span>}
                                 </label>
                                 <input
@@ -648,7 +648,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 />
                             )}
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Last Name *</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Last Name *</label>
                                 <input
                                     type="text"
                                     name="last_name"
@@ -659,7 +659,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">First Name *</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">First Name *</label>
                                 <input
                                     type="text"
                                     name="first_name"
@@ -670,7 +670,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Middle Name</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Middle Name</label>
                                 <input
                                     type="text"
                                     name="middle_name"
@@ -680,7 +680,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Name Extension (Jr, I, II)</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Name Extension (Jr, I, II)</label>
                                 <input
                                     type="text"
                                     name="name_extension"
@@ -691,31 +691,31 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Gender *</label>
+                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Gender *</label>
                                 <select name="gender" value={formData.gender || ''} onChange={handleChange} required className="form-input">
-                                    <option value="">Select Gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
+                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Gender</option>
+                                    <option value="Male" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Male</option>
+                                    <option value="Female" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Female</option>
                                 </select>
                             </div>
 
                             {!isSimplified && (
                                 <>
-                                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60 flex flex-col sm:flex-row items-center gap-4 mb-2">
+                                    <div className="md:col-span-2 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/60 dark:border-white/10 flex flex-col sm:flex-row items-center gap-4 mb-2">
                                         <div className="shrink-0">
-                                            <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Student Photo</label>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Student Photo</label>
                                             <PhotoUploadCrop
                                                 value={formData.photo_url}
                                                 onChange={(dataUrl) => setFormData(prev => ({ ...prev, photo_url: dataUrl }))}
                                                 onRemove={() => setFormData(prev => ({ ...prev, photo_url: undefined }))}
                                             />
                                         </div>
-                                        <div className="text-xs text-slate-500 font-medium leading-relaxed">
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                                             Upload/crop a student photo for generating IDs. Fixed 1:1 square crop. Compressed to save disk space and backups.
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Birthday *</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Birthday *</label>
                                         <input
                                             type={inputType}
                                             name="birthday"
@@ -729,11 +729,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Age</label>
-                                        <input type="number" name="age" value={formData.age} readOnly className="form-input bg-gray-100" />
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Age</label>
+                                        <input type="number" name="age" value={formData.age} readOnly className="form-input bg-gray-100 dark:bg-white/10 dark:text-slate-200 dark:border-white/10" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Contact Number</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Contact Number</label>
                                         <input
                                             type="tel"
                                             name="contact_number"
@@ -745,7 +745,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </div>
                                     {isSHS && (
                                         <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Date of SHS Admission (mm/dd/yyyy)</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Date of SHS Admission (mm/dd/yyyy)</label>
                                             <input
                                                 type="date"
                                                 name="shs_admission_date"
@@ -756,7 +756,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
                                     )}
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Address *</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Address *</label>
                                         <textarea
                                             name="address"
                                             value={formData.address}
@@ -775,72 +775,72 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                         <>
                             {/* Parent & Guardian Information */}
                             <div>
-                                <h4 className="text-lg font-bold text-deped-blue mb-4">Parent & Guardian Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-150 mb-4">
+                                <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4">Parent & Guardian Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-150 dark:border-white/10 mb-4">
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Father's Full Name</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Father's Full Name</label>
                                         <input
                                             type="text"
                                             name="father_name"
                                             value={formData.father_name || ''}
                                             onChange={handleChange}
                                             placeholder="First Middle Last"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Mother's Maiden Name</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Mother's Maiden Name</label>
                                         <input
                                             type="text"
                                             name="mother_name"
                                             value={formData.mother_name || ''}
                                             onChange={handleChange}
                                             placeholder="First Middle Last"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Guardian's Full Name</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Guardian's Full Name</label>
                                         <input
                                             type="text"
                                             name="guardian_name"
                                             value={formData.guardian_name || ''}
                                             onChange={handleChange}
                                             placeholder="First Middle Last"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Guardian Relationship</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Guardian Relationship</label>
                                         <input
                                             type="text"
                                             name="guardian_relationship"
                                             value={formData.guardian_relationship || ''}
                                             onChange={handleChange}
                                             placeholder="e.g. Grandparent, Aunt"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Parent/Guardian Contact No.</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Parent/Guardian Contact No.</label>
                                         <input
                                             type="tel"
                                             name="parent_contact"
                                             value={formData.parent_contact || ''}
                                             onChange={handleChange}
                                             placeholder="09XX-XXX-XXXX"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Parent/Guardian Email</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Parent/Guardian Email</label>
                                         <input
                                             type="email"
                                             name="parent_email"
                                             value={formData.parent_email || ''}
                                             onChange={handleChange}
                                             placeholder="email@example.com"
-                                            className="form-input bg-white"
+                                            className="form-input bg-white dark:bg-white/5 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -848,17 +848,17 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
 
                             {/* Academic Information */}
                             <div>
-                                <h4 className="text-lg font-bold text-deped-blue mb-4">Academic Information</h4>
+                                <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4">Academic Information</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Grade Level *</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Grade Level *</label>
                                         <select 
                                             name="grade_level" 
                                             value={formData.grade_level} 
                                             onChange={handleChange} 
                                             required 
                                             disabled={!!student || !!initialData?.student_section}
-                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 dark:bg-white/10 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                         >
                                             {GRADE_LEVELS.map(gl => (
                                                 <option key={gl} value={gl}>{gl}</option>
@@ -866,22 +866,22 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Section</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Section</label>
                                         <select 
                                             name="student_section" 
                                             value={formData.student_section || ''} 
                                             onChange={handleChange} 
                                             disabled={!!student || !!initialData?.student_section}
-                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                            className={`form-input ${(!!student || !!initialData?.student_section) ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                         >
-                                            <option value="">Select Section</option>
+                                            <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Section</option>
                                             {sections
                                                 .filter(s => {
                                                     const effectiveIsAdvisory = s.is_advisory ?? !s.is_teaching_load;
                                                     return effectiveIsAdvisory && s.section_grade_level === formData.grade_level;
                                                 })
                                                 .map((s) => (
-                                                    <option key={s.id} value={s.section_name}>{s.section_name}</option>
+                                                    <option key={s.id} value={s.section_name} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s.section_name}</option>
                                                 ))
                                             }
                                         </select>
@@ -890,35 +890,35 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     {isSHS && (
                                         <>
                                             <div className={isGrade11 ? "md:col-span-2" : ""}>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Track *</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Track *</label>
                                                 <select 
                                                     name="track" 
                                                     value={formData.track || ''} 
                                                     onChange={handleChange} 
                                                     required 
                                                     disabled={isTrackLocked}
-                                                    className={`form-input ${isTrackLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                                    className={`form-input ${isTrackLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                                 >
-                                                    <option value="">Select Track</option>
+                                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Track</option>
                                                     {(isGrade11 ? ['Academic', 'TechPro'] : TRACKS).map((t) => (
-                                                        <option key={t} value={t}>{t}</option>
+                                                        <option key={t} value={t} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{t}</option>
                                                     ))}
                                                 </select>
                                             </div>
                                             {isGrade12 && (
                                                 <div>
-                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">Strand *</label>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Strand *</label>
                                                     <select 
                                                         name="strand" 
                                                         value={formData.strand || ''} 
                                                         onChange={handleChange} 
                                                         required 
                                                         disabled={isStrandLocked}
-                                                        className={`form-input ${isStrandLocked ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                                                        className={`form-input ${isStrandLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
                                                     >
-                                                        <option value="">Select Strand</option>
+                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Strand</option>
                                                         {getStrandsForTrack(formData.track, formData.grade_level).map((s) => (
-                                                            <option key={s} value={s}>{s}</option>
+                                                            <option key={s} value={s} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s}</option>
                                                         ))}
                                                     </select>
                                                 </div>
@@ -929,14 +929,14 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                             </div>
 
                             {/* Health Information (SF8) */}
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                            <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
+                                <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4 flex items-center gap-2">
                                     <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                     Health Information
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Weight (kg)</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Weight (kg)</label>
                                         <input
                                             type="number"
                                             name="weight"
@@ -948,7 +948,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2 text-deped-blue">Height (m)</label>
+                                        <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Height (m)</label>
                                         <input
                                             type="number"
                                             name="height"
@@ -960,25 +960,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         />
                                     </div>
                                 </div>
-                                <p className="mt-2 text-xs text-gray-500 italic">Used for SF8 BMI calculations.</p>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400 italic">Used for SF8 BMI calculations.</p>
                             </div>
 
                             {/* Eligibility Section (Grade Dependent) */}
                             {isElementary ? (
-                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                    <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                                <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
+                                    <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4 flex items-center gap-2">
                                         <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                         Eligibility for Elementary Enrolment
                                     </h4>
-                                    <div className="mb-4 p-3 bg-white rounded-lg border border-gray-100">
-                                        <p className="text-sm font-semibold text-deped-blue mb-2 italic">Credential Presented for Grade 1:</p>
+                                    <div className="mb-4 p-3 bg-white dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10">
+                                        <p className="text-sm font-semibold text-deped-blue dark:text-blue-300 mb-2 italic">Credential Presented for Grade 1:</p>
                                         <div className="flex flex-wrap gap-4">
                                             {[
                                                 { id: 'kinder_progress_report', label: 'Kinder Progress Report' },
                                                 { id: 'eccd_checklist', label: 'ECCD Checklist' },
                                                 { id: 'kinder_completion_cert', label: 'Kindergarten Certificate of Completion' }
                                             ].map(item => (
-                                                <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer text-slate-700 dark:text-slate-200">
                                                     <input 
                                                         type="checkbox" 
                                                         checked={!!formData[item.id as keyof Student]} 
@@ -992,46 +992,46 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Name of School</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Name of School</label>
                                             <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" placeholder="Enter school name" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">School ID</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">School ID</label>
                                             <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" placeholder="ID" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">Address of School</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Address of School</label>
                                             <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" placeholder="Address" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-semibold mb-2 text-deped-blue">School Type</label>
+                                            <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">School Type</label>
                                             <select 
                                                 name="elementary_school_type" 
                                                 value={formData.elementary_school_type || ''} 
                                                 onChange={handleChange} 
-                                                className="form-input bg-white"
+                                                className="form-input bg-white dark:bg-white/5 dark:text-white"
                                             >
-                                                <option value="">Select Type</option>
-                                                <option value="Public">Public</option>
-                                                <option value="Private">Private</option>
+                                                <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Type</option>
+                                                <option value="Public" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Public</option>
+                                                <option value="Private" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Private</option>
                                             </select>
                                         </div>
                                     </div>
                                 </div>
                             ) : isSHS ? (
-                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-6">
-                                    <h4 className="text-lg font-bold text-deped-blue mb-2 flex items-center gap-2">
+                                <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-xl border border-gray-200 dark:border-white/10 space-y-6">
+                                    <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-2 flex items-center gap-2">
                                         <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                         Eligibility for SHS Enrolment
                                     </h4>
                                     
                                     <div className="grid grid-cols-1 gap-6">
                                         {/* Elementary School Completed Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
-                                            <h5 className="font-bold mb-3 uppercase tracking-wider text-xs border-b pb-1.5 text-deped-blue/80">Elementary School Completed</h5>
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
+                                            <h5 className="font-bold mb-3 uppercase tracking-wider text-xs border-b border-gray-200 dark:border-white/10 pb-1.5 text-deped-blue/80 dark:text-blue-300">Elementary School Completed</h5>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
                                                 <div className="md:col-span-2">
-                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Name of Elementary Completed</label>
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Name of Elementary Completed</label>
                                                     <input 
                                                         type="text" 
                                                         name="elementary_school" 
@@ -1042,7 +1042,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     />
                                                 </div>
                                                 <div className="md:col-span-2">
-                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Address of School</label>
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Address of School</label>
                                                     <input 
                                                         type="text" 
                                                         name="elementary_school_address" 
@@ -1053,23 +1053,23 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">School Type</label>
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">School Type</label>
                                                     <select 
                                                         name="elementary_school_type" 
                                                         value={formData.elementary_school_type || ''} 
                                                         onChange={handleChange} 
-                                                        className="form-input text-sm bg-white"
+                                                        className="form-input text-sm bg-white dark:bg-white/5 dark:text-white"
                                                     >
-                                                        <option value="">Select Type</option>
-                                                        <option value="Public">Public</option>
-                                                        <option value="Private">Private</option>
+                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Type</option>
+                                                        <option value="Public" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Public</option>
+                                                        <option value="Private" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Private</option>
                                                     </select>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* HS Completer Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
                                                 <input 
                                                     type="checkbox" 
@@ -1078,13 +1078,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, is_hs_completer: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
-                                                <span className="font-bold text-gray-800">High School Completer *</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">High School Completer *</span>
                                             </label>
                                             
                                             {formData.is_hs_completer && (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Gen. Ave</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Gen. Ave</label>
                                                         <input 
                                                             type="text" 
                                                             name="hs_gen_ave" 
@@ -1095,7 +1095,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Graduation/Completion (mm/dd/yyyy)</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Date of Graduation/Completion (mm/dd/yyyy)</label>
                                                         <input 
                                                             type="text" 
                                                             name="hs_graduation_date" 
@@ -1110,7 +1110,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
 
                                         {/* JHS Completer Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
                                                 <input 
                                                     type="checkbox" 
@@ -1119,13 +1119,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, is_jhs_completer: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
-                                                <span className="font-bold text-gray-800">Junior High School Completer</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">Junior High School Completer</span>
                                             </label>
                                             
                                             {formData.is_jhs_completer && (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-3 pl-8">
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Gen. Ave</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Gen. Ave</label>
                                                         <input 
                                                             type="text" 
                                                             name="jhs_gen_ave" 
@@ -1136,7 +1136,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Graduation (mm/dd/yyyy)</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Date of Graduation (mm/dd/yyyy)</label>
                                                         <input 
                                                             type="text" 
                                                             name="jhs_graduation_date" 
@@ -1147,7 +1147,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div className="md:col-span-2">
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Name of School</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Name of School</label>
                                                         <input 
                                                             type="text" 
                                                             name="jhs_school_name" 
@@ -1158,7 +1158,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div className="md:col-span-3">
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">School Address</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">School Address</label>
                                                         <input 
                                                             type="text" 
                                                             name="jhs_school_address" 
@@ -1169,16 +1169,16 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">School Type</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">School Type</label>
                                                         <select 
                                                             name="jhs_school_type" 
                                                             value={formData.jhs_school_type || ''} 
                                                             onChange={handleChange} 
-                                                            className="form-input text-sm bg-white"
+                                                            className="form-input text-sm bg-white dark:bg-white/5 dark:text-white"
                                                         >
-                                                            <option value="">Select Type</option>
-                                                            <option value="Public">Public</option>
-                                                            <option value="Private">Private</option>
+                                                            <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Type</option>
+                                                            <option value="Public" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Public</option>
+                                                            <option value="Private" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Private</option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -1186,7 +1186,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
 
                                         {/* PEPT Passer Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
                                                 <input 
                                                     type="checkbox" 
@@ -1195,13 +1195,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, is_pept_passer: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
-                                                <span className="font-bold text-gray-800">PEPT Passer **</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">PEPT Passer **</span>
                                             </label>
                                             
                                             {formData.is_pept_passer && (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Rating</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Rating</label>
                                                         <input 
                                                             type="text" 
                                                             name="shs_pept_rating" 
@@ -1212,7 +1212,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Date of Examination/Assessment (mm/dd/yyyy)</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Date of Examination/Assessment (mm/dd/yyyy)</label>
                                                         <input 
                                                             type="text" 
                                                             name="shs_pept_date" 
@@ -1227,7 +1227,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
 
                                         {/* ALS A&E Passer Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
                                                 <input 
                                                     type="checkbox" 
@@ -1236,13 +1236,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, is_als_passer: e.target.checked, is_als: e.target.checked ? true : prev.is_als }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
-                                                <span className="font-bold text-gray-800">ALS A&E Passer ***</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">ALS A&E Passer ***</span>
                                             </label>
                                             
                                             {formData.is_als_passer && (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 pl-8">
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Rating</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Rating</label>
                                                         <input 
                                                             type="text" 
                                                             name="shs_als_rating" 
@@ -1253,7 +1253,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue">Name & Address of CLC (Community Learning Center)</label>
+                                                        <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Name & Address of CLC (Community Learning Center)</label>
                                                         <input 
                                                             type="text" 
                                                             name="shs_als_clc_name_address" 
@@ -1268,7 +1268,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                         </div>
 
                                         {/* Others Card */}
-                                        <div className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+                                        <div className="p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 hover:shadow-xs transition-shadow">
                                             <label className="flex items-center gap-3 cursor-pointer mb-3">
                                                 <input 
                                                     type="checkbox" 
@@ -1277,12 +1277,12 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, is_other_eligibility: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
                                                 />
-                                                <span className="font-bold text-gray-800">Others (Pls. Specify)</span>
+                                                <span className="font-bold text-gray-800 dark:text-white">Others (Pls. Specify)</span>
                                             </label>
                                             
                                             {formData.is_other_eligibility && (
                                                 <div className="mt-3 pl-8">
-                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue">Specify Credential</label>
+                                                    <label className="block text-xs font-semibold mb-1 text-deped-blue dark:text-blue-300">Specify Credential</label>
                                                     <input 
                                                         type="text" 
                                                         name="shs_other_credentials" 
@@ -1297,7 +1297,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </div>
 
                                     {/* Footnotes */}
-                                    <div className="text-[10px] text-gray-500 space-y-1 border-t border-gray-200 pt-4 mt-2">
+                                    <div className="text-[10px] text-gray-500 dark:text-slate-400 space-y-1 border-t border-gray-200 dark:border-white/10 pt-4 mt-2">
                                         <p>* High School Completers are students who graduated from secondary school under the old curriculum</p>
                                         <p>** PEPT - Philippine Educational Placement Test for JHS</p>
                                         <p>*** ALS A&E - Alternative Learning System Accreditation and Equivalency Test for JHS</p>
@@ -1305,13 +1305,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                 </div>
                             ) : (
                                 <>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                        <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                                    <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
+                                        <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4 flex items-center gap-2">
                                             <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                             Eligibility for Secondary Enrolment
                                         </h4>
-                                        <div className="mb-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100/50">
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-blue-800 mb-4">Basis of SF10 Eligibility</label>
+                                        <div className="mb-6 p-4 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-100/50 dark:border-white/10">
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 mb-4">Basis of SF10 Eligibility</label>
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                                 {[
                                                     { id: 'is_elem_completer', label: 'Elem. Completer' },
@@ -1319,7 +1319,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     { id: 'is_als_passer', label: 'ALS A&E Passer' },
                                                     { id: 'is_other_eligibility', label: 'Others' }
                                                 ].map((item) => (
-                                                    <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white border border-gray-200 cursor-pointer hover:bg-blue-50 transition-colors group">
+                                                    <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 cursor-pointer hover:bg-blue-50 dark:hover:bg-white/10 transition-colors group">
                                                         <input 
                                                             type="checkbox" 
                                                             checked={!!formData[item.id as keyof Student]}
@@ -1333,73 +1333,73 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             })}
                                                             className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-bold text-gray-700 group-hover:text-blue-700">{item.label}</span>
+                                                        <span className="text-sm font-bold text-gray-700 dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-blue-400">{item.label}</span>
                                                     </label>
                                                 ))}
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Previous School Name</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Previous School Name</label>
                                                 <input type="text" name="elementary_school" value={formData.elementary_school || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School ID</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">School ID</label>
                                                 <input type="text" name="elementary_school_id" value={formData.elementary_school_id || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School Address</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">School Address</label>
                                                 <input type="text" name="elementary_school_address" value={formData.elementary_school_address || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">School Type</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">School Type</label>
                                                 <select 
                                                     name="elementary_school_type" 
                                                     value={formData.elementary_school_type || ''} 
                                                     onChange={handleChange} 
-                                                    className="form-input bg-white"
+                                                    className="form-input bg-white dark:bg-white/5 dark:text-white"
                                                 >
-                                                    <option value="">Select Type</option>
-                                                    <option value="Public">Public</option>
-                                                    <option value="Private">Private</option>
+                                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Type</option>
+                                                    <option value="Public" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Public</option>
+                                                    <option value="Private" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Private</option>
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Gen. Average</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Gen. Average</label>
                                                 <input type="text" name="average_grade" value={formData.average_grade || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Citation (if any)</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Citation (if any)</label>
                                                 <input type="text" name="citation" value={formData.citation || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Universal Other Credentials */}
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                        <h4 className="text-lg font-bold text-deped-blue mb-4 flex items-center gap-2">
+                                    <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-100 dark:border-white/10">
+                                        <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 mb-4 flex items-center gap-2">
                                             <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                             Other Credential Details
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">PEPT Rating</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">PEPT Rating</label>
                                                 <input type="text" name="pept_rating" value={formData.pept_rating || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">ALS Rating</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">ALS Rating</label>
                                                 <input type="text" name="als_rating" value={formData.als_rating || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Others (Pls. Specify)</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Others (Pls. Specify)</label>
                                                 <input type="text" name="other_credentials" value={formData.other_credentials || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Date of Exam (mm/dd/yyyy)</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Date of Exam (mm/dd/yyyy)</label>
                                                 <input type="text" name="pept_date" value={formData.pept_date || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-semibold mb-2 text-deped-blue">Testing Center Address</label>
+                                                <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Testing Center Address</label>
                                                 <input type="text" name="testing_center" value={formData.testing_center || ''} onChange={handleChange} className="form-input" />
                                             </div>
                                         </div>
@@ -1408,13 +1408,13 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                             )}
 
                             {/* Section: Credentials Checklist */}
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-4">
-                                        <h4 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                                    <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-150 dark:border-white/10 space-y-4">
+                                        <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 flex items-center gap-2">
                                             <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                             Document Credentials Checklist
                                         </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-white rounded-lg border border-gray-200">
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-white dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_birth_cert"
@@ -1422,10 +1422,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_birth_cert: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">PSA Birth Certificate</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">PSA Birth Certificate</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_report_card"
@@ -1433,10 +1433,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_report_card: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Final Report Card (SF9)</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Final Report Card (SF9)</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_sf10"
@@ -1444,10 +1444,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_sf10: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Form 137 / SF10</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Form 137 / SF10</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_good_moral"
@@ -1455,10 +1455,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_good_moral: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Good Moral Certificate</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Good Moral Certificate</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_homeroom_guidance"
@@ -1466,10 +1466,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_homeroom_guidance: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Homeroom Guidance Form</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Homeroom Guidance Form</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_brigada_eskwela"
@@ -1477,10 +1477,10 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_brigada_eskwela: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Brigada Eskwela Slip</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Brigada Eskwela Slip</span>
                                             </label>
 
-                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                 <input 
                                                     type="checkbox" 
                                                     name="req_beef"
@@ -1488,11 +1488,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     onChange={(e) => setFormData(prev => ({ ...prev, req_beef: e.target.checked }))}
                                                     className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                 />
-                                                <span className="text-sm font-semibold text-gray-700">Enrolment Form (Annex 1)</span>
+                                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Enrolment Form (Annex 1)</span>
                                             </label>
 
                                             {isSHS && (
-                                                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                     <input 
                                                         type="checkbox" 
                                                         name="req_undertaking"
@@ -1500,14 +1500,14 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         onChange={(e) => setFormData(prev => ({ ...prev, req_undertaking: e.target.checked }))}
                                                         className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                     />
-                                                    <span className="text-sm font-semibold text-gray-700">Confirmation Slip</span>
+                                                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Confirmation Slip</span>
                                                 </label>
                                             )}
 
-                                            <div className="col-span-1 md:col-span-2 border-t border-slate-200/60 my-2 pt-2">
-                                                <p className="text-xs font-bold text-deped-blue mb-2 uppercase tracking-wider">Enrollment Terms</p>
+                                            <div className="col-span-1 md:col-span-2 border-t border-slate-200/60 dark:border-white/10 my-2 pt-2">
+                                                <p className="text-xs font-bold text-deped-blue dark:text-blue-300 mb-2 uppercase tracking-wider">Enrollment Terms</p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                         <input 
                                                             type="checkbox" 
                                                             name="req_1st_term"
@@ -1515,9 +1515,9 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_1st_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700">1st Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">1st Term</span>
                                                     </label>
-                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                         <input 
                                                             type="checkbox" 
                                                             name="req_2nd_term"
@@ -1525,9 +1525,9 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_2nd_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700">2nd Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">2nd Term</span>
                                                     </label>
-                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 transition-colors">
+                                                    <label className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
                                                         <input 
                                                             type="checkbox" 
                                                             name="req_3rd_term"
@@ -1535,7 +1535,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                             onChange={(e) => setFormData(prev => ({ ...prev, req_3rd_term: e.target.checked }))}
                                                             className="w-5 h-5 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                         />
-                                                        <span className="text-sm font-semibold text-gray-700">3rd Term</span>
+                                                        <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">3rd Term</span>
                                                     </label>
                                                 </div>
                                             </div>
@@ -1543,15 +1543,15 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                     </div>
 
                                     {/* Section: Additional Information */}
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-4">
-                                        <h4 className="text-lg font-bold text-deped-blue flex items-center gap-2">
+                                    <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-150 dark:border-white/10 space-y-4">
+                                        <h4 className="text-lg font-bold text-deped-blue dark:text-blue-400 flex items-center gap-2">
                                             <span className="w-1.5 h-6 bg-linear-to-b from-deped-blue to-blue-400 rounded-full" />
                                             Additional Profile Mapping Details
                                         </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-4 rounded-lg border border-gray-200">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white dark:bg-white/5 p-4 rounded-lg border border-gray-200 dark:border-white/10">
                                             {/* 4Ps Beneficiary Info */}
-                                            <div className="space-y-3 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
-                                                <span className="block text-sm font-semibold text-deped-blue">4Ps Beneficiary?</span>
+                                            <div className="space-y-3 p-4 bg-slate-50/50 dark:bg-white/5 rounded-xl border border-slate-100/50 dark:border-white/10 flex flex-col justify-start">
+                                                <span className="block text-sm font-semibold text-deped-blue dark:text-blue-300">4Ps Beneficiary?</span>
                                                 <div className="flex gap-2">
                                                     <button
                                                         type="button"
@@ -1559,7 +1559,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all border ${
                                                             formData.is_4ps 
                                                                 ? 'bg-deped-blue text-white border-deped-blue shadow-xs' 
-                                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                                : 'bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                                                         }`}
                                                     >
                                                         Yes
@@ -1570,7 +1570,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                         className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all border ${
                                                             !formData.is_4ps 
                                                                 ? 'bg-deped-blue text-white border-deped-blue shadow-xs' 
-                                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                                : 'bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                                                         }`}
                                                     >
                                                         No
@@ -1578,7 +1578,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                 </div>
                                                 {formData.is_4ps && (
                                                     <div className="pt-2 animate-fade-in space-y-1">
-                                                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Household ID Number</label>
+                                                        <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Household ID Number</label>
                                                         <input 
                                                             type="text" 
                                                             name="household_id"
@@ -1592,25 +1592,25 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             </div>
 
                                             {/* Enrollment Type & Status */}
-                                            <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
+                                            <div className="space-y-4 p-4 bg-slate-50/50 dark:bg-white/5 rounded-xl border border-slate-100/50 dark:border-white/10 flex flex-col justify-start">
                                                 <div>
-                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">Enrollment Type</label>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Enrollment Type</label>
                                                     <select 
                                                         name="enrollment_type" 
                                                         value={formData.enrollment_type || 'Regular'} 
                                                         onChange={handleChange}
-                                                        className="form-input bg-white text-sm focus:ring-deped-blue"
+                                                        className="form-input bg-white dark:bg-white/5 dark:text-white text-sm focus:ring-deped-blue"
                                                     >
-                                                        <option value="Regular">Regular</option>
-                                                        <option value="Irregular">Irregular</option>
-                                                        <option value="Transferee">Transferee</option>
-                                                        <option value="Balik-Aral">Balik-Aral</option>
-                                                        <option value="ALS">Alternative Learning System (ALS)</option>
+                                                        <option value="Regular" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Regular</option>
+                                                        <option value="Irregular" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Irregular</option>
+                                                        <option value="Transferee" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Transferee</option>
+                                                        <option value="Balik-Aral" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Balik-Aral</option>
+                                                        <option value="ALS" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Alternative Learning System (ALS)</option>
                                                     </select>
                                                 </div>
 
                                                 {(formData.enrollment_type === 'ALS' || formData.is_als) && (
-                                                    <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-3 animate-fade-in mt-2">
+                                                    <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-white/10 space-y-3 animate-fade-in mt-2">
                                                         <label className="flex items-center gap-3 cursor-pointer">
                                                             <input 
                                                                 type="checkbox" 
@@ -1619,17 +1619,17 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                                 onChange={(e) => setFormData(prev => ({ ...prev, is_als: e.target.checked, is_als_passer: e.target.checked ? true : prev.is_als_passer }))}
                                                                 className="w-4 h-4 rounded border-gray-300 text-deped-blue focus:ring-deped-blue cursor-pointer"
                                                             />
-                                                            <span className="font-semibold text-gray-800 text-xs">Confirm ALS Enrolled Status</span>
+                                                            <span className="font-semibold text-gray-800 dark:text-white text-xs">Confirm ALS Enrolled Status</span>
                                                         </label>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold mb-1 text-deped-blue">ALS Center Address</label>
+                                                            <label className="block text-[11px] font-semibold mb-1 text-deped-blue dark:text-blue-300">ALS Center Address</label>
                                                             <input 
                                                                 type="text" 
                                                                 name="als_center_address"
                                                                 value={formData.als_center_address || ''} 
                                                                 onChange={handleChange}
                                                                 placeholder="CLC Name/Address"
-                                                                className="form-input text-xs bg-white focus:ring-deped-blue"
+                                                                className="form-input text-xs bg-white dark:bg-white/5 dark:text-white focus:ring-deped-blue"
                                                             />
                                                         </div>
                                                     </div>
@@ -1637,15 +1637,15 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                             </div>
 
                                             {/* First Day of Attendance */}
-                                            <div className="space-y-4 p-4 bg-slate-50/50 rounded-xl border border-slate-100/50 flex flex-col justify-start">
+                                            <div className="space-y-4 p-4 bg-slate-50/50 dark:bg-white/5 rounded-xl border border-slate-100/50 dark:border-white/10 flex flex-col justify-start">
                                                 <div>
-                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue">First Day of Attendance</label>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">First Day of Attendance</label>
                                                     <input 
                                                         type="date" 
                                                         name="first_day_attendance"
                                                         value={formData.first_day_attendance || ''} 
                                                         onChange={handleChange}
-                                                        className="form-input text-sm bg-white focus:ring-deped-blue"
+                                                        className="form-input text-sm bg-white dark:bg-white/5 dark:text-white focus:ring-deped-blue"
                                                     />
                                                 </div>
                                             </div>
@@ -1655,11 +1655,11 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                             )}
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end space-x-3 pt-4 border-t sticky bottom-0 bg-white">
-                        <button type="button" onClick={onClose} className="px-6 py-2 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50">
+                    <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-white/10 sticky bottom-0 bg-white dark:bg-[#0d1225] p-2 z-10">
+                        <button type="button" onClick={onClose} className="px-6 py-2 border-2 border-gray-300 dark:border-white/20 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-all cursor-pointer">
                             Cancel
                         </button>
-                        <button type="submit" disabled={isLoading} className="btn-primary disabled:opacity-50 min-w-35">
+                        <button type="submit" disabled={isLoading} className="btn-primary disabled:opacity-50 min-w-35 rounded-xl cursor-pointer shadow-md">
                             {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : student ? 'Update Student' : 'Add Student'}
                         </button>
                     </div>

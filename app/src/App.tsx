@@ -119,6 +119,7 @@ function App() {
   const { isAuthenticated, isLoading, needsAccountSetup } = useAuthStore();
   const currentView = useAppStore(state => state.currentView);
   const schoolProfile = useAppStore(state => state.schoolProfile);
+  const theme = useAppStore(state => state.theme);
   const isSyncReady = useAppStore(state => state.isSyncReady);
   const selectedSection = useAppStore(state => state.selectedSection);
   const sections = useAppStore(state => state.sections);
@@ -223,6 +224,33 @@ function App() {
     const schoolName = schoolProfile?.name?.trim();
     document.title = schoolName && schoolName !== 'School Name' ? schoolName : 'FormEase Pro';
   }, [schoolProfile]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = () => {
+      const isDark = theme === 'dark' || (theme === 'system' && mediaQuery.matches);
+      if (isDark) {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.remove('dark');
+        root.style.colorScheme = 'light';
+      }
+    };
+
+    applyTheme();
+
+    const handleSystemChange = () => {
+      if (theme === 'system') {
+        applyTheme();
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemChange);
+  }, [theme]);
 
   useEffect(() => {
     const disable = localStorage.getItem('disable-animations') === 'true';

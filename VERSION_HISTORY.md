@@ -2,6 +2,34 @@
 
 # Version History
 
+## v2.8.0 (2026-07-30)
+
+### 🚀 New Features & Enhancements
+
+* **Full Dark Mode Support Across School Forms & Tools:**
+  * Applied comprehensive dark mode styling across toolbars, selection controls, empty states, modals, and workspaces for **SF2** (Daily Attendance), **SF5** (Report on Promotion), **SF6** (Summarized Report), **SF8** (Health & Nutrition), **SF9** (Report Card), **SF10** (Permanent Record), **LIR** (Learner's Individual Record), **Grade Slips**, and **Name Tags**.
+  * Enforced light color scheme and crisp `#000000` text rendering inside printable document sheets to ensure paper prints remain pure white.
+* **Post-Update What's New & Fixes Screen:**
+  * Automated release notes pop-up display on app startup after updating via in-app updater or direct installer download.
+* **macOS Auto-Updater & Release Download Fallback:**
+  * Configured Firebase Hosting 302 redirects for `latest-mac.yml` and `latest.yml` to resolve YAML parsing errors.
+  * Added direct release installer download link (`.dmg` / `.zip` / `.exe`) in the update modal for macOS Gatekeeper fallback.
+* **Excel Template Export & Import Optimization:**
+  * Added sheet name sanitization (stripping illegal Excel characters `: \ / ? * [ ]`) and deduplication to ensure template export and bulk grade import work seamlessly in Summary of Grades.
+
+### 🐞 Bug Fixes & Refactoring
+
+* **Attendance Sheet Header Text Visibility:**
+  * Fixed day-of-week letter header row (`M`, `T`, `W`, `TH`, `F`) in SF2 Daily Attendance table to maintain high-contrast black text in dark mode.
+* **Native Select Group Header Contrast:**
+  * Added global CSS styling for `<optgroup>` and `<option>` dropdown labels to prevent white-on-white text clipping across Chromium browsers.
+* **SF9 Toolbar Cleanup:**
+  * Removed redundant duplicate "Signatures" button from the SF9 top toolbar and cleaned up unused icon imports.
+
+### 📝 Notes
+
+Backward compatible. School Forms dark mode, macOS updater, and Excel template enhancement release.
+
 ## v2.7.6 (2026-07-28)
 
 ### 🚀 New Features & Enhancements

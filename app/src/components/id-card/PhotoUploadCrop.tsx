@@ -35,11 +35,11 @@ export function PhotoUploadCrop({ value, onChange, onRemove, disabled }: Props) 
 
     return (
         <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-md overflow-hidden border border-slate-300 bg-slate-100 flex items-center justify-center shrink-0">
+            <div className="w-16 h-16 rounded-md overflow-hidden border border-slate-300 dark:border-white/10 bg-slate-100 dark:bg-white/5 flex items-center justify-center shrink-0">
                 {value ? (
                     <img src={value} alt="Student" className="w-full h-full object-cover" />
                 ) : (
-                    <span className="text-[9px] text-slate-400">No photo</span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold">No photo</span>
                 )}
             </div>
             <div className="flex flex-col gap-1.5">

@@ -78,23 +78,23 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
             <button
                 type="button"
                 onClick={() => toggle(id)}
-                className="w-full flex items-center justify-between py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 border-b border-slate-150 select-none cursor-pointer outline-none mb-3"
+                className="w-full flex items-center justify-between py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border-b border-slate-200 dark:border-white/10 select-none cursor-pointer outline-none mb-3"
             >
                 <span>{label}</span>
-                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
+                {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />}
             </button>
         );
     };
 
     return (
-        <fieldset disabled={!canEdit} className="space-y-4 disabled:opacity-60 text-slate-800">
+        <fieldset disabled={!canEdit} className="space-y-4 disabled:opacity-60 text-slate-800 dark:text-slate-100">
             {/* Section 1: Layout & Templates */}
             <div className="space-y-3">
                 {renderHeader('layout', 'Layout & Templates')}
                 {expanded.layout && (
                     <div className="space-y-4 pt-1">
                         <div>
-                            <label className="block text-[10px] font-semibold text-slate-400 mb-1.5">Template Style</label>
+                            <label className="block text-[10px] font-semibold text-slate-400 dark:text-slate-400 mb-1.5">Template Style</label>
                             <div className="grid grid-cols-3 gap-1">
                                 {TEMPLATES.map((t) => (
                                     <button
@@ -103,8 +103,8 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                         onClick={() => set('template', t.id)}
                                         className={`text-center px-1 py-1.5 rounded-lg border transition-colors flex items-center justify-center min-h-8 cursor-pointer ${
                                             config.template === t.id
-                                                ? 'border-deped-blue bg-deped-blue/5 ring-1 ring-deped-blue text-deped-blue'
-                                                : 'border-slate-200 hover:border-slate-350 text-slate-700'
+                                                ? 'border-deped-blue bg-deped-blue/10 dark:bg-blue-500/20 ring-1 ring-deped-blue text-deped-blue dark:text-blue-400'
+                                                : 'border-slate-200 dark:border-white/10 hover:border-slate-350 dark:hover:border-white/20 text-slate-700 dark:text-slate-200 bg-white dark:bg-white/5'
                                         }`}
                                     >
                                         <span className="text-[10px] font-bold leading-none">{t.label}</span>
@@ -114,11 +114,11 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                         </div>
 
                         <div>
-                            <label className="block text-[10px] font-semibold text-slate-400 mb-2">Show / Hide Fields</label>
+                            <label className="block text-[10px] font-semibold text-slate-400 dark:text-slate-400 mb-2">Show / Hide Fields</label>
                             <div className="flex flex-col gap-2.5">
                                 {TOGGLES.map((t) => (
                                     <div key={t.key} className="space-y-2">
-                                        <label className="flex items-start gap-1.5 text-xs text-slate-650 cursor-pointer select-none leading-tight hover:text-slate-900">
+                                        <label className="flex items-start gap-1.5 text-xs text-slate-650 dark:text-slate-300 cursor-pointer select-none leading-tight hover:text-slate-900 dark:hover:text-white">
                                             <input
                                                 type="checkbox"
                                                 checked={config.show[t.key]}
@@ -129,26 +129,26 @@ export function IdTemplateSettings({ config, onChange, canEdit }: Props) {
                                         </label>
 
                                         {t.key === 'signature' && config.show.signature && (
-                                            <div className="pl-5 space-y-2.5 border-l border-slate-200 ml-1.5 pt-1 pb-1">
+                                            <div className="pl-5 space-y-2.5 border-l border-slate-200 dark:border-white/10 ml-1.5 pt-1 pb-1">
                                                 <div className="grid grid-cols-2 gap-2">
                                                     <div>
-                                                        <label className="block text-[9px] font-semibold text-slate-500 mb-0.5">Signatory (back)</label>
+                                                        <label className="block text-[9px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Signatory (back)</label>
                                                         <input
                                                             type="text"
                                                             placeholder="Defaults to School Head"
                                                             value={config.signatoryName || ''}
                                                             onChange={(e) => set('signatoryName', e.target.value)}
-                                                            className="w-full px-2 py-0.5 text-xs border border-slate-200 rounded bg-white text-slate-805 focus:outline-none shadow-sm"
+                                                            className="w-full px-2 py-0.5 text-xs border border-slate-200 dark:border-white/10 rounded bg-white dark:bg-white/5 text-slate-805 dark:text-white focus:outline-none shadow-xs"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[9px] font-semibold text-slate-500 mb-0.5">Position</label>
+                                                        <label className="block text-[9px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Position</label>
                                                         <input
                                                             type="text"
                                                             placeholder="e.g. Principal II"
                                                             value={config.signatoryPosition || ''}
                                                             onChange={(e) => set('signatoryPosition', e.target.value)}
-                                                            className="w-full px-2 py-0.5 text-xs border border-slate-200 rounded bg-white text-slate-805 focus:outline-none shadow-sm"
+                                                            className="w-full px-2 py-0.5 text-xs border border-slate-200 dark:border-white/10 rounded bg-white dark:bg-white/5 text-slate-805 dark:text-white focus:outline-none shadow-xs"
                                                         />
                                                     </div>
                                                 </div>

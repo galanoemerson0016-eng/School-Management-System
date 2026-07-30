@@ -169,15 +169,15 @@ export function AnnouncementsPage() {
         });
 
     const typeStyles = {
-        general: 'border-l-deped-blue bg-blue-50',
-        urgent: 'border-l-deped-red bg-red-50',
-        event: 'border-l-deped-green bg-green-50',
+        general: 'border-l-deped-blue bg-blue-50 dark:bg-blue-950/30 dark:border-l-blue-500',
+        urgent: 'border-l-deped-red bg-red-50 dark:bg-red-950/30 dark:border-l-red-500',
+        event: 'border-l-deped-green bg-green-50 dark:bg-green-950/30 dark:border-l-green-500',
     };
 
     const typeBadges = {
-        general: 'bg-deped-blue',
-        urgent: 'bg-deped-red',
-        event: 'bg-green-600',
+        general: 'bg-deped-blue dark:bg-blue-600',
+        urgent: 'bg-deped-red dark:bg-red-600',
+        event: 'bg-green-600 dark:bg-green-600',
     };
 
     return (
@@ -185,15 +185,15 @@ export function AnnouncementsPage() {
 
 
             {/* Login Page Announcement Editor */}
-            <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden">
-                <div className="px-6 py-4 bg-linear-to-r from-emerald-600 to-green-500 text-white flex justify-between items-center">
+            <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-emerald-100 dark:border-emerald-500/20 overflow-hidden">
+                <div className="px-6 py-4 bg-linear-to-r from-emerald-600 to-green-500 dark:from-emerald-900 dark:to-green-900 text-white flex justify-between items-center">
                     <h3 className="text-sm font-bold flex items-center gap-2">
                         📢 Login Page Banner
                     </h3>
                     {canManageAnnouncements && !isEditingLoginAnnouncement && (
                         <button
                             onClick={() => setIsEditingLoginAnnouncement(true)}
-                            className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-white font-bold transition-colors"
+                            className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-white font-bold transition-colors cursor-pointer"
                         >
                             Edit
                         </button>
@@ -206,20 +206,20 @@ export function AnnouncementsPage() {
                                 value={loginAnnouncementText}
                                 onChange={(e) => setLoginAnnouncementText(e.target.value)}
                                 rows={2}
-                                className="w-full px-4 py-3 bg-white border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                                className="w-full px-4 py-3 bg-white dark:bg-white/5 border border-emerald-200 dark:border-emerald-500/30 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm text-slate-900 dark:text-white"
                                 placeholder="Enter the announcement for the login page..."
                             />
                             <div className="flex justify-end gap-2">
                                 <button
                                     onClick={() => { setIsEditingLoginAnnouncement(false); setLoginAnnouncementText(loginAnnouncement); }}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-600 text-sm hover:bg-gray-50 font-medium"
+                                    className="px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg text-gray-600 dark:text-slate-300 text-sm hover:bg-gray-50 dark:hover:bg-white/10 font-medium cursor-pointer"
                                     disabled={isSavingSystem}
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleUpdateLoginAnnouncement}
-                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm"
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-xs cursor-pointer"
                                     disabled={isSavingSystem}
                                 >
                                     {isSavingSystem ? "Saving..." : "Save"}
@@ -227,18 +227,18 @@ export function AnnouncementsPage() {
                             </div>
                         </div>
                     ) : (
-                        <p className="text-sm text-gray-700 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
-                            {loginAnnouncement || <span className="text-gray-400 italic">No active announcement set.</span>}
+                        <p className="text-sm text-gray-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-100 dark:border-emerald-800/40">
+                            {loginAnnouncement || <span className="text-gray-400 dark:text-emerald-500/60 italic">No active announcement set.</span>}
                         </p>
                     )}
                 </div>
             </div>
 
             {/* Cloud Sync Hub */}
-            <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${cloudSyncEnabled ? 'border-blue-200' : 'border-gray-100'}`}>
-                <div className={`px-6 py-3 flex justify-between items-center ${cloudSyncEnabled ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            <div className={`bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border overflow-hidden transition-all ${cloudSyncEnabled ? 'border-blue-200 dark:border-blue-500/30' : 'border-gray-100 dark:border-white/10'}`}>
+                <div className={`px-6 py-3 flex justify-between items-center ${cloudSyncEnabled ? 'bg-blue-600 dark:bg-blue-950 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-slate-300'}`}>
                     <div className="flex items-center gap-2">
-                        {cloudSyncEnabled ? <Globe className="w-4 h-4 animate-pulse" /> : <CloudOff className="w-4 h-4" />}
+                        {cloudSyncEnabled ? <Globe className="w-4 h-4 animate-pulse" /> : <CloudOff className="w-4 h-4 text-slate-400" />}
                         <h3 className="text-xs font-bold uppercase tracking-wider">
                             School-Wide Cloud Hub
                         </h3>
@@ -250,15 +250,15 @@ export function AnnouncementsPage() {
                             onChange={(e) => setCloudSyncEnabled(e.target.checked)}
                             className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-white/20"></div>
+                        <div className="w-9 h-5 bg-gray-300 dark:bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-white/20"></div>
                     </label>
                 </div>
                 <div className="p-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-800">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-white">
                             {cloudSyncEnabled ? 'Interconnected Mode Active' : 'Offline Mode Only'}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                             {cloudSyncEnabled 
                                 ? `Connected to School ID: ${schoolProfile.school_id || 'Not Set'}. Everyone in your school sees your posts.`
                                 : 'Announcements are only saved on this computer.'}
@@ -268,7 +268,7 @@ export function AnnouncementsPage() {
                         <button
                             onClick={handleManualSync}
                             disabled={isSyncing}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-500/30 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                             Sync Now
@@ -278,16 +278,16 @@ export function AnnouncementsPage() {
             </div>
 
             {/* Redesigned Compact Filter & Action Row */}
-            <div className="flex flex-wrap gap-3 items-center justify-between bg-white/70 backdrop-blur-xl border border-slate-200/80 p-3 rounded-2xl shadow-2xs">
+            <div className="flex flex-wrap gap-3 items-center justify-between bg-white/70 dark:bg-[#0d1225]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 p-3 rounded-2xl shadow-2xs">
                 <div className="flex flex-wrap gap-3 items-center flex-1">
                     <div className="relative flex-1 min-w-50 max-w-xs group">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search announcements..."
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl text-xs font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 transition-all"
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-white/10 rounded-xl text-xs font-bold text-slate-700 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400 transition-all"
                         />
                     </div>
                     <div className="flex gap-1.5">
@@ -296,8 +296,8 @@ export function AnnouncementsPage() {
                                 key={type}
                                 onClick={() => setTypeFilter(type)}
                                 className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-wider transition-all capitalize select-none cursor-pointer ${typeFilter === type
-                                    ? 'bg-slate-900 text-white shadow-xs'
-                                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                    ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs'
+                                    : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                                     }`}
                             >
                                 {type === 'all' ? 'All' : type}
@@ -309,7 +309,7 @@ export function AnnouncementsPage() {
                 {canManageAnnouncements && (
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0 animate-in fade-in"
+                        className="px-4 py-2 bg-indigo-650 dark:bg-blue-600 hover:bg-indigo-700 dark:hover:bg-blue-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer shrink-0 animate-in fade-in"
                     >
                         <Plus className="w-3.5 h-3.5" />
                         New Announcement
@@ -318,16 +318,16 @@ export function AnnouncementsPage() {
             </div>
 
             {/* Announcements List */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 bg-linear-to-r from-deped-blue to-blue-600 text-white">
+            <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden">
+                <div className="px-6 py-4 bg-linear-to-r from-deped-blue to-blue-600 dark:from-indigo-950 dark:to-blue-900 text-white">
                     <h3 className="font-bold">Announcements ({filteredAnnouncements.length})</h3>
                 </div>
                 {filteredAnnouncements.length === 0 ? (
                     <div className="text-center py-12">
                         <div className="text-5xl mb-4">📢</div>
-                        <p className="text-gray-500 font-medium">No announcements found</p>
+                        <p className="text-gray-500 dark:text-slate-400 font-medium">No announcements found</p>
                         {canManageAnnouncements && (
-                            <button onClick={() => setIsModalOpen(true)} className="mt-4 px-4 py-2 bg-deped-blue text-white rounded-xl font-bold text-sm">
+                            <button onClick={() => setIsModalOpen(true)} className="mt-4 px-4 py-2 bg-deped-blue dark:bg-blue-600 text-white rounded-xl font-bold text-sm cursor-pointer">
                                 Create First Announcement
                             </button>
                         )}
@@ -341,13 +341,13 @@ export function AnnouncementsPage() {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
-                                    className={`p-4 border-l-4 rounded-xl ${typeStyles[announcement.announcement_type]} ${announcement.is_pinned ? 'ring-2 ring-amber-300 ring-offset-1' : ''}`}
+                                    className={`p-4 border-l-4 rounded-xl ${typeStyles[announcement.announcement_type]} ${announcement.is_pinned ? 'ring-2 ring-amber-300 dark:ring-amber-500/50 ring-offset-1 dark:ring-offset-0' : ''}`}
                                 >
                                     <div className="flex justify-between items-start gap-3">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-wrap items-center gap-2 mb-2">
                                                 {announcement.is_pinned && (
-                                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[9px] rounded-full font-black uppercase flex items-center gap-1">
+                                                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] rounded-full font-black uppercase flex items-center gap-1">
                                                         <Pin className="w-2.5 h-2.5" /> Pinned
                                                     </span>
                                                 )}
@@ -355,26 +355,26 @@ export function AnnouncementsPage() {
                                                     {announcement.announcement_type}
                                                 </span>
                                                 {announcement.is_cloud && (
-                                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[9px] rounded-full font-black uppercase flex items-center gap-1">
+                                                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[9px] rounded-full font-black uppercase flex items-center gap-1">
                                                         <Cloud className="w-2.5 h-2.5" /> Cloud
                                                     </span>
                                                 )}
                                                 {announcement.category && (
-                                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[9px] rounded-full font-bold">
+                                                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-slate-300 text-[9px] rounded-full font-bold">
                                                         {announcement.category}
                                                     </span>
                                                 )}
-                                                <span className="text-[10px] text-gray-400 font-bold">{announcement.announcement_date}</span>
+                                                <span className="text-[10px] text-gray-400 dark:text-slate-400 font-bold">{announcement.announcement_date}</span>
                                             </div>
-                                            <h4 className="text-base font-bold text-gray-800">{announcement.announcement_title}</h4>
-                                            <p className="text-sm text-gray-600 mt-1">{announcement.announcement_content}</p>
+                                            <h4 className="text-base font-bold text-gray-800 dark:text-white">{announcement.announcement_title}</h4>
+                                            <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">{announcement.announcement_content}</p>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
                                             {canManageAnnouncements && (
                                                 <>
                                                     <button
                                                         onClick={() => handleTogglePin(announcement)}
-                                                        className={`p-2 rounded-lg transition-colors ${announcement.is_pinned ? 'hover:bg-amber-100 text-amber-500' : 'hover:bg-gray-100 text-gray-400'}`}
+                                                        className={`p-2 rounded-lg transition-colors cursor-pointer ${announcement.is_pinned ? 'hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-500 dark:text-amber-400' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 dark:text-slate-400'}`}
                                                         title={announcement.is_pinned ? 'Unpin' : 'Pin'}
                                                     >
                                                         {announcement.is_pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -382,7 +382,7 @@ export function AnnouncementsPage() {
                                                     {(!announcement.is_cloud || announcement.author_id === user?.uid) && (
                                                         <button
                                                             onClick={() => deleteAnnouncement(announcement.id)}
-                                                            className="p-2 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                                                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/20 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
                                                             title="Delete"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
@@ -406,68 +406,68 @@ export function AnnouncementsPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                        className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4"
                         onClick={() => setIsModalOpen(false)}
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+                            className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-2xl border dark:border-white/10 max-w-lg w-full overflow-hidden"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="bg-deped-blue text-white px-6 py-4 flex justify-between items-center">
+                            <div className="bg-deped-blue dark:bg-indigo-950 text-white px-6 py-4 flex justify-between items-center">
                                 <h3 className="text-lg font-bold">New Announcement</h3>
-                                <button onClick={() => setIsModalOpen(false)} className="text-white text-2xl hover:bg-white/20 rounded-lg p-1">×</button>
+                                <button onClick={() => setIsModalOpen(false)} className="text-white text-2xl hover:bg-white/20 rounded-lg p-1 cursor-pointer">×</button>
                             </div>
                             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Type</label>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Type</label>
                                         <select
                                             value={formData.announcement_type}
                                             onChange={(e) => setFormData({
                                                 ...formData,
                                                 announcement_type: e.target.value as Announcement['announcement_type']
                                             })}
-                                            className="form-input text-sm"
+                                            className="w-full px-3 py-2 text-sm bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-lg outline-none"
                                         >
-                                            <option value="general">General</option>
-                                            <option value="urgent">Urgent</option>
-                                            <option value="event">Event</option>
+                                            <option value="general" className="dark:bg-[#0d1225]">General</option>
+                                            <option value="urgent" className="dark:bg-[#0d1225]">Urgent</option>
+                                            <option value="event" className="dark:bg-[#0d1225]">Event</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                                        <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Category</label>
                                         <input
                                             type="text"
                                             value={formData.category}
                                             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                             placeholder="e.g., Academic, Sports"
-                                            className="form-input text-sm"
+                                            className="w-full px-3 py-2 text-sm bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-lg outline-none"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Title *</label>
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Title *</label>
                                     <input
                                         type="text"
                                         value={formData.announcement_title}
                                         onChange={(e) => setFormData({ ...formData, announcement_title: e.target.value })}
                                         required
                                         placeholder="Enter announcement title"
-                                        className="form-input text-sm"
+                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-lg outline-none"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Content *</label>
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Content *</label>
                                     <textarea
                                         value={formData.announcement_content}
                                         onChange={(e) => setFormData({ ...formData, announcement_content: e.target.value })}
                                         required
                                         rows={4}
                                         placeholder="Enter announcement content"
-                                        className="form-input text-sm"
+                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-lg outline-none"
                                     />
                                 </div>
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -475,17 +475,17 @@ export function AnnouncementsPage() {
                                         type="checkbox"
                                         checked={formData.is_pinned}
                                         onChange={(e) => setFormData({ ...formData, is_pinned: e.target.checked })}
-                                        className="w-4 h-4 rounded border-gray-300 text-deped-blue focus:ring-deped-blue"
+                                        className="w-4 h-4 rounded border-gray-300 dark:border-white/20 text-deped-blue focus:ring-deped-blue"
                                     />
-                                    <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-1">
                                         <Pin className="w-3.5 h-3.5 text-amber-500" /> Pin this announcement
                                     </span>
                                 </label>
                                 <div className="flex justify-end space-x-3 pt-2">
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium hover:bg-gray-50">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-lg text-gray-600 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-white/10 cursor-pointer">
                                         Cancel
                                     </button>
-                                    <button type="submit" className="px-6 py-2 bg-deped-blue text-white rounded-lg font-bold hover:bg-blue-700 shadow-md">
+                                    <button type="submit" className="px-6 py-2 bg-deped-blue dark:bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-xs cursor-pointer">
                                         Publish
                                     </button>
                                 </div>

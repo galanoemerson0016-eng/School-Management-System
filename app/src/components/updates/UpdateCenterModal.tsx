@@ -1,5 +1,5 @@
 import { useUpdateStore } from '../../stores/update-store';
-import { Shield, CheckCircle, XCircle, Loader2, ArrowRight, Download, RefreshCw, X } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Loader2, ArrowRight, Download, RefreshCw, X, ExternalLink } from 'lucide-react';
 
 export function UpdateCenterModal() {
   const { 
@@ -189,20 +189,31 @@ export function UpdateCenterModal() {
                   {errorMessage || 'An error occurred during verification.'}
                 </p>
               </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={checkForUpdates}
-                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              <div className="space-y-2">
+                <a
+                  href="https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/latest"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-800/40 text-indigo-600 dark:text-indigo-300 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  Retry Check
-                </button>
-                <button
-                  onClick={() => useUpdateStore.setState({ updateStep: 'idle' })}
-                  className="flex-1 py-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white font-black text-[13px] uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
-                >
-                  Close & Continue
-                </button>
+                  <ExternalLink className="w-4 h-4" />
+                  Download Direct Installer (.dmg / .zip / .exe)
+                </a>
+                <div className="flex gap-3">
+                  <button
+                    onClick={checkForUpdates}
+                    className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Retry Check
+                  </button>
+                  <button
+                    onClick={() => useUpdateStore.setState({ updateStep: 'idle' })}
+                    className="flex-1 py-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-white font-black text-[13px] uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+                  >
+                    Close & Continue
+                  </button>
+                </div>
               </div>
             </div>
           )}

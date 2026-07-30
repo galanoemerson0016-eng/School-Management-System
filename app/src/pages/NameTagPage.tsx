@@ -66,7 +66,7 @@ export function NameTagPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
+        <div className="min-h-screen bg-slate-50 dark:bg-[#080d1a] flex flex-col font-sans print:bg-white print:h-auto print:overflow-visible">
             <style>{`
                 .print-page {
                     width: 210mm;
@@ -121,7 +121,7 @@ export function NameTagPage() {
                 }
             `}</style>
             {/* Header Toolbar */}
-            <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
+            <div className="z-20 bg-white/90 dark:bg-[#0d1225]/95 backdrop-blur-3xl border-b border-slate-200 dark:border-white/10 shadow-sm sticky top-0 print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="flex items-center justify-start w-full h-16 select-none relative px-3 lg:px-4 gap-2 lg:gap-3 overflow-x-auto scrollbar-none">
                     
@@ -129,23 +129,23 @@ export function NameTagPage() {
                     <div className="flex items-center gap-2 lg:gap-3 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-8 h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
                         <div className="flex flex-col shrink-0">
-                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">Name Tags</h2>
-                            <p className="text-[7.5px] font-black text-blue-600 uppercase tracking-widest leading-none">Resource Tool</p>
+                            <h2 className="text-[11px] lg:text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">Name Tags</h2>
+                            <p className="text-[7.5px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-none">Resource Tool</p>
                         </div>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                    <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
 
                     {/* Controls Block */}
                     <div className="relative group shrink-0">
                         <select 
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-30 lg:min-w-33.75 duration-200"
+                            className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-30 lg:min-w-33.75 duration-200"
                             value={selectedSection}
                             onChange={(e) => setSelectedSection(e.target.value)}
                         >
@@ -162,14 +162,14 @@ export function NameTagPage() {
                                 )
                             ))}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
                     <div className="relative group shrink-0">
                         <select
                             value={template}
                             onChange={(e) => setTemplate(e.target.value as DesignTemplate)}
-                            className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-22.5 lg:min-w-25 duration-200"
+                            className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-22.5 lg:min-w-25 duration-200"
                             title="Design Template"
                         >
                             <option value="classic">Classic</option>
@@ -179,7 +179,7 @@ export function NameTagPage() {
                             <option value="organic">Organic</option>
                             <option value="artistic">Artistic</option>
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                     </div>
 
                     {(template === 'pro' || template === 'premium') && (
@@ -187,7 +187,7 @@ export function NameTagPage() {
                             <select
                                 value={colorTheme}
                                 onChange={(e) => setColorTheme(e.target.value as ColorTheme)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-20 lg:min-w-22.5 duration-200"
+                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-20 lg:min-w-22.5 duration-200"
                                 title="Color Theme"
                             >
                                 <option value="blue">Blue</option>
@@ -196,11 +196,11 @@ export function NameTagPage() {
                                 <option value="amber">Amber</option>
                                 <option value="rose">Rose</option>
                             </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                         </div>
                     )}
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0 mx-0.5" />
+                    <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
 
                     <button
                         onClick={handlePrint}
@@ -214,14 +214,14 @@ export function NameTagPage() {
             </div>
 
             {/* Layout Preview */}
-            <div className="flex-1 overflow-auto p-12 flex flex-col items-center bg-slate-100/50 print:bg-white print:p-0 print:overflow-visible custom-scrollbar">
+            <div className="flex-1 overflow-auto p-12 flex flex-col items-center bg-slate-100/50 dark:bg-[#080d1a] print:bg-white print:p-0 print:overflow-visible custom-scrollbar">
                 {sectionStudents.length > 0 ? (
                     <div className="print:w-full flex flex-col items-center">
-                        <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 text-amber-700 print:hidden max-w-2xl shadow-sm">
+                        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-700 dark:text-amber-300 print:hidden max-w-2xl shadow-sm">
                             <Sparkles className="w-5 h-5 shrink-0" />
                             <div className="text-xs space-y-1">
                                 <p className="font-black uppercase tracking-tight">Print Setup Required</p>
-                                <p className="font-medium opacity-90">To see the colors and backgrounds, please check <span className="font-black underline italic text-amber-800">"Background graphics"</span> in the Print Preview settings.</p>
+                                <p className="font-medium opacity-90">To see the colors and backgrounds, please check <span className="font-black underline italic text-amber-800 dark:text-amber-200">"Background graphics"</span> in the Print Preview settings.</p>
                             </div>
                         </div>
                         
@@ -242,7 +242,7 @@ export function NameTagPage() {
                                     padding: '0',
                                 }}>
                                     {/* Page Number Indicator */}
-                                    <div className="absolute -top-6 right-0 text-[10px] font-black text-slate-400 uppercase tracking-widest print:hidden">
+                                    <div className="absolute -top-6 right-0 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest print:hidden">
                                         Page {pageIdx + 1} of {Math.ceil(sectionStudents.length / 8)}
                                     </div>
                                     
@@ -262,11 +262,11 @@ export function NameTagPage() {
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center max-w-md">
-                        <div className="w-20 h-20 bg-slate-200 rounded-3xl flex items-center justify-center mb-6">
-                            <Layout className="w-10 h-10 text-slate-400" />
+                        <div className="w-20 h-20 bg-slate-200 dark:bg-white/10 rounded-3xl flex items-center justify-center mb-6">
+                            <Layout className="w-10 h-10 text-slate-400 dark:text-slate-500" />
                         </div>
-                        <h3 className="text-xl font-black text-slate-800 mb-2">No Students Selected</h3>
-                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">No Students Selected</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                             Select a section from the toolbar to generate professional name tags for your class.
                         </p>
                     </div>

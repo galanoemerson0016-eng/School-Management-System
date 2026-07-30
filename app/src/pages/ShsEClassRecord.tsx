@@ -1464,8 +1464,8 @@ export function ShsEClassRecord() {
                 </div>
             </div>
 
-            <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 flex-1 min-h-0">
-                <div className="bg-slate-50/50 p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
+            <div className="bg-white dark:bg-[#0d1225] shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 dark:border-white/10 flex-1 min-h-0">
+                <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
                         className="eclass-zoom-shell origin-top transition-all duration-300"
@@ -1622,8 +1622,8 @@ export function ShsEClassRecord() {
                             </table>
                         </div>
                     ) : (
-                    <div className="bg-slate-50/50 p-3 md:p-4 text-black">
-                        <div id="printable-class-record" className="bg-white p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 text-black">
+                        <div id="printable-class-record" className="bg-white dark:bg-[#070a12] p-4 md:p-6 shadow-xl border border-gray-100 dark:border-white/5 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
@@ -1759,7 +1759,7 @@ export function ShsEClassRecord() {
                                     <tr className="font-bold h-8 text-[8px]">
                                         <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[9px] font-black uppercase bg-slate-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                         {hps.ww.map((val, i) => (
-                                            <td key={`hps-ww-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                            <td key={`hps-ww-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
@@ -1767,7 +1767,7 @@ export function ShsEClassRecord() {
                                                     onKeyDown={(e) => handleKeyDown(e, 0, i)}
                                                     data-row={0}
                                                     data-col={i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                 />
                                             </td>
                                         ))}
@@ -1775,7 +1775,7 @@ export function ShsEClassRecord() {
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.written_works * 100)}%</td>
                                         {hps.pt.map((val, i) => (
-                                            <td key={`hps-pt-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                            <td key={`hps-pt-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
@@ -1783,7 +1783,7 @@ export function ShsEClassRecord() {
                                                     onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
                                                     data-row={0}
                                                     data-col={5 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                 />
                                             </td>
                                         ))}
@@ -1794,7 +1794,7 @@ export function ShsEClassRecord() {
                                             .map((val, i) => ({ val, i }))
                                             .filter(({ i }) => !isFieldExposure || i === 2)
                                             .map(({ val, i }) => (
-                                                <td key={`hps-qa-${i}`} className="bg-blue-50/40 border border-black p-0">
+                                                <td key={`hps-qa-${i}`} className="bg-white border border-black p-0">
                                                     <DebouncedInput
                                                         type="number"
                                                         value={val === '' ? '' : val}
@@ -1802,7 +1802,7 @@ export function ShsEClassRecord() {
                                                         onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
                                                         data-row={0}
                                                         data-col={8 + i}
-                                                        className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                     />
                                                 </td>
                                             ))

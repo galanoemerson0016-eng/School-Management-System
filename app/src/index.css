@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Libre+Caslon+Display:ital@0;1&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
 @import "./styles/certificate-styles.css";
 
 /* DepEd Theme Colors */
@@ -37,17 +39,222 @@
 
 /* Custom Utilities */
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
   body {
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    background-color: var(--color-app-bg);
+    color: #0f172a;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* Dark Mode Variables */
-  .dark body,
+  /* Dark Mode Base Overrides & High-Contrast Defaults */
   .dark {
-    --tw-bg-opacity: 1;
+    color-scheme: dark;
+  }
+
+  .dark body {
+    background-color: #0A0E17;
+    color: #f8fafc;
+  }
+
+  /* Ensure all dropdown select option items & optgroup headers render with clean backgrounds & high contrast text */
+  select optgroup,
+  optgroup {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-weight: 700 !important;
+  }
+
+  select option,
+  option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .dark select optgroup,
+  .dark optgroup {
+    background-color: #1e293b !important;
+    color: #94a3b8 !important;
+    font-weight: 700 !important;
+  }
+
+  .dark select option,
+  .dark option {
+    background-color: #0d1225 !important;
+    color: #ffffff !important;
+  }
+
+  /* Ensure outer printable sheet containers are dark workspace background in dark mode */
+  .dark #printable-class-record,
+  .dark #printable-summary-record {
+    background-color: #070a12 !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+  }
+
+  /* Ensure the inner paper pages remain pure white paper sheets */
+  .class-record-page,
+  .dark .class-record-page,
+  .lir-container,
+  .dark .lir-container,
+  .lir-print-sheet,
+  .dark .lir-print-sheet,
+  .lir-bulk-sheet,
+  .dark .lir-bulk-sheet,
+  .card-container-combined,
+  .dark .card-container-combined,
+  .sf6-print-page,
+  .dark .sf6-print-page,
+  .sf2-print-container,
+  .dark .sf2-print-container,
+  .sf5-print-page,
+  .dark .sf5-print-page,
+  .sf8-printable-area,
+  .dark .sf8-printable-area,
+  .sf10-print-root,
+  .dark .sf10-print-root,
+  .print-page,
+  .dark .print-page,
+  .grade-slip-card,
+  .dark .grade-slip-card {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Force all text elements, tables, cells, headers, inputs, and selects inside paper sheets to remain sharp black on white */
+  .print-paper *,
+  .printable-document *,
+  .class-record-page *,
+  .lir-container *,
+  .lir-print-sheet *,
+  .lir-bulk-sheet *,
+  .card-container-combined *,
+  .sf6-print-page *,
+  .sf2-print-container *,
+  .sf5-print-page *,
+  .sf8-printable-area *,
+  .sf10-print-root *,
+  .print-page *,
+  .grade-slip-card *,
+  [id^="printable-"] * {
+    color-scheme: light !important;
+  }
+
+  .dark .print-paper th,
+  .dark .print-paper td,
+  .dark .print-paper span,
+  .dark .print-paper p,
+  .dark .print-paper div,
+  .dark .print-paper label,
+  .dark .print-paper input,
+  .dark .print-paper select,
+  .dark .print-paper h1,
+  .dark .print-paper h2,
+  .dark .print-paper h3,
+  .dark .print-paper h4,
+  .dark .printable-document th,
+  .dark .printable-document td,
+  .dark .printable-document span,
+  .dark .printable-document p,
+  .dark .printable-document div,
+  .dark .printable-document label,
+  .dark .printable-document input,
+  .dark .printable-document select,
+  .dark .printable-document h1,
+  .dark .printable-document h2,
+  .dark .printable-document h3,
+  .dark .printable-document h4,
+  .dark .class-record-page th,
+  .dark .class-record-page td,
+  .dark .class-record-page span,
+  .dark .class-record-page p,
+  .dark .class-record-page div,
+  .dark .class-record-page label,
+  .dark .class-record-page input,
+  .dark .class-record-page select,
+  .dark .class-record-page h1,
+  .dark .class-record-page h2,
+  .dark .class-record-page h3,
+  .dark .class-record-page h4,
+  .dark .lir-container th,
+  .dark .lir-container td,
+  .dark .lir-container span,
+  .dark .lir-container p,
+  .dark .lir-container div,
+  .dark .lir-container label,
+  .dark .lir-container input,
+  .dark .lir-container select,
+  .dark .lir-container h1,
+  .dark .lir-container h2,
+  .dark .lir-container h3,
+  .dark .lir-container h4,
+  .dark .lir-print-sheet th,
+  .dark .lir-print-sheet td,
+  .dark .lir-print-sheet span,
+  .dark .lir-print-sheet p,
+  .dark .lir-print-sheet div,
+  .dark .lir-print-sheet label,
+  .dark .lir-print-sheet input,
+  .dark .lir-print-sheet select,
+  .dark .lir-print-sheet h1,
+  .dark .lir-print-sheet h2,
+  .dark .lir-print-sheet h3,
+  .dark .lir-print-sheet h4,
+  .dark .card-container-combined th,
+  .dark .card-container-combined td,
+  .dark .card-container-combined span,
+  .dark .card-container-combined p,
+  .dark .card-container-combined div,
+  .dark .card-container-combined label,
+  .dark .card-container-combined input,
+  .dark .card-container-combined select,
+  .dark .card-container-combined h1,
+  .dark .card-container-combined h2,
+  .dark .card-container-combined h3,
+  .dark .card-container-combined h4,
+  .dark [id^="printable-"] th,
+  .dark [id^="printable-"] td,
+  .dark [id^="printable-"] span,
+  .dark [id^="printable-"] p,
+  .dark [id^="printable-"] div,
+  .dark [id^="printable-"] label,
+  .dark [id^="printable-"] input,
+  .dark [id^="printable-"] select,
+  .dark [id^="printable-"] h1,
+  .dark [id^="printable-"] h2,
+  .dark [id^="printable-"] h3,
+  .dark [id^="printable-"] h4 {
+    color: #000000 !important;
+  }
+
+  .dark .print-paper input,
+  .dark .print-paper select,
+  .dark .printable-document input,
+  .dark .printable-document select,
+  .dark .class-record-page input,
+  .dark .class-record-page select,
+  .dark .lir-container input,
+  .dark .lir-container select,
+  .dark .lir-print-sheet input,
+  .dark .lir-print-sheet select,
+  .dark [id^="printable-"] input,
+  .dark [id^="printable-"] select {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Reset inner input styling inside class record tables to eliminate box-in-a-box artifacts */
+  .class-record-page table input,
+  [id^="printable-"] table input {
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
 }
 

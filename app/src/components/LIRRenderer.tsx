@@ -147,6 +147,8 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                     .card-container-combined {
                         width: 100%;
                         background: white;
+                        color: #000000;
+                        color-scheme: light;
                         border: 4px solid ${outlineColor};
                         padding: ${8 * scale}px;
                         box-sizing: border-box;
@@ -165,11 +167,13 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         overflow: hidden;
                         padding: ${5 * scale}px 0;
                         width: 100%;
+                        color: #000000;
                     }
 
                     .header-green {
                         background-color: ${fillColor};
                         border: 1px solid ${outlineColor};
+                        color: #000000 !important;
                         text-align: center;
                         font-weight: 800;
                         text-transform: uppercase;
@@ -182,6 +186,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                     .label-green {
                         background-color: ${fillColor}dd;
                         border: 1px solid ${outlineColor};
+                        color: #000000 !important;
                         font-size: ${0.6 * scale}rem;
                         text-align: center;
                         font-weight: 700;
@@ -198,6 +203,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         font-size: ${0.8 * scale}rem;
                         vertical-align: middle;
                         background-color: white;
+                        color: #000000 !important;
                         display: table-cell;
                     }
 
@@ -206,6 +212,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         border-collapse: collapse;
                         font-size: ${0.6 * scale}rem;
                         table-layout: fixed;
+                        color: #000000;
                     }
 
                     .header-subject-table {
@@ -221,6 +228,7 @@ export const LIRRenderer: React.FC<LIRRendererProps> = ({
                         height: ${24 * scale}px;
                         overflow: hidden;
                         text-overflow: ellipsis;
+                        color: #000000 !important;
                     }
 
                     .header-subject-table td {

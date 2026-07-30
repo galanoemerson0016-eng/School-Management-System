@@ -1444,7 +1444,7 @@ export function EClassRecord() {
                 }
             `}</style>
 
-            <div className="bg-white rounded-lg shadow-md p-2.5 no-print">
+            <div className="bg-white dark:bg-[#0d1225] border border-slate-200/60 dark:border-white/10 rounded-xl shadow-md p-2.5 no-print">
                 <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-2 lg:gap-2">
                     <div className="w-full lg:w-40 shrink-0">
                         <div className="flex justify-between items-center mb-1">
@@ -1641,8 +1641,8 @@ export function EClassRecord() {
                 </div>
             </div>
 
-            <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 flex-1 min-h-0">
-                <div className="bg-slate-50/50 p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
+            <div className="bg-white dark:bg-[#0d1225] shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-200/60 dark:border-white/10 flex-1 min-h-0">
+                <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
                         className="eclass-zoom-shell origin-top transition-all duration-300"
@@ -1845,8 +1845,8 @@ export function EClassRecord() {
                             </table>
                         </div>
                     ) : (
-                    <div className="bg-slate-50/50 p-3 md:p-4">
-                        <div id="printable-class-record" className="bg-white p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.05)] border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4">
+                        <div id="printable-class-record" className="bg-white dark:bg-[#070a12] p-4 md:p-6 shadow-xl border border-gray-100 dark:border-white/5 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
@@ -1963,9 +1963,9 @@ export function EClassRecord() {
                                         <th className="border border-black w-12 bg-gray-200">WS</th>
                                     </tr>
                                     <tr className="font-bold h-9">
-                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-blue-50" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
                                         {hps.ww.map((val, i) => (
-                                            <td key={`hps-ww-${i}`} className="border border-black p-0 bg-blue-50">
+                                            <td key={`hps-ww-${i}`} className="border border-black p-0 bg-white">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
@@ -1973,7 +1973,7 @@ export function EClassRecord() {
                                                     onKeyDown={(e) => handleKeyDown(e, 0, i)}
                                                     data-row={0}
                                                     data-col={i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
                                                 />
                                             </td>
                                         ))}
@@ -1981,7 +1981,7 @@ export function EClassRecord() {
                                         <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
                                         <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.written_works * 100}%</td>
                                         {hps.pt.map((val, i) => (
-                                            <td key={`hps-pt-${i}`} className="border border-black p-0 bg-blue-50">
+                                            <td key={`hps-pt-${i}`} className="border border-black p-0 bg-white">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
@@ -1989,7 +1989,7 @@ export function EClassRecord() {
                                                     onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
                                                     data-row={0}
                                                     data-col={5 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
                                                 />
                                             </td>
                                         ))}
@@ -1997,7 +1997,7 @@ export function EClassRecord() {
                                         <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
                                         <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.performance_tasks * 100}%</td>
                                         {hps.qa.map((val, i) => (
-                                            <td key={`hps-qa-${i}`} className="border border-black p-0 bg-blue-50">
+                                            <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
@@ -2005,7 +2005,7 @@ export function EClassRecord() {
                                                     onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
                                                     data-row={0}
                                                     data-col={8 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-1 focus:bg-blue-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
                                                 />
                                             </td>
                                         ))}

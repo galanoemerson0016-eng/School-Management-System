@@ -315,12 +315,12 @@ export function InstitutePage() {
                         <motion.div 
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col overflow-hidden"
+                            className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-2xl border border-slate-100 dark:border-white/10 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col overflow-hidden"
                         >
-                            <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-850 flex items-center gap-2 shrink-0 bg-slate-50/40 dark:bg-slate-900/40">
+                            <div className="px-4 py-2 border-b border-slate-100 dark:border-white/10 flex items-center gap-2 shrink-0 bg-slate-50/40 dark:bg-white/5">
                                 <div className="w-1.5 h-4 bg-blue-600 rounded-full mr-1 animate-pulse" />
-                                <Building2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                                <h3 className="text-[9.5px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-widest">School Profile & Leadership</h3>
+                                <Building2 className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                                <h3 className="text-[9.5px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">School Profile & Leadership</h3>
                             </div>
                             
                             <div className="p-4 flex-1 flex flex-col justify-between overflow-hidden">
@@ -332,7 +332,7 @@ export function InstitutePage() {
                                             onChange={v => setFormData({ ...formData, name: v })} 
                                             placeholder="Enter full school name"
                                             isPrimary={true}
-                                            icon={<School className="w-4 h-4 text-blue-600" />}
+                                            icon={<School className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
                                         />
                                     </div>
                                     <FormInput 
@@ -340,28 +340,28 @@ export function InstitutePage() {
                                         value={formData.school_id} 
                                         onChange={v => setFormData({ ...formData, school_id: v })} 
                                         placeholder="e.g. 307014"
-                                        icon={<GraduationCap className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
+                                        icon={<GraduationCap className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
                                     />
                                     <FormInput 
                                         label="District" 
                                         value={formData.district} 
                                         onChange={v => setFormData({ ...formData, district: v })} 
                                         placeholder="District"
-                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
+                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
                                     />
                                     <div className="space-y-0.5">
-                                        <label className="block text-[8.5px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                                            <Globe className="w-4 h-4 inline mr-1.5 text-slate-400 dark:text-slate-500 align-middle" />
+                                        <label className="block text-[8.5px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-300 ml-1">
+                                            <Globe className="w-4 h-4 inline mr-1.5 text-slate-400 dark:text-slate-400 align-middle" />
                                             <span className="align-middle">Region</span>
                                         </label>
                                         <select
                                             value={formData.region || ''}
                                             onChange={e => setFormData({ ...formData, region: e.target.value })}
-                                            className="w-full rounded-xl py-1 px-3 outline-none transition-all bg-slate-50/60 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 shadow-xs"
+                                            className="w-full rounded-xl py-1 px-3 outline-none transition-all bg-slate-50/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-700 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 shadow-xs cursor-pointer"
                                         >
-                                            <option value="">Select Region</option>
+                                            <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Region</option>
                                             {['CAR', 'NCR', 'Region I', 'Region II', 'Region III', 'Region IV-A', 'MIMAROPA', 'Region V', 'Region VI', 'Region VII', 'Region VIII', 'NIR', 'Region IX', 'Region X', 'Region XI', 'Region XII', 'CARAGA', 'BARMM'].map(r => (
-                                                <option key={r} value={r}>{r}</option>
+                                                <option key={r} value={r} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{r}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -370,21 +370,21 @@ export function InstitutePage() {
                                         value={formData.division} 
                                         onChange={v => setFormData({ ...formData, division: v })} 
                                         placeholder="Division"
-                                        icon={<Building2 className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
+                                        icon={<Building2 className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
                                     />
                                     <FormInput 
                                         label="Municipality/City" 
                                         value={formData.municipality || formData.city || ''} 
                                         onChange={v => setFormData({ ...formData, municipality: v, city: v })} 
                                         placeholder="e.g. Tarlac City"
-                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
+                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
                                     />
                                     <FormInput 
                                         label="Province" 
                                         value={formData.province || ''} 
                                         onChange={v => setFormData({ ...formData, province: v })} 
                                         placeholder="e.g. Tarlac"
-                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-505" />}
+                                        icon={<MapPin className="w-4 h-4 text-slate-400 dark:text-slate-400" />}
                                     />
                                     <FormInput 
                                         label="School Head Name" 
@@ -402,34 +402,34 @@ export function InstitutePage() {
                                     />
                                     <div className="col-span-2">
                                         <div className="space-y-0.5">
-                                            <label className="block text-[8.5px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
-                                                <GraduationCap className="w-3.5 h-3.5 inline mr-1.5 text-indigo-500 align-middle" />
+                                            <label className="block text-[8.5px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-300 ml-1">
+                                                <GraduationCap className="w-3.5 h-3.5 inline mr-1.5 text-indigo-500 dark:text-indigo-400 align-middle" />
                                                 <span className="align-middle">Grade Levels Offered</span>
                                             </label>
                                             <select
                                                 value={formData.grade_levels_offered || ''}
                                                 onChange={e => setFormData({ ...formData, grade_levels_offered: e.target.value })}
-                                                className="w-full rounded-xl py-1 px-3 outline-none transition-all bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-extrabold text-slate-700 dark:text-slate-350 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 shadow-xs"
+                                                className="w-full rounded-xl py-1 px-3 outline-none transition-all bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] font-extrabold text-slate-700 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 shadow-xs cursor-pointer"
                                             >
-                                                <option value="">Select Grade Levels Offered</option>
-                                                <option value="Kindergarten">Kindergarten</option>
-                                                <option value="Kinder to Grade 6">Kinder to Grade 6</option>
-                                                <option value="Kinder to Grade 10">Kinder to Grade 10</option>
-                                                <option value="Kinder to Grade 12">Kinder to Grade 12</option>
-                                                <option value="Kinder to Grade 6; Grade 11-12">Kinder to Grade 6; Grade 11-12</option>
-                                                <option value="Kinder to Grade 10 attached to Tertiary">Kinder to Grade 10 attached to Tertiary</option>
-                                                <option value="Kinder to Grade 12 attached to Tertiary">Kinder to Grade 12 attached to Tertiary</option>
-                                                <option value="Kindergarten; Grade 7-10">Kindergarten; Grade 7-10</option>
-                                                <option value="Kindergarten; Grade 7-10; Grade 11-12">Kindergarten; Grade 7-10; Grade 11-12</option>
-                                                <option value="Kindergarten; Grade 11-12">Kindergarten; Grade 11-12</option>
-                                                <option value="Grade 1-6">Grade 1-6</option>
-                                                <option value="Grade 1-6; Grade 7-10">Grade 1-6; Grade 7-10</option>
-                                                <option value="Grade 1-6; Grade 11-12">Grade 1-6; Grade 11-12</option>
-                                                <option value="Grade 1-6; Grade 7-10; Grade 11-12">Grade 1-6; Grade 7-10; Grade 11-12</option>
-                                                <option value="Grade 7-10">Grade 7-10</option>
-                                                <option value="Grade 7-10; Grade 11-12">Grade 7-10; Grade 11-12</option>
-                                                <option value="Grade 11-12">Grade 11-12</option>
-                                                <option value="Community-based Learning Center">Community-based Learning Center</option>
+                                                <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Grade Levels Offered</option>
+                                                <option value="Kindergarten" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kindergarten</option>
+                                                <option value="Kinder to Grade 6" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 6</option>
+                                                <option value="Kinder to Grade 10" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 10</option>
+                                                <option value="Kinder to Grade 12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 12</option>
+                                                <option value="Kinder to Grade 6; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 6; Grade 11-12</option>
+                                                <option value="Kinder to Grade 10 attached to Tertiary" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 10 attached to Tertiary</option>
+                                                <option value="Kinder to Grade 12 attached to Tertiary" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kinder to Grade 12 attached to Tertiary</option>
+                                                <option value="Kindergarten; Grade 7-10" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kindergarten; Grade 7-10</option>
+                                                <option value="Kindergarten; Grade 7-10; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kindergarten; Grade 7-10; Grade 11-12</option>
+                                                <option value="Kindergarten; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Kindergarten; Grade 11-12</option>
+                                                <option value="Grade 1-6" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 1-6</option>
+                                                <option value="Grade 1-6; Grade 7-10" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 1-6; Grade 7-10</option>
+                                                <option value="Grade 1-6; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 1-6; Grade 11-12</option>
+                                                <option value="Grade 1-6; Grade 7-10; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 1-6; Grade 7-10; Grade 11-12</option>
+                                                <option value="Grade 7-10" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 7-10</option>
+                                                <option value="Grade 7-10; Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 7-10; Grade 11-12</option>
+                                                <option value="Grade 11-12" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Grade 11-12</option>
+                                                <option value="Community-based Learning Center" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Community-based Learning Center</option>
                                             </select>
                                         </div>
                                     </div>
@@ -444,16 +444,16 @@ export function InstitutePage() {
                             className="flex flex-col gap-3 min-h-0 overflow-hidden"
                         >
                             {/* Branding & Digital Signatures Card */}
-                            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-xl shadow-slate-100/50 dark:shadow-none p-4 flex flex-col relative overflow-hidden shrink-0 gap-3">
-                                <h3 className="text-[9.5px] font-black text-slate-700 dark:text-slate-355 uppercase tracking-widest flex items-center gap-2">
-                                    <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Branding & Digital Signatures
+                            <div className="bg-white dark:bg-[#0d1225] rounded-2xl border border-slate-100 dark:border-white/10 shadow-xl shadow-slate-100/50 dark:shadow-none p-4 flex flex-col relative overflow-hidden shrink-0 gap-3">
+                                <h3 className="text-[9.5px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest flex items-center gap-2">
+                                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Branding & Digital Signatures
                                 </h3>
 
                                 <div className="grid grid-cols-3 gap-3">
                                     {/* Logo Upload */}
-                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest text-center">School Logo</span>
-                                        <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1 relative shadow-xs">
+                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-white/5 p-2 rounded-xl border border-slate-100 dark:border-white/10">
+                                        <span className="text-[7.5px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest text-center">School Logo</span>
+                                        <div className="w-14 h-14 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center p-1 relative shadow-xs">
                                             <img
                                                 src={formData.logo_url || `${import.meta.env.BASE_URL}school-logo.png`}
                                                 alt="Preview"
@@ -485,9 +485,9 @@ export function InstitutePage() {
                                     </div>
 
                                     {/* School Head Signature Upload */}
-                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest text-center">School Head Sign</span>
-                                        <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1 relative shadow-xs">
+                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-white/5 p-2 rounded-xl border border-slate-100 dark:border-white/10">
+                                        <span className="text-[7.5px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest text-center">School Head Sign</span>
+                                        <div className="w-14 h-14 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center p-1 relative shadow-xs">
                                             {formData.head_signature_url ? (
                                                 <img
                                                     src={formData.head_signature_url}
@@ -495,7 +495,7 @@ export function InstitutePage() {
                                                     className="max-h-full object-contain"
                                                 />
                                             ) : (
-                                                <span className="text-[7.5px] text-slate-300 font-bold uppercase">None</span>
+                                                <span className="text-[7.5px] text-slate-300 dark:text-slate-400 font-bold uppercase">None</span>
                                             )}
                                             {isUploadingHeadSignature && (
                                                 <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center rounded-xl">
@@ -523,9 +523,9 @@ export function InstitutePage() {
                                     </div>
 
                                     {/* Adviser Signature Upload */}
-                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-slate-900/30 p-2 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest text-center">Adviser Sign</span>
-                                        <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1 relative shadow-xs">
+                                    <div className="flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-white/5 p-2 rounded-xl border border-slate-100 dark:border-white/10">
+                                        <span className="text-[7.5px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest text-center">Adviser Sign</span>
+                                        <div className="w-14 h-14 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center p-1 relative shadow-xs">
                                             {formData.adviser_signature_url ? (
                                                 <img
                                                     src={formData.adviser_signature_url}
@@ -533,7 +533,7 @@ export function InstitutePage() {
                                                     className="max-h-full object-contain"
                                                 />
                                             ) : (
-                                                <span className="text-[7.5px] text-slate-300 font-bold uppercase">None</span>
+                                                <span className="text-[7.5px] text-slate-300 dark:text-slate-400 font-bold uppercase">None</span>
                                             )}
                                             {isUploadingAdviserSignature && (
                                                 <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex items-center justify-center rounded-xl">
@@ -567,18 +567,18 @@ export function InstitutePage() {
                             </div>
 
                             {/* Advisory Info Locked Card */}
-                            <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-4 border border-slate-100 dark:border-slate-800/80 shadow-xl shadow-slate-100/50 dark:shadow-none flex-1 flex flex-col justify-between min-h-0">
+                            <div className="bg-white dark:bg-[#0d1225] rounded-2xl p-4 border border-slate-100 dark:border-white/10 shadow-xl shadow-slate-100/50 dark:shadow-none flex-1 flex flex-col justify-between min-h-0">
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2">
                                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                                        <h3 className="text-[9px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Advisory Details (Read Only)</h3>
+                                        <h3 className="text-[9px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">Advisory Details (Read Only)</h3>
                                     </div>
 
                                     <div className="flex items-center gap-4 mt-1">
                                         {/* Adviser Photo Upload */}
                                         <div className="relative shrink-0 flex flex-col items-center">
                                             <div className="relative group">
-                                                <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center p-0.5 shadow-md transition-all duration-300 group-hover:border-blue-500 group-hover:scale-105">
+                                                <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 overflow-hidden flex items-center justify-center p-0.5 shadow-md transition-all duration-300 group-hover:border-blue-500 group-hover:scale-105">
                                                     {formData.adviser_image_url ? (
                                                         <img 
                                                             src={formData.adviser_image_url} 
@@ -586,7 +586,7 @@ export function InstitutePage() {
                                                             className="w-full h-full object-cover rounded-full"
                                                         />
                                                     ) : (
-                                                        <User className="w-6 h-6 text-slate-400 dark:text-slate-500" />
+                                                        <User className="w-6 h-6 text-slate-400 dark:text-slate-400" />
                                                     )}
                                                     {isUploadingAdviser && (
                                                         <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 flex items-center justify-center rounded-full">
@@ -598,7 +598,7 @@ export function InstitutePage() {
                                                     type="button"
                                                     onClick={() => adviserFileInputRef.current?.click()}
                                                     disabled={isUploadingAdviser}
-                                                    className="absolute -bottom-1 -right-1 w-5.5 h-5.5 bg-[#1d566e] hover:bg-[#164356] text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer border-2 border-white dark:border-[#0f172a] transition-all duration-250 hover:scale-110 active:scale-95"
+                                                    className="absolute -bottom-1 -right-1 w-5.5 h-5.5 bg-[#1d566e] hover:bg-[#164356] text-white rounded-full flex items-center justify-center shadow-lg cursor-pointer border-2 border-white dark:border-[#0d1225] transition-all duration-250 hover:scale-110 active:scale-95"
                                                     title="Upload adviser photo"
                                                 >
                                                     <ImagePlus className="w-3 h-3" />
@@ -617,15 +617,15 @@ export function InstitutePage() {
 
                                         <div className="flex-1 flex flex-col gap-2">
                                             <div className="space-y-1">
-                                                <label className="text-[8.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Class Adviser</label>
-                                                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl py-1.5 px-3 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between shadow-xs truncate">
+                                                <label className="text-[8.5px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest ml-1">Class Adviser</label>
+                                                <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-xl py-1.5 px-3 text-[11px] font-bold text-slate-700 dark:text-white flex items-center justify-between shadow-xs truncate">
                                                     <span className="truncate">{formData.adviser_name || 'Not Set'}</span>
                                                     <Lock className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
                                                 </div>
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="text-[8.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Class Assignment</label>
-                                                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl py-1.5 px-3 text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between shadow-xs truncate">
+                                                <label className="text-[8.5px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest ml-1">Class Assignment</label>
+                                                <div className="bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-xl py-1.5 px-3 text-[11px] font-bold text-slate-700 dark:text-white flex items-center justify-between shadow-xs truncate">
                                                     <span className="truncate">{formData.grade_level || 'Not Set'} {formData.section ? `• ${formData.section}` : ''}</span>
                                                     <Shield className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
                                                 </div>
@@ -635,9 +635,9 @@ export function InstitutePage() {
                                     <input type="file" ref={adviserFileInputRef} onChange={handleAdviserFileChange} accept="image/*" className="hidden" />
                                 </div>
 
-                                <div className="bg-slate-50/50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-850 flex items-center gap-1.5">
-                                    <Info className="w-3 h-3 text-blue-500 shrink-0" />
-                                    <p className="text-[7.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-normal whitespace-nowrap truncate">
+                                <div className="bg-slate-50/50 dark:bg-white/5 p-2 rounded-xl border border-slate-100 dark:border-white/10 flex items-center gap-1.5">
+                                    <Info className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0" />
+                                    <p className="text-[7.5px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-normal whitespace-nowrap truncate">
                                         System Synced: Auto-loaded from database for consistency.
                                     </p>
                                 </div>
@@ -646,11 +646,11 @@ export function InstitutePage() {
                     </div>
 
                     {/* Form Footer */}
-                    <div className="bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-xl px-4 py-2.5 flex items-center justify-end gap-3 shrink-0 shadow-lg">
+                    <div className="bg-white dark:bg-[#0d1225] border border-slate-100 dark:border-white/10 rounded-xl px-4 py-2.5 flex items-center justify-end gap-3 shrink-0 shadow-lg">
                         <button
                             type="button"
                             onClick={() => setIsEditing(false)}
-                            className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                            className="text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                             disabled={isSaving}
                         >
                             Cancel Changes
@@ -809,7 +809,7 @@ export function InstitutePage() {
 
                     <div className="flex-1 flex flex-col justify-between relative z-10 w-full gap-2.5">
                         {/* Featured Adviser Profile Card */}
-                        <div className="p-2.5 rounded-xl bg-linear-to-br from-indigo-50/70 via-slate-50 to-white dark:from-slate-800/60 dark:via-slate-850 dark:to-slate-900 border border-indigo-100 dark:border-slate-800 shadow-2xs flex items-center gap-3 shrink-0">
+                        <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-white/5 border border-indigo-100 dark:border-white/10 shadow-xs flex items-center gap-3 shrink-0">
                             <div className="relative shrink-0">
                                 <div className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-800 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center p-0.5 shadow-sm ring-2 ring-indigo-500/20">
                                     {schoolProfile.adviser_image_url ? (
@@ -838,7 +838,7 @@ export function InstitutePage() {
 
                         {/* Advisory Classes Cards Roster */}
                         <div className="flex-1 min-h-35 max-h-55 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
-                            <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest block mb-1">Active Class Sections ({advisorySections.length > 0 ? advisorySections.length : 1})</span>
+                            <span className="text-[8px] text-slate-400 dark:text-slate-400 font-black uppercase tracking-widest block mb-1">Active Class Sections ({advisorySections.length > 0 ? advisorySections.length : 1})</span>
                             {(advisorySections.length > 0 ? advisorySections : [{
                                 id: 'single',
                                 section_name: displaySection,
@@ -850,7 +850,7 @@ export function InstitutePage() {
                                 return (
                                     <div 
                                         key={sec.id}
-                                        className="p-2 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between hover:border-indigo-500/30 transition-all"
+                                        className="p-2 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/60 dark:border-white/5 flex items-center justify-between hover:border-indigo-500/30 transition-all"
                                     >
                                         <div className="flex items-center gap-2.5">
                                             <div className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-[9px] border border-indigo-500/20 shrink-0">
@@ -957,10 +957,10 @@ function FormInput({ label, value, onChange, placeholder, required = false, isPr
     className?: string;
     icon?: React.ReactNode;
 }) {
-    const labelClass = `block text-[8.5px] font-black uppercase tracking-widest ml-1 ${isPrimary ? 'text-blue-600 font-extrabold' : 'text-slate-400'}`;
+    const labelClass = `block text-[8.5px] font-black uppercase tracking-widest ml-1 ${isPrimary ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-400 dark:text-slate-300'}`;
     const inputClass = isPrimary 
-        ? `rounded-xl py-1.5 px-3 bg-blue-50/15 border-2 border-slate-350 ring-2 ring-slate-100/50 text-[11.5px] font-extrabold text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10` 
-        : `rounded-xl py-1 px-3 bg-slate-50/60 border border-slate-200 text-[11px] font-semibold text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5`;
+        ? `rounded-xl py-1.5 px-3 bg-blue-50/15 dark:bg-white/5 border-2 border-slate-350 dark:border-white/10 ring-2 ring-slate-100/50 dark:ring-white/5 text-[11.5px] font-extrabold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10` 
+        : `rounded-xl py-1 px-3 bg-slate-50/60 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-700 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5`;
 
     return (
         <div className={`space-y-0.5 ${className}`}>
@@ -971,7 +971,7 @@ function FormInput({ label, value, onChange, placeholder, required = false, isPr
             <input
                 type="text"
                 required={required}
-                className={`w-full outline-none transition-all placeholder:text-slate-300 shadow-xs ${inputClass}`}
+                className={`w-full outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-500 shadow-xs ${inputClass}`}
                 value={value}
                 onChange={e => onChange(e.target.value)}
                 placeholder={placeholder}

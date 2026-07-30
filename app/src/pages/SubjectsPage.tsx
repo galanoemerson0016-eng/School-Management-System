@@ -1098,15 +1098,15 @@ export function SubjectsPage() {
             </div>
 
             {/* Redesigned Compact Header Row */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-xl border border-slate-200/80 p-2.5 rounded-2xl shadow-2xs relative z-10">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 p-2.5 rounded-2xl shadow-2xs relative z-10">
                 <div className="flex items-center gap-3">
                     {/* Compact Navigation / Breadcrumbs */}
                     <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <span className="hover:text-indigo-600 cursor-pointer transition-colors" onClick={() => { setViewMode('grades'); setSelectedCategory(null); }}>Grades</span>
+                        <span className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors" onClick={() => { setViewMode('grades'); setSelectedCategory(null); }}>Grades</span>
                         {viewMode !== 'grades' && (
                             <>
-                                <ChevronRight className="w-3 h-3 text-slate-350" />
-                                <span className="text-slate-700 font-extrabold">{selectedGrade}</span>
+                                <ChevronRight className="w-3 h-3 text-slate-350 dark:text-slate-500" />
+                                <span className="text-slate-700 dark:text-slate-200 font-extrabold">{selectedGrade}</span>
                             </>
                         )}
                     </div>
@@ -1115,8 +1115,8 @@ export function SubjectsPage() {
                     {viewMode === 'subjects' && filteredSubjects.length > 0 && (
                         <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${
                             lastLoadedCurriculumType === 'special' 
-                                ? 'bg-blue-50 text-blue-700 border border-blue-100' 
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40' 
+                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800/40'
                         }`}>
                             {lastLoadedCurriculumType === 'special' ? '⭐ Special Template' : '📚 Standard Template'}
                         </span>
@@ -1128,7 +1128,7 @@ export function SubjectsPage() {
                     {viewMode !== 'grades' && (
                         <button 
                             onClick={handleBackToGrades}
-                            className="h-8 px-3.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                            className="h-8 px-3.5 bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-200 font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/20 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             Back
@@ -1149,7 +1149,7 @@ export function SubjectsPage() {
                             {filteredSubjects.length > 0 && (
                                 <button 
                                     onClick={() => setShowDeleteAllConfirm(true)}
-                                    className="h-8 px-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-100 active:scale-95 cursor-pointer"
+                                    className="h-8 px-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 rounded-xl font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all flex items-center gap-1.5 border border-rose-100 dark:border-rose-800/40 active:scale-95 cursor-pointer"
                                     title="Delete all subjects in this view"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1158,7 +1158,7 @@ export function SubjectsPage() {
                             )}
                             <button 
                                 onClick={openAddModal} 
-                                className="h-8 px-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                className="h-8 px-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                                 Add Subject
@@ -1345,13 +1345,13 @@ export function SubjectsPage() {
                                     <div className="flex items-center gap-4">
                                         <button 
                                             onClick={handleBackToCategories}
-                                            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 transition-all shadow-xs active:scale-95 cursor-pointer"
+                                            className="w-11 h-11 rounded-2xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all shadow-xs active:scale-95 cursor-pointer"
                                         >
                                             <ChevronLeft className="w-5 h-5" />
                                         </button>
                                         <div>
-                                            <h2 className="text-2xl font-black text-slate-900 leading-tight">{CATEGORIES[selectedCategory].title}</h2>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
+                                            <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{CATEGORIES[selectedCategory].title}</h2>
+                                            <p className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest">{CATEGORIES[selectedCategory].range}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1369,40 +1369,40 @@ export function SubjectsPage() {
                                                 whileHover={{ scale: 1.02, y: -4 }}
                                                 whileTap={{ scale: 0.98 }}
                                                 onClick={() => handleGradeClick(grade)}
-                                                className="group bg-white rounded-3xl p-6 border border-slate-200/80 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all cursor-pointer overflow-hidden relative flex flex-col justify-between"
+                                                className="group bg-white dark:bg-[#0d1225] rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 shadow-md hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all cursor-pointer overflow-hidden relative flex flex-col justify-between"
                                             >
-                                                <div className={`absolute top-0 right-0 w-28 h-28 ${meta.bg} rounded-bl-full -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform pointer-events-none`} />
+                                                <div className={`absolute top-0 right-0 w-28 h-28 ${meta.bg} dark:bg-white/5 rounded-bl-full -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform pointer-events-none`} />
                                                 
                                                 <div className="relative z-10">
                                                     <div className="flex items-center justify-between mb-4">
                                                         <div className={`w-12 h-12 rounded-2xl bg-linear-to-br ${meta.color} flex items-center justify-center text-white shadow-md group-hover:rotate-6 transition-transform`}>
                                                             <Icon className="w-6 h-6" />
                                                         </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200 border border-slate-200 dark:border-white/10">
                                                             {grade}
                                                         </span>
                                                     </div>
 
-                                                    <h3 className="text-xl font-black text-slate-900 mb-2">{grade}</h3>
-                                                    <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6 line-clamp-2">
+                                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">{grade}</h3>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-6 line-clamp-2">
                                                         {meta.description}
                                                     </p>
                                                 </div>
 
-                                                <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto relative z-10">
+                                                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/10 mt-auto relative z-10">
                                                     <div className="flex items-center gap-4">
                                                         <div>
-                                                            <div className="text-lg font-black text-slate-900 leading-none mb-0.5">{count}</div>
-                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subjects</div>
+                                                            <div className="text-lg font-black text-slate-900 dark:text-white leading-none mb-0.5">{count}</div>
+                                                            <div className="text-[9px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest">Subjects</div>
                                                         </div>
-                                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
+                                                        <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
                                                         <div>
-                                                            <div className="text-lg font-black text-slate-900 leading-none mb-0.5">{sectionCount}</div>
-                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sections</div>
+                                                            <div className="text-lg font-black text-slate-900 dark:text-white leading-none mb-0.5">{sectionCount}</div>
+                                                            <div className="text-[9px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest">Sections</div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="w-8 h-8 rounded-full bg-slate-50 group-hover:bg-indigo-600 flex items-center justify-center text-slate-400 group-hover:text-white transition-all">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-white/10 group-hover:bg-indigo-600 flex items-center justify-center text-slate-400 dark:text-slate-300 group-hover:text-white transition-all">
                                                         <ArrowRight className="w-4 h-4" />
                                                     </div>
                                                 </div>
@@ -1421,40 +1421,40 @@ export function SubjectsPage() {
                         key="subjects"
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden"
+                        className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-xs overflow-hidden"
                     >
                         {!selectedSection && filteredSubjects.length === 0 ? (
                             <div className="p-24 text-center">
-                                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <BookText className="w-10 h-10 text-slate-300" />
+                                <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight">Empty Curriculum</h3>
-                                <p className="text-slate-500 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
+                                <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
                                 {canEdit && (
                                     <button 
                                         onClick={handleLoadStandardSubjects} 
                                         disabled={isLoadingTemplate}
-                                        className="mt-8 h-12 px-8 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95 shadow-xl"
+                                        className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
                                     >
                                         {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
                                     </button>
                                 )}
                                 {!selectedSection && (
-                                    <button onClick={() => setCurrentView('institute')} className="mt-4 block mx-auto text-indigo-600 font-black text-xs uppercase tracking-tighter hover:underline">Go to Institute Profile</button>
+                                    <button onClick={() => setCurrentView('institute')} className="mt-4 block mx-auto text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-tighter hover:underline">Go to Institute Profile</button>
                                 )}
                             </div>
                         ) : filteredSubjects.length === 0 ? (
                             <div className="p-24 text-center">
-                                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <BookText className="w-10 h-10 text-slate-300" />
+                                <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight">Empty Curriculum</h3>
-                                <p className="text-slate-500 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
+                                <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
                                 {canEdit && (
                                     <button 
                                         onClick={handleLoadStandardSubjects} 
                                         disabled={isLoadingTemplate}
-                                        className="mt-8 h-12 px-8 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95 shadow-xl"
+                                        className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
                                     >
                                         {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
                                     </button>
@@ -1464,7 +1464,7 @@ export function SubjectsPage() {
                             <div className="overflow-x-auto p-4">
                                 <table className="w-full text-left border-separate border-spacing-y-3">
                                     <thead>
-                                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                        <tr className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em]">
                                             {canEdit && <th className="px-6 py-4 w-16 text-center">Pos</th>}
                                             <th className="px-6 py-4">Subject Info</th>
                                             <th className="px-6 py-4">Term Offered</th>
@@ -1480,20 +1480,20 @@ export function SubjectsPage() {
                                                     {category && (
                                                         <tr 
                                                             onClick={() => toggleCategory(category)}
-                                                            className="bg-slate-50/50 cursor-pointer hover:bg-slate-100/50 transition-colors select-none"
+                                                            className="bg-slate-50/50 dark:bg-white/5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10 transition-colors select-none"
                                                         >
-                                                            <td colSpan={canEdit ? 4 : 3} className="px-6 py-4 border-y border-slate-100">
+                                                            <td colSpan={canEdit ? 4 : 3} className="px-6 py-4 border-y border-slate-100 dark:border-white/10">
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                                                                        <span className="text-xs font-black text-slate-600 uppercase tracking-widest">
+                                                                        <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest">
                                                                             {category}
                                                                         </span>
-                                                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10">
                                                                             {categorySubjects.length} {categorySubjects.length === 1 ? 'subject' : 'subjects'}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="flex items-center gap-1.5 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                                                                    <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
                                                                         <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
                                                                         <ChevronRight className={`w-4 h-4 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
                                                                     </div>
@@ -1510,8 +1510,8 @@ export function SubjectsPage() {
                                                             onDragOver={handleDragOver}
                                                             onDrop={() => handleDrop(subject.id)}
                                                             onDragEnd={() => setDraggedSubjectId(null)}
-                                                            className={`group rounded-3xl bg-white border border-slate-50 hover:bg-slate-50/50 hover:border-indigo-100 transition-all ${
-                                                                draggedSubjectId === subject.id ? 'opacity-40 bg-indigo-50 border-indigo-200' : ''
+                                                            className={`group rounded-3xl bg-white dark:bg-[#0f172a]/60 border border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/10 hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-all ${
+                                                                draggedSubjectId === subject.id ? 'opacity-40 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' : ''
                                                             } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                         >
                                                             {canEdit && (
@@ -1520,15 +1520,15 @@ export function SubjectsPage() {
                                                                         <button
                                                                             onClick={() => moveSubject(subject.id, 'up')}
                                                                             disabled={idx === 0}
-                                                                            className="text-slate-400 hover:text-indigo-600 disabled:opacity-0 transition-colors"
+                                                                            className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors"
                                                                         >
                                                                             <ChevronRight className="w-4 h-4 -rotate-90" />
                                                                         </button>
-                                                                        <div className="text-[10px] font-black text-slate-300">{(idx + 1).toString().padStart(2, '0')}</div>
+                                                                        <div className="text-[10px] font-black text-slate-300 dark:text-slate-600">{(idx + 1).toString().padStart(2, '0')}</div>
                                                                         <button
                                                                             onClick={() => moveSubject(subject.id, 'down')}
                                                                             disabled={idx === categorySubjects.length - 1}
-                                                                            className="text-slate-400 hover:text-indigo-600 disabled:opacity-0 transition-colors"
+                                                                            className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors"
                                                                         >
                                                                             <ChevronRight className="w-4 h-4 rotate-90" />
                                                                         </button>
@@ -1537,14 +1537,14 @@ export function SubjectsPage() {
                                                             )}
                                                             <td className="px-6 py-6">
                                                                 <div className="flex items-center gap-4">
-                                                                    <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center font-black text-indigo-600 text-sm">
+                                                                    <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/10 border border-slate-100 dark:border-white/10 flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
                                                                         {subject.subject_name.charAt(0)}
                                                                     </div>
                                                                     <div>
-                                                                        <div className="font-black text-slate-900 text-lg tracking-tight uppercase">{subject.subject_name}</div>
-                                                                        {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
+                                                                        <div className="font-black text-slate-900 dark:text-white text-lg tracking-tight uppercase">{subject.subject_name}</div>
+                                                                        {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 dark:text-indigo-300 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
                                                                         {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
-                                                                            <div className="text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
+                                                                            <div className="text-[10px] font-medium text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
                                                                                 Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
                                                                             </div>
                                                                         )}
@@ -1558,7 +1558,7 @@ export function SubjectsPage() {
                                                                                 ? subject.enrolled_student_lrns.length 
                                                                                 : sectCount;
                                                                             return (
-                                                                                <div className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
+                                                                                <div className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
                                                                                     Enrolled: {enrolledCount} / {sectCount} Learners
                                                                                 </div>
                                                                             );
@@ -1568,11 +1568,11 @@ export function SubjectsPage() {
                                                             </td>
                                                             <td className="px-6 py-6">
                                                                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${
-                                                                    subject.term === 1 ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                                    subject.term === 2 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                                    subject.term === 3 ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                                    subject.term === 'none' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                                    'bg-slate-50 text-slate-600 border-slate-100'
+                                                                    subject.term === 1 ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border-blue-100 dark:border-blue-800/40' :
+                                                                    subject.term === 2 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800/40' :
+                                                                    subject.term === 3 ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300 border-amber-100 dark:border-amber-800/40' :
+                                                                    subject.term === 'none' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border-rose-100 dark:border-rose-800/40' :
+                                                                    'bg-slate-50 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-white/10'
                                                                 }`}>
                                                                     {subject.term === 1 ? 'Term 1 Only' :
                                                                      subject.term === 2 ? 'Term 2 Only' :
@@ -1589,8 +1589,8 @@ export function SubjectsPage() {
                                                                             title={subject.term === 'none' ? "Mark as Offered" : "Mark as Not Offered"}
                                                                             className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center ${
                                                                                 subject.term === 'none'
-                                                                                    ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
-                                                                                    : 'bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600'
+                                                                                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
+                                                                                    : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
                                                                             }`}
                                                                         >
                                                                             {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1599,20 +1599,20 @@ export function SubjectsPage() {
                                                                             <button
                                                                                 onClick={() => setEnrollmentSubject(subject)}
                                                                                 title="Manage Enrolled Students"
-                                                                                className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm cursor-pointer"
+                                                                                className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
                                                                             >
                                                                                 <Users className="w-4 h-4" />
                                                                             </button>
                                                                         )}
                                                                         <button
                                                                             onClick={() => handleEdit(subject)}
-                                                                            className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center shadow-sm"
+                                                                            className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center shadow-xs"
                                                                         >
                                                                             <Settings className="w-4 h-4" />
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleDeleteClick(subject)}
-                                                                            className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all flex items-center justify-center"
+                                                                            className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/10 text-slate-400 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition-all flex items-center justify-center"
                                                                         >
                                                                             <X className="w-4 h-4" />
                                                                         </button>
@@ -1789,14 +1789,14 @@ export function SubjectsPage() {
                                     )}
                                 </div>
 
-                                <div className="bg-slate-50 px-8 py-6 border-t border-slate-200 flex justify-end">
+                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-6 border-t border-slate-200 dark:border-white/10 flex justify-end">
                                     <button
                                         onClick={() => {
                                             setShowCurriculumChoice(false);
                                             setCurriculumChoice(null);
                                             setWizardStep(null);
                                         }}
-                                        className="px-6 py-2 rounded-xl text-slate-600 font-bold hover:text-slate-900 transition-colors"
+                                        className="px-6 py-2 rounded-xl text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                                     >
                                         Cancel
                                     </button>
@@ -1829,7 +1829,7 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Search and Options Bar */}
-                                <div className="px-8 py-4 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+                                <div className="px-8 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-[#0f172a] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                                     <div className="relative flex-1 max-w-md">
                                         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                                         <input
@@ -1837,12 +1837,12 @@ export function SubjectsPage() {
                                             value={wizardSearch}
                                             onChange={(e) => setWizardSearch(e.target.value)}
                                             placeholder="Search template subjects..."
-                                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-slate-800 font-medium"
+                                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-slate-800 dark:text-white font-medium"
                                         />
                                         {wizardSearch && (
                                             <button 
                                                 onClick={() => setWizardSearch('')} 
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold cursor-pointer"
                                             >
                                                 Clear
                                             </button>
@@ -1851,7 +1851,7 @@ export function SubjectsPage() {
 
                                     {/* Cross Track Toggle (Only for SHS) */}
                                     {templateMeta?.isSHS && (
-                                        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-xs">
+                                        <div className="flex items-center gap-3 bg-white dark:bg-white/5 px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 shadow-xs">
                                             <label className="relative inline-flex items-center cursor-pointer select-none">
                                                 <input 
                                                     type="checkbox" 
@@ -1859,8 +1859,8 @@ export function SubjectsPage() {
                                                     onChange={(e) => setWizardIncludeCrossTrack(e.target.checked)}
                                                     className="sr-only peer"
                                                 />
-                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                                <span className="ml-3 text-xs font-black text-slate-600 uppercase tracking-wider">
+                                                <div className="w-9 h-5 bg-slate-200 dark:bg-white/20 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                <span className="ml-3 text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider">
                                                     Include Cross-Track Electives
                                                 </span>
                                             </label>
@@ -1869,9 +1869,9 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Scrollable Subjects Checklist */}
-                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30">
+                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30 dark:bg-black/20">
                                     {Object.keys(groupedWizardSubjects).length === 0 ? (
-                                        <div className="p-16 text-center text-slate-400">
+                                        <div className="p-16 text-center text-slate-400 dark:text-slate-500">
                                             <BookText className="w-12 h-12 mx-auto mb-3 opacity-40" />
                                             <p className="text-sm font-bold">No subjects match your search.</p>
                                         </div>
@@ -1880,32 +1880,32 @@ export function SubjectsPage() {
                                             const isCollapsed = collapsedWizardCategories[category] || false;
                                             
                                             return (
-                                                <div key={category} className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+                                                <div key={category} className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200/60 dark:border-white/10 shadow-xs overflow-hidden">
                                                     {/* Category Header */}
-                                                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                                                    <div className="px-6 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 flex items-center justify-between">
                                                         <div 
                                                             className="flex items-center gap-2 cursor-pointer select-none"
                                                             onClick={() => toggleWizardCategory(category)}
                                                         >
                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
-                                                            <span className="text-xs font-black text-slate-600 uppercase tracking-widest">
+                                                            <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest">
                                                                 {category || 'Standard Subjects'}
                                                             </span>
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300">
                                                                 {list.length}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs font-black uppercase tracking-wider">
                                                             <button 
                                                                 onClick={() => selectAllInCategory(list)}
-                                                                className="text-indigo-600 hover:text-indigo-800 transition-colors"
+                                                                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors cursor-pointer"
                                                             >
                                                                 Select All
                                                             </button>
-                                                            <span className="text-slate-300">|</span>
+                                                            <span className="text-slate-300 dark:text-slate-600">|</span>
                                                             <button 
                                                                 onClick={() => clearAllInCategory(list)}
-                                                                className="text-slate-400 hover:text-slate-600 transition-colors"
+                                                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                                                             >
                                                                 Clear All
                                                             </button>
@@ -1926,19 +1926,19 @@ export function SubjectsPage() {
                                                                     const cat = getShsCategoryForSubject(subject.name, selectedGrade || '');
                                                                     if (cat.includes('Core')) {
                                                                         tagText = 'Core';
-                                                                        tagStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                                                        tagStyle = 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40';
                                                                     } else if (cat.includes('Applied')) {
                                                                         tagText = 'Applied';
-                                                                        tagStyle = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                                                                        tagStyle = 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/40';
                                                                     } else if (cat.includes('Specialized')) {
                                                                         tagText = 'Specialized';
-                                                                        tagStyle = 'bg-purple-50 text-purple-700 border-purple-200';
+                                                                        tagStyle = 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/40';
                                                                     } else if (cat.includes('Academic')) {
                                                                         tagText = 'Academic';
-                                                                        tagStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+                                                                        tagStyle = 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40';
                                                                     } else if (cat.includes('TechPro')) {
                                                                         tagText = 'TechPro';
-                                                                        tagStyle = 'bg-blue-50 text-blue-700 border-blue-200';
+                                                                        tagStyle = 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/40';
                                                                     }
                                                                 }
 
@@ -1948,8 +1948,8 @@ export function SubjectsPage() {
                                                                         onClick={() => toggleWizardSubject(subject.name)}
                                                                         className={`flex items-start gap-4 p-4 rounded-xl border transition-all cursor-pointer select-none ${
                                                                             isChecked 
-                                                                                ? 'border-indigo-500 bg-indigo-50/20 ring-1 ring-indigo-500/20' 
-                                                                                : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                                                ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20' 
+                                                                                : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/5'
                                                                         }`}
                                                                     >
                                                                         <div className="pt-0.5">
@@ -1961,7 +1961,7 @@ export function SubjectsPage() {
                                                                             />
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
-                                                                            <div className="font-bold text-slate-800 text-sm leading-snug uppercase tracking-tight wrap-break-word">
+                                                                            <div className="font-bold text-slate-800 dark:text-white text-sm leading-snug uppercase tracking-tight wrap-break-word">
                                                                                 {subject.name}
                                                                             </div>
                                                                             {tagText && (
@@ -1982,11 +1982,11 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Footer */}
-                                <div className="bg-slate-50 px-8 py-5 border-t border-slate-200 flex items-center justify-between shrink-0">
+                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-5 border-t border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
                                     {!templateMeta?.isSHS && (
                                         <button
                                             onClick={() => setWizardStep('choice')}
-                                            className="h-11 px-5 border border-slate-200 bg-white hover:bg-slate-100 rounded-xl text-slate-600 font-bold text-sm hover:text-slate-900 transition-all flex items-center gap-2"
+                                            className="h-11 px-5 border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-600 dark:text-slate-200 font-bold text-sm hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-2 cursor-pointer"
                                         >
                                             <ArrowLeft className="w-4 h-4" />
                                             Back
@@ -2000,14 +2000,14 @@ export function SubjectsPage() {
                                                 setCurriculumChoice(null);
                                                 setWizardStep(null);
                                             }}
-                                            className="px-6 py-2 text-slate-600 font-bold hover:text-slate-900 transition-colors"
+                                            className="px-6 py-2 text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             onClick={handleWizardImport}
                                             disabled={isLoadingTemplate || selectedWizardSubjects.size === 0}
-                                            className="h-11 px-8 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                                            className="h-11 px-8 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none cursor-pointer"
                                         >
                                             {isLoadingTemplate ? 'Importing...' : `Import Selected (${selectedWizardSubjects.size})`}
                                         </button>
@@ -2022,21 +2022,21 @@ export function SubjectsPage() {
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
-                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-                        <div className="bg-deped-blue text-white px-6 py-4 flex justify-between items-center rounded-t-lg">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
+                    <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-deped-blue dark:bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center rounded-t-2xl border-b border-deped-blue/30 dark:border-white/10">
                             <h3 className="text-xl font-bold">{editingSubjectId ? 'Edit Subject' : 'Add Subject'}</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-white hover:text-gray-200">×</button>
+                            <button onClick={() => setIsModalOpen(false)} className="text-white hover:text-gray-200 cursor-pointer">×</button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">Subject Name</label>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">Subject Name</label>
                                 <input
                                     type="text"
                                     value={formData.subject_name}
                                     onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
                                     placeholder="Type or select a subject..."
-                                    className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-11 px-4 text-slate-800"
+                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-11 px-4"
                                     list="shs-subjects-list"
                                     required
                                 />
@@ -2049,16 +2049,16 @@ export function SubjectsPage() {
                                 )}
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Subject Code (Optional)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Subject Code (Optional)</label>
                                 <input
                                     type="text"
                                     value={formData.subject_code}
                                     onChange={(e) => setFormData({ ...formData, subject_code: e.target.value })}
-                                    className="form-input mt-1 block w-full"
+                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Term Offered</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Term Offered</label>
                                 <select
                                     value={formData.term}
                                     onChange={(e) => {
@@ -2066,61 +2066,61 @@ export function SubjectsPage() {
                                         const parsed = val === 'all' ? 'all' : (val === 'none' ? 'none' : Number(val) as 1 | 2 | 3);
                                         setFormData({ ...formData, term: parsed });
                                     }}
-                                    className="form-input mt-1 block w-full"
+                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
                                 >
-                                    <option value="all">All Terms</option>
-                                    <option value="1">Term 1 Only</option>
-                                    <option value="2">Term 2 Only</option>
-                                    <option value="3">Term 3 Only</option>
-                                    <option value="none">Not Offered</option>
+                                    <option value="all" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All Terms</option>
+                                    <option value="1" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 1 Only</option>
+                                    <option value="2" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 2 Only</option>
+                                    <option value="3" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 3 Only</option>
+                                    <option value="none" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Not Offered</option>
                                 </select>
                             </div>
-                            <div className="border-t border-slate-100 pt-4">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Custom Grading Weights (Optional)</h4>
+                            <div className="border-t border-slate-100 dark:border-white/10 pt-4">
+                                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-3">Custom Grading Weights (Optional)</h4>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Written Works %</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Written Works %</label>
                                         <input
                                             type="number"
                                             value={formData.written_weight}
                                             onChange={(e) => setFormData({ ...formData, written_weight: e.target.value })}
                                             placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
                                             min="0"
                                             max="100"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Performance %</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Performance %</label>
                                         <input
                                             type="number"
                                             value={formData.performance_weight}
                                             onChange={(e) => setFormData({ ...formData, performance_weight: e.target.value })}
                                             placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
                                             min="0"
                                             max="100"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Summative %</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Summative %</label>
                                         <input
                                             type="number"
                                             value={formData.exam_weight}
                                             onChange={(e) => setFormData({ ...formData, exam_weight: e.target.value })}
                                             placeholder="Default"
-                                            className="form-input mt-1 block w-full bg-slate-50 focus:bg-white rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-slate-800 text-sm text-center"
+                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white focus:bg-white dark:focus:bg-[#0d1225] rounded-xl border border-slate-200 dark:border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all h-10 px-3 text-center text-sm"
                                             min="0"
                                             max="100"
                                         />
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-2 italic">Leave empty to use standard DepEd cluster defaults. If custom weights are used, they must sum to 100%.</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-400 mt-2 italic">Leave empty to use standard DepEd cluster defaults. If custom weights are used, they must sum to 100%.</p>
                             </div>
                             <div>
                                 <div className="flex justify-end gap-3 pt-4">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Cancel</button>
-                                <button type="submit" className="btn-primary">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 border border-slate-200 dark:border-white/10 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-all cursor-pointer">Cancel</button>
+                                <button type="submit" className="btn-primary cursor-pointer shadow-md">
                                     {editingSubjectId ? 'Update' : 'Add'}
                                 </button>
                                 </div>

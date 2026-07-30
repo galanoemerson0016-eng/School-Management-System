@@ -81,7 +81,7 @@ export function TemporaryGradeSlipPage() {
     };
     
     return (
-        <div className="h-full bg-slate-50 flex flex-col overflow-hidden font-sans print:bg-white print:h-auto print:overflow-visible">
+        <div className="h-full bg-slate-50 dark:bg-[#080d1a] flex flex-col overflow-hidden font-sans print:bg-white print:h-auto print:overflow-visible">
             <style>{`
                 .print-page {
                     width: ${printDimensions[paperSize].width};
@@ -236,11 +236,11 @@ export function TemporaryGradeSlipPage() {
             `}</style>
 
             {/* Header Toolbar */}
-            <div className="h-20 px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-100 shadow-sm print:hidden">
+            <div className="h-20 px-8 flex items-center justify-between bg-white dark:bg-[#0d1225]/95 border-b border-slate-200 dark:border-white/10 sticky top-0 z-100 shadow-sm print:hidden">
                 <div className="flex items-center gap-6">
                     <button 
                         onClick={() => setCurrentView('school-forms')}
-                        className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-600"
+                        className="p-2.5 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 rounded-xl transition-all text-slate-600 dark:text-slate-300"
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
@@ -248,9 +248,9 @@ export function TemporaryGradeSlipPage() {
                     <div className="flex items-center gap-3">
                         {/* Section Selection Dropdown */}
                         <div className="flex items-center gap-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:inline-block">Section:</label>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden sm:inline-block">Section:</label>
                             <select 
-                                className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer min-w-55"
+                                className="bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer min-w-55"
                                 value={selectedSection}
                                 onChange={(e) => setSelectedSection(e.target.value)}
                             >
@@ -267,7 +267,7 @@ export function TemporaryGradeSlipPage() {
                         </div>
 
                         <select 
-                            className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer"
+                            className="bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 outline-none transition-all cursor-pointer"
                             value={paperSize}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
                         >
@@ -280,27 +280,27 @@ export function TemporaryGradeSlipPage() {
 
                 <div className="flex items-center gap-4">
                     {/* Zoom Control */}
-                    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-white/10 p-1 rounded-xl border border-slate-200 dark:border-white/10">
                         <button 
                             onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                            className="w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-lg transition-all shadow-sm"
                             title="Zoom Out"
                         >
                             <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs font-bold text-slate-900 w-12 text-center tabular-nums">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white w-12 text-center tabular-nums">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button 
                             onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                            className="w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-lg transition-all shadow-sm"
                             title="Zoom In"
                         >
                             <Plus className="w-3.5 h-3.5" />
                         </button>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200" />
+                    <div className="h-8 w-px bg-slate-200 dark:bg-white/10" />
 
                      <button
                         onClick={handlePrint}
@@ -314,7 +314,7 @@ export function TemporaryGradeSlipPage() {
             </div>
 
             {/* Layout Preview */}
-            <div className="flex-1 overflow-auto p-8 flex flex-col items-center bg-slate-100/50 print:bg-white print:p-0 print:overflow-visible custom-scrollbar">
+            <div className="flex-1 overflow-auto p-8 flex flex-col items-center bg-slate-100/50 dark:bg-[#080d1a] print:bg-white print:p-0 print:overflow-visible custom-scrollbar">
                 {sectionStudents.length > 0 ? (
                     <div className="print-preview-container print:w-full flex flex-col items-center transition-all duration-300 ease-out origin-top print:scale-100" style={{ transform: `scale(${zoom})` }}>
                         <div className="print:w-full flex flex-col items-center gap-8 print:gap-0">
@@ -322,7 +322,7 @@ export function TemporaryGradeSlipPage() {
                             {Array.from({ length: Math.ceil(sectionStudents.length / 4) }).map((_, pageIdx) => (
                                 <div key={pageIdx} className="print-page relative">
                                     {/* Page Number Indicator */}
-                                    <div className="absolute -top-6 right-0 text-[10px] font-black text-slate-400 uppercase tracking-widest print:hidden">
+                                    <div className="absolute -top-6 right-0 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest print:hidden">
                                         Page {pageIdx + 1} of {Math.ceil(sectionStudents.length / 4)}
                                     </div>
                                     {/* Center cross mark for cutting */}
@@ -362,11 +362,11 @@ export function TemporaryGradeSlipPage() {
                     </div>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center max-w-md">
-                        <div className="w-20 h-20 bg-slate-200 rounded-3xl flex items-center justify-center mb-6">
-                            <Layout className="w-10 h-10 text-slate-400" />
+                        <div className="w-20 h-20 bg-slate-200 dark:bg-white/10 rounded-3xl flex items-center justify-center mb-6">
+                            <Layout className="w-10 h-10 text-slate-400 dark:text-slate-500" />
                         </div>
-                        <h3 className="text-xl font-black text-slate-800 mb-2">No Advisory Class Set</h3>
-                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">No Advisory Class Set</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                             Please set up your advisory grade level and section details in your Profile to generate temporary grade slips.
                         </p>
                     </div>

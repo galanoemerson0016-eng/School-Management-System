@@ -848,6 +848,8 @@ export function ConsolidatedGradesPage() {
             }
         });
 
+        const usedSheetNames = new Set<string>();
+
         subjectsToExport.forEach(subject => {
             // 1. Create Metadata Rows (Rows 1-5)
             const metadata = [
@@ -892,7 +894,16 @@ export function ConsolidatedGradesPage() {
             // Set column widths
             ws['!cols'] = [{ wch: 20 }, { wch: 35 }, { wch: 10 }];
             
-            XLSX.utils.book_append_sheet(wb, ws, subject.subject_name.substring(0, 31));
+            // Sanitize sheet name: Remove illegal Excel characters (: \ / ? * [ ]) and deduplicate
+            const sanitizedName = subject.subject_name.replace(/[:\\/?*[\]]/g, '').trim() || 'Subject';
+            let sheetName = sanitizedName.substring(0, 31);
+            let count = 1;
+            while (usedSheetNames.has(sheetName.toUpperCase())) {
+                sheetName = `${sanitizedName.substring(0, 27)}_${count++}`;
+            }
+            usedSheetNames.add(sheetName.toUpperCase());
+
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
         });
 
         const fileName = `Grading_Template_${sectionObj.section_name}_${termLabel}_${activeSchoolYear}.xlsx`.replace(/\s+/g, '_');

@@ -492,14 +492,14 @@ export function ReportsPage() {
     };
 
     const renderQuarterSelector = () => (
-        <div className="flex items-center p-1 bg-gray-100/80 rounded-xl w-fit">
+        <div className="flex items-center p-1 bg-gray-100/80 dark:bg-white/10 rounded-xl w-fit">
             {([1, 2, 3] as const).map(q => (
                 <button
                     key={q}
                     onClick={() => setSelectedQuarter(q)}
                     className={`px-5 py-2 rounded-lg text-xs font-black transition-all duration-300 ${selectedQuarter === q
-                        ? 'bg-white text-green-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-white dark:bg-blue-600 text-green-900 dark:text-white shadow-xs'
+                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white'
                         }`}
                 >
                     T{q}
@@ -509,8 +509,8 @@ export function ReportsPage() {
                 <button
                     onClick={() => setSelectedQuarter('overall')}
                     className={`px-5 py-2 rounded-lg text-xs font-black transition-all duration-300 ml-1 ${selectedQuarter === 'overall'
-                        ? 'bg-green-700 text-white shadow-md'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-green-700 dark:bg-emerald-600 text-white shadow-md'
+                        : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white'
                         }`}
                 >
                     FINAL
@@ -525,11 +525,11 @@ export function ReportsPage() {
             <select
                 value={selectedSectionFilter}
                 onChange={(e) => setSelectedSectionFilter(e.target.value)}
-                className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+                className="text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
             >
-                <option value="all">All Sections</option>
+                <option value="all" className="dark:bg-[#0d1225]">All Sections</option>
                 {sortedSections.map(s => (
-                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                    <option key={s.id} value={s.id} className="dark:bg-[#0d1225]">{s.section_grade_level} - {s.section_name}</option>
                 ))}
             </select>
         );
@@ -547,33 +547,33 @@ export function ReportsPage() {
             });
 
         return (
-            <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-deped-blue/20 backdrop-blur-md">
+            <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-md">
                 <motion.div 
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    className="bg-white rounded-3xl shadow-2xl border border-white/40 w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
+                    className="bg-white dark:bg-[#0d1225] rounded-3xl shadow-2xl border border-white/40 dark:border-white/10 w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
                 >
-                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
                         <div>
-                            <h3 className="text-xl font-extrabold text-deped-blue">
+                            <h3 className="text-xl font-extrabold text-deped-blue dark:text-white">
                                 {selectedDetailMetric === 'total' ? 'Graded Records Log' : 'At-Risk Students List'}
                             </h3>
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
+                            <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-widest mt-1">
                                 Term {selectedQuarter} • {records.length} {records.length === 1 ? 'Record' : 'Records'} Found
                             </p>
                         </div>
                         <button 
                             onClick={() => setSelectedDetailMetric(null)}
-                            className="p-2 hover:bg-gray-200 rounded-xl transition-all"
+                            className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl transition-all"
                         >
-                            <AlertCircle className="w-6 h-6 text-gray-400 rotate-45" />
+                            <AlertCircle className="w-6 h-6 text-gray-400 dark:text-slate-400 rotate-45" />
                         </button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-left text-gray-400 uppercase text-[10px] font-black tracking-widest">
+                                <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[10px] font-black tracking-widest">
                                     <th className="pb-4 px-2">#</th>
                                     <th className="pb-4 px-2">Student Name</th>
                                     <th className="pb-4 px-2">Section</th>
@@ -582,25 +582,25 @@ export function ReportsPage() {
                                     <th className="pb-4 px-2 text-right">Action</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                 {records.map((r, idx) => {
                                     const student = students.find(s => s.lrn === r.student_lrn);
                                     const subject = subjects.find(s => s.id === r.subject_id);
                                     
                                     return (
-                                        <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
-                                            <td className="py-3 px-2 font-bold text-gray-400">{idx + 1}</td>
-                                            <td className="py-3 px-2 font-black text-gray-800 uppercase">
+                                        <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
+                                            <td className="py-3 px-2 font-bold text-gray-400 dark:text-slate-500">{idx + 1}</td>
+                                            <td className="py-3 px-2 font-black text-gray-800 dark:text-white uppercase">
                                                 {student ? `${student.last_name}, ${student.first_name}` : 'Unknown Student'}
                                             </td>
                                             <td className="py-3 px-2">
-                                                <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-bold text-gray-600">
+                                                <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-[10px] font-bold text-gray-600 dark:text-slate-300">
                                                     {sections.find(s => s.id === student?.student_section || s.section_name === student?.student_section)?.section_name || student?.student_section || 'N/A'}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-2 font-bold text-gray-600">{subject?.subject_name || 'Deleted Subject'}</td>
+                                            <td className="py-3 px-2 font-bold text-gray-600 dark:text-slate-300">{subject?.subject_name || 'Deleted Subject'}</td>
                                             <td className="py-3 px-2 text-center">
-                                                <span className={`font-black ${Number(r.final_grade) < 75 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                <span className={`font-black ${Number(r.final_grade) < 75 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                     {r.final_grade}
                                                 </span>
                                             </td>
@@ -614,7 +614,7 @@ export function ReportsPage() {
                                                             setSelectedDetailMetric(null);
                                                         }
                                                     }}
-                                                    className="opacity-0 group-hover:opacity-100 p-2 text-deped-blue hover:bg-blue-50 rounded-lg transition-all"
+                                                    className="opacity-0 group-hover:opacity-100 p-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-all"
                                                 >
                                                     <ArrowRight className="w-4 h-4" />
                                                 </button>
@@ -625,7 +625,7 @@ export function ReportsPage() {
                             </tbody>
                         </table>
                         {records.length === 0 && (
-                            <div className="py-20 text-center text-gray-400 italic">No records to display for this metric.</div>
+                            <div className="py-20 text-center text-gray-400 dark:text-slate-500 italic">No records to display for this metric.</div>
                         )}
                     </div>
                 </motion.div>
@@ -701,33 +701,33 @@ export function ReportsPage() {
             >
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 px-4 py-3 rounded-xl border border-blue-100 shadow-xs">
-                        <p className="text-sm font-bold text-blue-700">{totalCount} Students</p>
-                        <p className="text-xs text-blue-600">Total in Section</p>
+                    <div className="bg-blue-50 dark:bg-blue-950/30 px-4 py-3 rounded-xl border border-blue-100 dark:border-blue-500/20 shadow-xs">
+                        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">{totalCount} Students</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">Total in Section</p>
                     </div>
-                    <div className="bg-emerald-50 px-4 py-3 rounded-xl border border-emerald-100 shadow-xs">
-                        <p className="text-sm font-bold text-emerald-700">{completeCount} Complete</p>
-                        <p className="text-xs text-emerald-600">All required documents submitted</p>
+                    <div className="bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3 rounded-xl border border-emerald-100 dark:border-emerald-500/20 shadow-xs">
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{completeCount} Complete</p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400">All required documents submitted</p>
                     </div>
-                    <div className="bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 shadow-xs">
-                        <p className="text-sm font-bold text-rose-700">{pendingCount} Pending / Incomplete</p>
-                        <p className="text-xs text-rose-600">Missing at least one requirement</p>
+                    <div className="bg-rose-50 dark:bg-rose-950/30 px-4 py-3 rounded-xl border border-rose-100 dark:border-rose-500/20 shadow-xs">
+                        <p className="text-sm font-bold text-rose-700 dark:text-rose-300">{pendingCount} Pending / Incomplete</p>
+                        <p className="text-xs text-rose-600 dark:text-rose-400">Missing at least one requirement</p>
                     </div>
-                    <div className="bg-amber-50 px-4 py-3 rounded-xl border border-amber-100 shadow-xs">
-                        <p className="text-sm font-bold text-amber-700">{undertakingCount} Under Undertaking</p>
-                        <p className="text-xs text-amber-600">Temporarily enrolled via Affidavit</p>
+                    <div className="bg-amber-50 dark:bg-amber-950/30 px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-500/20 shadow-xs">
+                        <p className="text-sm font-bold text-amber-700 dark:text-amber-300">{undertakingCount} Under Undertaking</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400">Temporarily enrolled via Affidavit</p>
                     </div>
                 </div>
 
                 {/* Filter and Action Bar */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-gray-600">Filter Status:</span>
-                        <div className="flex bg-gray-100 rounded-lg p-1">
+                        <span className="text-sm font-bold text-gray-600 dark:text-slate-400">Filter Status:</span>
+                        <div className="flex bg-gray-100 dark:bg-white/10 rounded-lg p-1">
                             <button
                                 onClick={() => setReqFilter('all')}
                                 className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                    reqFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                    reqFilter === 'all' ? 'bg-white dark:bg-blue-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                 }`}
                             >
                                 All ({totalCount})
@@ -735,7 +735,7 @@ export function ReportsPage() {
                             <button
                                 onClick={() => setReqFilter('complete')}
                                 className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                    reqFilter === 'complete' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                    reqFilter === 'complete' ? 'bg-white dark:bg-blue-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                 }`}
                             >
                                 Complete ({completeCount})
@@ -743,7 +743,7 @@ export function ReportsPage() {
                             <button
                                 onClick={() => setReqFilter('pending')}
                                 className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                    reqFilter === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                    reqFilter === 'pending' ? 'bg-white dark:bg-blue-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                 }`}
                             >
                                 Pending ({pendingCount})
@@ -754,18 +754,18 @@ export function ReportsPage() {
                     <button 
                         onClick={handleExportRequirements} 
                         disabled={totalCount === 0}
-                        className="text-xs flex items-center gap-2 text-deped-blue hover:bg-blue-50 font-bold px-4 py-2 bg-white rounded-lg shadow-sm border border-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="text-xs flex items-center gap-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 font-bold px-4 py-2 bg-white dark:bg-white/5 rounded-lg shadow-sm border border-gray-200 dark:border-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                     >
                         <Download className="w-4 h-4" /> Export CSV
                     </button>
                 </div>
 
                 {/* Checklist Table */}
-                <div className="bg-white rounded-2xl shadow-xs border border-gray-150 overflow-hidden">
+                <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-150 dark:border-white/10 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                             <thead>
-                                <tr className="bg-linear-to-r from-deped-blue to-blue-700 text-white">
+                                <tr className="bg-linear-to-r from-deped-blue to-blue-700 dark:from-indigo-950 dark:to-blue-900 text-white">
                                     <th className="px-4 py-3.5 text-left font-bold uppercase tracking-wider">Student Name</th>
                                     <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Report Card (SF9)</th>
                                     <th className="px-3 py-3.5 text-center font-bold uppercase tracking-wider text-wrap max-w-20">Birth Cert (PSA)</th>
@@ -778,18 +778,18 @@ export function ReportsPage() {
                                     <th className="px-4 py-3.5 text-right font-bold uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                 {filteredStudentsForRequirements.map((student) => {
                                     const stats = getStudentRequirementStats(student);
                                     const isG1K = isKinderOrG1(student.grade_level);
 
                                     return (
-                                        <tr key={student.lrn} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-4 py-3 font-semibold text-gray-800">
-                                                <div className="font-extrabold text-sm uppercase text-gray-800">
+                                        <tr key={student.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                            <td className="px-4 py-3 font-semibold text-gray-800 dark:text-white">
+                                                <div className="font-extrabold text-sm uppercase text-gray-800 dark:text-white">
                                                     {student.last_name}, {student.first_name} {student.middle_name ? `${student.middle_name.charAt(0)}.` : ''}
                                                 </div>
-                                                <div className="text-[10px] text-gray-400 font-bold tracking-wider mt-0.5">
+                                                <div className="text-[10px] text-gray-400 dark:text-slate-400 font-bold tracking-wider mt-0.5">
                                                     LRN: {student.lrn} | {student.grade_level}
                                                 </div>
                                             </td>
@@ -797,7 +797,7 @@ export function ReportsPage() {
                                             {/* Report Card */}
                                             <td className="px-3 py-3 text-center">
                                                 {isG1K ? (
-                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                    <span className="text-[10px] text-gray-300 dark:text-slate-600 font-bold italic">N/A</span>
                                                 ) : (
                                                     <input 
                                                         type="checkbox" 
@@ -821,7 +821,7 @@ export function ReportsPage() {
                                             {/* SF10 */}
                                             <td className="px-3 py-3 text-center">
                                                 {isG1K ? (
-                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                    <span className="text-[10px] text-gray-300 dark:text-slate-600 font-bold italic">N/A</span>
                                                 ) : (
                                                     <input 
                                                         type="checkbox" 
@@ -835,7 +835,7 @@ export function ReportsPage() {
                                             {/* Good Moral */}
                                             <td className="px-3 py-3 text-center">
                                                 {isG1K ? (
-                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                    <span className="text-[10px] text-gray-300 dark:text-slate-600 font-bold italic">N/A</span>
                                                 ) : (
                                                     <input 
                                                         type="checkbox" 
@@ -866,7 +866,7 @@ export function ReportsPage() {
                                                         className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                                                     />
                                                 ) : (
-                                                    <span className="text-[10px] text-gray-300 font-bold italic">N/A</span>
+                                                    <span className="text-[10px] text-gray-300 dark:text-slate-600 font-bold italic">N/A</span>
                                                 )}
                                             </td>
 
@@ -876,28 +876,28 @@ export function ReportsPage() {
                                                     type="checkbox" 
                                                     checked={!!student.req_undertaking}
                                                     onChange={(e) => handleToggleRequirement(student, 'req_undertaking', e.target.checked)}
-                                                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                    className="rounded text-amber-500 focus:ring-amber-400 w-4 h-4 cursor-pointer"
                                                 />
                                             </td>
 
                                             {/* Progress bar and text */}
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <span className={`text-[10px] font-black ${stats.isComplete ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                                    <span className={`text-[10px] font-black ${stats.isComplete ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-slate-400'}`}>
                                                         {stats.submittedCount} / {stats.totalRequired}
                                                     </span>
-                                                    <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                                    <div className="w-16 bg-gray-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
                                                         <div 
                                                             className={`h-full transition-all duration-350 ${stats.isComplete ? 'bg-emerald-500' : stats.isTemporary ? 'bg-amber-400' : 'bg-blue-500'}`} 
                                                             style={{ width: `${(stats.submittedCount / stats.totalRequired) * 100}%` }}
                                                         />
                                                     </div>
                                                     {stats.isComplete ? (
-                                                        <span className="bg-emerald-50 text-emerald-700 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-100 mt-0.5">COMPLETE</span>
+                                                        <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-500/20 mt-0.5">COMPLETE</span>
                                                     ) : stats.isTemporary ? (
-                                                        <span className="bg-amber-50 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-100 mt-0.5">UNDERTAKING</span>
+                                                        <span className="bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-500/20 mt-0.5">UNDERTAKING</span>
                                                     ) : (
-                                                        <span className="bg-gray-50 text-gray-500 text-[8px] font-bold px-1.5 py-0.5 rounded border border-gray-200 mt-0.5">PENDING</span>
+                                                        <span className="bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-slate-400 text-[8px] font-bold px-1.5 py-0.5 rounded border border-gray-200 dark:border-white/10 mt-0.5">PENDING</span>
                                                     )}
                                                 </div>
                                             </td>
@@ -914,7 +914,7 @@ export function ReportsPage() {
                                                             });
                                                             await useAppStore.getState().updateStudent(student.lrn, updates);
                                                         }}
-                                                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 text-[9px] font-black rounded uppercase transition-colors"
+                                                        className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 text-[9px] font-black rounded uppercase transition-colors cursor-pointer"
                                                         title="Mark all required documents as submitted"
                                                     >
                                                         All
@@ -929,7 +929,7 @@ export function ReportsPage() {
                                                             updates.req_undertaking = false;
                                                             await useAppStore.getState().updateStudent(student.lrn, updates);
                                                         }}
-                                                        className="px-2 py-1 bg-gray-50 hover:bg-gray-250 text-gray-500 text-[9px] font-black rounded uppercase transition-colors"
+                                                        className="px-2 py-1 bg-gray-50 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 dark:text-slate-400 text-[9px] font-black rounded uppercase transition-colors cursor-pointer"
                                                         title="Reset all checkboxes"
                                                     >
                                                         Reset
@@ -941,7 +941,7 @@ export function ReportsPage() {
                                 })}
                                 {filteredStudentsForRequirements.length === 0 && (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-20 text-center text-gray-400 italic">
+                                        <td colSpan={10} className="px-6 py-20 text-center text-gray-400 dark:text-slate-500 italic">
                                             {totalCount === 0 ? 'No students enrolled in this section.' : 'No students matching the selected status filter.'}
                                         </td>
                                     </tr>
@@ -965,12 +965,12 @@ export function ReportsPage() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setActiveReport(null)}
-                            className="p-2 rounded-xl bg-white shadow-sm border border-gray-100 hover:bg-gray-50 transition-all"
+                            className="p-2 rounded-xl bg-white dark:bg-white/5 shadow-xs border border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 transition-all cursor-pointer"
                         >
-                            <ArrowLeft className="w-5 h-5 text-gray-600" />
+                            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-300" />
                         </button>
                         <div>
-                            <h2 className="text-2xl font-extrabold text-deped-blue">
+                            <h2 className="text-2xl font-extrabold text-deped-blue dark:text-white">
                                 {safeActiveReport === 'quarterly' && 'Term Summary Report'}
                                 {safeActiveReport === 'subject' && 'Subject Performance'}
                                 {safeActiveReport === 'progress' && 'Learner Progress Tracker'}
@@ -979,7 +979,7 @@ export function ReportsPage() {
                                 {safeActiveReport === 'requirements' && 'Checklist of Requirements'}
                             </h2>
                             {sortedSections.length === 1 && (
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                <p className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest mt-0.5">
                                     Section: {activeSectionName}
                                 </p>
                             )}
@@ -1016,11 +1016,11 @@ export function ReportsPage() {
                                             ].map((stat) => (
                                                 <div 
                                                     key={stat.label} 
-                                                    className={`bg-white p-5 rounded-2xl shadow-sm border border-gray-100 ${stat.onClick ? 'cursor-pointer hover:border-deped-blue/30 hover:bg-blue-50/10 transition-all' : ''}`}
+                                                    className={`bg-white dark:bg-[#0d1225] p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 ${stat.onClick ? 'cursor-pointer hover:border-deped-blue/30 dark:hover:border-white/20 hover:bg-blue-50/10 dark:hover:bg-white/5 transition-all' : ''}`}
                                                     onClick={stat.onClick}
                                                 >
-                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                                    <p className="text-3xl font-black text-gray-800 mt-1">{stat.value}</p>
+                                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                                                    <p className="text-3xl font-black text-gray-800 dark:text-white mt-1">{stat.value}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -1030,10 +1030,10 @@ export function ReportsPage() {
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* MPS Chart */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-gray-800">Mean Percentage Score (MPS)</h3>
-                                        <button onClick={handleExportMPS} disabled={!canEditReport(user, 'quarterly-summaries')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+                                        <h3 className="font-bold text-gray-800 dark:text-white">Mean Percentage Score (MPS)</h3>
+                                        <button onClick={handleExportMPS} disabled={!canEditReport(user, 'quarterly-summaries')} className="text-xs flex items-center gap-1 text-deped-blue dark:text-blue-400 hover:underline font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
                                             <Download className="w-3 h-3" /> Export CSV
                                         </button>
                                     </div>
@@ -1050,8 +1050,8 @@ export function ReportsPage() {
                                 </div>
 
                                 {/* Grade Distribution Pie */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-4">Grade Distribution</h3>
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Grade Distribution</h3>
                                     <div className="h-72 flex items-center">
                                         <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                             <PieChart>
@@ -1087,31 +1087,31 @@ export function ReportsPage() {
                                 </div>
 
                                 {/* MPS Table */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 overflow-x-auto">
-                                    <h3 className="font-bold text-gray-800 mb-4">Detailed MPS per Subject</h3>
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 lg:col-span-2 overflow-x-auto">
+                                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Detailed MPS per Subject</h3>
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="bg-gray-50 text-left">
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Subject</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">MPS</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Pass Rate</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Students</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                            <tr className="bg-gray-50 dark:bg-white/5 text-left">
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase">Subject</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">MPS</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Pass Rate</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Students</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase">Status</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-100">
+                                        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                             {mpsData.map((row) => (
-                                                <tr key={row.subjectName} className="hover:bg-gray-50">
-                                                    <td className="px-4 py-3 font-bold text-sm text-gray-800">{row.subjectName}</td>
+                                                <tr key={row.subjectName} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                    <td className="px-4 py-3 font-bold text-sm text-gray-800 dark:text-white">{row.subjectName}</td>
                                                     <td className="px-4 py-3 text-center">
-                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${row.mps >= 75 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-black ${row.mps >= 75 ? 'bg-green-100 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300'}`}>
                                                             {row.mps}%
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 py-3 text-center text-sm font-bold text-gray-600">{row.passRate}%</td>
-                                                    <td className="px-4 py-3 text-center text-sm text-gray-500">{row.totalStudents}</td>
+                                                    <td className="px-4 py-3 text-center text-sm font-bold text-gray-600 dark:text-slate-300">{row.passRate}%</td>
+                                                    <td className="px-4 py-3 text-center text-sm text-gray-500 dark:text-slate-400">{row.totalStudents}</td>
                                                     <td className="px-4 py-3">
-                                                        <span className={`text-xs font-bold ${row.mps >= 85 ? 'text-green-600' : row.mps >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                        <span className={`text-xs font-bold ${row.mps >= 85 ? 'text-green-600 dark:text-emerald-400' : row.mps >= 75 ? 'text-yellow-600 dark:text-amber-400' : 'text-red-600 dark:text-rose-400'}`}>
                                                             {row.mps >= 85 ? '✅ Excellent' : row.mps >= 75 ? '⚠️ Satisfactory' : '❌ Needs Improvement'}
                                                         </span>
                                                     </td>
@@ -1120,7 +1120,7 @@ export function ReportsPage() {
                                         </tbody>
                                     </table>
                                     {mpsData.length === 0 && (
-                                        <p className="text-center py-8 text-gray-400 italic">No graded records for Term {selectedQuarter}</p>
+                                        <p className="text-center py-8 text-gray-400 dark:text-slate-500 italic">No graded records for Term {selectedQuarter}</p>
                                     )}
                                 </div>
                             </div>
@@ -1137,29 +1137,29 @@ export function ReportsPage() {
                             className="space-y-6"
                         >
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Overall MPS</p>
-                                    <p className="text-3xl font-black text-deped-blue mt-1">{subjectPerformanceInsights.overallMps}%</p>
-                                    <p className="text-[11px] text-gray-500 mt-1">Across {subjectPerformanceInsights.subjectCount} subjects</p>
+                                <div className="bg-white dark:bg-[#0d1225] p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">Overall MPS</p>
+                                    <p className="text-3xl font-black text-deped-blue dark:text-white mt-1">{subjectPerformanceInsights.overallMps}%</p>
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">Across {subjectPerformanceInsights.subjectCount} subjects</p>
                                 </div>
-                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Overall Pass Rate</p>
-                                    <p className="text-3xl font-black text-emerald-600 mt-1">{subjectPerformanceInsights.overallPassRate}%</p>
-                                    <p className="text-[11px] text-gray-500 mt-1">Term {selectedQuarter} graded records</p>
+                                <div className="bg-white dark:bg-[#0d1225] p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">Overall Pass Rate</p>
+                                    <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{subjectPerformanceInsights.overallPassRate}%</p>
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">Term {selectedQuarter} graded records</p>
                                 </div>
-                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Top Subject</p>
-                                    <p className="text-lg font-black text-gray-800 mt-1 uppercase">
+                                <div className="bg-white dark:bg-[#0d1225] p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">Top Subject</p>
+                                    <p className="text-lg font-black text-gray-800 dark:text-white mt-1 uppercase">
                                         {subjectPerformanceInsights.strongest?.subjectName || 'N/A'}
                                     </p>
-                                    <p className="text-[11px] text-gray-500 mt-1">MPS: {subjectPerformanceInsights.strongest?.mps ?? 0}%</p>
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">MPS: {subjectPerformanceInsights.strongest?.mps ?? 0}%</p>
                                 </div>
-                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Needs Support</p>
-                                    <p className="text-lg font-black text-gray-800 mt-1 uppercase">
+                                <div className="bg-white dark:bg-[#0d1225] p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">Needs Support</p>
+                                    <p className="text-lg font-black text-gray-800 dark:text-white mt-1 uppercase">
                                         {subjectPerformanceInsights.weakest?.subjectName || 'N/A'}
                                     </p>
-                                    <p className="text-[11px] text-gray-500 mt-1">
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
                                         {subjectPerformanceInsights.belowTargetCount} subject(s) below 75 MPS
                                     </p>
                                 </div>
@@ -1167,8 +1167,8 @@ export function ReportsPage() {
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Radar Chart */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-4">Subject Comparison Radar</h3>
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Subject Comparison Radar</h3>
                                     <div className="h-80">
                                         {radarData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
@@ -1182,14 +1182,14 @@ export function ReportsPage() {
                                                 </RadarChart>
                                             </ResponsiveContainer>
                                         ) : (
-                                            <div className="h-full flex items-center justify-center text-gray-400 italic">No data available</div>
+                                            <div className="h-full flex items-center justify-center text-gray-400 dark:text-slate-500 italic">No data available</div>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Bar Comparison */}
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <h3 className="font-bold text-gray-800 mb-4">Pass Rate by Subject</h3>
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Pass Rate by Subject</h3>
                                     <div className="h-80">
                                         <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                             <BarChart data={mpsData} margin={{ bottom: 60 }}>
@@ -1214,41 +1214,41 @@ export function ReportsPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                            <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold text-gray-800">Subject Performance Details</h3>
-                                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                    <h3 className="font-bold text-gray-800 dark:text-white">Subject Performance Details</h3>
+                                    <p className="text-[11px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest">
                                         Trend vs {typeof selectedQuarter === 'number' && selectedQuarter > 1 ? `T${selectedQuarter - 1}` : 'Previous Term'}
                                     </p>
                                 </div>
                                 <table className="w-full">
                                     <thead>
-                                        <tr className="bg-gray-50 text-left">
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Rank</th>
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Subject</th>
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">MPS</th>
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Pass Rate</th>
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Students</th>
-                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Trend</th>
+                                        <tr className="bg-gray-50 dark:bg-white/5 text-left">
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase">Rank</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase">Subject</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">MPS</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Pass Rate</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Students</th>
+                                            <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Trend</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                         {subjectComparisonRows.map((row) => (
-                                            <tr key={row.subjectName} className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 font-black text-gray-600">#{row.rank}</td>
-                                                <td className="px-4 py-3 font-bold text-sm text-gray-800">{row.subjectName}</td>
-                                                <td className="px-4 py-3 text-center text-sm font-black text-deped-blue">{row.mps}%</td>
-                                                <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{row.passRate}%</td>
-                                                <td className="px-4 py-3 text-center text-sm text-gray-500">{row.totalStudents}</td>
+                                            <tr key={row.subjectName} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                <td className="px-4 py-3 font-black text-gray-600 dark:text-slate-400">#{row.rank}</td>
+                                                <td className="px-4 py-3 font-bold text-sm text-gray-800 dark:text-white">{row.subjectName}</td>
+                                                <td className="px-4 py-3 text-center text-sm font-black text-deped-blue dark:text-blue-400">{row.mps}%</td>
+                                                <td className="px-4 py-3 text-center text-sm font-bold text-gray-700 dark:text-slate-300">{row.passRate}%</td>
+                                                <td className="px-4 py-3 text-center text-sm text-gray-500 dark:text-slate-400">{row.totalStudents}</td>
                                                 <td className="px-4 py-3 text-center">
                                                     {row.delta === null ? (
-                                                        <span className="text-xs font-bold text-gray-400">N/A</span>
+                                                        <span className="text-xs font-bold text-gray-400 dark:text-slate-500">N/A</span>
                                                     ) : row.delta > 0 ? (
-                                                        <span className="text-xs font-black text-emerald-600">+{row.delta}</span>
+                                                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">+{row.delta}</span>
                                                     ) : row.delta < 0 ? (
-                                                        <span className="text-xs font-black text-red-600">{row.delta}</span>
+                                                        <span className="text-xs font-black text-red-600 dark:text-rose-400">{row.delta}</span>
                                                     ) : (
-                                                        <span className="text-xs font-bold text-gray-500">0.00</span>
+                                                        <span className="text-xs font-bold text-gray-500 dark:text-slate-400">0.00</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -1256,35 +1256,35 @@ export function ReportsPage() {
                                     </tbody>
                                 </table>
                                 {subjectComparisonRows.length === 0 && (
-                                    <p className="text-center py-8 text-gray-400 italic">No graded records for Term {selectedQuarter}</p>
+                                    <p className="text-center py-8 text-gray-400 dark:text-slate-500 italic">No graded records for Term {selectedQuarter}</p>
                                 )}
                             </div>
 
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-4">Intervention Insights</h3>
+                            <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                <h3 className="font-bold text-gray-800 dark:text-white mb-4">Intervention Insights</h3>
                                 <div className="space-y-3">
                                     {subjectInterventions.map((item) => (
-                                        <div key={item.subjectName} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                                        <div key={item.subjectName} className="p-4 rounded-xl border border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/5">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div>
-                                                    <p className="font-black text-gray-800 text-sm uppercase">{item.subjectName}</p>
-                                                    <p className="text-xs font-bold text-gray-500 mt-0.5">MPS: {item.mps}% • Pass Rate: {item.passRate}%</p>
+                                                    <p className="font-black text-gray-800 dark:text-white text-sm uppercase">{item.subjectName}</p>
+                                                    <p className="text-xs font-bold text-gray-500 dark:text-slate-400 mt-0.5">MPS: {item.mps}% • Pass Rate: {item.passRate}%</p>
                                                 </div>
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
                                                     item.priority === 'Urgent'
-                                                        ? 'bg-red-100 text-red-700'
+                                                        ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-rose-300'
                                                         : item.priority === 'Remediation'
-                                                            ? 'bg-amber-100 text-amber-700'
-                                                            : 'bg-blue-100 text-blue-700'
+                                                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                                                            : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                                                 }`}>
                                                     {item.priority}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-gray-600 mt-2 leading-relaxed">{item.action}</p>
+                                            <p className="text-xs text-gray-600 dark:text-slate-300 mt-2 leading-relaxed">{item.action}</p>
                                         </div>
                                     ))}
                                     {subjectInterventions.length === 0 && (
-                                        <p className="text-center py-6 text-gray-400 italic">No intervention insight available for this term.</p>
+                                        <p className="text-center py-6 text-gray-400 dark:text-slate-500 italic">No intervention insight available for this term.</p>
                                     )}
                                 </div>
                             </div>
@@ -1302,20 +1302,20 @@ export function ReportsPage() {
                         >
                             {/* Progress Summary */}
                             {progressInsights && (
-                                <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100">
+                                <div className="bg-linear-to-r from-blue-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-900/90 p-6 rounded-2xl border border-blue-100 dark:border-white/10">
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-blue-100 rounded-xl">
-                                            <TrendingUp className="w-6 h-6 text-blue-600" />
+                                        <div className="p-3 bg-blue-100 dark:bg-blue-950/80 rounded-xl">
+                                            <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-bold text-gray-800">Academic Growth Summary</h3>
-                                            <p className="text-sm text-gray-600">
+                                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">Academic Growth Summary</h3>
+                                            <p className="text-sm text-gray-600 dark:text-slate-300">
                                                 From T1 to T3: Grade improved by {progressInsights.gradeImprovement > 0 ? '+' : ''}{progressInsights.gradeImprovement} points,
                                                 Pass Rate by {progressInsights.passImprovement > 0 ? '+' : ''}{progressInsights.passImprovement}%
                                                 <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold ${
-                                                    progressInsights.overallTrend === 'improving' ? 'bg-green-100 text-green-700' :
-                                                    progressInsights.overallTrend === 'declining' ? 'bg-red-100 text-red-700' :
-                                                    'bg-gray-100 text-gray-700'
+                                                    progressInsights.overallTrend === 'improving' ? 'bg-green-100 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300' :
+                                                    progressInsights.overallTrend === 'declining' ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' :
+                                                    'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-slate-300'
                                                 }`}>
                                                     {progressInsights.overallTrend === 'improving' ? 'Improving' :
                                                      progressInsights.overallTrend === 'declining' ? 'Declining' : 'Stable'}
@@ -1326,8 +1326,8 @@ export function ReportsPage() {
                                 </div>
                             )}
 
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-4">Academic Progress Across Terms</h3>
+                            <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                <h3 className="font-bold text-gray-800 dark:text-white mb-4">Academic Progress Across Terms</h3>
                                 <div className="h-80">
                                     <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 100, height: 100 }}>
                                         <LineChart data={progressData}>
@@ -1342,33 +1342,33 @@ export function ReportsPage() {
                                 </div>
                             </div>
 
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-4">Term-by-Term Stats</h3>
-                                <div className="grid grid-cols-4 gap-4">
+                            <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10">
+                                <h3 className="font-bold text-gray-800 dark:text-white mb-4">Term-by-Term Stats</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     {progressData.map((p, idx) => {
                                         const prev = idx > 0 ? progressData[idx - 1] : null;
                                         const gradeChange = prev ? p.average - prev.average : 0;
 
                                         return (
-                                            <div key={p.quarter} className={`p-4 rounded-xl border-2 transition-all ${p.quarter === `T${selectedQuarter}` ? 'border-deped-blue bg-blue-50' : 'border-gray-100'}`}>
+                                            <div key={p.quarter} className={`p-4 rounded-xl border-2 transition-all ${p.quarter === `T${selectedQuarter}` ? 'border-deped-blue dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40' : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5'}`}>
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-lg font-black text-deped-blue">{p.quarter}</p>
+                                                    <p className="text-lg font-black text-deped-blue dark:text-blue-400">{p.quarter}</p>
                                                     {prev && (
                                                         <div className="flex items-center gap-1">
-                                                            {gradeChange > 0 ? <ArrowUp className="w-3 h-3 text-green-600" /> :
-                                                             gradeChange < 0 ? <ArrowDown className="w-3 h-3 text-red-600" /> :
-                                                             <Minus className="w-3 h-3 text-gray-600" />}
-                                                            <span className={`text-xs font-bold ${gradeChange > 0 ? 'text-green-600' : gradeChange < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                                            {gradeChange > 0 ? <ArrowUp className="w-3 h-3 text-green-600 dark:text-emerald-400" /> :
+                                                             gradeChange < 0 ? <ArrowDown className="w-3 h-3 text-red-600 dark:text-rose-400" /> :
+                                                             <Minus className="w-3 h-3 text-gray-600 dark:text-slate-400" />}
+                                                            <span className={`text-xs font-bold ${gradeChange > 0 ? 'text-green-600 dark:text-emerald-400' : gradeChange < 0 ? 'text-red-600 dark:text-rose-400' : 'text-gray-600 dark:text-slate-400'}`}>
                                                                 {gradeChange > 0 ? '+' : ''}{Math.round(gradeChange * 100) / 100}
                                                             </span>
                                                         </div>
                                                     )}
                                                 </div>
-                                                <p className="text-2xl font-black text-gray-800">{p.average || '—'}</p>
-                                                <p className="text-xs text-gray-500 font-bold">Avg Grade</p>
-                                                <div className="mt-2 pt-2 border-t border-gray-100">
-                                                    <p className="text-sm font-bold text-green-600">{p.passRate}% Pass</p>
-                                                    <p className="text-[10px] text-gray-400">{p.totalRecords} records</p>
+                                                <p className="text-2xl font-black text-gray-800 dark:text-white">{p.average || '—'}</p>
+                                                <p className="text-xs text-gray-500 dark:text-slate-400 font-bold">Avg Grade</p>
+                                                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/10">
+                                                    <p className="text-sm font-bold text-green-600 dark:text-emerald-400">{p.passRate}% Pass</p>
+                                                    <p className="text-[10px] text-gray-400 dark:text-slate-400">{p.totalRecords} records</p>
                                                 </div>
                                             </div>
                                         );
@@ -1378,38 +1378,38 @@ export function ReportsPage() {
 
                             {/* Subject Progress Table */}
                             {progressInsights?.subjectProgress && progressInsights.subjectProgress.length > 0 && (
-                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-                                    <h3 className="font-bold text-gray-800 mb-4">Subject Progress Details</h3>
+                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-x-auto">
+                                    <h3 className="font-bold text-gray-800 dark:text-white mb-4">Subject Progress Details</h3>
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="bg-gray-50 text-left">
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Subject</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T1 Avg</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T2 Avg</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">T3 Avg</th>
-                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Improvement</th>
+                                            <tr className="bg-gray-50 dark:bg-white/5 text-left">
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase">Subject</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">T1 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">T2 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">T3 Avg</th>
+                                                <th className="px-4 py-3 text-xs font-bold text-gray-500 dark:text-slate-400 uppercase text-center">Improvement</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-100">
+                                        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                             {progressInsights.subjectProgress.map((subj) => {
                                                 const t1 = subj.data.find((d) => d.term === 1)?.average || 0;
                                                 const t3 = subj.data.find((d) => d.term === 3)?.average || 0;
                                                 const improvement = t3 - t1;
 
                                                 return (
-                                                    <tr key={subj.subject} className="hover:bg-gray-50">
-                                                        <td className="px-4 py-3 font-bold text-sm text-gray-800">{subj.subject}</td>
-                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t1 || '—'}</td>
-                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{subj.data.find((d) => d.term === 2)?.average || '—'}</td>
-                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">{t3 || '—'}</td>
+                                                    <tr key={subj.subject} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                                        <td className="px-4 py-3 font-bold text-sm text-gray-800 dark:text-white">{subj.subject}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700 dark:text-slate-300">{t1 || '—'}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700 dark:text-slate-300">{subj.data.find((d) => d.term === 2)?.average || '—'}</td>
+                                                        <td className="px-4 py-3 text-center text-sm font-bold text-gray-700 dark:text-slate-300">{t3 || '—'}</td>
                                                         <td className="px-4 py-3 text-center">
                                                             {improvement !== 0 ? (
-                                                                <span className={`text-sm font-bold flex items-center justify-center gap-1 ${improvement > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                <span className={`text-sm font-bold flex items-center justify-center gap-1 ${improvement > 0 ? 'text-green-600 dark:text-emerald-400' : 'text-red-600 dark:text-rose-400'}`}>
                                                                     {improvement > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                                                                     {improvement > 0 ? '+' : ''}{Math.round(improvement * 100) / 100}
                                                                 </span>
                                                             ) : (
-                                                                <span className="text-sm font-bold text-gray-500">0.00</span>
+                                                                <span className="text-sm font-bold text-gray-500 dark:text-slate-400">0.00</span>
                                                             )}
                                                         </td>
                                                     </tr>
@@ -1433,30 +1433,30 @@ export function ReportsPage() {
                         >
                             {/* Summary Stats */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="bg-red-50 px-4 py-3 rounded-xl border border-red-100">
-                                    <p className="text-sm font-bold text-red-700">{groupedAtRiskStudents.length} at-risk learners</p>
-                                    <p className="text-xs text-red-600">Unique students failing ≥1 subject</p>
+                                <div className="bg-red-50 dark:bg-red-950/30 px-4 py-3 rounded-xl border border-red-100 dark:border-red-500/20 shadow-xs">
+                                    <p className="text-sm font-bold text-red-700 dark:text-red-300">{groupedAtRiskStudents.length} at-risk learners</p>
+                                    <p className="text-xs text-red-600 dark:text-red-400">Unique students failing ≥1 subject</p>
                                 </div>
-                                <div className="bg-orange-50 px-4 py-3 rounded-xl border border-orange-100">
-                                    <p className="text-sm font-bold text-orange-700">{atRiskStudents.length} total failing grades</p>
-                                    <p className="text-xs text-orange-600">Individual subject failures</p>
+                                <div className="bg-orange-50 dark:bg-orange-950/30 px-4 py-3 rounded-xl border border-orange-100 dark:border-orange-500/20 shadow-xs">
+                                    <p className="text-sm font-bold text-orange-700 dark:text-orange-300">{atRiskStudents.length} total failing grades</p>
+                                    <p className="text-xs text-orange-600 dark:text-orange-400">Individual subject failures</p>
                                 </div>
-                                <div className="bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-700">
+                                <div className="bg-gray-50 dark:bg-white/5 px-4 py-3 rounded-xl border border-gray-100 dark:border-white/10 shadow-xs">
+                                    <p className="text-sm font-bold text-gray-700 dark:text-slate-300">
                                         {groupedAtRiskStudents.length > 0 ? Math.round((groupedAtRiskStudents.reduce((sum, s) => sum + s.subjects.length, 0) / groupedAtRiskStudents.length) * 10) / 10 : 0} avg subjects failed
                                     </p>
-                                    <p className="text-xs text-gray-600">Per at-risk student</p>
+                                    <p className="text-xs text-gray-600 dark:text-slate-400">Per at-risk student</p>
                                 </div>
                             </div>
 
-                            <div className="flex justify-between items-center">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-600">View Mode:</span>
-                                    <div className="flex bg-gray-100 rounded-lg p-1">
+                                    <span className="text-sm font-bold text-gray-600 dark:text-slate-400">View Mode:</span>
+                                    <div className="flex bg-gray-100 dark:bg-white/10 rounded-lg p-1">
                                         <button
                                             onClick={() => setAtRiskViewMode('grouped')}
                                             className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                                atRiskViewMode === 'grouped' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                                atRiskViewMode === 'grouped' ? 'bg-white dark:bg-blue-600 text-gray-900 dark:text-white shadow-xs' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                             }`}
                                         >
                                             Grouped ({groupedAtRiskStudents.length})
@@ -1464,39 +1464,39 @@ export function ReportsPage() {
                                         <button
                                             onClick={() => setAtRiskViewMode('detailed')}
                                             className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                                                atRiskViewMode === 'detailed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                                                atRiskViewMode === 'detailed' ? 'bg-white dark:bg-blue-600 text-gray-900 dark:text-white shadow-xs' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                             }`}
                                         >
                                             Detailed ({atRiskStudents.length})
                                         </button>
                                     </div>
                                 </div>
-                                <button onClick={handleExportAtRisk} disabled={!canEditReport(user, 'at-risk-students')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
-                                    <Download className="w-3 h-3" /> Export CSV
+                                <button onClick={handleExportAtRisk} disabled={!canEditReport(user, 'at-risk-students')} className="text-xs flex items-center gap-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 font-bold px-4 py-2 bg-white dark:bg-white/5 rounded-lg shadow-xs border border-gray-200 dark:border-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                                    <Download className="w-4 h-4" /> Export CSV
                                 </button>
                             </div>
 
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden">
                                 {atRiskViewMode === 'grouped' ? (
-                                    <table className="w-full">
+                                    <table className="w-full text-xs">
                                         <thead>
-                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 text-white">
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Failing Subjects</th>
-                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Count</th>
-                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Lowest Grade</th>
+                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 dark:from-red-950 dark:to-rose-900 text-white">
+                                                <th className="px-5 py-4 text-left font-bold uppercase">#</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Student Name</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Section</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Failing Subjects</th>
+                                                <th className="px-5 py-4 text-center font-bold uppercase">Count</th>
+                                                <th className="px-5 py-4 text-center font-bold uppercase">Lowest Grade</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-100">
+                                        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                             {groupedAtRiskStudents.map((item, idx) => {
                                                 const lowestGrade = Math.min(...item.subjects.map(s => s.grade));
                                                 return (
-                                                    <tr key={item.student.lrn} className="hover:bg-red-50/50">
-                                                        <td className="px-5 py-3 text-sm text-gray-400 font-bold">{idx + 1}</td>
+                                                    <tr key={item.student.lrn} className="hover:bg-red-50/50 dark:hover:bg-white/5 transition-colors">
+                                                        <td className="px-5 py-3 text-sm text-gray-400 dark:text-slate-500 font-bold">{idx + 1}</td>
                                                         <td 
-                                                            className="px-5 py-3 font-bold text-sm text-deped-blue hover:text-blue-700 underline cursor-pointer uppercase transition-colors"
+                                                            className="px-5 py-3 font-bold text-sm text-deped-blue dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline cursor-pointer uppercase transition-colors"
                                                             onClick={() => {
                                                                 const secObj = sections.find(s => s.section_name === item.student.student_section);
                                                                 if (secObj) {
@@ -1508,28 +1508,28 @@ export function ReportsPage() {
                                                         >
                                                             {item.student.last_name}, {item.student.first_name}
                                                         </td>
-                                                        <td className="px-5 py-3 text-sm text-gray-600">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
-                                                        <td className="px-5 py-3 text-sm text-gray-600">
+                                                        <td className="px-5 py-3 text-sm text-gray-600 dark:text-slate-300">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
+                                                        <td className="px-5 py-3 text-sm text-gray-600 dark:text-slate-300">
                                                             <div className="flex flex-wrap gap-1">
                                                                 {item.subjects.slice(0, 3).map((subj, subjIdx) => (
-                                                                    <span key={subjIdx} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-medium">
+                                                                    <span key={subjIdx} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-rose-300 font-medium">
                                                                         {subj.subjectName}: {subj.grade}
                                                                     </span>
                                                                 ))}
                                                                 {item.subjects.length > 3 && (
-                                                                    <span className="text-xs text-gray-500 font-medium">
+                                                                    <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
                                                                         +{item.subjects.length - 3} more
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </td>
                                                         <td className="px-5 py-3 text-center">
-                                                            <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-black">
+                                                            <span className="px-2 py-1 bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 rounded-full text-xs font-black">
                                                                 {item.subjects.length}
                                                             </span>
                                                         </td>
                                                         <td className="px-5 py-3 text-center">
-                                                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black">
+                                                            <span className="px-3 py-1 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-rose-300 rounded-full text-xs font-black">
                                                                 {lowestGrade}
                                                             </span>
                                                         </td>
@@ -1539,23 +1539,23 @@ export function ReportsPage() {
                                         </tbody>
                                     </table>
                                 ) : (
-                                    <table className="w-full">
+                                    <table className="w-full text-xs">
                                         <thead>
-                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 text-white">
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">#</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Student Name</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Section</th>
-                                                <th className="px-5 py-4 text-left text-xs font-bold uppercase">Subject</th>
-                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Term</th>
-                                                <th className="px-5 py-4 text-center text-xs font-bold uppercase">Grade</th>
+                                            <tr className="bg-linear-to-r from-red-600 to-rose-500 dark:from-red-950 dark:to-rose-900 text-white">
+                                                <th className="px-5 py-4 text-left font-bold uppercase">#</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Student Name</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Section</th>
+                                                <th className="px-5 py-4 text-left font-bold uppercase">Subject</th>
+                                                <th className="px-5 py-4 text-center font-bold uppercase">Term</th>
+                                                <th className="px-5 py-4 text-center font-bold uppercase">Grade</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-100">
+                                        <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                                             {atRiskStudents.map((item, idx) => (
-                                                <tr key={`${item.student.lrn}-${item.subjectName}-${idx}`} className="hover:bg-red-50/50">
-                                                    <td className="px-5 py-3 text-sm text-gray-400 font-bold">{idx + 1}</td>
+                                                <tr key={`${item.student.lrn}-${item.subjectName}-${idx}`} className="hover:bg-red-50/50 dark:hover:bg-white/5 transition-colors">
+                                                    <td className="px-5 py-3 text-sm text-gray-400 dark:text-slate-500 font-bold">{idx + 1}</td>
                                                     <td 
-                                                        className="px-5 py-3 font-bold text-sm text-deped-blue hover:text-blue-700 underline cursor-pointer uppercase transition-colors"
+                                                        className="px-5 py-3 font-bold text-sm text-deped-blue dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline cursor-pointer uppercase transition-colors"
                                                         onClick={() => {
                                                             const secObj = sections.find(s => s.section_name === item.student.student_section);
                                                             const subObj = subjects.find(s => s.subject_name === item.subjectName && s.section_id === secObj?.id);
@@ -1569,11 +1569,11 @@ export function ReportsPage() {
                                                     >
                                                         {item.student.last_name}, {item.student.first_name}
                                                     </td>
-                                                    <td className="px-5 py-3 text-sm text-gray-600">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
-                                                    <td className="px-5 py-3 text-sm text-gray-600">{item.subjectName}</td>
-                                                    <td className="px-5 py-3 text-center text-sm font-bold text-gray-700">T{selectedQuarter}</td>
+                                                    <td className="px-5 py-3 text-sm text-gray-600 dark:text-slate-300">{sections.find(s => s.id === item.student.student_section || s.section_name === item.student.student_section)?.section_name || item.student.student_section}</td>
+                                                    <td className="px-5 py-3 text-sm text-gray-600 dark:text-slate-300">{item.subjectName}</td>
+                                                    <td className="px-5 py-3 text-center text-sm font-bold text-gray-700 dark:text-slate-300">T{selectedQuarter}</td>
                                                     <td className="px-5 py-3 text-center">
-                                                        <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black">
+                                                        <span className="px-3 py-1 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-rose-300 rounded-full text-xs font-black">
                                                             {item.grade}
                                                         </span>
                                                     </td>
@@ -1583,8 +1583,8 @@ export function ReportsPage() {
                                     </table>
                                 )}
                                 {atRiskStudents.length === 0 && (
-                                    <div className="text-center py-12 text-gray-400 italic">
-                                        <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                    <div className="text-center py-12 text-gray-400 dark:text-slate-500 italic">
+                                        <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-slate-600" />
                                         No at-risk students found for Term {selectedQuarter}
                                     </div>
                                 )}
@@ -1640,30 +1640,30 @@ export function ReportsPage() {
                                     {/* Honor Roll Analytics Highlights */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {[
-                                            { label: 'Academic Excellence', color: 'from-blue-650 to-blue-900', icon: Sparkles, bg: 'bg-blue-50', count: honorRoll.length },
-                                            { label: 'Subject Excellence', color: 'from-green-800 to-green-950', icon: Trophy, bg: 'bg-green-50', count: subjectAwardees.length }
+                                            { label: 'Academic Excellence', color: 'from-blue-650 to-blue-900', icon: Sparkles, bg: 'bg-blue-50 dark:bg-blue-950/60', count: honorRoll.length },
+                                            { label: 'Subject Excellence', color: 'from-green-800 to-green-950', icon: Trophy, bg: 'bg-green-50 dark:bg-emerald-950/60', count: subjectAwardees.length }
                                         ].map((type) => {
                                             return (
-                                                <div key={type.label} className="relative overflow-hidden group p-6 bg-white rounded-3xl shadow-sm border border-gray-100 transition-all hover:shadow-xl hover:-translate-y-1">
+                                                <div key={type.label} className="relative overflow-hidden group p-6 bg-white dark:bg-[#0d1225] rounded-3xl shadow-xs border border-gray-100 dark:border-white/10 transition-all hover:shadow-xl hover:-translate-y-1">
                                                     <div className="relative z-10">
                                                         <div className={`p-2 rounded-xl w-fit mb-3 ${type.bg}`}>
-                                                            <type.icon className="w-5 h-5 text-deped-blue" />
+                                                            <type.icon className="w-5 h-5 text-deped-blue dark:text-blue-400" />
                                                         </div>
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{type.label}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-slate-400">{type.label}</p>
                                                         <div className="flex items-baseline gap-2 mt-1">
-                                                            <p className="text-4xl font-black text-gray-800">{type.count}</p>
-                                                            {type.count > 0 && <span className="text-[10px] font-bold text-green-600">Active</span>}
+                                                            <p className="text-4xl font-black text-gray-800 dark:text-white">{type.count}</p>
+                                                            {type.count > 0 && <span className="text-[10px] font-bold text-green-600 dark:text-emerald-400">Active</span>}
                                                         </div>
                                                     </div>
-                                                    <type.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] text-black" />
+                                                    <type.icon className="absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] text-black dark:text-white" />
                                                 </div>
                                             );
                                         })}
                                     </div>
 
                                     <div className="flex justify-end">
-                                        <button onClick={handleExportHonorRoll} disabled={!canEditReport(user, 'honor-roll')} className="text-xs flex items-center gap-1 text-deped-blue hover:underline font-bold px-3 py-2 bg-white rounded-lg shadow-sm border disabled:opacity-40 disabled:cursor-not-allowed">
-                                            <Download className="w-3 h-3" /> Export CSV
+                                        <button onClick={handleExportHonorRoll} disabled={!canEditReport(user, 'honor-roll')} className="text-xs flex items-center gap-2 text-deped-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/10 font-bold px-4 py-2 bg-white dark:bg-white/5 rounded-lg shadow-xs border border-gray-200 dark:border-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                                            <Download className="w-4 h-4" /> Export CSV
                                         </button>
                                     </div>
 
@@ -1672,9 +1672,9 @@ export function ReportsPage() {
                                             const achievementRate = Math.min(100, (group.items.length / 5) * 100); 
                                             
                                             return (
-                                                <div key={group.groupName} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
+                                                <div key={group.groupName} className="bg-white dark:bg-[#0d1225] rounded-[2.5rem] shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden group hover:shadow-2xl transition-all duration-500">
                                                     {/* Modern Glass Header */}
-                                                    <div className="bg-linear-to-r from-green-950 via-green-900 to-green-800 px-8 py-6 flex items-center justify-between relative overflow-hidden">
+                                                    <div className="bg-linear-to-r from-green-950 via-green-900 to-green-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-slate-900 px-8 py-6 flex items-center justify-between relative overflow-hidden">
                                                         <div className="absolute inset-0 bg-white/5 opacity-10"></div>
                                                         <div className="relative z-10">
                                                             <div className="flex items-center gap-3">
@@ -1697,50 +1697,50 @@ export function ReportsPage() {
                                                     </div>
                                                     
                                                     {/* Achievement Analytics Bar */}
-                                                    <div className="bg-green-50/50 px-8 py-2 border-b border-green-100/50 flex items-center gap-4">
-                                                        <TrendingUp className="w-3 h-3 text-green-600" />
-                                                        <div className="flex-1 h-1.5 bg-green-200/50 rounded-full overflow-hidden">
+                                                    <div className="bg-green-50/50 dark:bg-white/5 px-8 py-2 border-b border-green-100/50 dark:border-white/5 flex items-center gap-4">
+                                                        <TrendingUp className="w-3 h-3 text-green-600 dark:text-emerald-400" />
+                                                        <div className="flex-1 h-1.5 bg-green-200/50 dark:bg-white/10 rounded-full overflow-hidden">
                                                             <motion.div 
                                                                 initial={{ width: 0 }}
                                                                 animate={{ width: `${achievementRate}%` }}
-                                                                className="h-full bg-green-600 rounded-full"
+                                                                className="h-full bg-green-600 dark:bg-emerald-500 rounded-full"
                                                             />
                                                         </div>
-                                                        <span className="text-[10px] font-black text-green-800">{Math.round(achievementRate)}% Achievement Intensity</span>
+                                                        <span className="text-[10px] font-black text-green-800 dark:text-emerald-300">{Math.round(achievementRate)}% Achievement Intensity</span>
                                                     </div>
 
                                                     {group.items.length > 0 && (
                                                         <div className="px-2 pt-2">
                                                             <table className="w-full">
                                                                 <thead>
-                                                                    <tr className="text-gray-400 text-left underline-offset-4">
+                                                                    <tr className="text-gray-400 dark:text-slate-400 text-left underline-offset-4">
                                                                         <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest w-16">No.</th>
                                                                         <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Student Excellence</th>
                                                                         <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Award Category</th>
                                                                         <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right">Gen. Avg</th>
                                                                     </tr>
                                                                 </thead>
-                                                                <tbody className="divide-y divide-gray-50">
+                                                                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                     {group.items.map((item, idx) => (
-                                                                        <tr key={`${item.student.lrn}-${idx}`} className="hover:bg-green-50/30 transition-colors group/row">
+                                                                        <tr key={`${item.student.lrn}-${idx}`} className="hover:bg-green-50/30 dark:hover:bg-white/5 transition-colors group/row">
                                                                             <td className="px-6 py-5">
-                                                                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-gray-400 bg-gray-50 border border-gray-150">
+                                                                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-gray-400 dark:text-slate-400 bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10">
                                                                                     {idx + 1}
                                                                                 </div>
                                                                             </td>
                                                                             <td className="px-6 py-5">
-                                                                                <p className="font-black text-gray-800 uppercase tracking-tight group-hover/row:text-green-900 transition-colors">
+                                                                                <p className="font-black text-gray-800 dark:text-white uppercase tracking-tight group-hover/row:text-green-900 dark:group-hover/row:text-emerald-300 transition-colors">
                                                                                     {item.student.last_name}, {item.student.first_name}
                                                                                 </p>
-                                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">{item.student.lrn}</p>
+                                                                                <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase">{item.student.lrn}</p>
                                                                             </td>
                                                                             <td className="px-6 py-5 text-center">
-                                                                                <span className="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border bg-blue-50 text-deped-blue border-blue-200">
+                                                                                <span className="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border bg-blue-50 dark:bg-blue-950/60 text-deped-blue dark:text-blue-300 border-blue-200 dark:border-blue-500/30">
                                                                                     Academic Excellence Award
                                                                                 </span>
                                                                             </td>
                                                                             <td className="px-6 py-5 text-right">
-                                                                                <p className="text-lg font-black text-gray-900 tracking-tighter">{item.generalAverage}</p>
+                                                                                <p className="text-lg font-black text-gray-900 dark:text-white tracking-tighter">{item.generalAverage}</p>
                                                                             </td>
                                                                         </tr>
                                                                     ))}
@@ -1816,17 +1816,17 @@ export function ReportsPage() {
                             {/* TAB 2: CLASSROOM AWARDS (KS1) */}
                             {awardsTab === 'classroom' && (
                                 <div className="space-y-6 animate-in fade-in duration-300">
-                                    <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                        <span className="text-xs font-black uppercase text-gray-400 tracking-wider">Choose Section:</span>
+                                    <div className="flex items-center gap-4 bg-white dark:bg-[#0d1225] p-4 rounded-2xl border border-gray-100 dark:border-white/10 shadow-xs">
+                                        <span className="text-xs font-black uppercase text-gray-400 dark:text-slate-400 tracking-wider">Choose Section:</span>
                                         <select
                                             value={selectedSectionForAwards}
                                             onChange={(e) => setSelectedSectionForAwards(e.target.value)}
-                                            className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+                                            className="text-xs font-bold border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
                                         >
-                                            <option value="">Select Section...</option>
+                                            <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Section...</option>
                                             {sections
                                                 .map(s => (
-                                                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                                                    <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s.section_grade_level} - {s.section_name}</option>
                                                 ))
                                             }
                                         </select>
@@ -1863,13 +1863,13 @@ export function ReportsPage() {
                                         return (
                                             <div className="grid grid-cols-1 gap-6">
                                                 {/* SECTION 1: PERFECT ATTENDANCE */}
-                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                         <div>
-                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
-                                                                <Clock3 className="w-5 h-5 text-deped-blue" /> Perfect Attendance Awardees
+                                                            <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
+                                                                <Clock3 className="w-5 h-5 text-deped-blue dark:text-blue-400" /> Perfect Attendance Awardees
                                                             </h4>
-                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                            <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                 Term {selectedQuarter} • Auto-detected: {perfectAttendanceList.length} Learners
                                                             </p>
                                                         </div>
@@ -1878,13 +1878,13 @@ export function ReportsPage() {
                                                     <div className="overflow-x-auto max-h-75 overflow-y-auto custom-scrollbar">
                                                         <table className="w-full text-xs">
                                                             <thead>
-                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                     <th className="pb-2">Learner LRN</th>
                                                                     <th className="pb-2">Name</th>
                                                                     <th className="pb-2 text-center">Status</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-gray-50">
+                                                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                 {sectionStudents.map(s => {
                                                                     const abs = getStudentAbsences(
                                                                         s.lrn, 
@@ -1897,9 +1897,9 @@ export function ReportsPage() {
                                                                     const hasAward = perfectAttendanceList.some(p => p.lrn === s.lrn);
 
                                                                     return (
-                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
-                                                                            <td className="py-2.5 font-medium text-gray-400">{s.lrn}</td>
-                                                                            <td className="py-2.5 font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</td>
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                                                                            <td className="py-2.5 font-medium text-gray-400 dark:text-slate-500">{s.lrn}</td>
+                                                                            <td className="py-2.5 font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</td>
                                                                             <td className="py-2.5 text-center">
                                                                                 <button 
                                                                                     onClick={async () => {
@@ -1923,7 +1923,7 @@ export function ReportsPage() {
                                                                                             await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: [...currentEvals, evalObj] });
                                                                                         }
                                                                                     }}
-                                                                                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${hasAward ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-gray-50 border border-gray-200 text-gray-400 hover:bg-gray-100'}`}
+                                                                                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-colors cursor-pointer ${hasAward ? 'bg-green-50 dark:bg-emerald-950/60 border border-green-200 dark:border-emerald-500/30 text-green-700 dark:text-emerald-300' : 'bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-400 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/10'}`}
                                                                                 >
                                                                                     {hasAward ? '✓ Qualified' : `Not Qualified (${abs} Abs)`}
                                                                                 </button>
@@ -1937,13 +1937,13 @@ export function ReportsPage() {
                                                 </div>
 
                                                 {/* SECTION 2: CHARACTER TRAITS AWARDS */}
-                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                         <div>
-                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                            <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                 <Heart className="w-5 h-5 text-pink-500" /> Character Traits Awards (Nomination)
                                                             </h4>
-                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                            <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                 All Grade Levels • Limited to 5 core awards per term
                                                             </p>
                                                         </div>
@@ -1952,14 +1952,14 @@ export function ReportsPage() {
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-xs">
                                                             <thead>
-                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                     <th className="pb-2">Student</th>
                                                                     <th className="pb-2">Core Award</th>
                                                                     <th className="pb-2">Contextualized Title</th>
                                                                     <th className="pb-2 text-right">Actions</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-gray-50">
+                                                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                 {sectionStudents.map(s => {
                                                                     const traitEval = s.awardEvaluations?.find(
                                                                         e => e.awardType === 'CharacterTrait' && 
@@ -1968,21 +1968,21 @@ export function ReportsPage() {
                                                                     );
 
                                                                     return (
-                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 group">
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors group">
                                                                             <td className="py-3">
-                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                             </td>
-                                                                            <td className="py-3 font-semibold text-gray-700">
+                                                                            <td className="py-3 font-semibold text-gray-700 dark:text-slate-300">
                                                                                 {traitEval?.characterTraitId ? (
-                                                                                    <span className="px-2.5 py-1 bg-pink-50 text-pink-600 rounded-full font-bold uppercase text-[9px]">
+                                                                                    <span className="px-2.5 py-1 bg-pink-50 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 rounded-full font-bold uppercase text-[9px]">
                                                                                         {traitEval.characterTraitId}
                                                                                     </span>
                                                                                 ) : (
-                                                                                    <span className="text-gray-300 italic">None</span>
+                                                                                    <span className="text-gray-300 dark:text-slate-600 italic">None</span>
                                                                                 )}
                                                                             </td>
-                                                                            <td className="py-3 text-gray-600 font-medium max-w-50 truncate">
+                                                                            <td className="py-3 text-gray-600 dark:text-slate-300 font-medium max-w-50 truncate">
                                                                                 {traitEval?.characterTraitTitle || '-'}
                                                                             </td>
                                                                             <td className="py-3 text-right">
@@ -1998,7 +1998,7 @@ export function ReportsPage() {
                                                                                                     characterTraitDescription: traitEval.characterTraitDescription || ''
                                                                                                 });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Edit
                                                                                         </button>
@@ -2007,7 +2007,7 @@ export function ReportsPage() {
                                                                                                 const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'CharacterTrait' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
                                                                                                 await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Remove
                                                                                         </button>
@@ -2023,7 +2023,7 @@ export function ReportsPage() {
                                                                                                 characterTraitDescription: 'Ipinapahayag ang kanyang mataas na pagpapahalaga sa pananampalataya.'
                                                                                             });
                                                                                         }}
-                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-deped-blue hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                        className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-250 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-deped-blue dark:hover:bg-blue-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                     >
                                                                                         Nominate
                                                                                     </button>
@@ -2039,13 +2039,13 @@ export function ReportsPage() {
 
                                                 {/* SECTION 3: GMRC CERTIFICATE OF MERIT (EOSY Only) */}
                                                 {selectedQuarter === 'overall' && (
-                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                    <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                             <div>
-                                                                <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                     <Sparkles className="w-5 h-5 text-amber-500" /> Certificate of Merit (GMRC Core Competency)
                                                                 </h4>
-                                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                     End of School Year • Given to each learner reflecting GMRC competency
                                                                 </p>
                                                             </div>
@@ -2054,13 +2054,13 @@ export function ReportsPage() {
                                                         <div className="overflow-x-auto">
                                                             <table className="w-full text-xs">
                                                                 <thead>
-                                                                    <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                         <th className="pb-2">Student</th>
                                                                         <th className="pb-2">Excelled/Improved GMRC Competency</th>
                                                                         <th className="pb-2 text-right">Actions</th>
                                                                     </tr>
                                                                 </thead>
-                                                                <tbody className="divide-y divide-gray-50">
+                                                                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                     {sectionStudents.map(s => {
                                                                         const meritEval = s.awardEvaluations?.find(
                                                                             e => e.awardType === 'GMRCMerit' && 
@@ -2069,16 +2069,16 @@ export function ReportsPage() {
                                                                         );
 
                                                                         return (
-                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                                 <td className="py-3">
-                                                                                    <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                    <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                    <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                    <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                                 </td>
-                                                                                <td className="py-3 text-gray-700 font-medium">
+                                                                                <td className="py-3 text-gray-700 dark:text-slate-300 font-medium">
                                                                                     {meritEval?.gmrcCompetency ? (
-                                                                                        <span className="font-bold text-amber-800">{meritEval.gmrcCompetency}</span>
+                                                                                        <span className="font-bold text-amber-800 dark:text-amber-300">{meritEval.gmrcCompetency}</span>
                                                                                     ) : (
-                                                                                        <span className="text-gray-300 italic">Not Yet Evaluated</span>
+                                                                                        <span className="text-gray-300 dark:text-slate-600 italic">Not Yet Evaluated</span>
                                                                                     )}
                                                                                 </td>
                                                                                 <td className="py-3 text-right">
@@ -2092,7 +2092,7 @@ export function ReportsPage() {
                                                                                                         gmrcCompetency: meritEval.gmrcCompetency || ''
                                                                                                     });
                                                                                                 }}
-                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                             >
                                                                                                 Edit
                                                                                             </button>
@@ -2101,7 +2101,7 @@ export function ReportsPage() {
                                                                                                     const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'GMRCMerit' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
                                                                                                     await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                                 }}
-                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                             >
                                                                                                 Remove
                                                                                             </button>
@@ -2115,7 +2115,7 @@ export function ReportsPage() {
                                                                                                     gmrcCompetency: 'Pagpapakita ng paggalang sa guro at kapwa mag-aaral'
                                                                                                 });
                                                                                             }}
-                                                                                            className="px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                            className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                         >
                                                                                             Assess Competency
                                                                                         </button>
@@ -2132,7 +2132,7 @@ export function ReportsPage() {
                                             </div>
                                         );
                                     })() : (
-                                        <div className="bg-white rounded-2xl p-12 border text-center text-gray-400 italic shadow-sm">
+                                        <div className="bg-white dark:bg-[#0d1225] rounded-2xl p-12 border border-gray-100 dark:border-white/10 text-center text-gray-400 dark:text-slate-500 italic shadow-xs">
                                             Please choose a Key Stage 1 (Kindergarten or Grade 1-3) Section above to manage classroom awards.
                                         </div>
                                     )}
@@ -2142,18 +2142,18 @@ export function ReportsPage() {
                             {/* TAB 3: NOMINATED & SPECIAL AWARDS */}
                             {awardsTab === 'special' && (
                                 <div className="space-y-6 animate-in fade-in duration-300">
-                                    <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                                        <span className="text-xs font-black uppercase text-gray-400 tracking-wider">Choose Section:</span>
+                                    <div className="flex items-center gap-4 bg-white dark:bg-[#0d1225] p-4 rounded-2xl border border-gray-100 dark:border-white/10 shadow-xs">
+                                        <span className="text-xs font-black uppercase text-gray-400 dark:text-slate-400 tracking-wider">Choose Section:</span>
                                         <select
                                             value={selectedSectionForAwards}
                                             onChange={(e) => setSelectedSectionForAwards(e.target.value)}
-                                            className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
+                                            className="text-xs font-bold border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-lg px-3 py-1.5 bg-gray-50 dark:bg-white/5 focus:outline-none focus:ring-2 focus:ring-deped-blue/20"
                                         >
-                                            <option value="">Select Section (Grades 2-12)...</option>
+                                            <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Section (Grades 2-12)...</option>
                                             {sections
                                                 .filter(s => !isKeyStage1(s.section_grade_level) || s.section_grade_level.includes('2') || s.section_grade_level.includes('3'))
                                                 .map(s => (
-                                                    <option key={s.id} value={s.id}>{s.section_grade_level} - {s.section_name}</option>
+                                                    <option key={s.id} value={s.id} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{s.section_grade_level} - {s.section_name}</option>
                                                 ))
                                             }
                                         </select>
@@ -2170,13 +2170,13 @@ export function ReportsPage() {
                                         return (
                                             <div className="space-y-6">
                                                 {/* SECTION 1: LEADERSHIP EXCELLENCE */}
-                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                         <div>
-                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                            <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                 <Trophy className="w-5 h-5 text-indigo-500" /> Leadership Excellence Award
                                                             </h4>
-                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                            <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                 KS2 to KS4 • GA ≥ 75, No Failures, No Disciplinary cases • Evaluated Score ≥ 90%
                                                             </p>
                                                         </div>
@@ -2185,14 +2185,14 @@ export function ReportsPage() {
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-xs">
                                                             <thead>
-                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                     <th className="pb-2">Student</th>
                                                                     <th className="pb-2">Position</th>
                                                                     <th className="pb-2 text-center">Score</th>
                                                                     <th className="pb-2 text-right">Actions</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-gray-50">
+                                                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                 {sectionStudents.map(s => {
                                                                     const leadEval = s.awardEvaluations?.find(
                                                                         e => e.awardType === 'Leadership' && 
@@ -2201,17 +2201,17 @@ export function ReportsPage() {
                                                                     );
 
                                                                     return (
-                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                             <td className="py-3">
-                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                             </td>
-                                                                            <td className="py-3 text-gray-700 font-medium">
-                                                                                {leadEval?.leadershipScores?.position || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                            <td className="py-3 text-gray-700 dark:text-slate-300 font-medium">
+                                                                                {leadEval?.leadershipScores?.position || <span className="text-gray-300 dark:text-slate-600 italic">Not Evaluated</span>}
                                                                             </td>
                                                                             <td className="py-3 text-center font-bold">
                                                                                 {leadEval?.leadershipScores ? (
-                                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${leadEval.leadershipScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${leadEval.leadershipScores.total >= 90 ? 'bg-green-50 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300 border border-green-200 dark:border-emerald-500/30' : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-rose-300 border border-red-200 dark:border-red-500/30'}`}>
                                                                                         {leadEval.leadershipScores.total}%
                                                                                     </span>
                                                                                 ) : '-'}
@@ -2231,7 +2231,7 @@ export function ReportsPage() {
                                                                                                     noDerogatory: leadEval.leadershipScores?.noDerogatory ?? true
                                                                                                 });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Edit
                                                                                         </button>
@@ -2240,7 +2240,7 @@ export function ReportsPage() {
                                                                                                 const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Leadership' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
                                                                                                 await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Remove
                                                                                         </button>
@@ -2258,7 +2258,7 @@ export function ReportsPage() {
                                                                                                 noDerogatory: true
                                                                                             });
                                                                                         }}
-                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                        className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                     >
                                                                                         Evaluate
                                                                                     </button>
@@ -2274,14 +2274,14 @@ export function ReportsPage() {
 
                                                 {/* SECTION 2: RESEARCH / INNOVATION EXCELLENCE (EOSY G12 Only) */}
                                                 {isG12 && selectedQuarter === 'overall' && (
-                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-6">
+                                                    <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-6">
                                                         <div>
-                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                                 <div>
-                                                                    <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                    <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                         <Sparkles className="w-5 h-5 text-amber-500" /> Excellence in Research (Grade 12)
                                                                     </h4>
-                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                    <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                         Research 1 & 2 • Max 4 members • Table 1 Rubric Score ≥ 90%
                                                                     </p>
                                                                 </div>
@@ -2289,14 +2289,14 @@ export function ReportsPage() {
                                                             <div className="overflow-x-auto mt-4">
                                                                 <table className="w-full text-xs">
                                                                     <thead>
-                                                                        <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                        <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                             <th className="pb-2">Student</th>
                                                                             <th className="pb-2">Research Title</th>
                                                                             <th className="pb-2 text-center">Score</th>
                                                                             <th className="pb-2 text-right">Actions</th>
                                                                         </tr>
                                                                     </thead>
-                                                                    <tbody className="divide-y divide-gray-50">
+                                                                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                         {sectionStudents.map(s => {
                                                                             const resEval = s.awardEvaluations?.find(
                                                                                 e => e.awardType === 'Research' && 
@@ -2305,17 +2305,17 @@ export function ReportsPage() {
                                                                             );
 
                                                                             return (
-                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                                     <td className="py-3">
-                                                                                        <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                        <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                        <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                        <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                                     </td>
-                                                                                    <td className="py-3 text-gray-700 font-medium max-w-50 truncate">
-                                                                                        {resEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                                    <td className="py-3 text-gray-700 dark:text-slate-300 font-medium max-w-50 truncate">
+                                                                                        {resEval?.projectTitle || <span className="text-gray-300 dark:text-slate-600 italic">Not Evaluated</span>}
                                                                                     </td>
                                                                                     <td className="py-3 text-center font-bold">
                                                                                         {resEval?.researchScores ? (
-                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${resEval.researchScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${resEval.researchScores.total >= 90 ? 'bg-green-50 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300 border border-green-200 dark:border-emerald-500/30' : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-rose-300 border border-red-200 dark:border-red-500/30'}`}>
                                                                                                 {resEval.researchScores.total}%
                                                                                             </span>
                                                                                         ) : '-'}
@@ -2336,7 +2336,7 @@ export function ReportsPage() {
                                                                                                             projectMembers: resEval.projectMembers || []
                                                                                                         });
                                                                                                     }}
-                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                                 >
                                                                                                     Edit
                                                                                                 </button>
@@ -2345,7 +2345,7 @@ export function ReportsPage() {
                                                                                                         const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Research' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
                                                                                                         await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                                     }}
-                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                                 >
                                                                                                     Remove
                                                                                                 </button>
@@ -2364,7 +2364,7 @@ export function ReportsPage() {
                                                                                                         projectMembers: [s.lrn]
                                                                                                     });
                                                                                                 }}
-                                                                                                className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                                className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-250 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-amber-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                             >
                                                                                                 Evaluate
                                                                                             </button>
@@ -2379,12 +2379,12 @@ export function ReportsPage() {
                                                         </div>
 
                                                         <div>
-                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                                 <div>
-                                                                    <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                    <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                         <Target className="w-5 h-5 text-purple-500" /> Excellence in Design and Innovation
                                                                     </h4>
-                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                    <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                         Design & Innovation 1 & 2 • Max 4 members • Table 2 Rubric Score ≥ 90%
                                                                     </p>
                                                                 </div>
@@ -2392,14 +2392,14 @@ export function ReportsPage() {
                                                             <div className="overflow-x-auto mt-4">
                                                                 <table className="w-full text-xs">
                                                                     <thead>
-                                                                        <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                        <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                             <th className="pb-2">Student</th>
                                                                             <th className="pb-2">Innovation Title</th>
                                                                             <th className="pb-2 text-center">Score</th>
                                                                             <th className="pb-2 text-right">Actions</th>
                                                                         </tr>
                                                                     </thead>
-                                                                    <tbody className="divide-y divide-gray-50">
+                                                                    <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                         {sectionStudents.map(s => {
                                                                             const innEval = s.awardEvaluations?.find(
                                                                                 e => e.awardType === 'Innovation' && 
@@ -2408,17 +2408,17 @@ export function ReportsPage() {
                                                                             );
 
                                                                             return (
-                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                                <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                                     <td className="py-3">
-                                                                                        <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                        <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                        <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                        <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                                     </td>
-                                                                                    <td className="py-3 text-gray-700 font-medium max-w-50 truncate">
-                                                                                        {innEval?.projectTitle || <span className="text-gray-300 italic">Not Evaluated</span>}
+                                                                                    <td className="py-3 text-gray-700 dark:text-slate-300 font-medium max-w-50 truncate">
+                                                                                        {innEval?.projectTitle || <span className="text-gray-300 dark:text-slate-600 italic">Not Evaluated</span>}
                                                                                     </td>
                                                                                     <td className="py-3 text-center font-bold">
                                                                                         {innEval?.researchScores ? (
-                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${innEval.researchScores.total >= 90 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${innEval.researchScores.total >= 90 ? 'bg-green-50 dark:bg-emerald-950/60 text-green-700 dark:text-emerald-300 border border-green-200 dark:border-emerald-500/30' : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-rose-300 border border-red-200 dark:border-red-500/30'}`}>
                                                                                                 {innEval.researchScores.total}%
                                                                                             </span>
                                                                                         ) : '-'}
@@ -2440,7 +2440,7 @@ export function ReportsPage() {
                                                                                                             projectMembers: innEval.projectMembers || []
                                                                                                         });
                                                                                                     }}
-                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                                 >
                                                                                                     Edit
                                                                                                 </button>
@@ -2449,7 +2449,7 @@ export function ReportsPage() {
                                                                                                         const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'Innovation' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
                                                                                                         await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                                     }}
-                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                    className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                                 >
                                                                                                     Remove
                                                                                                 </button>
@@ -2469,7 +2469,7 @@ export function ReportsPage() {
                                                                                                         projectMembers: [s.lrn]
                                                                                                     });
                                                                                                 }}
-                                                                                                className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-purple-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                                className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-250 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-purple-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                             >
                                                                                                 Evaluate
                                                                                             </button>
@@ -2487,13 +2487,13 @@ export function ReportsPage() {
 
                                                 {/* SECTION 3: WORK IMMERSION / FIELD EXPOSURE (SHS Only) */}
                                                 {isSHS && selectedQuarter === 'overall' && (
-                                                    <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                    <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                        <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                             <div>
-                                                                <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                                <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                     <Medal className="w-5 h-5 text-teal-600" /> Excellence in Work Immersion / Field Exposure
                                                                 </h4>
-                                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                     SHS Graduating • Highest grade in batch (≥ 90) + Supervisor Endorsement
                                                                 </p>
                                                             </div>
@@ -2502,7 +2502,7 @@ export function ReportsPage() {
                                                         <div className="overflow-x-auto">
                                                             <table className="w-full text-xs">
                                                                 <thead>
-                                                                    <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                    <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                         <th className="pb-2">Student</th>
                                                                         <th className="pb-2 text-center">Grade</th>
                                                                         <th className="pb-2 text-center">Supervisor Rating</th>
@@ -2510,7 +2510,7 @@ export function ReportsPage() {
                                                                         <th className="pb-2 text-right">Actions</th>
                                                                     </tr>
                                                                 </thead>
-                                                                <tbody className="divide-y divide-gray-50">
+                                                                <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                     {sectionStudents.map(s => {
                                                                         const immEval = s.awardEvaluations?.find(
                                                                             e => e.awardType === 'WorkImmersion' && 
@@ -2519,20 +2519,20 @@ export function ReportsPage() {
                                                                         );
 
                                                                         return (
-                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                            <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                                 <td className="py-3">
-                                                                                    <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                    <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                    <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                    <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                                 </td>
-                                                                                <td className="py-3 text-center font-bold text-gray-700">
+                                                                                <td className="py-3 text-center font-bold text-gray-700 dark:text-slate-300">
                                                                                     {immEval?.workImmersionDetails?.grade || '-'}
                                                                                 </td>
-                                                                                <td className="py-3 text-center font-semibold text-gray-600">
+                                                                                <td className="py-3 text-center font-semibold text-gray-600 dark:text-slate-300">
                                                                                     {immEval?.workImmersionDetails?.supervisorRating || '-'}
                                                                                 </td>
                                                                                 <td className="py-3 text-center">
                                                                                     {immEval?.workImmersionDetails ? (
-                                                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black ${immEval.workImmersionDetails.isEndorsed ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black ${immEval.workImmersionDetails.isEndorsed ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-500/30' : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-rose-300 border border-red-200 dark:border-red-500/30'}`}>
                                                                                             {immEval.workImmersionDetails.isEndorsed ? 'YES' : 'NO'}
                                                                                         </span>
                                                                                     ) : '-'}
@@ -2551,7 +2551,7 @@ export function ReportsPage() {
                                                                                                         isEndorsed: immEval.workImmersionDetails?.isEndorsed ?? true
                                                                                                     });
                                                                                                 }}
-                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                             >
                                                                                                 Edit
                                                                                             </button>
@@ -2560,7 +2560,7 @@ export function ReportsPage() {
                                                                                                     const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'WorkImmersion' && e.schoolYear === activeSchoolYear && e.term === 'EOSY'));
                                                                                                     await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                                 }}
-                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                                className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                             >
                                                                                                 Remove
                                                                                             </button>
@@ -2577,7 +2577,7 @@ export function ReportsPage() {
                                                                                                     isEndorsed: true
                                                                                                 });
                                                                                             }}
-                                                                                            className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-teal-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                            className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-250 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-teal-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                         >
                                                                                             Evaluate
                                                                                         </button>
@@ -2593,13 +2593,13 @@ export function ReportsPage() {
                                                 )}
 
                                                 {/* SECTION 4: SPECIAL RECOGNITION AWARDS */}
-                                                <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-sm space-y-4">
-                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                                <div className="bg-white dark:bg-[#0d1225] p-6 rounded-3xl border border-gray-150 dark:border-white/10 shadow-xs space-y-4">
+                                                    <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                         <div>
-                                                            <h4 className="text-md font-extrabold text-gray-800 flex items-center gap-2">
+                                                            <h4 className="text-md font-extrabold text-gray-800 dark:text-white flex items-center gap-2">
                                                                 <Award className="w-5 h-5 text-orange-500" /> Special Recognition Awards (External Competitions)
                                                             </h4>
-                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                                                            <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                                                                 Distinctions in competitions/contests at regional, national, or international levels
                                                             </p>
                                                         </div>
@@ -2608,14 +2608,14 @@ export function ReportsPage() {
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-xs">
                                                             <thead>
-                                                                <tr className="text-left text-gray-400 uppercase text-[9px] font-black tracking-widest border-b pb-2">
+                                                                <tr className="text-left text-gray-400 dark:text-slate-400 uppercase text-[9px] font-black tracking-widest border-b pb-2 dark:border-white/10">
                                                                     <th className="pb-2">Student</th>
                                                                     <th className="pb-2">Award/Distinction</th>
                                                                     <th className="pb-2 text-center">Level</th>
                                                                     <th className="pb-2 text-right">Actions</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-gray-50">
+                                                            <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                                                                 {sectionStudents.map(s => {
                                                                     const specEval = s.awardEvaluations?.find(
                                                                         e => e.awardType === 'SpecialRecognition' && 
@@ -2624,17 +2624,17 @@ export function ReportsPage() {
                                                                     );
 
                                                                     return (
-                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50">
+                                                                        <tr key={s.lrn} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
                                                                             <td className="py-3">
-                                                                                <p className="font-bold uppercase text-gray-800">{s.last_name}, {s.first_name}</p>
-                                                                                <p className="text-[9px] text-gray-400">{s.lrn}</p>
+                                                                                <p className="font-bold uppercase text-gray-800 dark:text-white">{s.last_name}, {s.first_name}</p>
+                                                                                <p className="text-[9px] text-gray-400 dark:text-slate-500">{s.lrn}</p>
                                                                             </td>
-                                                                            <td className="py-3 text-gray-700 font-semibold">
-                                                                                {specEval?.specialRecognitionTitle || <span className="text-gray-300 italic">None</span>}
+                                                                            <td className="py-3 text-gray-700 dark:text-slate-300 font-semibold">
+                                                                                {specEval?.specialRecognitionTitle || <span className="text-gray-300 dark:text-slate-600 italic">None</span>}
                                                                             </td>
                                                                             <td className="py-3 text-center">
                                                                                 {specEval?.specialRecognitionLevel ? (
-                                                                                    <span className="px-2 py-0.5 bg-orange-50 text-orange-600 rounded font-bold uppercase text-[9px]">
+                                                                                    <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-300 rounded font-bold uppercase text-[9px]">
                                                                                         {specEval.specialRecognitionLevel}
                                                                                     </span>
                                                                                 ) : '-'}
@@ -2651,7 +2651,7 @@ export function ReportsPage() {
                                                                                                     specialRecognitionLevel: specEval.specialRecognitionLevel || 'regional'
                                                                                                 });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Edit
                                                                                         </button>
@@ -2660,7 +2660,7 @@ export function ReportsPage() {
                                                                                                 const updated = (s.awardEvaluations || []).filter(e => !(e.awardType === 'SpecialRecognition' && e.schoolYear === activeSchoolYear && e.term === (selectedQuarter === 'overall' ? 'EOSY' : selectedQuarter)));
                                                                                                 await useAppStore.getState().updateStudent(s.lrn, { awardEvaluations: updated });
                                                                                             }}
-                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 hover:bg-red-100 text-red-600 rounded-lg uppercase"
+                                                                                            className="px-2 py-1 text-[9px] font-black bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-rose-300 rounded-lg uppercase cursor-pointer transition-colors"
                                                                                         >
                                                                                             Remove
                                                                                         </button>
@@ -2675,7 +2675,7 @@ export function ReportsPage() {
                                                                                                 specialRecognitionLevel: 'regional'
                                                                                             });
                                                                                         }}
-                                                                                        className="px-3 py-1 bg-gray-50 border border-gray-250 text-gray-500 rounded-lg hover:bg-orange-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black"
+                                                                                        className="px-3 py-1 bg-gray-50 dark:bg-white/5 border border-gray-250 dark:border-white/10 text-gray-500 dark:text-slate-300 rounded-lg hover:bg-orange-600 hover:text-white hover:border-transparent transition-all uppercase text-[9px] font-black cursor-pointer"
                                                                                     >
                                                                                         Record Award
                                                                                     </button>
@@ -2691,7 +2691,7 @@ export function ReportsPage() {
                                             </div>
                                         );
                                     })() : (
-                                        <div className="bg-white rounded-2xl p-12 border text-center text-gray-400 italic shadow-sm">
+                                        <div className="bg-white dark:bg-[#0d1225] rounded-2xl p-12 border border-gray-100 dark:border-white/10 text-center text-gray-400 dark:text-slate-500 italic shadow-xs">
                                             Please choose a Grade 2–12 Section above to manage nominated and special awards.
                                         </div>
                                     )}
@@ -2807,14 +2807,14 @@ export function ReportsPage() {
                                 };
 
                                 return (
-                                    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-deped-blue/30 backdrop-blur-sm">
-                                        <div className="bg-white rounded-3xl shadow-2xl border border-gray-150 w-full max-w-lg p-6 space-y-4">
-                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                                    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                                        <div className="bg-white dark:bg-[#0d1225] rounded-3xl shadow-2xl border border-gray-150 dark:border-white/10 w-full max-w-lg p-6 space-y-4 text-slate-800 dark:text-slate-100">
+                                            <div className="flex justify-between items-center border-b pb-3 border-gray-100 dark:border-white/10">
                                                 <div>
-                                                    <h4 className="text-md font-extrabold text-deped-blue uppercase tracking-wider">
+                                                    <h4 className="text-md font-extrabold text-deped-blue dark:text-blue-400 uppercase tracking-wider">
                                                         Award Evaluation: {evaluatingAwardType.replace(/([A-Z])/g, ' $1').trim()}
                                                     </h4>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                                                    <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase mt-0.5">
                                                         {stud.first_name} {stud.last_name} ({stud.lrn})
                                                     </p>
                                                 </div>
@@ -2824,9 +2824,9 @@ export function ReportsPage() {
                                                         setEvaluatingAwardType(null);
                                                         setEvaluationForm({});
                                                     }}
-                                                    className="p-1 hover:bg-gray-100 rounded-full"
+                                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full cursor-pointer transition-colors"
                                                 >
-                                                    <AlertCircle className="w-5 h-5 text-gray-400 rotate-45" />
+                                                    <AlertCircle className="w-5 h-5 text-gray-400 dark:text-slate-400 rotate-45" />
                                                 </button>
                                             </div>
 
@@ -2835,32 +2835,32 @@ export function ReportsPage() {
                                                 {isLeadership && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Position / Office:</label>
-                                                            <input type="text" value={evaluationForm.position} onChange={e => setEvaluationForm({...evaluationForm, position: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-deped-blue" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Position / Office:</label>
+                                                            <input type="text" value={evaluationForm.position} onChange={e => setEvaluationForm({...evaluationForm, position: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-deped-blue" />
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Communication (Max 40%):</label>
-                                                                <input type="number" min="0" max="40" value={evaluationForm.motivational} onChange={e => setEvaluationForm({...evaluationForm, motivational: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Communication (Max 40%):</label>
+                                                                <input type="number" min="0" max="40" value={evaluationForm.motivational} onChange={e => setEvaluationForm({...evaluationForm, motivational: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Planning (Max 40%):</label>
-                                                                <input type="number" min="0" max="40" value={evaluationForm.planning} onChange={e => setEvaluationForm({...evaluationForm, planning: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Planning (Max 40%):</label>
+                                                                <input type="number" min="0" max="40" value={evaluationForm.planning} onChange={e => setEvaluationForm({...evaluationForm, planning: Math.min(40, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contribution (Max 20%):</label>
-                                                            <input type="number" min="0" max="20" value={evaluationForm.contribution} onChange={e => setEvaluationForm({...evaluationForm, contribution: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Contribution (Max 20%):</label>
+                                                            <input type="number" min="0" max="20" value={evaluationForm.contribution} onChange={e => setEvaluationForm({...evaluationForm, contribution: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                         </div>
-                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
-                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
-                                                            <span className="text-lg font-black text-indigo-700">
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100 dark:border-white/10">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-indigo-700 dark:text-indigo-400">
                                                                 {(Number(evaluationForm.motivational) || 0) + (Number(evaluationForm.planning) || 0) + (Number(evaluationForm.contribution) || 0)}%
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <input type="checkbox" checked={evaluationForm.noDerogatory} onChange={e => setEvaluationForm({...evaluationForm, noDerogatory: e.target.checked})} id="noDerogatory" className="rounded" />
-                                                            <label htmlFor="noDerogatory" className="text-xs font-bold text-gray-600">Student has no derogatory records or disciplinary cases</label>
+                                                            <label htmlFor="noDerogatory" className="text-xs font-bold text-gray-600 dark:text-slate-300">Student has no derogatory records or disciplinary cases</label>
                                                         </div>
                                                     </>
                                                 )}
@@ -2869,38 +2869,38 @@ export function ReportsPage() {
                                                 {isResearch && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Research Project Title:</label>
-                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Research Project Title:</label>
+                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">FG Research 2 (Max 20%):</label>
-                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">FG Research 2 (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Significance (Max 35%):</label>
-                                                                <input type="number" min="0" max="35" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(35, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Significance (Max 35%):</label>
+                                                                <input type="number" min="0" max="35" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(35, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Rigor/Design (Max 30%):</label>
-                                                                <input type="number" min="0" max="30" value={evaluationForm.rigor} onChange={e => setEvaluationForm({...evaluationForm, rigor: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Rigor/Design (Max 30%):</label>
+                                                                <input type="number" min="0" max="30" value={evaluationForm.rigor} onChange={e => setEvaluationForm({...evaluationForm, rigor: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Presentation/Defense (Max 15%):</label>
-                                                                <input type="number" min="0" max="15" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(15, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Presentation/Defense (Max 15%):</label>
+                                                                <input type="number" min="0" max="15" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(15, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
-                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
-                                                            <span className="text-lg font-black text-amber-700">
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100 dark:border-white/10">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-amber-700 dark:text-amber-400">
                                                                 {(Number(evaluationForm.finalGrade) || 0) + (Number(evaluationForm.significance) || 0) + (Number(evaluationForm.rigor) || 0) + (Number(evaluationForm.presentation) || 0)}%
                                                             </span>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Co-Authors / Group Members:</label>
-                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Co-Authors / Group Members:</label>
+                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-white/10 rounded-lg">
                                                                 {students.filter(s => s.student_section === stud.student_section && s.lrn !== stud.lrn).map(s => {
                                                                     const isSelected = evaluationForm.projectMembers?.includes(s.lrn);
                                                                     return (
@@ -2913,14 +2913,14 @@ export function ReportsPage() {
                                                                                     : [...members.filter((m: string) => m !== stud.lrn), s.lrn];
                                                                                 setEvaluationForm({ ...evaluationForm, projectMembers: [stud.lrn, ...newMembers].slice(0, 4) });
                                                                             }}
-                                                                            className={`px-2 py-1 rounded text-[10px] font-bold ${isSelected ? 'bg-amber-100 text-amber-800' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                                                                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${isSelected ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300' : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-white/10'}`}
                                                                         >
                                                                             {s.first_name} {s.last_name[0]}.
                                                                         </button>
                                                                     );
                                                                 })}
                                                             </div>
-                                                            <p className="text-[9px] text-gray-400 mt-1 font-medium">Select up to 3 co-authors (Max 4 members total per research project).</p>
+                                                            <p className="text-[9px] text-gray-400 dark:text-slate-500 mt-1 font-medium">Select up to 3 co-authors (Max 4 members total per research project).</p>
                                                         </div>
                                                     </>
                                                 )}
@@ -2929,42 +2929,42 @@ export function ReportsPage() {
                                                 {isInnovation && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Innovation Title:</label>
-                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Innovation Title:</label>
+                                                            <input type="text" value={evaluationForm.projectTitle} onChange={e => setEvaluationForm({...evaluationForm, projectTitle: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">FG Design & Innov (Max 20%):</label>
-                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">FG Design & Innov (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.finalGrade} onChange={e => setEvaluationForm({...evaluationForm, finalGrade: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Significance (Max 30%):</label>
-                                                                <input type="number" min="0" max="30" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Significance (Max 30%):</label>
+                                                                <input type="number" min="0" max="30" value={evaluationForm.significance} onChange={e => setEvaluationForm({...evaluationForm, significance: Math.min(30, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2">
                                                             <div>
-                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Originality (Max 20%):</label>
-                                                                <input type="number" min="0" max="20" value={evaluationForm.originality} onChange={e => setEvaluationForm({...evaluationForm, originality: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Originality (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.originality} onChange={e => setEvaluationForm({...evaluationForm, originality: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Feasibility (Max 20%):</label>
-                                                                <input type="number" min="0" max="20" value={evaluationForm.feasibility} onChange={e => setEvaluationForm({...evaluationForm, feasibility: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Feasibility (Max 20%):</label>
+                                                                <input type="number" min="0" max="20" value={evaluationForm.feasibility} onChange={e => setEvaluationForm({...evaluationForm, feasibility: Math.min(20, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[8px] font-black uppercase text-gray-400 block mb-1">Presentation (Max 10%):</label>
-                                                                <input type="number" min="0" max="10" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(10, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[8px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Presentation (Max 10%):</label>
+                                                                <input type="number" min="0" max="10" value={evaluationForm.presentation} onChange={e => setEvaluationForm({...evaluationForm, presentation: Math.min(10, Number(e.target.value))})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100">
-                                                            <span className="text-[10px] font-black uppercase text-gray-400">Total Score:</span>
-                                                            <span className="text-lg font-black text-purple-700">
+                                                        <div className="flex items-center justify-between border-t pt-3 border-gray-100 dark:border-white/10">
+                                                            <span className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400">Total Score:</span>
+                                                            <span className="text-lg font-black text-purple-700 dark:text-purple-400">
                                                                 {(Number(evaluationForm.finalGrade) || 0) + (Number(evaluationForm.significance) || 0) + (Number(evaluationForm.originality) || 0) + (Number(evaluationForm.feasibility) || 0) + (Number(evaluationForm.presentation) || 0)}%
                                                             </span>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Co-Innovators / Group Members:</label>
-                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg">
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Co-Innovators / Group Members:</label>
+                                                            <div className="flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-white/10 rounded-lg">
                                                                 {students.filter(s => s.student_section === stud.student_section && s.lrn !== stud.lrn).map(s => {
                                                                     const isSelected = evaluationForm.projectMembers?.includes(s.lrn);
                                                                     return (
@@ -2977,7 +2977,7 @@ export function ReportsPage() {
                                                                                     : [...members.filter((m: string) => m !== stud.lrn), s.lrn];
                                                                                 setEvaluationForm({ ...evaluationForm, projectMembers: [stud.lrn, ...newMembers].slice(0, 4) });
                                                                             }}
-                                                                            className={`px-2 py-1 rounded text-[10px] font-bold ${isSelected ? 'bg-purple-100 text-purple-800' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                                                                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${isSelected ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300' : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-white/10'}`}
                                                                         >
                                                                             {s.first_name} {s.last_name[0]}.
                                                                         </button>
@@ -2993,32 +2993,32 @@ export function ReportsPage() {
                                                     <>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Final Grade (Min 90):</label>
-                                                                <input type="number" min="0" max="100" value={evaluationForm.grade} onChange={e => setEvaluationForm({...evaluationForm, grade: Number(e.target.value)})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Final Grade (Min 90):</label>
+                                                                <input type="number" min="0" max="100" value={evaluationForm.grade} onChange={e => setEvaluationForm({...evaluationForm, grade: Number(e.target.value)})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Supervisor Endorsement:</label>
-                                                                <select value={evaluationForm.isEndorsed ? 'yes' : 'no'} onChange={e => setEvaluationForm({...evaluationForm, isEndorsed: e.target.value === 'yes'})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
-                                                                    <option value="yes">Endorsed</option>
-                                                                    <option value="no">Not Endorsed</option>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Supervisor Endorsement:</label>
+                                                                <select value={evaluationForm.isEndorsed ? 'yes' : 'no'} onChange={e => setEvaluationForm({...evaluationForm, isEndorsed: e.target.value === 'yes'})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2">
+                                                                    <option value="yes" className="bg-white dark:bg-[#0d1225]">Endorsed</option>
+                                                                    <option value="no" className="bg-white dark:bg-[#0d1225]">Not Endorsed</option>
                                                                 </select>
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Supervisor Rating:</label>
-                                                                <select value={evaluationForm.supervisorRating} onChange={e => setEvaluationForm({...evaluationForm, supervisorRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
-                                                                    <option value="Outstanding">Outstanding</option>
-                                                                    <option value="Very Satisfactory">Very Satisfactory</option>
-                                                                    <option value="Satisfactory">Satisfactory</option>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Supervisor Rating:</label>
+                                                                <select value={evaluationForm.supervisorRating} onChange={e => setEvaluationForm({...evaluationForm, supervisorRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2">
+                                                                    <option value="Outstanding" className="bg-white dark:bg-[#0d1225]">Outstanding</option>
+                                                                    <option value="Very Satisfactory" className="bg-white dark:bg-[#0d1225]">Very Satisfactory</option>
+                                                                    <option value="Satisfactory" className="bg-white dark:bg-[#0d1225]">Satisfactory</option>
                                                                 </select>
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Teacher Rating:</label>
-                                                                <select value={evaluationForm.teacherRating} onChange={e => setEvaluationForm({...evaluationForm, teacherRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
-                                                                    <option value="Outstanding">Outstanding</option>
-                                                                    <option value="Very Satisfactory">Very Satisfactory</option>
-                                                                    <option value="Satisfactory">Satisfactory</option>
+                                                                <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Teacher Rating:</label>
+                                                                <select value={evaluationForm.teacherRating} onChange={e => setEvaluationForm({...evaluationForm, teacherRating: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2">
+                                                                    <option value="Outstanding" className="bg-white dark:bg-[#0d1225]">Outstanding</option>
+                                                                    <option value="Very Satisfactory" className="bg-white dark:bg-[#0d1225]">Very Satisfactory</option>
+                                                                    <option value="Satisfactory" className="bg-white dark:bg-[#0d1225]">Satisfactory</option>
                                                                 </select>
                                                             </div>
                                                         </div>
@@ -3029,22 +3029,22 @@ export function ReportsPage() {
                                                 {isCharacterTrait && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Core Values Category:</label>
-                                                            <select value={evaluationForm.characterTraitId} onChange={e => setEvaluationForm({...evaluationForm, characterTraitId: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
-                                                                <option value="Maka-Diyos">Maka-Diyos</option>
-                                                                <option value="Maka-tao">Maka-tao</option>
-                                                                <option value="Makakalikasan">Makakalikasan</option>
-                                                                <option value="Makabayan">Makabayan</option>
-                                                                <option value="Positive Learning Behavior / Growth">Positive Learning Behavior / Growth</option>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Core Values Category:</label>
+                                                            <select value={evaluationForm.characterTraitId} onChange={e => setEvaluationForm({...evaluationForm, characterTraitId: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2">
+                                                                <option value="Maka-Diyos" className="bg-white dark:bg-[#0d1225]">Maka-Diyos</option>
+                                                                <option value="Maka-tao" className="bg-white dark:bg-[#0d1225]">Maka-tao</option>
+                                                                <option value="Makakalikasan" className="bg-white dark:bg-[#0d1225]">Makakalikasan</option>
+                                                                <option value="Makabayan" className="bg-white dark:bg-[#0d1225]">Makabayan</option>
+                                                                <option value="Positive Learning Behavior / Growth" className="bg-white dark:bg-[#0d1225]">Positive Learning Behavior / Growth</option>
                                                             </select>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contextualized Award Title:</label>
-                                                            <input type="text" value={evaluationForm.characterTraitTitle} onChange={e => setEvaluationForm({...evaluationForm, characterTraitTitle: e.target.value})} placeholder="e.g. Gawad sa Pagiging Maka-Diyos" className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Contextualized Award Title:</label>
+                                                            <input type="text" value={evaluationForm.characterTraitTitle} onChange={e => setEvaluationForm({...evaluationForm, characterTraitTitle: e.target.value})} placeholder="e.g. Gawad sa Pagiging Maka-Diyos" className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Contextualized Description:</label>
-                                                            <textarea value={evaluationForm.characterTraitDescription} onChange={e => setEvaluationForm({...evaluationForm, characterTraitDescription: e.target.value})} placeholder="Describe why student deserves this trait award..." className="w-full text-xs font-semibold border border-gray-200 rounded-lg p-2 h-20" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Contextualized Description:</label>
+                                                            <textarea value={evaluationForm.characterTraitDescription} onChange={e => setEvaluationForm({...evaluationForm, characterTraitDescription: e.target.value})} placeholder="Describe why student deserves this trait award..." className="w-full text-xs font-semibold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2 h-20" />
                                                         </div>
                                                     </>
                                                 )}
@@ -3053,8 +3053,8 @@ export function ReportsPage() {
                                                 {isGMRCMerit && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Improved or Excelled GMRC Core Competency:</label>
-                                                            <textarea value={evaluationForm.gmrcCompetency} onChange={e => setEvaluationForm({...evaluationForm, gmrcCompetency: e.target.value})} placeholder="e.g. Pagpapakita ng malasakit at pagtulong sa mga nangangailangan sa silid-aralan..." className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2 h-24" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Improved or Excelled GMRC Core Competency:</label>
+                                                            <textarea value={evaluationForm.gmrcCompetency} onChange={e => setEvaluationForm({...evaluationForm, gmrcCompetency: e.target.value})} placeholder="e.g. Pagpapakita ng malasakit at pagtulong sa mga nangangailangan sa silid-aralan..." className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2 h-24" />
                                                         </div>
                                                     </>
                                                 )}
@@ -3063,38 +3063,38 @@ export function ReportsPage() {
                                                 {isSpecial && (
                                                     <>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Award / Distinction Title:</label>
-                                                            <input type="text" value={evaluationForm.specialRecognitionTitle} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionTitle: e.target.value})} placeholder="e.g. Champion, National Math Challenge" className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2" />
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Award / Distinction Title:</label>
+                                                            <input type="text" value={evaluationForm.specialRecognitionTitle} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionTitle: e.target.value})} placeholder="e.g. Champion, National Math Challenge" className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2" />
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Level of Distinction:</label>
-                                                            <select value={evaluationForm.specialRecognitionLevel} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionLevel: e.target.value})} className="w-full text-xs font-bold border border-gray-200 rounded-lg p-2">
-                                                                <option value="school">School Level</option>
-                                                                <option value="district">District Level</option>
-                                                                <option value="division">Division Level</option>
-                                                                <option value="regional">Regional Level</option>
-                                                                <option value="national">National Level</option>
-                                                                <option value="international">International Level</option>
+                                                            <label className="text-[10px] font-black uppercase text-gray-400 dark:text-slate-400 block mb-1">Level of Distinction:</label>
+                                                            <select value={evaluationForm.specialRecognitionLevel} onChange={e => setEvaluationForm({...evaluationForm, specialRecognitionLevel: e.target.value})} className="w-full text-xs font-bold border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-white rounded-lg p-2">
+                                                                <option value="school" className="bg-white dark:bg-[#0d1225]">School Level</option>
+                                                                <option value="district" className="bg-white dark:bg-[#0d1225]">District Level</option>
+                                                                <option value="division" className="bg-white dark:bg-[#0d1225]">Division Level</option>
+                                                                <option value="regional" className="bg-white dark:bg-[#0d1225]">Regional Level</option>
+                                                                <option value="national" className="bg-white dark:bg-[#0d1225]">National Level</option>
+                                                                <option value="international" className="bg-white dark:bg-[#0d1225]">International Level</option>
                                                             </select>
                                                         </div>
                                                     </>
                                                 )}
                                             </div>
 
-                                            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
+                                            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100 dark:border-white/10">
                                                 <button 
                                                     onClick={() => {
                                                         setEvaluatingStudentLrn(null);
                                                         setEvaluatingAwardType(null);
                                                         setEvaluationForm({});
                                                     }}
-                                                    className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 uppercase"
+                                                    className="px-4 py-2 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-white/5 uppercase cursor-pointer transition-colors"
                                                 >
                                                     Cancel
                                                 </button>
                                                 <button 
                                                     onClick={handleFormSave}
-                                                    className="px-5 py-2 bg-deped-blue hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-md shadow-blue-500/20"
+                                                    className="px-5 py-2 bg-deped-blue dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase shadow-md shadow-blue-500/20 cursor-pointer transition-colors"
                                                 >
                                                     Save Evaluation
                                                 </button>

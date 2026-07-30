@@ -92,6 +92,16 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
     link.click();
   };
 
+  const brushColorRef = useRef(brushColor);
+  const brushSizeRef = useRef(brushSize);
+  const isEraserRef = useRef(isEraser);
+
+  useEffect(() => {
+    brushColorRef.current = brushColor;
+    brushSizeRef.current = brushSize;
+    isEraserRef.current = isEraser;
+  }, [brushColor, brushSize, isEraser]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -99,38 +109,57 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
     if (!ctx) return;
     ctxRef.current = ctx;
 
-    // Set initial canvas size
-    const container = canvas.parentElement;
-    if (container) {
-      canvas.width = container.clientWidth || 1200;
-      canvas.height = Math.max(500, container.clientHeight || 700);
-    }
+    const parent = canvas.parentElement;
+    if (!parent) return;
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let isInitialized = false;
 
-    const handleResize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      if (tempCtx) {
-        tempCtx.drawImage(canvas, 0, 0);
+    const updateSize = () => {
+      const rect = parent.getBoundingClientRect();
+      const newWidth = Math.floor(rect.width);
+      const newHeight = Math.floor(rect.height);
+      if (newWidth <= 0 || newHeight <= 0) return;
+
+      if (!isInitialized) {
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, newWidth, newHeight);
+        isInitialized = true;
+      } else if (canvas.width !== newWidth || canvas.height !== newHeight) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempCtx) {
+          tempCtx.drawImage(canvas, 0, 0);
+        }
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, newWidth, newHeight);
+        if (tempCtx) {
+          ctx.drawImage(tempCanvas, 0, 0);
+        }
       }
 
-      canvas.width = parent.clientWidth;
-      canvas.height = Math.max(500, parent.clientHeight);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(tempCanvas, 0, 0);
+      ctx.lineWidth = brushSizeRef.current;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = isEraserRef.current ? '#FFFFFF' : brushColorRef.current;
     };
 
-    window.addEventListener('resize', handleResize);
+    updateSize();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
+    });
+    resizeObserver.observe(parent);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
     };
   }, []);
 
@@ -145,13 +174,13 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
   }, [brushSize, brushColor, isEraser]);
 
   return (
-    <div className="w-full h-[calc(100vh-120px)] flex flex-col p-4">
-      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/5 p-6 shadow-sm flex flex-col flex-1 min-h-0">
+    <div className="w-full h-full flex flex-col flex-1 min-h-[calc(100vh-120px)] p-2 sm:p-4">
+      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/10 p-4 sm:p-6 shadow-xs flex flex-col flex-1 min-h-0">
         <div className="flex items-center gap-4 mb-6 flex-wrap justify-between shrink-0">
           <div className="flex items-center gap-4 flex-wrap">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-slate-200 text-sm font-semibold transition"
+              className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-white/10 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-slate-200 text-sm font-semibold transition cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
@@ -164,24 +193,24 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
 
         <div className="flex-1 flex flex-col gap-3 min-h-0">
           {/* Toolbar */}
-          <div className="flex items-center gap-4 flex-wrap p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl shrink-0">
+          <div className="flex items-center gap-4 flex-wrap p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl shrink-0">
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setIsEraser(false)}
-                className={`p-2 rounded-lg border transition ${
+                className={`p-2 rounded-lg border transition cursor-pointer ${
                   !isEraser
                     ? 'bg-amber-500 border-amber-500 text-slate-900'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'
                 }`}
               >
                 <Pen className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setIsEraser(true)}
-                className={`p-2 rounded-lg border transition ${
+                className={`p-2 rounded-lg border transition cursor-pointer ${
                   isEraser
                     ? 'bg-amber-500 border-amber-500 text-slate-900'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'
                 }`}
               >
                 <Eraser className="w-4 h-4" />
@@ -196,9 +225,9 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
                 <button
                   key={color}
                   onClick={() => setColor(color)}
-                  className={`w-6 h-6 rounded-full border-2 transition hover:scale-110 ${
+                  className={`w-6 h-6 rounded-full border-2 transition hover:scale-110 cursor-pointer ${
                     brushColor === color && !isEraser
-                      ? 'border-slate-800 dark:border-white scale-110 shadow-sm'
+                      ? 'border-slate-800 dark:border-white scale-110 shadow-xs'
                       : 'border-transparent'
                   }`}
                   style={{ backgroundColor: color }}
@@ -210,29 +239,29 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
 
             {/* Brush Size */}
             <div className="flex items-center gap-2">
-              <button onClick={() => changeSize(-2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 hover:bg-slate-50">
+              <button onClick={() => changeSize(-2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer">
                 <Minus className="w-3.5 h-3.5" />
               </button>
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 min-w-9 text-center">
                 {brushSize}px
               </span>
-              <button onClick={() => changeSize(2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 hover:bg-slate-50">
+              <button onClick={() => changeSize(2)} className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer">
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
 
             <div className="ml-auto flex items-center gap-1.5">
-              <button onClick={clearCanvas} className="p-2 border border-slate-200 dark:border-white/10 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-500 hover:text-red-500 rounded-lg transition">
+              <button onClick={clearCanvas} className="p-2 border border-slate-200 dark:border-white/10 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg transition cursor-pointer">
                 <Trash2 className="w-4 h-4" />
               </button>
-              <button onClick={exportCanvas} className="p-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg transition">
+              <button onClick={exportCanvas} className="p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-lg transition cursor-pointer">
                 <Download className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Canvas Wrapper */}
-          <div className="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden relative min-h-0">
+          <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden relative min-h-0 w-full h-full">
             <canvas
               ref={canvasRef}
               onMouseDown={startDrawing}
@@ -242,7 +271,7 @@ export function Whiteboard({ onBack }: WhiteboardProps) {
               onTouchStart={startDrawing}
               onTouchMove={draw}
               onTouchEnd={stopDrawing}
-              className="bg-white cursor-crosshair touch-none max-w-full max-h-full"
+              className="w-full h-full block bg-white cursor-crosshair touch-none"
             />
           </div>
         </div>

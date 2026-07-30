@@ -456,15 +456,15 @@ export function SF8Page() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans">
+        <div className="flex flex-col h-full bg-slate-50 dark:bg-[#080d1a] relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/90 backdrop-blur-3xl border-b border-slate-200 shadow-sm relative print:hidden shrink-0 w-full">
+             <div className="z-20 bg-white/90 dark:bg-[#0d1225]/95 backdrop-blur-3xl border-b border-slate-200 dark:border-white/10 shadow-sm relative print:hidden shrink-0 w-full">
                 <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-600 via-indigo-500 to-cyan-500 z-30" />
                 <div className="h-16 px-3 lg:px-4 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar scroll-smooth">
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 hover:border-slate-300 transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-8 h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-white/20 transition-all group shrink-0 active:scale-95 duration-200"
                             title="Back to Hub"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
@@ -473,12 +473,12 @@ export function SF8Page() {
                             <HeartPulse className="w-4 h-4" />
                         </div>
                         <div className="flex flex-col">
-                            <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">SF8 Health</h2>
-                            <p className="text-[8.5px] font-black text-blue-600 uppercase tracking-widest">Nutrition Report</p>
+                            <h2 className="text-[11px] lg:text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">SF8 Health</h2>
+                            <p className="text-[8.5px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Nutrition Report</p>
                         </div>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 shrink-0" />
+                    <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
 
                     {/* Section Selector */}
                     {!singleAvailableSection && (
@@ -486,7 +486,7 @@ export function SF8Page() {
                             <select 
                                 value={selectedSection}
                                 onChange={(e) => setSelectedSection(e.target.value)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer min-w-32.5 lg:min-w-37.5 duration-200"
+                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-32.5 lg:min-w-37.5 duration-200"
                             >
                                 <option value="">Select Section</option>
                                 {sortedSections.map(section => (
@@ -495,7 +495,7 @@ export function SF8Page() {
                                     </option>
                                 ))}
                             </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                         </div>
                     )}
 
@@ -507,26 +507,26 @@ export function SF8Page() {
                             <select
                                 value={paperSize}
                                 onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                                className="appearance-none h-9 bg-slate-100 border border-slate-200 hover:bg-slate-200/60 hover:border-slate-300 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
+                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2.5 pr-8 text-[10px] lg:text-[11px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer w-20 lg:w-22.5 duration-200"
                             >
                                 <option value="a4">A4</option>
                                 <option value="folio">Folio</option>
                             </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 transition-colors" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
                         </div>
 
-                        <div className="h-6 w-px bg-slate-200 shrink-0" />
+                        <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
 
                         {/* Zoom Control */}
-                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/10 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shrink-0">
                             <button 
                                 onClick={() => setZoom(prev => Math.max(0.4, prev - 0.1))}
-                                className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm active:scale-90 duration-200"
+                                className="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/15 rounded-lg transition-all shadow-sm active:scale-90 duration-200"
                                 title="Zoom Out"
                             >
                                 <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="text-[10px] font-black text-slate-900 w-8 text-center tabular-nums">
+                            <span className="text-[10px] font-black text-slate-900 dark:text-white w-8 text-center tabular-nums">
                                 {Math.round(zoom * 100)}%
                             </span>
                             <button 
@@ -574,21 +574,21 @@ export function SF8Page() {
              </div>
 
              {/* Main Workspace Area */}
-             <div className="flex-1 overflow-auto relative bg-slate-100 print:bg-white custom-scrollbar">
+             <div className="flex-1 overflow-auto relative bg-slate-100 dark:bg-[#080d1a] print:bg-white custom-scrollbar">
                 {!effectiveSelectedSection ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-10 p-10 z-10">
                         <div className="relative">
-                            <div className="absolute -inset-20 bg-blue-500/5 blur-[100px] rounded-full" />
-                            <div className="relative w-48 h-48 bg-white rounded-[3rem] border border-slate-200 flex items-center justify-center transform rotate-6 border-dashed">
-                                <HeartPulse className="w-20 h-20 text-slate-200" />
-                                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-xl">
-                                    <span className="text-2xl font-black text-blue-600 italic">SF8</span>
+                            <div className="absolute -inset-20 bg-blue-500/5 dark:bg-blue-500/10 blur-[100px] rounded-full" />
+                            <div className="relative w-48 h-48 bg-white dark:bg-white/5 rounded-[3rem] border border-slate-200 dark:border-white/10 flex items-center justify-center transform rotate-6 border-dashed">
+                                <HeartPulse className="w-20 h-20 text-slate-200 dark:text-slate-600" />
+                                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-2xl flex items-center justify-center shadow-xl">
+                                    <span className="text-2xl font-black text-blue-600 dark:text-blue-400 italic">SF8</span>
                                 </div>
                             </div>
                         </div>
                         <div className="max-w-md space-y-4">
-                            <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Health Report Hub</h2>
-                            <p className="text-slate-500 font-bold leading-relaxed">
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Health Report Hub</h2>
+                            <p className="text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
                                 Please select a section from the toolbar above to generate the Learner&apos;s Basic Health and Nutrition Report.
                             </p>
                         </div>
