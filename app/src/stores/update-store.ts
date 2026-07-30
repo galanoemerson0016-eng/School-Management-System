@@ -151,9 +151,13 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
         case 'update-error':
           // Only show error status in UI if we were actively checking or downloading
           if (get().updateStep === 'checking' || get().updateStep === 'downloading') {
+            let msg = payload.message || 'Auto-updater experienced an error';
+            if (msg.includes('404') || msg.includes('latest.yml') || msg.includes('latest-mac.yml')) {
+              msg = 'Release assets for v2.8.0 are currently building on GitHub or pending publish. If your build is in progress, please check again in a few minutes or download the installer directly below.';
+            }
             set({
               updateStep: 'failed',
-              errorMessage: payload.message || 'Auto-updater experienced an error'
+              errorMessage: msg
             });
           } else {
             set({ updateStep: 'idle' });
