@@ -117,7 +117,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
     const yearChars = birthYear.padStart(4, ' ').split('');
 
     // Format First Day of Attendance for grids
-    let attDateStr = student.first_day_attendance || '';
+    let attDateStr = student.first_day_attendance || '2026-06-08';
     if (!attDateStr && student.enrollment_date) {
         const d = new Date(student.enrollment_date);
         if (!isNaN(d.getTime())) {

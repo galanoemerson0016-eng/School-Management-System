@@ -323,6 +323,7 @@ export interface ClassRecord {
     student_lrn: string;
     section_id: string;
     subject_id: string;
+    subject_name?: string;
     school_year: string;
     quarter: 1 | 2 | 3; // Strictly 3-term system
     written_works: (number | string)[];

@@ -170,6 +170,7 @@ export function StudentsPage() {
                 
                 // General
                 'Remarks': s.remarks || '',
+                'First Day of Attendance': s.first_day_attendance || '2026-06-08',
                 'Enrollment Date': s.enrollment_date || '',
             };
 

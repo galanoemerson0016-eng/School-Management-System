@@ -3,7 +3,7 @@ import {
   Sparkles, Volume2, Paintbrush, Watch, Ruler, Users, Scale, 
   CircleDollarSign, Dices, Trophy, Layers, Ticket, Grid, Search, 
   Gamepad2, Users2, Wrench, LayoutGrid, ArrowRight, ArrowLeft, Bomb, Grid3X3, ChevronDown, ChevronRight,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, ExternalLink
 } from 'lucide-react';
 
 // Import subcomponents
@@ -40,6 +40,7 @@ export interface ToolItem {
   category: ToolCategory;
   categoryLabel: string;
   component: React.ComponentType<{ onBack: () => void }>;
+  externalUrl?: string;
 }
 
 export function GamesAndToolsPage() {
@@ -580,10 +581,23 @@ export function GamesAndToolsPage() {
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 pr-4">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200/50 dark:border-white/5">
                               {tool.categoryLabel}
                             </span>
+                            {tool.externalUrl && (
+                              <a
+                                href={tool.externalUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-slate-950 border border-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                                title={`Open ${tool.externalUrl} in new tab`}
+                              >
+                                <span>Hyperlink</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
                           </div>
                           <h4 className="font-extrabold text-sm text-slate-800 dark:text-white group-hover:text-amber-500 transition-colors flex items-center gap-1">
                             {tool.title}

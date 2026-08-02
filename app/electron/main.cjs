@@ -330,8 +330,16 @@ if (autoUpdater) {
   ipcMain.on('quit-and-install', () => {
     if (autoUpdater) {
       isQuitting = true;
+      // Cleanly destroy all open windows so file handles are released for NSIS
+      BrowserWindow.getAllWindows().forEach((w) => {
+        try {
+          w.destroy();
+        } catch {
+          // ignore
+        }
+      });
       setImmediate(() => {
-        autoUpdater.quitAndInstall(false, true);
+        autoUpdater.quitAndInstall(true, true);
       });
     }
   });

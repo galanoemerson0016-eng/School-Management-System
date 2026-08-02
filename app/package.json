@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -36,6 +36,7 @@
     ],
     "win": {
       "icon": "build/icon.ico",
+      "forceCodeSigning": false,
       "target": [
         {
           "target": "nsis",
@@ -48,6 +49,7 @@
     },
     "mac": {
       "category": "public.app-category.education",
+      "forceCodeSigning": false,
       "target": [
         {
           "target": "dmg",
@@ -70,8 +72,12 @@
       }
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "shortcutName": "FormEase Pro"
     },
     "files": [

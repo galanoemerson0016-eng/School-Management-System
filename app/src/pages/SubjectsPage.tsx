@@ -659,13 +659,23 @@ export function SubjectsPage() {
 
     const filteredSubjects = useMemo(() => {
         if (!selectedGrade) return [];
-        return subjects
+        const rawList = subjects
             .filter(s => !s.is_teaching_load) 
             .filter((s) => {
                 if (selectedSectionId) return s.section_id === selectedSectionId;
                 return s.grade_level === selectedGrade && !s.section_id;
-            })
-            .sort((a, b) => {
+            });
+
+        const seenNames = new Set<string>();
+        const uniqueList: Subject[] = [];
+        for (const s of rawList) {
+            const key = normalizeSubjectLabel(s.subject_name);
+            if (key && seenNames.has(key)) continue;
+            if (key) seenNames.add(key);
+            uniqueList.push(s);
+        }
+
+        return uniqueList.sort((a, b) => {
                 const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
                 const isSHS = gradeNum === 11 || gradeNum === 12;
                 
@@ -914,6 +924,33 @@ export function SubjectsPage() {
         });
     };
 
+    const handleCleanDuplicates = async () => {
+        const seenKeys = new Set<string>();
+        const duplicateIds: string[] = [];
+
+        subjects.forEach(s => {
+            const key = `${s.section_id || ''}_${s.grade_level || ''}_${normalizeSubjectLabel(s.subject_name)}`;
+            if (seenKeys.has(key)) {
+                duplicateIds.push(s.id);
+            } else {
+                seenKeys.add(key);
+            }
+        });
+
+        if (duplicateIds.length === 0) {
+            showNotification('No duplicate subject records found in database.', 'info');
+            return;
+        }
+
+        try {
+            await deleteSubjectsBulk(duplicateIds);
+            showNotification(`Cleaned ${duplicateIds.length} duplicate subject records!`, 'success');
+        } catch (err) {
+            console.error('Failed to clean duplicate subjects:', err);
+            showNotification('Failed to clean duplicate subjects.', 'error');
+        }
+    };
+
     const handleDeleteAll = async () => {
         if (filteredSubjects.length === 0) return;
         
@@ -1146,6 +1183,14 @@ export function SubjectsPage() {
                     )}
                     {viewMode === 'subjects' && canEdit && (
                         <div className="flex items-center gap-2">
+                            <button 
+                                onClick={handleCleanDuplicates}
+                                className="h-8 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold text-xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 active:scale-95 cursor-pointer"
+                                title="Remove duplicate subject records from database"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Clean Duplicates
+                            </button>
                             {filteredSubjects.length > 0 && (
                                 <button 
                                     onClick={() => setShowDeleteAllConfirm(true)}

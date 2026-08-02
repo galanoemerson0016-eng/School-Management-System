@@ -153,7 +153,8 @@ export const parseEnrollmentTemplate = async (file: File): Promise<Partial<Stude
                         age: 0,
                         address: '',
                         contact_number: '',
-                        enrollment_date: new Date().toISOString().split('T')[0]
+                        first_day_attendance: '2026-06-08',
+                        enrollment_date: '2026-06-08'
                     });
                 }
 

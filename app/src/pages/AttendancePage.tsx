@@ -32,6 +32,119 @@ const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
     APRIL: [1, 2, 5, 6, 7, 8],
 };
 
+/**
+ * Helper to determine if a student is enrolled on or before the last day of the given SF2 month.
+ */
+function isStudentEnrolledByMonth(
+    student: Student,
+    selectedMonth: string,
+    schoolYear: string
+): boolean {
+    const attDateStr = (student.first_day_attendance || '').trim();
+    if (!attDateStr) return true; // Regular students start on SY opening (June 8, 2026) and appear in all months
+
+    const monthMap: Record<string, number> = {
+        'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+        'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+    };
+
+    const monthIndex = monthMap[selectedMonth.toUpperCase()];
+    if (monthIndex === undefined) return true;
+
+    const syParts = schoolYear.split('-').map(Number);
+    const startYear = syParts[0] || new Date().getFullYear();
+    const endYear = syParts[1] || startYear + 1;
+    const year = monthIndex >= 5 ? startYear : endYear;
+
+    const lastDayOfMonth = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+
+    let startDate: Date | null = null;
+    if (attDateStr.includes('-')) {
+        const clean = attDateStr.split('T')[0];
+        const parts = clean.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+        }
+    } else if (attDateStr.includes('/')) {
+        const parts = attDateStr.split('/').map(Number);
+        if (parts.length === 3) {
+            if (parts[0] > 1000) {
+                startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+            } else {
+                startDate = new Date(parts[2], parts[0] - 1, parts[1], 0, 0, 0, 0);
+            }
+        }
+    }
+
+    if (!startDate || isNaN(startDate.getTime())) {
+        const fallbackDate = new Date(attDateStr);
+        if (!isNaN(fallbackDate.getTime())) {
+            startDate = fallbackDate;
+        } else {
+            return true;
+        }
+    }
+
+    return startDate <= lastDayOfMonth;
+}
+
+/**
+ * Checks if a specific day of the month is prior to the student's first day of attendance.
+ */
+function isDateBeforeStudentStart(
+    student: Student,
+    dayNumber: number,
+    selectedMonth: string,
+    schoolYear: string
+): boolean {
+    const attDateStr = (student.first_day_attendance || '').trim();
+    if (!attDateStr) return false;
+
+    const monthMap: Record<string, number> = {
+        'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
+        'JULY': 6, 'AUGUST': 7, 'SEPTEMBER': 8, 'OCTOBER': 9, 'NOVEMBER': 10, 'DECEMBER': 11
+    };
+
+    const monthIndex = monthMap[selectedMonth.toUpperCase()];
+    if (monthIndex === undefined) return false;
+
+    const syParts = schoolYear.split('-').map(Number);
+    const startYear = syParts[0] || new Date().getFullYear();
+    const endYear = syParts[1] || startYear + 1;
+    const year = monthIndex >= 5 ? startYear : endYear;
+
+    const cellDate = new Date(year, monthIndex, dayNumber, 23, 59, 59, 999);
+
+    let startDate: Date | null = null;
+    if (attDateStr.includes('-')) {
+        const clean = attDateStr.split('T')[0];
+        const parts = clean.split('-').map(Number);
+        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+        }
+    } else if (attDateStr.includes('/')) {
+        const parts = attDateStr.split('/').map(Number);
+        if (parts.length === 3) {
+            if (parts[0] > 1000) {
+                startDate = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+            } else {
+                startDate = new Date(parts[2], parts[0] - 1, parts[1], 0, 0, 0, 0);
+            }
+        }
+    }
+
+    if (!startDate || isNaN(startDate.getTime())) {
+        const fallbackDate = new Date(attDateStr);
+        if (!isNaN(fallbackDate.getTime())) {
+            startDate = fallbackDate;
+        } else {
+            return false;
+        }
+    }
+
+    return cellDate < startDate;
+}
+
 function getActiveWeeks(month: string, schoolYear: string, includeSaturdays: boolean): number[] {
     const monthMap: Record<string, number> = {
         'JANUARY': 0, 'FEBRUARY': 1, 'MARCH': 2, 'APRIL': 3, 'MAY': 4, 'JUNE': 5,
@@ -672,11 +785,15 @@ export function AttendancePage() {
         return students.filter((s) => s.student_section === selectedSection || (sectionId && s.student_section === sectionId));
     }, [selectedSection, students, sections]);
 
+    const activeEnrolledStudents = useMemo(() => {
+        return sectionStudents.filter(s => isStudentEnrolledByMonth(s, selectedMonth, activeSchoolYear));
+    }, [sectionStudents, selectedMonth, activeSchoolYear]);
+
     const displayStudents = useMemo(() => {
-        const males = sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => a.last_name.localeCompare(b.last_name));
-        const females = sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => a.last_name.localeCompare(b.last_name));
+        const males = activeEnrolledStudents.filter(s => s.gender === 'Male').sort((a, b) => a.last_name.localeCompare(b.last_name));
+        const females = activeEnrolledStudents.filter(s => s.gender === 'Female').sort((a, b) => a.last_name.localeCompare(b.last_name));
         return { males, females };
-    }, [sectionStudents]);
+    }, [activeEnrolledStudents]);
 
     const getColumnDayLetter = (colIndex: number) => {
         const pattern = includeSaturdays 
@@ -1014,9 +1131,10 @@ export function AttendancePage() {
         let maleLate = 0, femaleLate = 0;
         let maleRegistered = 0, femaleRegistered = 0;
 
-        const isLate = (s: { enrollment_date?: string }) => {
-            if (!s.enrollment_date) return false;
-            const d = new Date(s.enrollment_date);
+        const isLate = (s: { first_day_attendance?: string; enrollment_date?: string }) => {
+            const attDateStr = (s.first_day_attendance || s.enrollment_date || '').trim();
+            if (!attDateStr) return false;
+            const d = new Date(attDateStr);
             if (isNaN(d.getTime())) return false;
             const m = d.toLocaleString('en-US', { month: 'long' }).toUpperCase();
             return m === selectedMonth && selectedMonth !== 'JUNE';
@@ -1398,14 +1516,18 @@ export function AttendancePage() {
             </td>
             {days.map((d, i) => {
                 const isUnfilled = !currentDateLabels[d] || !currentDateLabels[d].trim();
+                const dayNum = Number(currentDateLabels[d]);
+                const isBeforeStart = !isUnfilled && !isNaN(dayNum) && isDateBeforeStudentStart(student, dayNum, selectedMonth, activeSchoolYear);
+
                 return (
                     <td 
                         key={d} 
-                        className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
-                        style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : undefined}
-                        onClick={() => canEditCurrentSection && toggleAttendance(student.lrn, d)}
+                        className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection && !isBeforeStart ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
+                        style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : isBeforeStart ? { backgroundColor: '#f1f5f9', color: '#94a3b8' } : undefined}
+                        title={isBeforeStart ? `Learner first attended on ${student.first_day_attendance || student.enrollment_date}` : undefined}
+                        onClick={() => canEditCurrentSection && !isBeforeStart && toggleAttendance(student.lrn, d)}
                     >
-                        {getStatusSymbol(getStudentStatus(student.lrn, d))}
+                        {isBeforeStart ? '' : getStatusSymbol(getStudentStatus(student.lrn, d))}
                     </td>
                 );
             })}

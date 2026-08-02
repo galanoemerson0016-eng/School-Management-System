@@ -153,7 +153,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           if (get().updateStep === 'checking' || get().updateStep === 'downloading') {
             let msg = payload.message || 'Auto-updater experienced an error';
             if (msg.includes('404') || msg.includes('latest.yml') || msg.includes('latest-mac.yml')) {
-              msg = 'Release assets for v2.8.0 are currently building on GitHub or pending publish. If your build is in progress, please check again in a few minutes or download the installer directly below.';
+              msg = 'Release assets for v2.8.1 are currently building on GitHub or pending publish. If your build is in progress, please check again in a few minutes or download the installer directly below.';
             }
             set({
               updateStep: 'failed',
@@ -341,7 +341,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = '2.8.0';
+      const CURRENT_VERSION = '2.8.1';
       const api = window.electronAPI;
 
       try {

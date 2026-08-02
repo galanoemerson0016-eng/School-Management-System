@@ -63,9 +63,56 @@ export default defineConfig(({ mode }) => ({
     // Only obfuscate in production to keep dev fast
     mode === 'production' ? bundleObfuscator(obfuscatorOptions) : null
   ].filter(Boolean),
+  esbuild: {
+    target: 'es2022',
+    legalComments: 'none',
+  },
+  css: {
+    devSourcemap: false,
+  },
   server: {
     port: 3001,
-    strictPort: true,
+    strictPort: false,
+    host: true,
+    hmr: {
+      overlay: true,
+    },
+    watch: {
+      ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**', '**/.git/**', '**/build/**'],
+    },
+    warmup: {
+      clientFiles: ['./src/main.tsx', './src/App.tsx'],
+    },
+  },
+  optimizeDeps: {
+    holdUntilCrawlEnd: true,
+    include: [
+      '@react-pdf/renderer',
+      'unicode-trie',
+      'dfa',
+      'restructure',
+      'fontkit',
+      'base64-js',
+      'brotli',
+      'tiny-inflate',
+      'unicode-properties',
+      'buffer',
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react-router-dom',
+      'lucide-react',
+      'framer-motion',
+      'recharts',
+      'zustand',
+      'firebase/app',
+      'firebase/auth',
+      'firebase/firestore',
+      'html2canvas-pro',
+      'jsbarcode',
+      'qrcode.react',
+    ],
+    exclude: ['pdf-parse'],
   },
   build: {
     chunkSizeWarningLimit: 3000,

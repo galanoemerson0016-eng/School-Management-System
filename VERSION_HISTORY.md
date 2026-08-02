@@ -2,6 +2,24 @@
 
 # Version History
 
+## v2.8.1 (2026-08-02)
+
+### 🚀 New Features & Enhancements
+- **DepEd SF2 Attendance Roster Filtering**: Learners are now dynamically filtered per monthly sheet based on their `first_day_attendance` date (defaulting to SY opening June 8, 2026 for regular learners).
+- **Pre-Enrollment Date Cell Protection**: Attendance cells for dates prior to a learner's first day of attendance are shaded, non-editable, and display helpful tooltips.
+- **Clean Duplicates Database Utility**: Added a **Clean Duplicates** utility in the Subjects manager to automatically find and bulk-delete redundant database subject records.
+
+### ⚡ Improvements
+- **Automatic Normalized Subject Deduplication**: Both SF9 Report Cards and Consolidated Grade matrices automatically deduplicate subject headers by normalized title, restoring single-row subject layouts.
+- **Vite Dev Server CJS Dependency Optimization**: Pre-bundled `@react-pdf/renderer`, `unicode-trie`, `base64-js`, `buffer`, and `dfa` CommonJS dependencies to eliminate Vite dev server reload errors.
+
+### 🐞 Bug Fixes
+- **Subject & Grade Lookup Fallback**: Enhanced grade lookup to query class records by both `subject_id` and normalized `subject_name`, ensuring complete grade calculations with zero data loss.
+- **Node Test Environment Guard**: Guarded database indexing projection migration when running tests in Node.js environments.
+
+### 📝 Notes
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.8.0 (2026-07-30)
 
 ### 🚀 New Features & Enhancements

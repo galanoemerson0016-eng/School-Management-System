@@ -277,7 +277,8 @@ export const parseSF1 = async (file: File): Promise<Student[]> => {
                         guardian_name: guardianName,
                         guardian_relationship: relationship,
                         grade_level: '',
-                        enrollment_date: new Date().toISOString().split('T')[0]
+                        first_day_attendance: '2026-06-08',
+                        enrollment_date: '2026-06-08'
                     });
                 }
 

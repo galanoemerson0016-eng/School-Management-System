@@ -670,6 +670,7 @@ async function getRecordsByIndex<T>(
 }
 
 async function migrateDatabaseForIndexing(): Promise<void> {
+  if (typeof indexedDB === 'undefined' || typeof window === 'undefined') return;
   const isMigrated = localStorage.getItem('formease_db_indexing_migrated_v11') === 'true';
   if (isMigrated) return;
 

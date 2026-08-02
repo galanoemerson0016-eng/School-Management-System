@@ -1091,6 +1091,17 @@ const groupedSections = useMemo(() => {
             }
         }
 
+        // Deduplicate sectionDbSubjects by normalized name
+        const seenSubjectNames = new Set<string>();
+        const uniqueDbSubjects: Subject[] = [];
+        for (const s of sectionDbSubjects) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && seenSubjectNames.has(norm)) continue;
+            if (norm) seenSubjectNames.add(norm);
+            uniqueDbSubjects.push(s);
+        }
+        sectionDbSubjects = uniqueDbSubjects;
+
         // 3. Determine the base list of subjects
         // If there are actual subjects in the DB for this section, we use those as the primary source.
         // If the section is new/empty, we fall back to the curriculum/standard list.
@@ -1466,7 +1477,7 @@ const groupedSections = useMemo(() => {
                     for (let q = 1; q <= 4; q++) {
                         const record = gradingSheetRecords.find(r =>
                             r.student_lrn === student.lrn &&
-                            r.subject_id === subject.id &&
+                            (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(subject.subject_name))) &&
                             Number(r.quarter) === q
                         );
 

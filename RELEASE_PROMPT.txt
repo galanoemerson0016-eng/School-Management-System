@@ -1,0 +1,127 @@
+# Release FormEase Pro
+
+Prepare, verify, and publish a new official release for FormEase Pro by strictly following this workflow.
+
+---
+
+## 1. Pre-Flight Verification
+Before initiating the release, verify project health:
+- Check that the Git working tree is clean (no uncommitted or untracked files unless approved).
+- Run pre-flight build check: Navigate to app/ and execute `npm run build` & `tsc --noEmit`.
+- If pre-flight fails, ABORT immediately and display the error traceback.
+
+---
+
+## 2. Determine Release Type
+Determine the version bump level:
+- Patch (e.g., 2.8.0 -> 2.8.1): Bug fixes, performance tweaks, or minor text/styling updates.
+- Minor (e.g., 2.8.0 -> 2.9.0): New backward-compatible features, modules, or enhancements.
+- Major (e.g., 2.8.0 -> 3.0.0): Breaking changes, major structural updates, or architectural overhauls.
+
+---
+
+## 3. Collect Release Information
+Collect details regarding the release:
+- Summary of new features, performance improvements, bug fixes, or security patches.
+- (Optional) Associated GitHub issue numbers or commit references.
+
+Generate:
+- A Conventional Commit message (e.g., chore(release): v2.8.1 or feat: add student ID bulk exporter).
+- A human-readable release summary formatted for VERSION_HISTORY.md.
+
+---
+
+## 4. Preview Plan (Mandatory User Approval)
+Display a release preview plan and WAIT for explicit user approval before making any file changes:
+
+=============================================================
+  FormEase Pro Release Preview
+=============================================================
+Current Version : v2.8.0
+Release Type    : Patch
+New Version     : v2.8.1
+
+Commit Message  : chore(release): v2.8.1
+
+Files to Modify :
+  ✓ app/package.json
+  ✓ VERSION_HISTORY.md
+
+Release Notes   :
+  • Fixed electron-updater NSIS silent update fallback (oneClick: true)
+  • Fast-path Vite server optimization in dev mode
+=============================================================
+
+---
+
+## 5. Update Version Files
+Upon user approval:
+1. Update "version" in app/package.json.
+2. Update application version constants (e.g., CURRENT_VERSION in update-store.ts or app/vite.config.ts if applicable).
+3. Execute `npm run obfuscate:electron` inside app/ to sync production Electron shields.
+
+---
+
+## 6. Update Version History (VERSION_HISTORY.md)
+Insert a new release entry at the very top of VERSION_HISTORY.md in root:
+
+## v<new-version> (<YYYY-MM-DD>)
+
+### 🚀 New Features
+- <Feature description>
+
+### ⚡ Improvements
+- <Improvement description>
+
+### 🐞 Bug Fixes
+- <Bug fix description>
+
+### 📝 Notes
+- Backward compatible update.
+
+---
+
+## 7. Create Release Commit & Git Tag
+1. Stage modified files (app/package.json, VERSION_HISTORY.md, dist-electron/*).
+2. Commit with the release message:
+   git commit -m "chore(release): v<new-version>"
+3. Create an annotated Git tag matching the exact version:
+   git tag -a v<new-version> -m "Release v<new-version>"
+
+---
+
+## 8. Publish Release & Trigger Pipeline
+Push the commit and tag to GitHub:
+git push origin main
+git push origin v<new-version>
+
+(Optional) Run RELEASE_UPDATE_AUTOMATED.bat or deploy updated release manifests to Firebase update-server.
+
+---
+
+## 9. Verification & Summary Report
+Verify:
+- [x] Working directory is clean.
+- [x] Commit and Tag exist on GitHub remote.
+- [x] app/package.json and VERSION_HISTORY.md match v<new-version>.
+
+Output final summary:
+✅ FormEase Pro Release Complete
+
+Released Version : v2.8.1
+Git Tag          : v2.8.1
+Release Type     : Patch
+GitHub Status    : Pushed to origin/main & v2.8.1
+
+Modified Files   :
+  ✓ app/package.json
+  ✓ VERSION_HISTORY.md
+  ✓ app/dist-electron/main.cjs
+
+---
+
+## Strict Rules
+- Never skip Preview: Always display the preview and receive confirmation before writing file changes.
+- Fail-Fast: If npm run build or tsc --noEmit fails, stop immediately.
+- Reverse Chronological: Ensure latest releases are at the top of VERSION_HISTORY.md.
+- Tag Formatting: Always prefix version tags with v (e.g., v2.8.1).

@@ -566,6 +566,17 @@ function computeStudentGrades(
         });
     }
 
+    // Deduplicate DB subjects by normalized subject name
+    const seenSubjectNames = new Set<string>();
+    const uniqueDbSubjects: Subject[] = [];
+    for (const sub of sectionDbSubjects) {
+        const norm = normalizeSubjectName(sub.subject_name);
+        if (norm && seenSubjectNames.has(norm)) continue;
+        if (norm) seenSubjectNames.add(norm);
+        uniqueDbSubjects.push(sub);
+    }
+    sectionDbSubjects = uniqueDbSubjects;
+
     let baseSubjects: SF9SubjectItem[] = [];
 
     if (sectionDbSubjects.length > 0) {
@@ -801,8 +812,16 @@ function computeStudentGrades(
             }
         }
     } else {
-        // 1. Sort base subjects according to standard priority
-        const sortedBase = sortSubjects(baseSubjects, s => s.name);
+        // 1. Deduplicate base subjects & sort according to standard priority
+        const seenInBase = new Set<string>();
+        const uniqueBase: typeof baseSubjects = [];
+        for (const s of baseSubjects) {
+            const norm = normalizeSubjectName(s.name);
+            if (norm && seenInBase.has(norm)) continue;
+            if (norm) seenInBase.add(norm);
+            uniqueBase.push(s);
+        }
+        const sortedBase = sortSubjects(uniqueBase, s => s.name);
         
         // 2. Identify and group MAPEH
         const mapehComponents = sortedBase.filter(s => {
