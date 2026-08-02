@@ -130,6 +130,8 @@ jobs:
             app/release/*.dmg
             app/release/*.zip
             app/release/*.exe
+            app/release/*.yml
+            app/release/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -148,6 +150,8 @@ jobs:
             app/release/*.dmg
             app/release/*.zip
             app/release/*.exe
+            app/release/*.yml
+            app/release/*.blockmap
 
       # 3. Deploy update-server metadata to Firebase
       - name: Install Firebase CLI
