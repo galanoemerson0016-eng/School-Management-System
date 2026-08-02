@@ -90,14 +90,11 @@
     color: #ffffff !important;
   }
 
-  /* Ensure outer printable sheet containers are dark workspace background in dark mode */
+  /* Ensure printable paper sheets are always pure white in both light and dark mode */
+  #printable-class-record,
   .dark #printable-class-record,
-  .dark #printable-summary-record {
-    background-color: #070a12 !important;
-    border-color: rgba(255, 255, 255, 0.05) !important;
-  }
-
-  /* Ensure the inner paper pages remain pure white paper sheets */
+  #printable-summary-record,
+  .dark #printable-summary-record,
   .class-record-page,
   .dark .class-record-page,
   .lir-container,

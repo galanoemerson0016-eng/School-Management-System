@@ -2,6 +2,20 @@
 
 # Version History
 
+## v2.8.2 (2026-08-02)
+
+### ⚡ Improvements
+
+- **E-Class Record Subject Selector Deduplication**: Deduplicated base subject list by normalized title in both JHS/Elementary and SHS E-Class Record pages to eliminate duplicate option entries in the dropdown selector.
+
+### 🐞 Bug Fixes
+
+- **Dark Mode Printable Document Sheet Background Contrast**: Removed `dark:bg-[#070a12]` overrides in `index.css`, enforcing pure paper-white canvas (`#FFFFFF`) and high-contrast `#000000` black text across all printable Summary of Grades and Class Record document sheets in Dark Mode.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.8.1 (2026-08-02)
 
 ### 🚀 New Features & Enhancements

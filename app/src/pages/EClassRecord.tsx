@@ -536,6 +536,17 @@ export function EClassRecord() {
             return !isComponent;
         });
 
+        // Deduplicate base subjects by normalized subject name
+        const seenNames = new Set<string>();
+        const uniqueBase: Subject[] = [];
+        for (const s of base) {
+            const norm = s.subject_name.trim().toLowerCase();
+            if (norm && seenNames.has(norm)) continue;
+            if (norm) seenNames.add(norm);
+            uniqueBase.push(s);
+        }
+        base = uniqueBase;
+
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
         if (typeof quarter === 'number') {
             base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === quarter);
@@ -1649,14 +1660,14 @@ export function EClassRecord() {
                         style={{ transform: `scale(${zoom})` }}
                     >
                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
-                        <div id="printable-summary-record" className="bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
+                        <div id="printable-summary-record" className="bg-white text-black px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
                             {/* Header Section matching image */}
-                             <div className="flex justify-between items-start mb-6">
+                             <div className="flex justify-between items-start mb-6 text-black">
                                  <div className="w-14 h-14 shrink-0">
                                      <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                  </div>
-                                 <div className="text-center flex-1 px-4">
-                                     <h1 className="text-2xl font-bold uppercase tracking-wide text-black">
+                                 <div className="text-center flex-1 px-4 text-black">
+                                     <h1 className="text-2xl font-bold uppercase tracking-wide text-black mb-0">
                                          {quarter === 'summary_final' ? 'SUMMARY OF GRADES' : 
                                           quarter === 'summary_t1' ? 'SUMMARY OF TERM 1 GRADES' : 
                                           quarter === 'summary_t2' ? 'SUMMARY OF TERM 2 GRADES' :
@@ -1664,25 +1675,25 @@ export function EClassRecord() {
                                           'SUMMARY OF GRADES'}
                                      </h1>
                                      
-                                     <div className="mt-4 grid gap-x-4 text-[10px] text-left" style={{ gridTemplateColumns: '55% 45%' }}>
-                                         <div className="space-y-1">
-                                             <div className="flex items-center min-h-6.5">
-                                                 <span className="w-20 font-bold uppercase shrink-0">REGION</span>
-                                                 <div className={`border border-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>{schoolProfile.region}</div>
+                                     <div className="mt-4 grid gap-x-4 text-[10px] text-left text-black" style={{ gridTemplateColumns: '55% 45%' }}>
+                                         <div className="space-y-1 text-black">
+                                             <div className="flex items-center min-h-6.5 text-black">
+                                                 <span className="w-20 font-bold uppercase shrink-0 text-black">REGION</span>
+                                                 <div className={`border border-black bg-white text-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>{schoolProfile.region}</div>
                                              </div>
-                                             <div className="flex items-center min-h-6.5">
-                                                 <span className="w-20 font-bold uppercase shrink-0">SCHOOL NAME</span>
-                                                 <div className={`border border-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>{schoolProfile.name}</div>
+                                             <div className="flex items-center min-h-6.5 text-black">
+                                                 <span className="w-20 font-bold uppercase shrink-0 text-black">SCHOOL NAME</span>
+                                                 <div className={`border border-black bg-white text-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>{schoolProfile.name}</div>
                                              </div>
                                          </div>
-                                         <div className="space-y-1">
-                                             <div className="flex items-center min-h-6.5">
-                                                 <span className="w-20 font-bold uppercase shrink-0">DIVISION</span>
-                                                 <div className={`border border-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>{schoolProfile.division}</div>
+                                         <div className="space-y-1 text-black">
+                                             <div className="flex items-center min-h-6.5 text-black">
+                                                 <span className="w-20 font-bold uppercase shrink-0 text-black">DIVISION</span>
+                                                 <div className={`border border-black bg-white text-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>{schoolProfile.division}</div>
                                              </div>
-                                             <div className="flex items-center min-h-6.5">
-                                                 <span className="w-20 font-bold uppercase shrink-0">SCHOOL ID</span>
-                                                 <div className={`border border-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>{schoolProfile.school_id}</div>
+                                             <div className="flex items-center min-h-6.5 text-black">
+                                                 <span className="w-20 font-bold uppercase shrink-0 text-black">SCHOOL ID</span>
+                                                 <div className={`border border-black bg-white text-black px-2 py-0.5 flex-1 min-h-5 font-semibold text-center uppercase flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>{schoolProfile.school_id}</div>
                                              </div>
                                          </div>
                                      </div>
@@ -1846,60 +1857,60 @@ export function EClassRecord() {
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4">
-                        <div id="printable-class-record" className="bg-white dark:bg-[#070a12] p-4 md:p-6 shadow-xl border border-gray-100 dark:border-white/5 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
                             ].map((section, sectionIdx) => (
-                            <div key={section.gender} className={`class-record-page bg-white p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
-                            <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2 px-4 print:px-1">
+                            <div key={section.gender} className={`class-record-page bg-white text-black p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
+                            <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2 px-4 print:px-1 text-black">
                                 <div className="w-16 h-16 flex items-center justify-center shrink-0">
                                     <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                 </div>
-                                <div className="text-center flex-1 mx-4">
+                                <div className="text-center flex-1 mx-4 text-black">
                                     <h1 className="text-2xl font-bold font-serif tracking-wide text-black mb-0 uppercase">Class Record</h1>
                                     <p className="text-[12px] italic text-red-600 font-serif mb-2">(Pursuant to DepEd Order 8 series of 2015)</p>
-                                    <div className="grid gap-x-4 gap-y-3 text-[10px] font-bold uppercase mb-6 justify-center w-full px-2" style={{ gridTemplateColumns: '42% 33% 25%' }}>
+                                    <div className="grid gap-x-4 gap-y-3 text-[10px] font-bold uppercase mb-6 justify-center w-full px-2 text-black" style={{ gridTemplateColumns: '42% 33% 25%' }}>
                                         {/* Row 1, Col 1: Region */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">REGION</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-25 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">REGION</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-25 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[10px]")}`}>
                                                 {schoolProfile.region}
                                             </div>
                                         </div>
                                         {/* Row 1, Col 2: Division */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DIVISION</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">DIVISION</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[10px]")}`}>
                                                 {schoolProfile.division}
                                             </div>
                                         </div>
                                         {/* Row 1, Col 3: District */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">DISTRICT</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.district || '', "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">DISTRICT</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-30 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.district || '', "text-[10px]")}`}>
                                                 {schoolProfile.district || ''}
                                             </div>
                                         </div>
 
                                         {/* Row 2, Col 1: School Name */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL NAME</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-35 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL NAME</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-35 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[10px]")}`}>
                                                 {schoolProfile.name}
                                             </div>
                                         </div>
                                         {/* Row 2, Col 2: School ID */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL ID</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL ID</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[10px]")}`}>
                                                 {schoolProfile.school_id}
                                             </div>
                                         </div>
                                         {/* Row 2, Col 3: School Year */}
-                                        <div className="flex items-center min-h-6.5">
-                                            <span className="text-slate-500 mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[10px]")}`}>
+                                        <div className="flex items-center min-h-6.5 text-black">
+                                            <span className="text-black font-bold mr-2 whitespace-nowrap shrink-0">SCHOOL YEAR</span>
+                                            <div className={`border border-black px-2 py-0.5 flex-1 min-w-20 text-center bg-white text-black flex items-center justify-center wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[10px]")}`}>
                                                 {activeSchoolYear}
                                             </div>
                                         </div>

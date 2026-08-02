@@ -514,6 +514,17 @@ export function ShsEClassRecord() {
         if (!selectedSectionObj) return [];
         let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)].filter(s => s.term !== 'none');
 
+        // Deduplicate base subjects by normalized subject name
+        const seenNames = new Set<string>();
+        const uniqueBase: Subject[] = [];
+        for (const s of base) {
+            const norm = s.subject_name.trim().toLowerCase();
+            if (norm && seenNames.has(norm)) continue;
+            if (norm) seenNames.add(norm);
+            uniqueBase.push(s);
+        }
+        base = uniqueBase;
+
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
         if (typeof quarter === 'number') {
             base = base.filter(s => s.term === undefined || s.term === null || s.term === 'all' || Number(s.term) === quarter);
@@ -1623,7 +1634,7 @@ export function ShsEClassRecord() {
                         </div>
                     ) : (
                     <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 text-black">
-                        <div id="printable-class-record" className="bg-white dark:bg-[#070a12] p-4 md:p-6 shadow-xl border border-gray-100 dark:border-white/5 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }

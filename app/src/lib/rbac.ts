@@ -191,8 +191,9 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         const seen = new Set<string>();
         
         for (const s of combined) {
-            if (!seen.has(s.subject_name)) {
-                seen.add(s.subject_name);
+            const key = s.subject_name.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
                 unique.push(s);
             }
         }
@@ -204,10 +205,28 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
     const gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
     if (gradeLevelSubjects.length > 0) {
-        return gradeLevelSubjects;
+        const unique: Subject[] = [];
+        const seen = new Set<string>();
+        for (const s of gradeLevelSubjects) {
+            const key = s.subject_name.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(s);
+            }
+        }
+        return unique;
     }
     
-    return directlyLinked;
+    const uniqueDirect: Subject[] = [];
+    const seenDirect = new Set<string>();
+    for (const s of directlyLinked) {
+        const key = s.subject_name.trim().toLowerCase();
+        if (!seenDirect.has(key)) {
+            seenDirect.add(key);
+            uniqueDirect.push(s);
+        }
+    }
+    return uniqueDirect;
 }
 
 export function canAccessSF9Section(user: User | null | undefined, section: Section): boolean {
