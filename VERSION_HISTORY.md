@@ -2,6 +2,23 @@
 
 # Version History
 
+## v2.8.3 (2026-08-03)
+
+### 🚀 New Features & Enhancements
+
+- **Expanded Onboarding Spotlight Tour**: Updated interactive onboarding wizard to 22 spotlight steps, including new tour highlights for Daily Attendance (`sidebar-daily-attendance`), Student ID Generator (`sidebar-student-id-generator`), and Online Generators (`sidebar-online-generators`).
+- **Automated Target Auto-Scrolling**: Integrated `scrollIntoView` into the spotlight tour engine to automatically scroll sidebar items into view when highlighted.
+- **3-Term Grading Terminology**: Standardized terminology in E-Class Record and Grade Management from "Quarterly" to "Term" to seamlessly support 3-term school calendars.
+
+### ⚡ Improvements
+
+- **Accurate Feature Descriptions**: Audited and updated all onboarding step descriptions and feature bullets to 100% accurately reflect actual app capabilities (DLL Generators in ILAW format, Wheel of Names, Noise Monitor, Quiz Show, Team Splitters).
+- **Documentation Quality**: Resolved Markdown formatting linter warnings (`MD031`, `MD012`) in `AUDIT_REPORT.md`.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.8.2 (2026-08-02)
 
 ### ⚡ Improvements

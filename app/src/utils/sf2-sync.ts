@@ -37,7 +37,7 @@ function loadHolidays(): string[] {
         const parsedEvents = JSON.parse(storedEvents);
         if (!Array.isArray(parsedEvents)) return [];
         return parsedEvents
-            .filter((e: CalendarEvent) => e.type === 'holiday')
+            .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
             .flatMap((e: CalendarEvent) => {
                 const dates: string[] = [];
                 try {

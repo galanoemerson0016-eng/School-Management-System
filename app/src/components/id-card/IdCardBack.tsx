@@ -64,6 +64,57 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
 
     const cardFontFamily = template === 'academic' ? "'Georgia', Times, serif" : "'Segoe UI', Arial, sans-serif";
 
+    // Dynamic scale calculations for back face to prevent text overflow or truncation (...)
+    const emergencyNameStr = model.emergencyName || '';
+    const emNameLen = emergencyNameStr.length;
+    const emNameFontSize = 
+        emNameLen > 40 ? '1.3mm' :
+        emNameLen > 34 ? '1.5mm' :
+        emNameLen > 28 ? '1.7mm' :
+        emNameLen > 22 ? '1.95mm' :
+        '2.3mm';
+
+    const emergencyContactStr = model.emergencyContact || '';
+    const emContactLen = emergencyContactStr.length;
+    const emContactFontSize = 
+        emContactLen > 26 ? '1.5mm' :
+        emContactLen > 20 ? '1.8mm' :
+        '2.3mm';
+
+    const emergencyAddressStr = model.emergencyAddress || '';
+    const emAddrLen = emergencyAddressStr.length;
+    const emAddrFontSize = 
+        emAddrLen > 48 ? '1.2mm' :
+        emAddrLen > 38 ? '1.4mm' :
+        emAddrLen > 30 ? '1.6mm' :
+        emAddrLen > 22 ? '1.85mm' :
+        '2.2mm';
+
+    const gradeSecStr = model.gradeLevel && model.section 
+        ? `${model.gradeLevel.replace(/^Grade\s*/i, '')} - ${model.section}` 
+        : (model.gradeLevel?.replace(/^Grade\s*/i, '') || model.section || '');
+    const gradeSecLen = gradeSecStr.length;
+    const gradeSecFontSize = 
+        gradeSecLen > 32 ? '1.1mm' :
+        gradeSecLen > 24 ? '1.25mm' :
+        gradeSecLen > 16 ? '1.45mm' :
+        '1.65mm';
+
+    const sigNameStr = model.signatoryName || 'AGAPITO S. GONZAGA';
+    const sigNameLen = sigNameStr.length;
+    const sigNameFontSize = 
+        sigNameLen > 38 ? '1.6mm' :
+        sigNameLen > 30 ? '1.85mm' :
+        sigNameLen > 22 ? '2.15mm' :
+        '2.6mm';
+
+    const sigPosStr = model.signatoryPosition || 'OIC-School Head HT VI';
+    const sigPosLen = sigPosStr.length;
+    const sigPosFontSize = 
+        sigPosLen > 36 ? '1.2mm' :
+        sigPosLen > 26 ? '1.45mm' :
+        '1.8mm';
+
     return (
         <div
             className="id-card id-card-back"
@@ -491,13 +542,13 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                                 textAlign: 'center', 
                                 verticalAlign: 'middle', 
                                 textTransform: 'uppercase', 
-                                fontSize: '1.65mm', 
+                                fontSize: gradeSecFontSize, 
                                 fontWeight: 800,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.1,
                                 padding: '0 0.5mm',
                             }}>
-                                {model.gradeLevel && model.section ? `${model.gradeLevel.replace(/^Grade\s*/i, '')} - ${model.section}` : (model.gradeLevel?.replace(/^Grade\s*/i, '') || model.section || '')}
+                                {gradeSecStr}
                             </td>
                             <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0.1mm' }}>
                                 {model.adviserSignatureUrl && (
@@ -542,7 +593,7 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6mm', marginTop: '0.2mm' }}>
                         <div>
                             <div style={{
-                                fontSize: '2.3mm',
+                                fontSize: emNameFontSize,
                                 fontWeight: 800,
                                 color: '#000000',
                                 borderBottom: `0.15mm solid ${primaryColor}`,
@@ -552,17 +603,17 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                                 textAlign: 'center',
                                 textTransform: 'uppercase',
                                 fontFamily: cardFontFamily,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.1,
                             }}>
-                                {model.emergencyName}
+                                {emergencyNameStr}
                             </div>
                             <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Guardian</div>
                         </div>
 
                         <div>
                             <div style={{
-                                fontSize: '2.3mm',
+                                fontSize: emContactFontSize,
                                 fontWeight: 800,
                                 color: '#000000',
                                 borderBottom: `0.15mm solid ${primaryColor}`,
@@ -571,17 +622,17 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                                 paddingBottom: '0.05mm',
                                 textAlign: 'center',
                                 fontFamily: cardFontFamily,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.1,
                             }}>
-                                {model.emergencyContact}
+                                {emergencyContactStr}
                             </div>
                             <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Contact</div>
                         </div>
 
                         <div>
                             <div style={{
-                                fontSize: '2.2mm',
+                                fontSize: emAddrFontSize,
                                 fontWeight: 800,
                                 color: '#000000',
                                 borderBottom: `0.15mm solid ${primaryColor}`,
@@ -591,10 +642,10 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                                 textAlign: 'center',
                                 textTransform: 'uppercase',
                                 fontFamily: cardFontFamily,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                                lineHeight: 1.1,
                             }}>
-                                {model.emergencyAddress}
+                                {emergencyAddressStr}
                             </div>
                             <div style={{ fontSize: '1.5mm', fontStyle: 'italic', color: primaryColor, marginTop: '0.05mm' }}>Address</div>
                         </div>
@@ -637,14 +688,14 @@ export function IdCardBack({ model }: { model: IdCardViewModel }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                     }}>
-                        <div style={{ fontSize: '2.6mm', fontWeight: 900, textTransform: 'uppercase', color: primaryColor, letterSpacing: '0.04mm' }}>
-                            {model.signatoryName || 'AGAPITO S. GONZAGA'}
+                        <div style={{ fontSize: sigNameFontSize, fontWeight: 900, textTransform: 'uppercase', color: primaryColor, letterSpacing: '0.04mm', textAlign: 'center', wordBreak: 'break-word' }}>
+                            {sigNameStr}
                         </div>
                     </div>
                     
                     {/* Signatory Position */}
-                    <div style={{ fontSize: '1.8mm', color: primaryColor, fontWeight: 700, textTransform: 'uppercase', padding: '0.1mm 0 0.4mm' }}>
-                        {model.signatoryPosition || 'OIC-School Head HT VI'}
+                    <div style={{ fontSize: sigPosFontSize, color: primaryColor, fontWeight: 700, textTransform: 'uppercase', padding: '0.1mm 0 0.4mm', textAlign: 'center', wordBreak: 'break-word' }}>
+                        {sigPosStr}
                     </div>
                 </div>
             </div>

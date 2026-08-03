@@ -80,40 +80,58 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
     const bgPosX = model.bgImagePositionX ?? 50;
     const bgPosY = model.bgImagePositionY ?? 50;
 
-    // Adaptive name sizing and letter-spacing to prevent text overflow on long names, keeping it strictly single-line
+    // Adaptive name and header sizing to prevent text overflow or truncation (...)
     const nameLength = (model.fullName || '').length;
     const nameFontSize = 
-        nameLength > 32
-            ? '1.8mm'
+        nameLength > 44
+            ? '1.35mm'
+            : nameLength > 38
+            ? '1.55mm'
+            : nameLength > 32
+            ? '1.75mm'
             : nameLength > 28
-            ? '2.0mm'
+            ? '1.95mm'
             : nameLength > 24
-            ? '2.3mm'
+            ? '2.2mm'
             : nameLength > 20
-            ? '2.6mm'
+            ? '2.5mm'
             : nameLength > 15
-            ? '2.9mm'
+            ? '2.85mm'
             : '3.2mm';
     const lrnFontSize = 
-        nameLength > 32
+        nameLength > 44
+            ? '1.3mm'
+            : nameLength > 36
             ? '1.5mm'
             : nameLength > 28
-            ? '1.65mm'
-            : nameLength > 24
-            ? '1.9mm'
+            ? '1.7mm'
             : nameLength > 20
-            ? '2.1mm'
+            ? '2.0mm'
             : nameLength > 15
             ? '2.3mm'
             : '2.6mm';
     const nameLetterSpacing = 
-        nameLength > 32
+        nameLength > 40
+            ? '-0.12mm'
+            : nameLength > 32
             ? '-0.08mm'
-            : nameLength > 28
-            ? '-0.05mm'
-            : nameLength > 24
-            ? '-0.02mm'
+            : nameLength > 26
+            ? '-0.04mm'
             : 'normal';
+
+    const schoolNameLen = (model.schoolName || 'CALIBUNGAN HIGH SCHOOL').length;
+    const schoolNameFontSizeScale = 
+        schoolNameLen > 38 ? 0.65 :
+        schoolNameLen > 30 ? 0.75 :
+        schoolNameLen > 24 ? 0.85 :
+        schoolNameLen > 18 ? 0.95 :
+        1.0;
+
+    const divisionLen = (model.division || '').length;
+    const divisionFontSizeScale = divisionLen > 28 ? 0.75 : divisionLen > 20 ? 0.88 : 1.0;
+    const addressLen = (model.schoolAddress || '').length;
+    const addressFontSizeScale = addressLen > 28 ? 0.75 : addressLen > 20 ? 0.88 : 1.0;
+
     const nameFontFamily = template === 'academic' ? "'Georgia', Times, serif" : "'Segoe UI', Arial, sans-serif";
 
     return (
@@ -529,16 +547,16 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
                         {model.region}
                     </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale * divisionFontSizeScale}mm`, opacity: 0.9 }}>
                         {model.division}
                     </div>
                     <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9 }}>
                         {model.district}
                     </div>
-                    <div style={{ fontSize: `${2.0 * model.headerFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: `${2.0 * model.headerFontSizeScale * schoolNameFontSizeScale}mm`, fontWeight: 800, textTransform: 'uppercase', marginTop: '0.2mm', lineHeight: 1.1 }}>
                         {model.schoolName || 'CALIBUNGAN HIGH SCHOOL'}
                     </div>
-                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale}mm`, opacity: 0.9, textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: `${1.3 * model.headerFontSizeScale * addressFontSizeScale}mm`, opacity: 0.9, textTransform: 'uppercase' }}>
                         {model.schoolAddress || 'VICTORIA, TARLAC'}
                     </div>
                 </div>
@@ -611,7 +629,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: model.show.slot ? '1.2mm' : '2.0mm', flex: 1 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <span style={{ fontSize: '1.15mm', fontWeight: 700, color: `${primaryColor}b0`, textTransform: 'uppercase', letterSpacing: '0.08mm', marginBottom: '0.2mm' }}>STUDENT NAME</span>
-                            <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
+                            <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                                 {model.fullName || 'STUDENT NAME'}
                             </div>
                         </div>
@@ -626,7 +644,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                 ) : template === 'academic' ? (
                     // Academic layout (Georgia font names, ornamental lines)
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ fontFamily: nameFontFamily, fontSize: nameFontSize, fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase', color: primaryColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontFamily: nameFontFamily, fontSize: nameFontSize, fontWeight: 700, lineHeight: 1.1, textTransform: 'uppercase', color: primaryColor, width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -658,7 +676,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             STUDENT
                         </div>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.15, textTransform: 'uppercase', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.15, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -671,7 +689,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                 ) : template === 'playful' ? (
                     // Playful layout (Pills, circular accents)
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         <div style={{ 
@@ -704,7 +722,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             STUDENT
                         </div>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -745,7 +763,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             STUDENT
                         </div>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -772,7 +790,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             STUDENT
                         </div>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -800,7 +818,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                         }}>
                             STUDENT
                         </div>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 900, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         
@@ -813,7 +831,7 @@ export function IdCardFront({ model }: { model: IdCardViewModel }) {
                 ) : (
                     // Standard / Lanyard / Compact general styles
                     <>
-                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', fontFamily: nameFontFamily, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', letterSpacing: nameLetterSpacing }}>
+                        <div style={{ fontSize: nameFontSize, fontWeight: 800, lineHeight: 1.1, textTransform: 'uppercase', color: '#0f172a', fontFamily: nameFontFamily, width: '100%', wordBreak: 'break-word', textAlign: 'center', letterSpacing: nameLetterSpacing }}>
                             {model.fullName || 'STUDENT NAME'}
                         </div>
                         <div style={{ fontSize: lrnFontSize, color: '#475569', marginTop: model.show.slot ? '0.8mm' : '1.2mm', fontWeight: 600, letterSpacing: '0.1mm' }}>

@@ -144,7 +144,7 @@ function getActiveWeeks(month: string, schoolYear: string, includeSaturdays: boo
                     const parsedEvents = JSON.parse(storedEvents);
                     if (Array.isArray(parsedEvents)) {
                         holidays = parsedEvents
-                            .filter((e: CalendarEvent) => e.type === 'holiday')
+                            .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
                             .flatMap((e: CalendarEvent) => {
                                 const dates: string[] = [];
                                 try {
@@ -246,7 +246,7 @@ function buildDefaultSf2DateLabels(month: string, schoolYear: string): Record<nu
             const parsedEvents = JSON.parse(storedEvents);
             if (Array.isArray(parsedEvents)) {
                 holidays = parsedEvents
-                    .filter((e: CalendarEvent) => e.type === 'holiday')
+                    .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
                     .flatMap((e: CalendarEvent) => {
                         const dates: string[] = [];
                         try {
@@ -1063,7 +1063,7 @@ function computeStudentAttendance(
                 const parsedEvents = JSON.parse(storedEvents);
                 if (Array.isArray(parsedEvents)) {
                     holidays = parsedEvents
-                        .filter((e: CalendarEvent) => e.type === 'holiday')
+                        .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
                         .flatMap((e: CalendarEvent) => {
                             const dates: string[] = [];
                             try {

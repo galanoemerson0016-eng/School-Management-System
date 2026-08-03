@@ -29,7 +29,7 @@ FormEase Pro is a mature, offline-first school management desktop application ta
 ### Domain Health Scores
 
 | Domain | Score | Notes |
-|--------|-------|-------|
+| --- | --- | --- |
 | Security | 6 / 10 | Strong encryption and auth; backup export and salt storage are critical gaps |
 | Feature Completeness | 9 / 10 | All six DepEd forms implemented; minor gaps noted |
 | Code Quality | 7 / 10 | Well-structured; renderer files are too large, app-store is monolithic |
@@ -40,7 +40,7 @@ FormEase Pro is a mature, offline-first school management desktop application ta
 ### Top 5 Critical Findings
 
 | # | Severity | Finding | Fix Section |
-|---|----------|---------|-------------|
+| --- | --- | --- | --- |
 | 1 | 🔴 CRITICAL | Manual backup files export as plaintext JSON — student PII unencrypted on disk | [4.2-A](#a-backup-exports-are-plaintext-json) |
 | 2 | 🔴 CRITICAL | No cryptographic integrity check on backup files — tampered backups accepted silently | [4.2-B](#b-no-integrity-check-before-backup-restore) |
 | 3 | 🟠 HIGH | Encryption salt and session key in `localStorage`/`sessionStorage` — readable by renderer scripts | [4.2-C](#c-encryption-salt-and-session-key-in-browser-storage) |
@@ -75,7 +75,7 @@ FormEase Pro is a mature, offline-first school management desktop application ta
 ### 3.1 Technology Stack
 
 | Layer | Technology | Version |
-|-------|-----------|---------|
+| --- | --- | --- |
 | Desktop shell | Electron | 41.2.2 |
 | UI framework | React | 19.2.0 |
 | Language | TypeScript | 5.9.3 |
@@ -91,7 +91,7 @@ FormEase Pro is a mature, offline-first school management desktop application ta
 
 ### 3.2 Data Flow
 
-```
+```text
 User Action
     │
     ▼
@@ -114,7 +114,7 @@ IndexedDB "FormEaseDB" v8  (14 object stores)
 ### 3.3 IndexedDB Stores
 
 | Store | Key | Encrypted | Contains |
-|-------|-----|-----------|---------|
+| --- | --- | --- | --- |
 | `students` | `lrn` | ✅ Yes | Full student PII |
 | `classRecords` | `id` | ✅ Yes | Grades per student/subject/term |
 | `enrollments` | `id` | ✅ Yes | Enrollment records |
@@ -133,7 +133,7 @@ IndexedDB "FormEaseDB" v8  (14 object stores)
 ### 3.4 State Stores
 
 | Store | Fields | Responsibility |
-|-------|--------|--------------|
+| --- | --- | --- |
 | `app-store.ts` | ~50 | Master store: students, sections, subjects, grades, attendance, SF2, school years, UI state, backup/restore, notifications, cloud sync |
 | `auth-store.ts` | ~15 | Login session, PBKDF2 hashing, security questions, 12-hour expiry, legacy migration |
 | `sf10-store.ts` | ~5 | SF10 cell overrides + timestamped snapshots (last 20 retained) |
@@ -141,7 +141,7 @@ IndexedDB "FormEaseDB" v8  (14 object stores)
 
 ### 3.5 Module Map
 
-```
+```text
 app/src/
 ├── pages/          31 full-screen views
 ├── components/     47 components (16 games/tools, SF renderers, modals, layout)
@@ -158,7 +158,7 @@ app/src/
 ### 4.1 Security Strengths
 
 | Control | Detail |
-|---------|--------|
+| --- | --- |
 | Password hashing | PBKDF2 / SHA-256, 310,000 iterations, random salt per install |
 | DB key derivation | PBKDF2 / SHA-256, 100,000 iterations → AES-256 key |
 | Record encryption | AES-256-GCM, random 12-byte IV per record |
@@ -187,6 +187,7 @@ app/src/
 1. **Read `backup-encryption.ts`** to confirm the encrypt/decrypt API signatures before calling them.
 
 2. **In `SettingsPage.tsx`**, when the user clicks "Download Backup", show a password prompt modal instead of triggering the download immediately:
+
    ```tsx
    const [backupPassword, setBackupPassword] = useState('');
    const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -205,6 +206,7 @@ app/src/
    ```
 
 3. **In `backup-restore.ts`**, add an `exportEncryptedBackup()` function:
+
    ```ts
    import { encryptBackupFile } from './backup-encryption'; // adjust import path
 
@@ -219,6 +221,7 @@ app/src/
    ```
 
 4. **Change the download file extension** from `.json` to `.febackup` so users know it is encrypted:
+
    ```ts
    const url = URL.createObjectURL(blob);
    const a = document.createElement('a');
@@ -228,6 +231,7 @@ app/src/
    ```
 
 5. **Update the restore flow** to detect encrypted vs plaintext backups by checking the file header before parsing:
+
    ```ts
    export async function loadBackupFile(
      file: File,
@@ -258,6 +262,7 @@ app/src/
 **Steps to Fix:**
 
 1. **At export time**, compute a SHA-256 hash of the payload and embed it in `metadata`:
+
    ```ts
    async function hashPayload(payload: ComprehensiveBackup['payload']): Promise<string> {
      const json = JSON.stringify(payload);
@@ -273,6 +278,7 @@ app/src/
    ```
 
 2. **Add `payloadHash` to `BackupMetadata`** in `backup-restore.ts`:
+
    ```ts
    export interface BackupMetadata {
      exportDate: string;
@@ -285,6 +291,7 @@ app/src/
    ```
 
 3. **In `validateBackup()`**, verify the hash before accepting the restore:
+
    ```ts
    export async function validateBackup(
      backup: ComprehensiveBackup
@@ -314,6 +321,7 @@ app/src/
 **Files:** [app/src/utils/db-crypto.ts](app/src/utils/db-crypto.ts) — `getDbSalt()`, `exportKeyToSession()`
 
 **Problem:**
+
 - The PBKDF2 salt (`formease-db-salt-v1`) is stored as plain base64 in `localStorage`.
 - The derived AES-256 key (`formease-db-session-key`) is exported and stored as base64 in `sessionStorage`.
 
@@ -322,6 +330,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Add an IPC channel in `app/electron/main.cjs`** for salt storage using Electron's `safeStorage` (OS credential manager on Windows, Keychain on macOS):
+
    ```js
    const { safeStorage } = require('electron');
    const fs = require('fs');
@@ -341,6 +350,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
    ```
 
 2. **Expose the channel via `preload.cjs`**:
+
    ```js
    contextBridge.exposeInMainWorld('electronAPI', {
      storeDbSalt: (saltBase64) => ipcRenderer.invoke('store-db-salt', saltBase64),
@@ -349,6 +359,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
    ```
 
 3. **Update `getDbSalt()` in `db-crypto.ts`** to use the IPC bridge instead of `localStorage`:
+
    ```ts
    export async function getDbSalt(): Promise<Uint8Array> {
      const stored = await window.electronAPI?.readDbSalt();
@@ -363,6 +374,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 4. **Remove `exportKeyToSession()` usage** — keep the `CryptoKey` object in memory only (it lives for the life of the renderer process, which is the session). The key does not need to survive process restarts; re-derive it on next login. Delete calls to `exportKeyToSession` and `importKeyFromSession` from `auth-store.ts`.
 
 5. **Remove the old `localStorage` salt key** on first migration:
+
    ```ts
    // One-time migration: remove plaintext salt from localStorage
    localStorage.removeItem('formease-db-salt-v1');
@@ -381,6 +393,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Add a size guard at the top of each import function** before touching the `FileReader`:
+
    ```ts
    const MAX_IMPORT_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -398,6 +411,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 2. **Apply the same guard** to `importSectionsFromExcel()` and `importSubjectsFromExcel()`.
 
 3. **(Optional — P3) Validate XLSX magic bytes** after reading to ensure the file is actually an Office Open XML package:
+
    ```ts
    const bytes = new Uint8Array(data as ArrayBuffer);
    const isXlsx = bytes[0] === 0x50 && bytes[1] === 0x4B &&
@@ -420,6 +434,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Change the constant to 7 days**:
+
    ```js
    // Before:
    const maxOfflineMs = 30 * 24 * 60 * 60 * 1000;
@@ -429,6 +444,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
    ```
 
 2. **Show a user-facing warning at 5 days** (i.e., 2 days before expiry of the grace period) so offline users know to connect:
+
    ```js
    const daysOffline = (Date.now() - lastVerified) / (24 * 60 * 60 * 1000);
    if (daysOffline > 5) {
@@ -451,6 +467,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Add a comment to `firebase.ts`** explaining the intentional design:
+
    ```ts
    // NOTE: These Firebase credentials are intentionally embedded in the client bundle.
    // The API key is not a secret — Firebase Security Rules (firestore.rules) are the
@@ -473,6 +490,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **In the desktop app**, hash the machine ID before using it as the document ID:
+
    ```ts
    async function getTrialDocId(machineId: string): Promise<string> {
      const data = new TextEncoder().encode(machineId + 'formease-trial-v1');
@@ -499,6 +517,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix (if multi-user is planned):**
 
 1. Update each `can*()` function to check `user.role` or `user.roles[]`:
+
    ```ts
    export function canEditEClassSection(user: User | null, sectionAdviserId?: string): boolean {
      if (!user) return false;
@@ -526,7 +545,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 ### 4.3 Security Summary
 
 | Severity | Count | Items |
-|----------|-------|-------|
+| --- | --- | --- |
 | 🔴 Critical | 2 | Plaintext backup export, no backup integrity check |
 | 🟠 High | 3 | Browser storage for salt/key, no Excel file-size guard, 30-day grace period |
 | 🟡 Medium | 2 | Firebase key undocumented, trial ID enumerable |
@@ -539,7 +558,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 ### 5.1 Implemented Features
 
 | Category | Feature | Status |
-|---------|---------|--------|
+| --- | --- | --- |
 | **School Forms** | SF2 Daily Attendance Sheet | ✅ Complete |
 | | SF5 Report on Promotion | ✅ Complete |
 | | SF6 Summarized Promotion Report | ✅ Complete |
@@ -567,7 +586,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 | **Announcements** | Local + optional Firebase cloud sync | ✅ Complete |
 | **Award Evaluations** | 8 award types with scored competencies per DepEd framework | ✅ Complete |
 | **Backup & Restore** | Auto-backup (daily, 5-rotation), manual backup, selective restore | ✅ Complete |
-| **Onboarding** | 17-step interactive wizard with spotlight highlighting | ✅ Complete |
+| **Onboarding** | 22-step interactive wizard with spotlight highlighting | ✅ Complete |
 | **Games & Tools** | 16 educational classroom tools | ✅ Complete |
 | **Licensing** | Hardware-bound license with online verification | ✅ Complete |
 | **Auto-update** | electron-updater with hosted update server | ✅ Complete |
@@ -575,12 +594,12 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 ### 5.2 Gaps and Improvement Opportunities
 
 | Item | Detail | Fix Steps | Priority |
-|------|--------|-----------|---------|
+| --- | --- | --- | --- |
 | Encrypted backup export | Manual exports are plaintext; `backup-encryption.ts` is unwired | See [Section 4.2-A](#a-backup-exports-are-plaintext-json) | P0 |
 | Anecdotal/LIR records | `AnecdotalRecordPage.tsx` deleted in current working tree; no sidebar replacement visible | Re-add a route or replace with a new LIR component | P2 |
 | Activity log persistence | Form activity log in `SchoolFormsPage.tsx` uses `localStorage` — wiped on restore/reinstall | Move to a new `activityLog` IndexedDB store; see [Section 6.2](#62-issues) | P2 |
 | Bulk attendance import | Attendance entry is manual only; no Excel/CSV import | Add import function to `excel-import.ts` following the existing student import pattern | P3 |
-| Grade approval workflow | All grade edits are immediately final; no supervisor review step | Add a `status: 'draft' | 'submitted' | 'approved'` field to `ClassRecord` | P3 |
+| Grade approval workflow | All grade edits are immediately final; no supervisor review step | Add a `status: 'draft' / 'submitted' / 'approved'` field to ClassRecord | P3 |
 
 ---
 
@@ -601,7 +620,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 #### Issue 1 — Oversized SF10/SF9 renderer files
 
 | File | Size |
-|------|------|
+| --- | --- |
 | `SF10SpecRenderer.tsx` | 84 KB |
 | `SF10JHSRenderer.tsx` | 77 KB |
 | `SF10SHSRenderer.tsx` | 33 KB |
@@ -610,7 +629,8 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Split `SF10JHSRenderer.tsx`** into logical sub-components:
-   ```
+
+   ```text
    components/
    ├── sf10/
    │   ├── SF10JHSHeader.tsx         ← school info, student info block
@@ -633,6 +653,7 @@ Both are accessible to any JavaScript executing in the renderer process. A compr
 **Steps to Fix:**
 
 1. **Create `stores/attendance-store.ts`**:
+
    ```ts
    import { create } from 'zustand';
    interface AttendanceStore {
@@ -666,11 +687,13 @@ Only grading math has unit test coverage. The backup/restore flow, license activ
 **Steps to Fix:**
 
 1. **Install testing libraries**:
+
    ```bash
    npm install -D @testing-library/react @testing-library/user-event @testing-library/jest-dom
    ```
 
 2. **Configure Vitest** to include the DOM environment in `vite.config.ts`:
+
    ```ts
    test: {
      environment: 'jsdom',
@@ -679,11 +702,13 @@ Only grading math has unit test coverage. The backup/restore flow, license activ
    ```
 
 3. **Create `src/test-setup.ts`**:
+
    ```ts
    import '@testing-library/jest-dom';
    ```
 
 4. **Write a smoke test for Dashboard** at `src/__tests__/Dashboard.test.tsx`:
+
    ```tsx
    import { render, screen } from '@testing-library/react';
    import Dashboard from '../pages/Dashboard';
@@ -705,6 +730,7 @@ Several SF10 and LIR renderer components inject CSS via `dangerouslySetInnerHTML
 **Steps to Fix:**
 
 1. For simple cases, replace with a `<style>` JSX element:
+
    ```tsx
    // Before:
    <div dangerouslySetInnerHTML={{ __html: '<style>.sf10 { ... }</style>' }} />
@@ -714,6 +740,7 @@ Several SF10 and LIR renderer components inject CSS via `dangerouslySetInnerHTML
    ```
 
 2. Add a comment on any remaining instances explaining why it is safe:
+
    ```tsx
    {/* CSS string is statically generated — no user input involved */}
    <div dangerouslySetInnerHTML={{ __html: cssString }} />
@@ -728,12 +755,14 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
 **Steps to Fix:**
 
 1. **Add an `activityLog` store** to `database.ts`:
+
    ```ts
    // In DB_STORES or createObjectStore call during upgrade:
    db.createObjectStore('activityLog', { keyPath: 'id' });
    ```
 
 2. **Create an `ActivityLogEntry` type** in `types/index.ts`:
+
    ```ts
    export interface ActivityLogEntry {
      id: string;
@@ -756,7 +785,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
 ### 7.1 Runtime Dependency Status
 
 | Package | Version | Status | Action |
-|---------|---------|--------|--------|
+| --- | --- | --- | --- |
 | `react` + `react-dom` | ^19.2.0 | ✅ Current | None |
 | `electron` | 41.2.2 | ✅ Current | None |
 | `firebase` | ^12.12.1 | ✅ Current | None |
@@ -774,7 +803,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
 ### 7.2 Dev Dependency Status
 
 | Package | Status | Action |
-|---------|--------|--------|
+| --- | --- | --- |
 | `vite-plugin-javascript-obfuscator` | ✅ Keep | Correct entry point |
 | `javascript-obfuscator` | ❌ Remove direct dep | Already pulled in transitively by the plugin |
 | `@testing-library/react` | ❌ Missing | Add — see [Section 6.2 Issue 3](#issue-3--no-integration-or-ui-tests) |
@@ -783,11 +812,13 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
 ### 7.3 Fix Steps — Remove Redundant Dependencies
 
 1. **Find all usages of `dom-to-image-more`**:
+
    ```bash
    grep -r "dom-to-image-more" app/src --include="*.tsx" --include="*.ts" -l
    ```
 
 2. **For each file found**, replace the `domtoimage` calls with `html2canvas`:
+
    ```ts
    // Before (dom-to-image-more):
    import domtoimage from 'dom-to-image-more';
@@ -800,6 +831,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
    ```
 
 3. **Uninstall** both redundant packages:
+
    ```bash
    cd app
    npm uninstall dom-to-image-more javascript-obfuscator
@@ -818,6 +850,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
 **Steps to Fix:**
 
 1. **Change batch rendering from parallel to sequential** in the PDF generation function:
+
    ```ts
    // Before (parallel — all at once):
    const images = await Promise.all(students.map(s => renderAndCapture(s)));
@@ -834,6 +867,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
    ```
 
 2. **Add a progress bar** to the PDF generation modal:
+
    ```tsx
    {isGenerating && (
      <div className="mt-4">
@@ -851,6 +885,7 @@ The form generation activity log in `SchoolFormsPage.tsx` is stored in `localSto
    ```
 
 3. **Dispose the temporary container** after each capture:
+
    ```ts
    async function renderAndCapture(student: Student): Promise<string> {
      const container = document.createElement('div');
@@ -911,6 +946,7 @@ const genderDistribution = useMemo(
 **Steps to Fix:**
 
 1. **Add a paginated read method** to `database.ts`:
+
    ```ts
    async getRecordsPaginated<T>(
      storeName: string,
@@ -942,6 +978,7 @@ const genderDistribution = useMemo(
    ```
 
 2. **Use pagination in `StudentsPage.tsx`** for the student list view:
+
    ```tsx
    const PAGE_SIZE = 50;
    const [page, setPage] = useState(0);
@@ -960,7 +997,7 @@ const genderDistribution = useMemo(
 
 ### 8.4 Monolithic App Store Re-renders
 
-Splitting `app-store.ts` (described in [Section 6.2 Issue 2](#issue-2--monolithic-app-storerts)) also resolves this performance issue. Once attendance and grading state live in separate stores, toggling a UI flag in `appStore` will no longer re-render `AttendancePage` or `EClassRecord`.
+Splitting `app-store.ts` (described in [Section 6.2 Issue 2](#issue-2--monolithic-app-storets)) also resolves this performance issue. Once attendance and grading state live in separate stores, toggling a UI flag in `appStore` will no longer re-render `AttendancePage` or `EClassRecord`.
 
 ---
 
@@ -969,7 +1006,7 @@ Splitting `app-store.ts` (described in [Section 6.2 Issue 2](#issue-2--monolithi
 All findings from both audit documents, combined into a single prioritized action list with effort estimates and responsible files.
 
 | Priority | Severity | Category | Finding | File(s) | Effort | Section |
-|----------|----------|---------|---------|---------|--------|---------|
+| --- | --- | --- | --- | --- | --- | --- |
 | **P0** | 🔴 | Security | Backup files are unencrypted PII on disk | `backup-restore.ts`, `SettingsPage.tsx` | Medium | [4.2-A](#a-backup-exports-are-plaintext-json) |
 | **P0** | 🔴 | Security | No integrity check on backup restore | `backup-restore.ts` | Small | [4.2-B](#b-no-integrity-check-before-backup-restore) |
 | **P1** | 🟠 | Security | Salt + session key in browser storage | `db-crypto.ts`, `electron/main.cjs`, `preload.cjs` | Medium | [4.2-C](#c-encryption-salt-and-session-key-in-browser-storage) |
@@ -977,7 +1014,7 @@ All findings from both audit documents, combined into a single prioritized actio
 | **P1** | 🟠 | Security | 30-day offline license grace period | `electron/license.cjs` | Trivial | [4.2-E](#e-30-day-offline-license-grace-period) |
 | **P2** | 🟡 | Security | Trial doc ID = raw machine ID (enumerable) | `electron/license.cjs`, `firestore.rules` | Medium | [4.2-G](#g-trial-firestore-document-id-equals-machine-id) |
 | **P2** | — | Code Quality | SF10/SF9 renderer files 33–84 KB | `SF10JHSRenderer.tsx`, `SF10SpecRenderer.tsx`, `SF9SHSRenderer.tsx` | Large | [Issue 1](#issue-1--oversized-sf10sf9-renderer-files) |
-| **P2** | — | Code Quality | `app-store.ts` monolithic (~50 fields) | `stores/app-store.ts` | Large | [Issue 2](#issue-2--monolithic-app-storerts) |
+| **P2** | — | Code Quality | `app-store.ts` monolithic (~50 fields) | `stores/app-store.ts` | Large | [Issue 2](#issue-2--monolithic-app-storets) |
 | **P2** | — | Testing | No UI or integration tests | `package.json`, new `__tests__/` | Medium | [Issue 3](#issue-3--no-integration-or-ui-tests) |
 | **P2** | — | Performance | Dashboard analytics recomputed each render | `pages/Dashboard.tsx` | Small | [8.2](#82-dashboard-analytics-without-memoization) |
 | **P2** | — | Feature | Anecdotal/LIR records removed with no replacement | `pages/`, `Sidebar.tsx` | Medium | [5.2](#52-gaps-and-improvement-opportunities) |
@@ -993,25 +1030,29 @@ All findings from both audit documents, combined into a single prioritized actio
 
 ### Suggested Sprint Order
 
-**Sprint 1 — Security hardening (P0 + P1)**
+#### Sprint 1 — Security hardening (P0 + P1)
+
 - Wire `backup-encryption.ts` to the manual export flow (password prompt → encrypted `.febackup`)
 - Add `payloadHash` to backup metadata and verify it on restore
 - Add Excel file-size guard
 - Reduce license grace period to 7 days
 
-**Sprint 2 — Storage hardening + quality (P1 + P2)**
+#### Sprint 2 — Storage hardening + quality (P1 + P2)
+
 - Migrate DB salt to Electron `safeStorage`
 - Add Dashboard `useMemo` wrappers
 - Write smoke tests for Dashboard and EClassRecord
 - Begin `app-store.ts` split (attendance store first — smallest domain)
 
-**Sprint 3 — Maintainability (P2 + P3)**
+#### Sprint 3 — Maintainability (P2 + P3)
+
 - Split SF10JHSRenderer into sub-components
 - Remove `dom-to-image-more`, unify on `html2canvas-pro`
 - Sequential PDF batch generation with progress bar
 - Add activity log IndexedDB store
 
-**Sprint 4 — Scale and polish (P3)**
+#### Sprint 4 — Scale and polish (P3)
+
 - IndexedDB read pagination for students
 - Trial ID hashing for Firestore
 - RBAC enforcement (if multi-user mode is planned)
@@ -1022,9 +1063,11 @@ All findings from both audit documents, combined into a single prioritized actio
 ## Appendix — File Inventory
 
 ### Pages (31)
+
 `AccountSetupPage`, `ActivationPage`, `AnnouncementsPage`, `AttendancePage`, `CalendarPage`, `CertificateGeneratorPage`, `ConsolidatedGradesPage`, `Dashboard`, `EClassRecord`, `EnrollmentCenterPage`, `GamesAndToolsPage`, `InstitutePage`, `LIRPage`, `LoginPage`, `NameTagPage`, `ReportsPage`, `SF5Page`, `SF6Page`, `SF8Page`, `SF9Page`, `SF10Page`, `SchoolFormsPage`, `SectionsPage`, `SettingsPage`, `ShsEClassRecord`, `StudentsPage`, `SubjectsPage`, `TemporaryGradeSlipPage`, `UsersPage`, `AboutPage`
 
 ### Key Services
+
 `database.ts` — IndexedDB wrapper with transparent AES-256-GCM encryption  
 `AutoBackupManager.ts` — Daily auto-backup scheduler with 5-backup rotation  
 `announcement-sync.ts` — Firebase Firestore real-time sync for announcements  
@@ -1032,6 +1075,7 @@ All findings from both audit documents, combined into a single prioritized actio
 `excel-export.ts` — Formatted XLSX export
 
 ### Key Utils
+
 `db-crypto.ts` — PBKDF2 key derivation + AES-256-GCM encrypt/decrypt  
 `backup-restore.ts` — Backup creation, validation, restore logic  
 `backup-encryption.ts` — XChaCha20-Poly1305 file encryption (available, not wired to manual export)  

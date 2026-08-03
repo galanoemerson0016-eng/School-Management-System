@@ -173,7 +173,7 @@ function getActiveWeeks(month: string, schoolYear: string, includeSaturdays: boo
                     const parsedEvents = JSON.parse(storedEvents);
                     if (Array.isArray(parsedEvents)) {
                         holidays = parsedEvents
-                            .filter((e: CalendarEvent) => e.type === 'holiday')
+                            .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
                             .flatMap((e: CalendarEvent) => {
                                 const dates: string[] = [];
                                 try {
@@ -635,7 +635,7 @@ export function AttendancePage() {
                 const parsedEvents = JSON.parse(storedEvents);
                 if (Array.isArray(parsedEvents)) {
                     holidays = parsedEvents
-                        .filter((e: CalendarEvent) => e.type === 'holiday')
+                        .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
                         .flatMap((e: CalendarEvent) => {
                             const dates: string[] = [];
                             try {

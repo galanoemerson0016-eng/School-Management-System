@@ -16,11 +16,12 @@ import {
     FileSpreadsheet,
     BarChart3,
     ClipboardList,
+    ClipboardCheck,
+    IdCard,
     Megaphone,
     Calendar,
     Gamepad2,
     Settings,
-    Info,
     Users
 } from 'lucide-react';
 
@@ -41,276 +42,304 @@ export function OnboardingWizard({ onClose }: OnboardingWizardProps) {
             color: "from-blue-500 to-indigo-600",
             iconColor: "text-blue-500 bg-blue-50 dark:bg-blue-500/10",
             features: [
-                "Official DepEd Forms",
-                "Automated Grade Computations",
-                "Offline-First Backups",
+                "Official DepEd Forms (SF1–SF10)",
+                "Automated Grade & Attendance Calculations",
+                "Offline-First Encrypted Database",
                 "Spotlight Interactive Guide"
             ]
         },
         {
             title: "Navigation Sidebar",
-            description: "Access and navigate to all the system modules, tools, profiles, and configurations from this central menu panel.",
+            description: "Access all system modules, class management views, school forms, and utility tools from this central collapsible menu panel.",
             elementSelector: '[data-tour="sidebar"]',
             icon: Layers,
             color: "from-emerald-500 to-teal-600",
             iconColor: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10",
             features: [
-                "Reordered for optimal workflow",
-                "Collapsible desktop layout",
-                "Responsive mobile support",
-                "Context-aware permissions"
+                "Quick module navigation",
+                "Collapsible desktop menu",
+                "Responsive mobile drawer",
+                "App version status indicator"
             ]
         },
         {
             title: "Dashboard Module",
-            description: "View real-time school statistics, student population breakdown, attendance averages, class sections and teaching loads statistics, and current reminders.",
+            description: "View real-time school stats, total student enrollment counts, attendance averages, grading progress, top achievers, and students at risk.",
             elementSelector: '[data-tour="sidebar-dashboard"]',
             icon: LayoutDashboard,
             color: "from-blue-500 to-indigo-600",
             iconColor: "text-blue-500 bg-blue-50 dark:bg-blue-500/10",
             features: [
-                "Student enrollment count",
-                "Grading progress checks",
-                "Daily attendance metrics",
-                "Top and at-risk performers"
+                "Student enrollment analytics",
+                "Grading progress tracking",
+                "14-day attendance metrics",
+                "Top achiever & at-risk summaries"
             ]
         },
         {
             title: "Subjects Management",
-            description: "Define, customize, and edit the academic subjects taught in your classes, including learning area descriptors and specific grade level brackets.",
+            description: "Manage the academic subject registry for Elementary, JHS, and SHS, including curriculum templates, grade level assignments, and subject descriptions.",
             elementSelector: '[data-tour="sidebar-subjects"]',
             icon: GraduationCap,
             color: "from-emerald-500 to-teal-600",
             iconColor: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10",
             features: [
-                "Curriculum subject registry",
-                "Grade level association",
-                "Teaching load credentials",
-                "Subject descriptions editor"
+                "Curriculum subject templates",
+                "Elementary, JHS & SHS support",
+                "Bulk clean duplicate records",
+                "Custom subject descriptor editor"
             ]
         },
         {
             title: "Classes & Sections",
-            description: "Manage advisory groups, assign section names, track grade levels, and establish teaching loads for class records.",
+            description: "Create and organize class sections, assign grade levels, designate section advisers, and manage subject teaching loads.",
             elementSelector: '[data-tour="sidebar-sections"]',
             icon: Layers,
             color: "from-amber-500 to-orange-600",
             iconColor: "text-amber-500 bg-amber-50 dark:bg-amber-500/10",
             features: [
-                "Class list assignment",
-                "Advisory class toggles",
-                "Teaching load sections",
-                "Grade level organization"
+                "Section roster management",
+                "Advisory class assignment",
+                "Grade level classification",
+                "Teaching load associations"
             ]
         },
         {
             title: "Student Information",
-            description: "Your master list of learners. Input and update crucial LRNs, biological genders, parent contacts, addresses, and active enrollment statuses.",
+            description: "Your master list of learners. Manage learner LRNs, biological genders, birthdates, guardian contacts, addresses, and active enrollment statuses.",
             elementSelector: '[data-tour="sidebar-students"]',
             icon: Users,
             color: "from-purple-500 to-pink-600",
             iconColor: "text-purple-500 bg-purple-50 dark:bg-purple-500/10",
             features: [
-                "Biological information",
-                "LRN validator check",
-                "Parent/Guardian details",
-                "Advisory roster builder"
+                "Master student profile database",
+                "LRN format validator",
+                "Parent & guardian contacts",
+                "Excel bulk student import"
             ]
         },
         {
             title: "Institute Profile",
-            description: "Define metadata for your school, including the official School ID, region, division, and adviser signature settings that auto-bind to reports.",
+            description: "Configure school metadata including official School Name, School ID, District, Division, Region, School Head details, and digital signature images.",
             elementSelector: '[data-tour="sidebar-institute"]',
             icon: School,
             color: "from-cyan-500 to-blue-600",
             iconColor: "text-cyan-500 bg-cyan-50 dark:bg-cyan-500/10",
             features: [
-                "School ID credentials",
-                "Division & Region bounds",
-                "Digital signature images",
-                "Auto-populated reports"
+                "Official School ID & Region info",
+                "School Head credentials",
+                "Digital signature uploads",
+                "Auto-population into DepEd forms"
+            ]
+        },
+        {
+            title: "Daily Attendance",
+            description: "Log daily learner attendance (Present, Absent, Tardy), compute monthly School Form 2 (SF2) statistics, and view automatic absence alerts.",
+            elementSelector: '[data-tour="sidebar-daily-attendance"]',
+            icon: ClipboardCheck,
+            color: "from-emerald-500 to-teal-600",
+            iconColor: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10",
+            features: [
+                "Interactive SF2 daily grid",
+                "Automatic ADA & Present counts",
+                "Pre-enrollment cell protection",
+                "Excel SF2 sheet export"
             ]
         },
         {
             title: "E-Class Record",
-            description: "The core electronic gradebook. Encode scores for Written Works, Performance Tasks, and Quarterly Assessments to automate grade calculations.",
+            description: "Electronic gradebook for JHS/Elementary and SHS. Input scores for Written Works, Performance Tasks, and Term Assessments with automatic DepEd transmutation.",
             elementSelector: '[data-tour="sidebar-eclass"]',
             icon: FileSpreadsheet,
             color: "from-indigo-500 to-purple-600",
             iconColor: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10",
             features: [
-                "Written works weighting",
-                "Performance task tracking",
-                "Assessment computations",
-                "DepEd grading standard"
+                "DepEd weighted score calculations",
+                "Written Works & Performance Tasks",
+                "Automatic grade transmutation",
+                "Support for JHS, Elementary & SHS"
             ]
         },
         {
             title: "Grade Management",
-            description: "A centralized dashboard to review consolidated grade sheets, track advisory class averages, and monitor quarterly progress reports.",
+            description: "Review consolidated class grade matrices across all subjects, monitor term grade averages, and track section progress.",
             elementSelector: '[data-tour="sidebar-consolidated-grades"]',
             icon: BarChart3,
             color: "from-rose-500 to-pink-600",
             iconColor: "text-rose-500 bg-rose-50 dark:bg-rose-500/10",
             features: [
-                "Consolidated grades grid",
-                "Quarterly average charts",
-                "Advisory class summaries",
-                "Grade locking manager"
+                "Section consolidated grade matrix",
+                "Term average summary",
+                "Advisory class grade review",
+                "Excel summary sheet export"
             ]
         },
         {
             title: "Official School Forms",
-            description: "Generate and export official print-ready DepEd School Forms including SF9 (Report Cards), SF10 (Form 137), SF8 (BMI), and SF2 (Attendance).",
+            description: "Generate, preview, and print official DepEd School Forms including SF9 (Report Card), SF10 (Form 137), SF8 (BMI/Nutritional), SF5 (Promotion), SF6, and LIR.",
             elementSelector: '[data-tour="sidebar-school-forms"]',
             icon: ClipboardList,
             color: "from-emerald-500 to-teal-600",
             iconColor: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10",
             features: [
-                "Pre-populated forms templates",
-                "SF9 card printing",
-                "SF10 permanent records",
-                "SF8 health status sheet"
+                "Official SF9 Report Card printing",
+                "SF10 Permanent Record generator",
+                "SF8 Health & BMI calculations",
+                "SF5 & SF6 promotion reports"
+            ]
+        },
+        {
+            title: "Student ID Generator",
+            description: "Design and print professional student identification cards with customizable templates, barcodes, QR codes, and photo cropping tools.",
+            elementSelector: '[data-tour="sidebar-student-id-generator"]',
+            icon: IdCard,
+            color: "from-blue-500 to-cyan-600",
+            iconColor: "text-blue-500 bg-blue-50 dark:bg-blue-500/10",
+            features: [
+                "Custom ID card layout templates",
+                "Bulk Student ID printing",
+                "Barcode & QR code generation",
+                "Photo upload & alignment"
             ]
         },
         {
             title: "School Calendar",
-            description: "Plan school activities, holidays, upcoming examination windows, parent-teacher assembly dates, and compliance deadlines.",
+            description: "Schedule school events, holidays, examination dates, PTA assemblies, and administrative compliance deadlines.",
             elementSelector: '[data-tour="sidebar-calendar"]',
             icon: Calendar,
             color: "from-amber-500 to-orange-600",
             iconColor: "text-amber-500 bg-amber-50 dark:bg-amber-500/10",
             features: [
-                "School event scheduler",
-                "Holiday date selectors",
-                "Deadlines reminders",
-                "PTA meeting planner"
+                "Interactive school calendar",
+                "Event & holiday categorizer",
+                "Exam & PTA meeting scheduler",
+                "Deadline reminder badges"
             ]
         },
         {
             title: "Announcements",
-            description: "Read, create, and broadcast dashboard announcements, division bulletins, and urgent updates with high-priority status alerts.",
+            description: "Create and publish school announcements, division bulletins, and urgent updates with priority tags.",
             elementSelector: '[data-tour="sidebar-announcements"]',
             icon: Megaphone,
             color: "from-blue-500 to-indigo-600",
             iconColor: "text-blue-500 bg-blue-50 dark:bg-blue-500/10",
             features: [
-                "Priority announcement badges",
-                "Advisory panel notification",
-                "Bulletin history logs",
-                "Urgent status highlights"
+                "Priority announcement alerts",
+                "Category & tag organization",
+                "Bulletin board feed view",
+                "Local announcement logs"
             ]
         },
         {
             title: "Reports & Analytics",
-            description: "View visual charts and metrics showing class promotions, grade ranges, demographic trends, and achievements summaries.",
+            description: "Analyze visual charts for Mean Percentage Score (MPS), honor roll achievers, students at-risk, demographic breakdowns, and subject performance.",
             elementSelector: '[data-tour="sidebar-reports"]',
             icon: BarChart3,
             color: "from-purple-500 to-pink-600",
             iconColor: "text-purple-500 bg-purple-50 dark:bg-purple-500/10",
             features: [
-                "Promoted learner ratios",
-                "Grade demographics charts",
-                "Attendance trend charts",
-                "Achievement statistics"
+                "Mean Percentage Score (MPS) charts",
+                "Honor Roll & Awardee evaluators",
+                "At-Risk student identification",
+                "Gender & demographic analytics"
             ]
         },
         {
             title: "Games & Tools",
-            description: "Access classroom utilities designed to assist in student activities, name tag generation, and daily administrative helper tools.",
+            description: "Interactive classroom games and activity tools including Wheel of Names, Quiz Show / Jeopardy, Bomb Pass, Noise Monitor, Team Splitter, Soundboard, and Puzzle Builders.",
             elementSelector: '[data-tour="sidebar-games-tools"]',
             icon: Gamepad2,
             color: "from-cyan-500 to-blue-600",
             iconColor: "text-cyan-500 bg-cyan-50 dark:bg-cyan-500/10",
             features: [
-                "Name tag badge generator",
-                "Grade converting helper",
-                "Engagement games",
-                "Classroom utility tools"
+                "Wheel of Names & Random Pickers",
+                "Quiz Show, Bomb Pass & Word Games",
+                "Noise Detector, Timer & Whiteboard",
+                "Team Splitters & Classroom Soundboard"
+            ]
+        },
+        {
+            title: "Online Generators",
+            description: "Access DLL Generators and Lesson Plan templates in ILAW & MATATAG formats, including daily, weekly, 4A's, and classroom observation (CO) builders.",
+            elementSelector: '[data-tour="sidebar-online-generators"]',
+            icon: Sparkles,
+            color: "from-amber-500 to-purple-600",
+            iconColor: "text-amber-500 bg-amber-50 dark:bg-amber-500/10",
+            features: [
+                "DLL Generators (ILAW format)",
+                "Daily & Weekly Lesson Logs",
+                "MATATAG & 4A's Lesson Plans",
+                "Interactive Lesson Exemplars"
             ]
         },
         {
             title: "System Settings",
-            description: "Establish the active School Year, manage offline database backups, configure credentials, and manage system preferences.",
+            description: "Manage the active School Year, configure offline database backups, perform data import/export, adjust theme appearance, and check software version details.",
             elementSelector: '[data-tour="sidebar-settings"]',
             icon: Settings,
             color: "from-indigo-500 to-purple-600",
             iconColor: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10",
             features: [
-                "School year coordinator",
-                "Local backup registry",
-                "Theme mode preferences",
-                "System data clearing"
-            ]
-        },
-        {
-            title: "About & Innovator",
-            description: "Check software version specifications, release credentials, and information about the FormEase Pro platform — found inside Settings.",
-            elementSelector: '[data-tour="sidebar-settings"]',
-            icon: Info,
-            color: "from-rose-500 to-pink-600",
-            iconColor: "text-rose-500 bg-rose-50 dark:bg-rose-500/10",
-            features: [
-                "Developer credentials",
-                "Version update history",
-                "License details",
-                "Platform architecture"
+                "Active School Year coordinator",
+                "IndexedDB backup & restore",
+                "Light & Dark theme toggle",
+                "Software version & platform info"
             ]
         },
         {
             title: "Active School Year S.Y.",
-            description: "All student enrollments, attendance entries, and grade records are automatically contextualized to this active school year. You can customize the active S.Y. from Settings.",
+            description: "Displays the current active School Year context. All class records, enrollments, attendance entries, and form exports automatically bind to this school year.",
             elementSelector: '[data-tour="school-year"]',
             icon: Clock3,
             color: "from-amber-500 to-orange-600",
             iconColor: "text-amber-500 bg-amber-50 dark:bg-amber-500/10",
             features: [
-                "Displays active S.Y. context",
-                "Filters reports automatically",
-                "Ensures correct form outputs",
-                "Consistent advisory terms"
+                "Active S.Y. context indicator",
+                "Automatic record filtering",
+                "Form year auto-population",
+                "Settings shortcut selector"
             ]
         },
         {
             title: "Your Account Profile",
-            description: "Your name, advisory assignment, and role permissions are displayed here. Your name is automatically mapped to forms as the conducting or certifying signatory.",
+            description: "Displays your account name and role credentials. Your name automatically maps to DepEd school forms as the conducting adviser or certifying teacher.",
             elementSelector: '[data-tour="user-profile"]',
             icon: UserCheck,
             color: "from-purple-500 to-pink-600",
             iconColor: "text-purple-500 bg-purple-50 dark:bg-purple-500/10",
             features: [
-                "Profile display name",
-                "DepEd role binding",
-                "Signatory synchronization",
-                "Security clearance level"
+                "User account display name",
+                "DepEd role credential indicator",
+                "Automatic signatory mapping",
+                "Secure logout button access"
             ]
         },
         {
             title: "Main Workspace Canvas",
-            description: "This is your main cockpit! Input student records, manage attendance checklists, view nutritional statuses, and click primary buttons to download forms directly.",
+            description: "Your primary workspace. View interactive dashboards, manage student rosters, input scores, and download official printable school forms.",
             elementSelector: '[data-tour="workspace"]',
             icon: LayoutDashboard,
             color: "from-cyan-500 to-blue-600",
             iconColor: "text-cyan-500 bg-cyan-50 dark:bg-cyan-500/10",
             features: [
-                "Dynamic interactive charts",
-                "Responsive school reports",
-                "Direct PDF download actions",
-                "Automatic backup manager"
+                "Interactive module workspace",
+                "High-contrast printable sheets",
+                "Direct PDF & Excel export actions",
+                "Dark & Light mode integration"
             ]
         },
         {
             title: "Replay Tour Anytime",
-            description: "If you ever need a refresher on the tools, layout parts, or forms system, just click this Help icon in the header toolbar to trigger the onboarding wizard again.",
+            description: "Need a refresher? Click this Help icon in the top header at any time to replay this spotlight onboarding tour.",
             elementSelector: '[data-tour="help-button"]',
             icon: HelpCircle,
             color: "from-indigo-500 to-blue-600",
             iconColor: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10",
             features: [
-                "Quick layout highlighting",
-                "Interactive stepper menu",
-                "Access help details",
-                "On-demand guidance"
+                "One-click tour launcher",
+                "Interactive spotlight guide",
+                "Step-by-step feature breakdown",
+                "Always accessible from header"
             ]
         }
     ];
@@ -335,6 +364,8 @@ export function OnboardingWizard({ onClose }: OnboardingWizardProps) {
                 }
 
                 if (el) {
+                    // Scroll element into view automatically if inside scrollable sidebar
+                    el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
                     setHighlightRect(el.getBoundingClientRect());
                 } else {
                     setHighlightRect(null);

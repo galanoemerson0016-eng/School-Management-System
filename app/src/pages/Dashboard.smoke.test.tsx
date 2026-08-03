@@ -63,6 +63,7 @@ vi.mock('lucide-react', () => {
         Activity: mockIcon('Activity'),
         HelpCircle: mockIcon('HelpCircle'),
         Layers: mockIcon('Layers'),
+        X: mockIcon('X'),
     };
 });
 

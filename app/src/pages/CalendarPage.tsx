@@ -8,6 +8,7 @@ import { OFFICIAL_CALENDAR_2026_2027 } from '../data/calendar-events';
 
 const EVENT_TYPES = {
     holiday: { label: 'Holiday', color: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+    suspension: { label: 'Class Suspension / Weather', color: 'bg-amber-600', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
     exam: { label: 'Assessment & Exams', color: 'bg-blue-500', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     event: { label: 'School Programs', color: 'bg-green-500', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
     deadline: { label: 'Admin Deadlines', color: 'bg-orange-500', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
@@ -39,7 +40,10 @@ export function CalendarPage() {
     });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
     const [formData, setFormData] = useState<Partial<CalendarEvent>>({ type: 'event' });
 
     // Persist events to localStorage whenever they change
@@ -99,7 +103,23 @@ export function CalendarPage() {
         });
     };
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const getLocalDateString = (date: Date = new Date()) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const todayStr = getLocalDateString(new Date());
+
+    const formatEventDateRange = (evt: CalendarEvent) => {
+        const start = new Date(evt.date + 'T00:00:00');
+        const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (!evt.end_date) return startStr;
+        const end = new Date(evt.end_date + 'T00:00:00');
+        const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `${startStr} – ${endStr}`;
+    };
 
     const handlePrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
     const handleNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -249,7 +269,7 @@ export function CalendarPage() {
                                     </div>
                                     <div className="space-y-0.5 overflow-hidden">
                                         {dayEvents.slice(0, 2).map(evt => (
-                                            <div key={evt.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate ${EVENT_TYPES[evt.type]?.color} text-white`}>
+                                            <div key={evt.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded truncate ${EVENT_TYPES[evt.type]?.color} text-white`} title={evt.description ? `${evt.title} - ${evt.description}` : evt.title}>
                                                 {evt.title}
                                             </div>
                                         ))}
@@ -264,54 +284,61 @@ export function CalendarPage() {
                 </div>
 
                 {/* Sidebar */}
-                <div className="flex flex-col gap-3 md:gap-4 h-full min-h-0">
+                <div className="flex flex-col gap-2.5 h-full min-h-0 overflow-y-auto custom-scrollbar pr-0.5">
                     {/* Selected Date Events */}
                     {selectedDate && (
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden"
+                            className="bg-white dark:bg-[#0d1225] rounded-xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden shrink-0"
                         >
-                            <div className="p-3 md:p-4 bg-deped-blue dark:bg-indigo-950 text-white flex justify-between items-center">
-                                <h4 className="font-bold text-xs lg:text-sm">
+                            <div className="px-3 py-2 bg-deped-blue dark:bg-indigo-950 text-white flex justify-between items-center">
+                                <h4 className="font-bold text-xs">
                                     {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                                 </h4>
                                 {canManageEvents && (
                                     <button
                                         onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate }); }}
-                                        className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md text-[10px] font-bold text-white transition-colors flex items-center gap-1 cursor-pointer"
+                                        className="px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded-md text-[9px] font-bold text-white transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         <Plus className="w-3 h-3" /> Add Event
                                     </button>
                                 )}
                             </div>
-                            <div className="p-3 md:p-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                            <div className="p-2 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
                                 {selectedDateEvents.length > 0 ? (
                                     selectedDateEvents.map(evt => (
-                                        <div key={evt.id} className={`p-3 rounded-xl border ${EVENT_TYPES[evt.type]?.border} ${EVENT_TYPES[evt.type]?.bg} dark:bg-white/5 dark:border-white/10`}>
-                                            <div className="flex justify-between items-start gap-2">
+                                        <div key={evt.id} className={`p-2 rounded-lg border ${EVENT_TYPES[evt.type]?.border} ${EVENT_TYPES[evt.type]?.bg} dark:bg-white/5 dark:border-white/10`}>
+                                            <div className="flex justify-between items-start gap-1.5">
                                                 <div className="min-w-0 flex-1">
-                                                    <span className={`text-[9px] font-black uppercase ${EVENT_TYPES[evt.type]?.text} dark:text-blue-400`}>
-                                                        {EVENT_TYPES[evt.type]?.label}
-                                                    </span>
-                                                    <p className="font-bold text-xs text-gray-800 dark:text-white wrap-break-word">{evt.title}</p>
-                                                    {evt.description && <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{evt.description}</p>}
-                                                </div>
+                                                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                                         <span className={`text-[8px] font-black uppercase ${EVENT_TYPES[evt.type]?.text} dark:text-blue-400`}>
+                                                             {EVENT_TYPES[evt.type]?.label}
+                                                         </span>
+                                                         {evt.end_date && (
+                                                             <span className="text-[8px] font-bold text-gray-400 dark:text-slate-400">
+                                                                 ({formatEventDateRange(evt)})
+                                                             </span>
+                                                         )}
+                                                     </div>
+                                                     <p className="font-bold text-[11px] text-gray-800 dark:text-white leading-tight wrap-break-word">{evt.title}</p>
+                                                     {evt.description && <p className="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5 leading-tight wrap-break-word">{evt.description}</p>}
+                                                 </div>
                                                 {canManageEvents && (
                                                     <div className="flex items-center gap-1 shrink-0">
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }} 
-                                                            className="p-1 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors cursor-pointer"
+                                                            className="p-0.5 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors cursor-pointer"
                                                             title="Edit Event"
                                                         >
-                                                            <Pencil className="w-3.5 h-3.5" />
+                                                            <Pencil className="w-3 h-3" />
                                                         </button>
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }} 
-                                                            className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                                            className="p-0.5 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors cursor-pointer"
                                                             title="Delete Event"
                                                         >
-                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                            <Trash2 className="w-3 h-3" />
                                                         </button>
                                                     </div>
                                                 )}
@@ -319,34 +346,34 @@ export function CalendarPage() {
                                         </div>
                                     ))
                                 ) : (
-                                    <p className="text-xs text-gray-400 dark:text-slate-500 italic text-center py-4">No events on this date</p>
+                                    <p className="text-[11px] text-gray-400 dark:text-slate-500 italic text-center py-2">No events on this date</p>
                                 )}
                             </div>
                         </motion.div>
                     )}
 
                     {/* Monthly Activities */}
-                    <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden">
-                        <div className="p-3 md:p-4 border-b border-gray-100 dark:border-white/10">
-                            <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <div className="bg-white dark:bg-[#0d1225] rounded-xl shadow-xs border border-gray-100 dark:border-white/10 overflow-hidden flex-1 min-h-0 flex flex-col">
+                        <div className="px-3 py-2 border-b border-gray-100 dark:border-white/10 shrink-0">
+                            <h4 className="font-bold text-xs text-gray-800 dark:text-white flex items-center gap-1.5">
                                 <CalendarIcon className="w-3.5 h-3.5 text-deped-blue dark:text-blue-400" />
                                 {currentDate.toLocaleString('default', { month: 'long' })} Activities
                             </h4>
                         </div>
-                        <div className="p-2 space-y-1.5 max-h-56 md:max-h-64 overflow-y-auto custom-scrollbar">
+                        <div className="p-1.5 space-y-1 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                             {monthActivities.length > 0 ? (
                                 monthActivities.map(evt => (
                                     <div
                                         key={evt.id}
                                         onClick={() => { setSelectedDate(evt.date); setCurrentDate(new Date(evt.date + 'T00:00:00')); }}
-                                        className="group flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                                        className="group flex items-center justify-between gap-1.5 p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
                                     >
-                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                            <div className={`w-2 h-8 rounded-full ${EVENT_TYPES[evt.type]?.color} shrink-0`} />
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <div className={`w-1.5 h-6 rounded-full ${EVENT_TYPES[evt.type]?.color} shrink-0`} />
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-xs font-bold text-gray-800 dark:text-slate-200 truncate">{evt.title}</p>
-                                                <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold">
-                                                    {new Date(evt.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                <p className="text-[11px] font-bold text-gray-800 dark:text-slate-200 leading-snug wrap-break-word" title={evt.title}>{evt.title}</p>
+                                                <p className="text-[9px] text-gray-400 dark:text-slate-400 font-medium mt-0.5">
+                                                    {formatEventDateRange(evt)}
                                                 </p>
                                             </div>
                                         </div>
@@ -354,14 +381,14 @@ export function CalendarPage() {
                                             <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity shrink-0">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }}
-                                                    className="p-1 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors"
+                                                    className="p-0.5 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors"
                                                     title="Edit Event"
                                                 >
                                                     <Pencil className="w-3 h-3" />
                                                 </button>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }}
-                                                    className="p-1 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors"
+                                                    className="p-0.5 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors"
                                                     title="Delete Event"
                                                 >
                                                     <Trash2 className="w-3 h-3" />
@@ -371,19 +398,19 @@ export function CalendarPage() {
                                     </div>
                                 ))
                             ) : (
-                                <p className="text-xs text-gray-400 dark:text-slate-500 italic text-center py-4">No activities this month</p>
+                                <p className="text-[11px] text-gray-400 dark:text-slate-500 italic text-center py-2">No activities this month</p>
                             )}
                         </div>
                     </div>
 
                     {/* Event Type Legend */}
-                    <div className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-xs border border-gray-100 dark:border-white/10 p-4 mt-auto">
-                        <h4 className="font-bold text-gray-800 dark:text-slate-300 text-xs mb-3 uppercase tracking-wider">Legend</h4>
-                        <div className="space-y-2">
+                    <div className="bg-white dark:bg-[#0d1225] rounded-xl shadow-xs border border-gray-100 dark:border-white/10 p-2.5 shrink-0">
+                        <h4 className="font-bold text-gray-800 dark:text-slate-300 text-[10px] mb-1.5 uppercase tracking-wider">Legend</h4>
+                        <div className="grid grid-cols-1 gap-1">
                             {Object.entries(EVENT_TYPES).map(([key, val]) => (
-                                <div key={key} className="flex items-center gap-2">
-                                    <div className={`w-3 h-3 rounded-full ${val.color}`} />
-                                    <span className="text-xs font-bold text-gray-600 dark:text-slate-300">{val.label}</span>
+                                <div key={key} className="flex items-center gap-1.5">
+                                    <div className={`w-2.5 h-2.5 rounded-full ${val.color} shrink-0`} />
+                                    <span className="text-[10px] font-semibold text-gray-600 dark:text-slate-300 leading-tight">{val.label}</span>
                                 </div>
                             ))}
                         </div>

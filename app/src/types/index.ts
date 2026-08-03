@@ -434,7 +434,7 @@ export interface CalendarEvent {
     description?: string;
     date: string; // YYYY-MM-DD
     end_date?: string; // YYYY-MM-DD for multi-day events
-    type: 'holiday' | 'exam' | 'event' | 'deadline' | 'meeting' | 'break' | 'national';
+    type: 'holiday' | 'exam' | 'event' | 'deadline' | 'meeting' | 'break' | 'national' | 'suspension';
     color?: string;
     created_by?: string;
 }
