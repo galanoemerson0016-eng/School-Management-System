@@ -350,13 +350,13 @@ export function OnlineGeneratorsPage() {
 
   const categories = [
     { id: 'all', label: 'All Generators', count: ALL_GENERATORS.length },
-    { id: 'daily-ilaw', label: 'DAILY (ILAW)', count: ALL_GENERATORS.filter(g => g.category === 'daily-ilaw').length },
-    { id: 'weekly-ilaw', label: 'WEEKLY (ILAW)', count: ALL_GENERATORS.filter(g => g.category === 'weekly-ilaw').length },
-    { id: 'semi-ilaw', label: 'SEMI-DETAILED (ILAW)', count: ALL_GENERATORS.filter(g => g.category === 'semi-ilaw').length },
-    { id: 'weekly-matatag', label: 'WEEKLY PLANNER', count: ALL_GENERATORS.filter(g => g.category === 'weekly-matatag').length },
-    { id: 'semi-detailed', label: 'SEMI-DETAILED PLANNER', count: ALL_GENERATORS.filter(g => g.category === 'semi-detailed').length },
-    { id: 'trimester', label: 'TRIMESTER PLANNER', count: ALL_GENERATORS.filter(g => g.category === 'trimester').length },
-    { id: 'detailed', label: 'DETAILED PLANNER', count: ALL_GENERATORS.filter(g => g.category === 'detailed').length },
+    { id: 'daily-ilaw', label: 'Daily ILAW', count: ALL_GENERATORS.filter(g => g.category === 'daily-ilaw').length },
+    { id: 'weekly-ilaw', label: 'Weekly ILAW', count: ALL_GENERATORS.filter(g => g.category === 'weekly-ilaw').length },
+    { id: 'semi-ilaw', label: 'Semi-Detailed ILAW', count: ALL_GENERATORS.filter(g => g.category === 'semi-ilaw').length },
+    { id: 'weekly-matatag', label: 'Weekly Planners', count: ALL_GENERATORS.filter(g => g.category === 'weekly-matatag').length },
+    { id: 'semi-detailed', label: 'Semi-Detailed', count: ALL_GENERATORS.filter(g => g.category === 'semi-detailed').length },
+    { id: 'trimester', label: 'Trimester', count: ALL_GENERATORS.filter(g => g.category === 'trimester').length },
+    { id: 'detailed', label: 'Detailed Planners', count: ALL_GENERATORS.filter(g => g.category === 'detailed').length },
   ];
 
   const filteredGenerators = useMemo(() => {
@@ -471,20 +471,20 @@ export function OnlineGeneratorsPage() {
         </a>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+      {/* Filter Tabs - Balanced 4x2 Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-black tracking-wide whitespace-nowrap flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold tracking-wide flex items-center justify-between transition-all cursor-pointer ${
               activeCategory === cat.id
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-102'
-                : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-slate-700/80'
             }`}
           >
-            <span>{cat.label}</span>
-            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+            <span className="truncate">{cat.label}</span>
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold shrink-0 ml-1.5 ${
               activeCategory === cat.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400'
             }`}>
               {cat.count}
@@ -494,40 +494,37 @@ export function OnlineGeneratorsPage() {
       </div>
 
       {/* Generators Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
         {filteredGenerators.map((gen) => (
           <div
             key={gen.id}
             onClick={() => handleLaunch(gen)}
-            className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm hover:shadow-xl hover:border-indigo-500/30 transition-all flex flex-col justify-between group hover:-translate-y-1 cursor-pointer"
+            className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:shadow-lg hover:border-indigo-500/30 transition-all flex flex-col justify-between group hover:-translate-y-0.5 cursor-pointer"
           >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
-                  <Bot className="w-6 h-6" />
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+                  <Bot className="w-4.5 h-4.5" />
                 </div>
-                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
                   {gen.badge}
                 </span>
               </div>
 
               <div>
-                <h4 className="font-bold text-slate-800 dark:text-white text-base mb-1.5 leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                <h4 className="font-bold text-slate-800 dark:text-white text-xs sm:text-sm leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
                   {gen.title}
                 </h4>
-                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">
-                  {gen.description}
-                </p>
               </div>
             </div>
 
-            <div className="pt-4 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+            <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
               {gen.url ? (
                 <>
                   <button
                     type="button"
                     onClick={(e) => handleCopyOutline(gen, e)}
-                    className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-[11px] transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
                     title="Copy Template Outline"
                   >
                     {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -538,19 +535,19 @@ export function OnlineGeneratorsPage() {
                       e.stopPropagation();
                       window.open(gen.url, '_blank', 'noopener,noreferrer');
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+                    className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                   >
                     <span>Use Template</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <ExternalLink className="w-3 h-3" />
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
                   onClick={(e) => handleCopyOutline(gen, e)}
-                  className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-indigo-600 hover:bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+                  className="w-full py-1.5 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                 >
-                  <span>{copiedId === gen.id ? 'Copied Outline!' : 'Copy Template Outline'}</span>
+                  <span>{copiedId === gen.id ? 'Copied!' : 'Copy Outline'}</span>
                   {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               )}

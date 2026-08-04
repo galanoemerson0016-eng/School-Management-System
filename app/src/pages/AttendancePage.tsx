@@ -307,12 +307,22 @@ function DebouncedInput({
     );
 }
 
+const getCurrentSF2Month = (): string => {
+    const currentMonthIndex = new Date().getMonth();
+    const monthNames = [
+        'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+        'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+    ];
+    const currentName = monthNames[currentMonthIndex];
+    return MONTHS.includes(currentName) ? currentName : 'JUNE';
+};
+
 export function AttendancePage() {
 
     const { students, sections, saveSF2Sheet, schoolProfile, teachers, setCurrentView, activeSchoolYear, showNotification } = useAppStore();
     const { user } = useAuthStore();
     const [selectedSection, setSelectedSection] = useState('');
-    const [selectedMonth, setSelectedMonth] = useState('JUNE');
+    const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentSF2Month);
     const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
     const [zoom, setZoom] = useState(0.85);
 

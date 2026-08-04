@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthStore, useAppStore } from '../stores';
 import { useSystemStore } from '../stores/system-store';
 import {
-    User, Eye, EyeOff, GraduationCap, BookOpen, ScrollText, School,
+    User, Eye, EyeOff,
     Megaphone, Moon, Sun, Globe, Shield, Clock, Loader2,
     XCircle, CheckCircle2, Power
 } from 'lucide-react';
@@ -66,45 +66,6 @@ const BackgroundOrbs = ({ darkMode }: { darkMode: boolean }) => (
         />
     </div>
 );
-
-// =============================================================================
-// FLOATING EDUCATION ICONS — Subtle background decoration on right panel
-// =============================================================================
-const FloatingIcons = ({ darkMode }: { darkMode: boolean }) => {
-    const iconColor = darkMode ? 'text-white/[0.04]' : 'text-deped-blue/[0.06]';
-    return (
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-            <motion.div
-                animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                className={`absolute top-[8%] left-[8%] ${iconColor}`}
-            >
-                <GraduationCap size={56} />
-            </motion.div>
-            <motion.div
-                animate={{ y: [0, 15, 0], rotate: [0, -3, 0] }}
-                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-                className={`absolute top-[18%] right-[12%] ${iconColor}`}
-            >
-                <BookOpen size={48} />
-            </motion.div>
-            <motion.div
-                animate={{ y: [0, -12, 0], scale: [1, 1.05, 1] }}
-                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-                className={`absolute bottom-[22%] left-[12%] ${iconColor}`}
-            >
-                <ScrollText size={52} />
-            </motion.div>
-            <motion.div
-                animate={{ scale: [1, 1.08, 1] }}
-                transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                className={`absolute bottom-[8%] right-[8%] ${iconColor}`}
-            >
-                <School size={64} />
-            </motion.div>
-        </div>
-    );
-};
 
 // =============================================================================
 // PASSWORD STRENGTH INDICATOR
@@ -418,20 +379,18 @@ export const LoginPage = () => {
                 initial={{ x: 60, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className={`w-full lg:w-[42%] h-full flex flex-col justify-center items-center p-6 md:p-8 relative overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-login-bg'
+                className={`w-full lg:w-[42%] h-full flex flex-col justify-between items-center p-4 sm:p-6 lg:p-8 relative overflow-y-auto transition-colors duration-500 ${darkMode ? 'bg-[#0d1225]' : 'bg-login-bg'
                     }`}
             >
                 {/* Background Orbs */}
                 <BackgroundOrbs darkMode={darkMode} />
-                {/* Floating Icons */}
-                <FloatingIcons darkMode={darkMode} />
 
                 {/* --- Top Bar: Dark mode + Language + Time --- */}
                 <motion.div
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.5 }}
-                    className="absolute top-5 left-0 right-0 px-6 md:px-10 flex items-center justify-between z-20"
+                    className="w-full flex items-center justify-between z-20 shrink-0 mb-3"
                 >
                     {/* Time display */}
                     <div className={`flex items-center gap-2 text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -493,7 +452,7 @@ export const LoginPage = () => {
                 <motion.div
                     onHoverStart={() => setIsCardHovered(true)}
                     onHoverEnd={() => setIsCardHovered(false)}
-                    className={`w-full max-w-105 z-10 p-9 md:p-10 rounded-3xl relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
+                    className={`w-full max-w-105 my-auto shrink-0 z-10 p-7 sm:p-8 md:p-9 rounded-3xl relative transition-all duration-500 ${shake ? 'animate-shake' : ''} ${darkMode
                         ? 'bg-white/4 backdrop-blur-2xl border border-white/8 shadow-[0_20px_60px_rgba(0,0,0,0.4)]'
                         : 'bg-white/70 backdrop-blur-2xl border border-white/80 shadow-[0_20px_60px_rgba(0,0,0,0.06)]'
                         } ${isCardHovered && !darkMode ? 'shadow-[0_25px_70px_rgba(10,61,145,0.08)]' : ''} ${isCardHovered && darkMode ? 'border-white/12 shadow-[0_25px_70px_rgba(0,0,0,0.5)]' : ''}`}
@@ -507,16 +466,16 @@ export const LoginPage = () => {
                         initial={{ y: 15, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.7 }}
-                        className="flex justify-center mb-6"
+                        className="flex justify-center mb-5"
                     >
-                        <div className={`animate-logo-float p-3.5 rounded-2xl transition-all duration-300 ${darkMode
+                        <div className={`animate-logo-float p-3 rounded-2xl transition-all duration-300 ${darkMode
                             ? 'bg-white/6 border border-white/10 shadow-lg shadow-black/20'
                             : 'bg-white border border-gray-100 shadow-lg shadow-gray-200/50'
                             }`}>
                             <img
                                 src={`${import.meta.env.BASE_URL}app-logo.png`}
                                 alt="System Logo"
-                                className="h-14 w-14 object-contain"
+                                className="h-12 w-12 object-contain"
                             />
                         </div>
                     </motion.div>
@@ -526,12 +485,12 @@ export const LoginPage = () => {
                         initial={{ y: 10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.8 }}
-                        className="text-center mb-7"
+                        className="text-center mb-6"
                     >
-                        <h2 className={`text-[22px] font-bold mb-1.5 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        <h2 className={`text-xl font-bold mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                             {t.welcomeBack}
                         </h2>
-                        <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                             {t.secureAccess}
                         </p>
                     </motion.div>
@@ -542,7 +501,7 @@ export const LoginPage = () => {
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.9 }}
                         onSubmit={handleSubmit}
-                        className="space-y-5"
+                        className="space-y-4"
                     >
                         {/* Error Alert */}
                         <AnimatePresence>
@@ -572,7 +531,7 @@ export const LoginPage = () => {
                         </AnimatePresence>
 
                         {/* User ID Field */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                             <label className={`text-[11px] font-bold uppercase tracking-widest ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 {t.userId}
                             </label>
@@ -580,7 +539,7 @@ export const LoginPage = () => {
                                 <input
                                     type="text"
                                     required
-                                    className={`login-input block w-full px-4 py-3.5 rounded-xl transition-all duration-300 outline-none font-medium text-[15px] ${darkMode
+                                    className={`login-input block w-full px-4 py-3 rounded-xl transition-all duration-300 outline-none font-medium text-sm ${darkMode
                                         ? 'bg-white/4 border border-white/8 text-white placeholder-gray-600 focus:bg-white/6 focus:border-blue-500/40'
                                         : 'bg-white border border-gray-200/80 text-gray-900 placeholder-gray-400 shadow-sm focus:border-deped-blue-light/60 focus:bg-white'
                                         }`}
@@ -588,13 +547,13 @@ export const LoginPage = () => {
                                     value={credentials.id}
                                     onChange={(e) => setCredentials({ ...credentials, id: e.target.value })}
                                 />
-                                <User className={`absolute right-4 top-1/2 -translate-y-1/2 h-4.5 w-4.5 pointer-events-none transition-colors ${darkMode ? 'text-gray-600 group-focus-within:text-blue-400' : 'text-gray-300 group-focus-within:text-deped-blue-light'
+                                <User className={`absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none transition-colors ${darkMode ? 'text-gray-600 group-focus-within:text-blue-400' : 'text-gray-300 group-focus-within:text-deped-blue-light'
                                     }`} />
                             </div>
                         </div>
 
                         {/* Password Field */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                             <label className={`text-[11px] font-bold uppercase tracking-widest ml-1 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                 {t.password}
                             </label>
@@ -602,7 +561,7 @@ export const LoginPage = () => {
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     required
-                                    className={`login-input block w-full px-4 py-3.5 pr-12 rounded-xl transition-all duration-300 outline-none font-medium text-[15px] ${darkMode
+                                    className={`login-input block w-full px-4 py-3 pr-12 rounded-xl transition-all duration-300 outline-none font-medium text-sm ${darkMode
                                         ? 'bg-white/4 border border-white/8 text-white placeholder-gray-600 focus:bg-white/6 focus:border-blue-500/40'
                                         : 'bg-white border border-gray-200/80 text-gray-900 placeholder-gray-400 shadow-sm focus:border-deped-blue-light/60 focus:bg-white'
                                         }`}
@@ -621,11 +580,11 @@ export const LoginPage = () => {
                                     <AnimatePresence mode="wait">
                                         {showPassword ? (
                                             <motion.div key="off" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.15 }}>
-                                                <EyeOff className="h-4.5 w-4.5" />
+                                                <EyeOff className="h-4 w-4" />
                                             </motion.div>
                                         ) : (
                                             <motion.div key="on" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} transition={{ duration: 0.15 }}>
-                                                <Eye className="h-4.5 w-4.5" />
+                                                <Eye className="h-4 w-4" />
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -688,14 +647,14 @@ export const LoginPage = () => {
                                             : darkMode ? 'rgba(255,255,255,0.08)' : '#e5e7eb',
                                     }}
                                 />
-                                <span className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                <span className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {t.rememberMe}
                                 </span>
                             </label>
                             <button
                                 type="button"
                                 onClick={handleForgotPassword}
-                                className={`text-sm font-semibold transition-all duration-200 hover:underline underline-offset-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-deped-blue hover:text-deped-blue-light'
+                                className={`text-xs font-semibold transition-all duration-200 hover:underline underline-offset-2 ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-deped-blue hover:text-deped-blue-light'
                                     }`}
                             >
                                 {t.forgotPassword}
@@ -708,7 +667,7 @@ export const LoginPage = () => {
                             whileTap={{ scale: 0.985 }}
                             type="submit"
                             disabled={isLoading}
-                            className={`w-full py-3.5 rounded-xl font-bold text-[15px] transition-all duration-300 mt-3 flex items-center justify-center gap-2.5 ${isLoading ? 'cursor-not-allowed opacity-80' : ''
+                            className={`w-full py-3 rounded-xl font-bold text-sm transition-all duration-300 mt-2 flex items-center justify-center gap-2.5 ${isLoading ? 'cursor-not-allowed opacity-80' : ''
                                 } bg-linear-to-r from-deped-blue to-deped-blue-light text-white shadow-lg hover:shadow-xl hover:shadow-deped-blue/25`}
                             style={{
                                 boxShadow: isLoading ? undefined : '0 4px 20px rgba(10, 61, 145, 0.3)',
@@ -716,7 +675,7 @@ export const LoginPage = () => {
                         >
                             {isLoading ? (
                                 <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                     {t.signingIn}
                                 </>
                             ) : t.signIn}
@@ -725,7 +684,7 @@ export const LoginPage = () => {
                     </motion.form>
                 </motion.div>
 
-                <div className="mt-2 flex flex-col items-center gap-3 px-4 text-center pointer-events-none z-20">
+                <div className="mt-3 flex flex-col items-center gap-2 px-4 text-center pointer-events-none z-20 shrink-0">
                     {/* ---- Copyright ---- */}
                     <motion.div
                         initial={{ opacity: 0 }}

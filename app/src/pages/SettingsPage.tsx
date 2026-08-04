@@ -10,7 +10,7 @@ import { canPurgeMaintenance } from '../lib/rbac';
 import { createComprehensiveBackup, generateBackupReport, validateBackup, type ComprehensiveBackup } from '../utils/backup-restore';
 import { BackupRestoreModal } from '../components/BackupRestoreModal';
 import { ExportOptionsModal, type ExportOptions } from '../components/ExportOptionsModal';
-import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { PreActionBackupModal } from '../components/ui/PreActionBackupModal';
 import { TextInputConfirmationModal } from '../components/ui/TextInputConfirmationModal';
 import { encryptBackup, createEncryptedBackupFile } from '../utils/backup-encryption';
 import { compareBackupSizes, formatBytes } from '../utils/backup-compression';
@@ -189,20 +189,30 @@ export function SettingsPage() {
         }
     };
 
-    const handleRepairIssue = async (issue: DiagnosticIssue) => {
-        setIsRepairingDiagnostics(true);
-        try {
-            await issue.repairAction();
-            alert('✅ Database successfully repaired!');
-            // Re-run diagnostics
-            const list = await DiagnosticEngine.runDiagnostics();
-            setDiagnosticIssues(list);
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            alert('Repair failed: ' + message);
-        } finally {
-            setIsRepairingDiagnostics(false);
-        }
+    const handleRepairIssue = (issue: DiagnosticIssue) => {
+        setPendingConfirmation({
+            title: `Auto Repair: ${issue.description}`,
+            message: issue.details,
+            details: `Affected Item Count: ${issue.affectedIds.length} record(s)`,
+            confirmLabel: 'Run Auto Repair',
+            intent: issue.severity === 'error' ? 'danger' : 'warning',
+            onConfirm: async () => {
+                setIsRepairingDiagnostics(true);
+                try {
+                    await issue.repairAction();
+                    alert('✅ Database successfully repaired!');
+                    // Re-run diagnostics
+                    const list = await DiagnosticEngine.runDiagnostics();
+                    setDiagnosticIssues(list);
+                    addMaintenanceLog(`Auto Repair: ${issue.id}`, issue.affectedIds.length);
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    alert('Repair failed: ' + message);
+                } finally {
+                    setIsRepairingDiagnostics(false);
+                }
+            },
+        });
     };
 
     const loadAutoBackups = async () => {
@@ -980,6 +990,16 @@ export function SettingsPage() {
         }
     };
 
+    const handleExportAllTablesCsv = () => {
+        const tables = ['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'];
+        tables.forEach((table, idx) => {
+            setTimeout(() => {
+                handleExportTableCsv(table);
+            }, idx * 250);
+        });
+        alert(`📦 Started batch CSV export for all 7 database tables! Check your downloads folder.`);
+    };
+
     // --- School Year Archiver ---
     // const handleArchiveSchoolYear = async () => {
     //     if (!archiveSY) {
@@ -1746,11 +1766,11 @@ export function SettingsPage() {
                 </div>
             </div>
 
-            <ConfirmationModal
+            <PreActionBackupModal
                 open={pendingConfirmation !== null}
                 title={pendingConfirmation?.title || ''}
-                message={pendingConfirmation?.message || ''}
-                details={pendingConfirmation?.details}
+                actionDescription={pendingConfirmation?.message || ''}
+                affectedDetails={pendingConfirmation?.details}
                 confirmLabel={pendingConfirmation?.confirmLabel}
                 intent={pendingConfirmation?.intent}
                 onConfirm={runPendingConfirmation}
@@ -1770,81 +1790,125 @@ export function SettingsPage() {
                 onCancel={() => setShowHardResetTextInput(null)}
             />
 
-            <div className="flex flex-col lg:flex-row gap-6">
-                {/* Sidebar Navigation */}
-                <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible shrink-0 gap-1.5 p-1.5 bg-slate-100/60 dark:bg-white/5 backdrop-blur-md rounded-2xl lg:w-64 lg:h-fit border border-slate-200/50 dark:border-white/5 scrollbar-none">
-                    <button
-                        onClick={() => setActiveTab('account')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                            activeTab === 'account'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                        }`}
-                    >
-                        <User className="w-4.5 h-4.5" />
-                        <span>Account & Security</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('cloud')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                            activeTab === 'cloud'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                        }`}
-                    >
-                        <Cloud className="w-4.5 h-4.5" />
-                        <span>Cloud Backup Sync</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('backups')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                            activeTab === 'backups'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                        }`}
-                    >
-                        <Database className="w-4.5 h-4.5" />
-                        <span>Local Backups & Recovery</span>
-                    </button>
-                    {canPurge && (
-                        <button
-                            onClick={() => setActiveTab('maintenance')}
-                            className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                                activeTab === 'maintenance'
-                                    ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                            }`}
-                        >
-                            <Shield className="w-4.5 h-4.5" />
-                            <span>System Maintenance</span>
-                        </button>
-                    )}
-                    <button
-                        onClick={() => setActiveTab('versions')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                            activeTab === 'versions'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                        }`}
-                    >
-                        <History className="w-4.5 h-4.5" />
-                        <span>Version History</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('about')}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-all duration-300 w-full text-left whitespace-nowrap cursor-pointer ${
-                            activeTab === 'about'
-                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/30 dark:border-white/5'
-                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/2'
-                        }`}
-                    >
-                        <Info className="w-4.5 h-4.5" />
-                        <span>About & Innovator</span>
-                    </button>
+            {/* Header Hero Control Center */}
+            <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/5 p-6 lg:p-7 shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-black uppercase tracking-wider">
+                        <Shield className="w-3.5 h-3.5 text-indigo-500" /> FormEase System Preferences
+                    </div>
+                    <h1 className="text-2xl lg:text-3xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-3">
+                        System Control Center
+                    </h1>
+                    <p className="text-xs lg:text-sm text-slate-500 dark:text-slate-400 font-medium max-w-2xl leading-relaxed">
+                        Manage credentials, cloud sync, database snapshots, system diagnostics, and app preferences.
+                    </p>
                 </div>
 
-                {/* Main Content Pane */}
-                <div className="flex-1 min-w-0">
+                {/* System Status Chips */}
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-slate-700 dark:text-slate-300">System Healthy</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-bold">
+                        <Cloud className={`w-3.5 h-3.5 ${cloudSyncState.linked ? 'text-sky-500' : 'text-slate-400'}`} />
+                        <span className="text-slate-700 dark:text-slate-300">
+                            {cloudSyncState.linked ? 'Drive Linked' : 'Drive Off'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-bold">
+                        <Database className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="text-slate-700 dark:text-slate-300">
+                            {fsBackups.length + autoBackups.length} Snapshots
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Top Horizontal Navigation Tab Bar - Single Line 6-Column Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-1.5 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl mb-6 w-full">
+                <button
+                    onClick={() => setActiveTab('account')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'account'
+                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <User className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span className="truncate">Account & Security</span>
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('cloud')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'cloud'
+                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <Cloud className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                    <span className="truncate">Cloud Backup Sync</span>
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('backups')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'backups'
+                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <Database className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                    <span className="truncate">Local Backups</span>
+                    {(fsBackups.length + autoBackups.length) > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 shrink-0">
+                            {fsBackups.length + autoBackups.length}
+                        </span>
+                    )}
+                </button>
+
+                {canPurge && (
+                    <button
+                        onClick={() => setActiveTab('maintenance')}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                            activeTab === 'maintenance'
+                                ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                        }`}
+                    >
+                        <Shield className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span className="truncate">Maintenance</span>
+                    </button>
+                )}
+
+                <button
+                    onClick={() => setActiveTab('versions')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'versions'
+                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <History className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="truncate">Version History</span>
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('about')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'about'
+                            ? 'bg-white dark:bg-[#1e293b] text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <Info className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="truncate">About & Innovator</span>
+                </button>
+            </div>
+
+            {/* Main Full-Width Content Pane */}
+            <div className="w-full space-y-6">
                     {/* Tab 1: Account & Security */}
                     {activeTab === 'account' && (
                         <>
@@ -1970,7 +2034,7 @@ export function SettingsPage() {
 
                     {/* Tab 2: Backups & Recovery */}
                     {activeTab === 'backups' && (
-                        <div className="space-y-8 animate-in fade-in duration-200">
+                        <div className="space-y-6 animate-in fade-in duration-200">
                             {/* USB Detection Banner */}
                             {usbDetectedPath && (
                                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs">
@@ -1995,27 +2059,29 @@ export function SettingsPage() {
                             )}
 
                             {/* Options Guide section */}
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
                                         <Shield className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Choosing the Right Backup Type</h3>
-                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Learn which backup option is best for your specific needs.</p>
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Backup & Recovery Options</h3>
+                                        <p className="text-xs font-medium text-slate-400 mt-0.5">Learn which backup option is best for your specific needs.</p>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
                                     {/* Option 1: Full Export */}
-                                    <div className="relative rounded-2xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/20 to-white dark:from-indigo-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
-                                        <div className="absolute top-4 right-4 rounded-full bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 uppercase tracking-wider shadow-xs">
-                                            Recommended
-                                        </div>
-                                        <div className="space-y-2.5">
-                                            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs uppercase tracking-wider">
-                                                <Database className="w-4 h-4" />
-                                                <span>1. Full Export</span>
+                                    <div className="h-full rounded-2xl border border-indigo-500/30 bg-linear-to-br from-indigo-50/20 to-white dark:from-indigo-950/10 dark:to-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-indigo-500/50 transition-all">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs tracking-wide">
+                                                    <Database className="w-4 h-4 shrink-0" />
+                                                    <span>1. Full Database Export</span>
+                                                </div>
+                                                <span className="rounded-full bg-indigo-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
+                                                    Recommended
+                                                </span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 Generates a single comprehensive <span className="font-extrabold text-indigo-600 dark:text-indigo-400">.json</span> file containing all student profiles, sections, subjects, grades, attendance, and settings.
@@ -2033,15 +2099,15 @@ export function SettingsPage() {
                                             </ul>
                                         </div>
                                         <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4">
-                                            <p className="text-[9px] font-black uppercase text-indigo-500">Best for: Safekeeping & compliance</p>
+                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">Safekeeping & Compliance</p>
                                         </div>
                                     </div>
 
                                     {/* Option 2: Cloud Sync */}
-                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
-                                        <div className="space-y-2.5">
-                                            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-xs uppercase tracking-wider">
-                                                <Cloud className="w-4 h-4" />
+                                    <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-extrabold text-xs tracking-wide">
+                                                <Cloud className="w-4 h-4 shrink-0" />
                                                 <span>2. Cloud Sync</span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -2060,7 +2126,7 @@ export function SettingsPage() {
                                             </ul>
                                         </div>
                                         <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[9px] font-black uppercase text-sky-500">Best for: Auto offsite backup</span>
+                                            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">Auto Offsite Backup</span>
                                             <button 
                                                 onClick={() => setActiveTab('cloud')}
                                                 className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline cursor-pointer"
@@ -2071,10 +2137,10 @@ export function SettingsPage() {
                                     </div>
 
                                     {/* Option 3: Local Checkpoints */}
-                                    <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-transform">
-                                        <div className="space-y-2.5">
-                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-xs uppercase tracking-wider">
-                                                <History className="w-4 h-4" />
+                                    <div className="h-full rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-white/10 transition-all">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400 font-extrabold text-xs tracking-wide">
+                                                <History className="w-4 h-4 shrink-0" />
                                                 <span>3. Local Checkpoints</span>
                                             </div>
                                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -2093,7 +2159,7 @@ export function SettingsPage() {
                                             </ul>
                                         </div>
                                         <div className="pt-3 border-t border-slate-100 dark:border-white/5 mt-4 flex justify-between items-center">
-                                            <span className="text-[9px] font-black uppercase text-violet-500">Best for: Undoing mistakes</span>
+                                            <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">Local Undo Snapshots</span>
                                             <button 
                                                 onClick={() => {
                                                     setShowEmergencyRollbacks(true);
@@ -2124,8 +2190,8 @@ export function SettingsPage() {
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Full Database Export</h3>
-                                                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-black px-2 py-0.5 border border-emerald-250/20">
+                                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Full Database Export</h3>
+                                                        <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 border border-emerald-200/80 dark:border-emerald-800/80">
                                                             Complete & Standalone
                                                         </span>
                                                     </div>
@@ -3338,7 +3404,6 @@ export function SettingsPage() {
                         </div>
                     )}
                 </div>
-            </div>
 
             {/* Account Settings Modal */}
             {showPasswordModal && (

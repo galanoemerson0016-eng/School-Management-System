@@ -6,7 +6,6 @@ import {
     Files, 
     FileText, 
     CheckCircle2, 
-    ArrowRight, 
     HeartPulse,
     Printer,
     TrendingUp,
@@ -77,7 +76,7 @@ interface FormCardProps {
     onSelect: () => void;
 }
 
-function FormCard({ title, icon: Icon, color, badge, stats, onSelect }: FormCardProps) {
+function FormCard({ title, description, icon: Icon, color, stats, onSelect }: FormCardProps) {
     const colorMap: Record<string, { bg: string; text: string; border: string; accent: string; gradient: string }> = {
         emerald: { bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/20', accent: '#10b981', gradient: 'from-emerald-500 to-teal-500' },
         blue: { bg: 'bg-blue-500/10 dark:bg-blue-500/20', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/20', accent: '#3b82f6', gradient: 'from-blue-500 to-indigo-500' },
@@ -94,35 +93,36 @@ function FormCard({ title, icon: Icon, color, badge, stats, onSelect }: FormCard
     return (
         <div
             onClick={onSelect}
-            className="group relative flex flex-col justify-between p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden text-left"
+            className="group relative flex flex-col justify-between p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden text-center items-center"
         >
             {/* Background Icon Watermark */}
             <div className={`absolute -right-5 -bottom-5 opacity-[0.05] dark:opacity-[0.08] group-hover:opacity-[0.12] transition-all duration-500 pointer-events-none transform -rotate-12 group-hover:rotate-0 group-hover:scale-110 ${c.text}`}>
                 <Icon className="w-32 h-32" />
             </div>
 
-            <div className="relative z-10">
-                {/* Header row: Icon + Badge */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className={`w-11 h-11 rounded-2xl bg-linear-to-br ${c.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-105 group-hover:rotate-3 transition-all duration-300`}>
-                        <Icon className="w-5.5 h-5.5" />
+            <div className="relative z-10 flex flex-col items-center w-full">
+                {/* Centered Icon Header */}
+                <div className="flex items-center justify-center mb-3">
+                    <div className={`w-12 h-12 rounded-2xl bg-linear-to-br ${c.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-110 group-hover:rotate-3 transition-all duration-300`}>
+                        <Icon className="w-6 h-6" />
                     </div>
-                    {badge && (
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${c.bg} ${c.text} border ${c.border}`}>
-                            {badge}
-                        </span>
-                    )}
                 </div>
 
                 {/* Form Title */}
-                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-center">
                     {title}
                 </h3>
+
+                {description && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 text-center max-w-[95%]">
+                        {description}
+                    </p>
+                )}
             </div>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between relative z-10">
-                {/* Minimal Stat Badges */}
-                <div className="flex flex-wrap items-center gap-2">
+            <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-2 relative z-10 w-full">
+                {/* Minimal Stat Badges - Centered */}
+                <div className="flex flex-wrap items-center justify-center gap-2">
                     {stats?.map((stat, i) => (
                         <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                             {stat.isProgress ? (
@@ -135,11 +135,6 @@ function FormCard({ title, icon: Icon, color, badge, stats, onSelect }: FormCard
                             )}
                         </div>
                     ))}
-                </div>
-
-                {/* Sleek Action Circle Button */}
-                <div className={`w-9 h-9 rounded-xl ${c.bg} ${c.text} flex items-center justify-center group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-xs shrink-0 ml-2`}>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </div>
             </div>
         </div>
@@ -202,7 +197,6 @@ export function SchoolFormsPage() {
             description: 'Daily Attendance Report. Tracking presence, tardiness, and absences.',
             icon: CheckCircle2,
             color: 'orange',
-            badge: 'Active',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Month', value: currentMonth },
@@ -214,7 +208,6 @@ export function SchoolFormsPage() {
             description: 'Report on Promotion and Learning Progress & Achievement.',
             icon: Users,
             color: 'blue',
-            badge: 'Active',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -226,7 +219,6 @@ export function SchoolFormsPage() {
             description: 'Summarized report on promotion and learning progress & achievement per section.',
             icon: TrendingUp,
             color: 'indigo',
-            badge: 'Active',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -238,7 +230,6 @@ export function SchoolFormsPage() {
             description: 'Learner\'s Basic Health and Nutrition Report with section-based roster and summary table.',
             icon: HeartPulse,
             color: 'rose',
-            badge: 'New',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -250,7 +241,6 @@ export function SchoolFormsPage() {
             description: 'Learner\'s Progress Report Card (Form 138). Term-based grading and progress summary.',
             icon: Files,
             color: 'emerald',
-            badge: sf9Progress > 80 ? 'Data Ready' : sf9Progress > 0 ? 'In Progress' : 'Not Started',
             stats: [
                 { label: 'Encoding', value: `${sf9Progress}%`, isProgress: true },
                 { label: 'School Year', value: activeSchoolYear },
@@ -262,7 +252,6 @@ export function SchoolFormsPage() {
             description: 'Learner\'s Permanent Academic Record (Form 137). Scholastic history and certifications.',
             icon: FileText,
             color: 'violet',
-            badge: 'Verified',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -274,7 +263,6 @@ export function SchoolFormsPage() {
             description: 'Generate batch-printable name tags for students with multiple premium templates.',
             icon: Tag,
             color: 'cyan',
-            badge: 'Tool',
             stats: [
                 { label: 'Templates', value: 3 },
                 { label: 'Layout', value: '2x4 Grid' },
@@ -286,7 +274,6 @@ export function SchoolFormsPage() {
             description: 'Comprehensive learner record featuring academic grade tracking, written works, performance tasks, and cumulative attendance monitoring.',
             icon: FileText,
             color: 'blue',
-            badge: 'New',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -298,7 +285,6 @@ export function SchoolFormsPage() {
             description: 'Generate compact, print-ready grade slips for students (4 per page).',
             icon: Printer,
             color: 'orange',
-            badge: 'Tool',
             stats: [
                 { label: 'Learners', value: activeStudentsCount },
                 { label: 'Sections', value: activeSectionsCount },
@@ -346,7 +332,6 @@ export function SchoolFormsPage() {
                         description={form.description}
                         icon={form.icon}
                         color={form.color}
-                        badge={form.badge}
                         stats={form.stats}
                         onSelect={() => handleFormOpen(form.id)}
                     />
