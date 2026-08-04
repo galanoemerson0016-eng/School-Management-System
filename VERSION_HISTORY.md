@@ -2,6 +2,23 @@
 
 # Version History
 
+## v2.8.4 (2026-08-04)
+
+### 🚀 New Features & Enhancements
+
+- **Parent SMS Broadcast Center**: Integrated comprehensive Parent SMS Broadcasting with 57 pre-configured, DepEd-aligned templates across 11 categories (Weather & Emergencies, PTC, Grades & Report Cards, Awards, Periodical Exams, School Programs, Forms & Clearance, Graduation, Attendance & Discipline, Health & Safety, General Reminders).
+- **Specific Student SMS Targeting**: Added hand-picked learner selection with searchable student picker, individual parent contact checkboxes, and real-time selection metrics.
+- **SMS Broadcast History Log**: Implemented local broadcast audit trail tracking last 10 broadcast runs with sent/failed delivery counts.
+
+### ⚡ Improvements
+
+- **Announcements Hub UI Redesign**: Overhauled Announcements page layout with Quick-Action Dashboard Cards, collapsible login announcement banner, and guided empty states.
+- **Settings Version History Sync**: Updated Settings Version History UI with full timeline coverage up to v2.8.4.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.8.3 (2026-08-03)
 
 ### 🚀 New Features & Enhancements

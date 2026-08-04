@@ -197,6 +197,7 @@ export interface Student {
     // Parent info
     parent_name?: string;
     parent_contact?: string;
+    parent_guardian_contact?: string;
     parent_email?: string;
     mother_tongue?: string;
     is_ip?: boolean;

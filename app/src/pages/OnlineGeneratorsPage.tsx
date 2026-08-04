@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Sparkles, ExternalLink, Search, Bot, Monitor, Copy, Check
+  BookOpen, ExternalLink, Search, Bot, Monitor, Copy, Check
 } from 'lucide-react';
 import { LessonPlannerTemplates } from '../components/games-tools/LessonPlannerTemplates';
 
@@ -418,10 +418,10 @@ export function OnlineGeneratorsPage() {
       <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-white/5 p-6 lg:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-black uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> DepEd Automated AI Prompt Generators
+            <BookOpen className="w-3.5 h-3.5 text-indigo-500" /> DepEd Academic Instructional Tools
           </div>
           <h1 className="text-2xl lg:text-3xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-3">
-            Online Generators & Lesson Planners
+            DepEd Instructional & Lesson Planning Suite
           </h1>
           <p className="text-xs lg:text-sm text-slate-500 dark:text-slate-400 font-medium max-w-2xl leading-relaxed">
             Generate DepEd-compliant Daily Lesson Logs (DLL), Detailed Lesson Plans (DLP), MATATAG curriculum guides, and ILAW framework exemplars instantly.

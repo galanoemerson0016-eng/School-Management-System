@@ -66,6 +66,12 @@ declare global {
         postLoadScript?: string;
         landscape?: boolean;
       }) => Promise<{ success: boolean; filePath?: string; cancelled?: boolean; error?: string }>;
+      sendSmsHttpRequest?: (options: {
+        url: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: unknown;
+      }) => Promise<{ success: boolean; statusCode?: number; data?: string; error?: string }>;
     };
   }
   const __APP_VERSION__: string;

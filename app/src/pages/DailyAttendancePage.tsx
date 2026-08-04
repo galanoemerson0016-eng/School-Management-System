@@ -11,6 +11,8 @@ import {
     ClipboardCheck, ScanLine, Camera, X, Search, CheckCircle2, AlertCircle, QrCode, Download, Printer, FileDown,
 } from 'lucide-react';
 import { generateQrDataUrl } from '../services/id-card/codes';
+import { triggerParentAttendanceSms } from '../services/sms-gateway';
+import { formatLearnerName } from '../utils/student-name';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -70,7 +72,7 @@ function todayIso(): string {
 }
 
 function composeName(s: Student): string {
-    return `${s.last_name}, ${s.first_name}${s.middle_name ? ` ${s.middle_name[0]}.` : ''}${s.name_extension ? ` ${s.name_extension}` : ''}`;
+    return formatLearnerName(s, { middleInitialOnly: true });
 }
 
 export function DailyAttendancePage() {
@@ -349,11 +351,25 @@ export function DailyAttendancePage() {
                     status,
                     section_id: student.student_section || '',
                 }]);
+
+                // Trigger Parent SMS Notification for all attendance statuses (present, absent, late, cutting, excused)
+                const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
+                if (parentPhone) {
+                    const studentName = composeName(student);
+                    const schoolName = schoolProfile?.name || 'Calibungan High School';
+                    void triggerParentAttendanceSms(studentName, parentPhone, schoolName, status)
+                        .then((res) => {
+                            if (res && res.success) {
+                                showNotification(`📱 SMS Alert (${status.toUpperCase()}) Sent to Parent (${parentPhone})`, 'info');
+                            }
+                        })
+                        .catch((err) => console.error('SMS trigger error:', err));
+                }
             }
         } catch {
             showNotification('Failed to save attendance mark', 'error');
         }
-    }, [date, deleteAttendanceRecords, upsertAttendanceRecords, showNotification]);
+    }, [date, deleteAttendanceRecords, upsertAttendanceRecords, showNotification, schoolProfile]);
 
     const toggleStatus = useCallback((student: Student, status: DailyStatus) => {
         const current = marks.get(student.lrn);
@@ -372,10 +388,24 @@ export function DailyAttendancePage() {
         try {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${roster.length} student(s) as ${status}`, 'success');
+
+            // Trigger SMS to parents for ALL statuses (present, absent, late, cutting, excused)
+            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            let smsCount = 0;
+            roster.forEach((student) => {
+                const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
+                if (parentPhone) {
+                    smsCount++;
+                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, status);
+                }
+            });
+            if (smsCount > 0) {
+                showNotification(`📱 Triggered ${smsCount} Parent SMS Alerts (${status.toUpperCase()})`, 'info');
+            }
         } catch {
             showNotification('Bulk update failed', 'error');
         }
-    }, [roster, date, upsertAttendanceRecords, showNotification]);
+    }, [roster, date, upsertAttendanceRecords, showNotification, schoolProfile]);
 
     const bulkSetUnmarkedToPresent = useCallback(async () => {
         const unmarkedStudents = roster.filter((s) => !marks.has(s.lrn));
@@ -390,10 +420,23 @@ export function DailyAttendancePage() {
         try {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
+
+            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            let smsCount = 0;
+            unmarkedStudents.forEach((student) => {
+                const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
+                if (parentPhone) {
+                    smsCount++;
+                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, 'present');
+                }
+            });
+            if (smsCount > 0) {
+                showNotification(`📱 Triggered ${smsCount} Parent SMS Alerts (PRESENT)`, 'info');
+            }
         } catch {
             showNotification('Auto-mark failed', 'error');
         }
-    }, [roster, marks, date, upsertAttendanceRecords, showNotification]);
+    }, [roster, marks, date, upsertAttendanceRecords, showNotification, schoolProfile]);
 
     const bulkClear = useCallback(async () => {
         const ids = roster.filter((s) => marks.has(s.lrn)).map((s) => `${s.lrn}_${date}`);

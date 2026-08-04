@@ -21,8 +21,9 @@ import {
     Layers,
     Gamepad2,
     IdCard,
-    Sparkles
+    BookOpen
 } from 'lucide-react';
+
 import { canAccessView, type AppView } from '../../lib/rbac';
 
 export function Sidebar() {
@@ -121,7 +122,7 @@ export function Sidebar() {
         { id: 'announcements', label: 'Announcements', icon: Megaphone },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'games-tools', label: 'Games & Tools', icon: Gamepad2 },
-        { id: 'online-generators', label: 'Online Generators', icon: Sparkles },
+        { id: 'online-generators', label: 'Lesson Planning Suite', icon: BookOpen },
     ];
 
     const handleNavClick = (id: string) => {

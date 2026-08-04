@@ -246,12 +246,12 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
                                             </p>
                                             {backup.isEncrypted && (
                                                 <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">
-                                                    🔒 Encrypted
+                                                    Encrypted
                                                 </span>
                                             )}
                                             {backup.isCompressed && (
                                                 <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full font-medium">
-                                                    📦 Compressed
+                                                    Compressed
                                                 </span>
                                             )}
                                         </div>
@@ -260,8 +260,7 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
                                         </p>
                                         <div className="text-xs text-gray-600 mt-1 space-y-0.5">
                                             <p>
-                                                📚 {backup.summary.students} students • 📊 {backup.summary.grades} grades •
-                                                👥 {backup.summary.users} users
+                                                {backup.summary.students} students • {backup.summary.grades} grades • {backup.summary.users} users
                                             </p>
                                         </div>
                                     </div>
@@ -285,7 +284,7 @@ export function BackupHistory({ onRestoreClick }: BackupHistoryProps) {
                                 </div>
 
                                 {backup.notes && (
-                                    <p className="text-xs text-gray-600 mt-2 italic">📝 {backup.notes}</p>
+                                    <p className="text-xs text-gray-600 mt-2 italic">{backup.notes}</p>
                                 )}
                             </div>
                         ))}

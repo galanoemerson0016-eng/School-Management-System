@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
-    Sparkles, BookText, X, Trash2, ArrowRight, ChevronLeft,
+    CheckCircle2, BookText, X, Trash2, ArrowRight, ChevronLeft,
     Search, Eye, EyeOff, Users
 } from 'lucide-react';
 import type { Subject } from '../types';
@@ -1177,7 +1177,7 @@ export function SubjectsPage() {
                             disabled={isLoadingTemplate}
                             className="h-8 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
                         >
-                            <Sparkles className="w-3.5 h-3.5" />
+                            <BookOpen className="w-3.5 h-3.5" />
                             Auto-Load All
                         </button>
                     )}
@@ -1188,7 +1188,7 @@ export function SubjectsPage() {
                                 className="h-8 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold text-xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 active:scale-95 cursor-pointer"
                                 title="Remove duplicate subject records from database"
                             >
-                                <Sparkles className="w-3.5 h-3.5" />
+                                <Settings className="w-3.5 h-3.5" />
                                 Clean Duplicates
                             </button>
                             {filteredSubjects.length > 0 && (
@@ -1258,7 +1258,6 @@ export function SubjectsPage() {
                                                 <div className="w-8 h-8 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
                                                     <BookOpen className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-blue-500/40 transition-colors">01</span>
                                             </div>
                                             <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                                                 1. Select Department
@@ -1274,7 +1273,6 @@ export function SubjectsPage() {
                                                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
                                                     <Settings className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-indigo-500/40 transition-colors">02</span>
                                             </div>
                                             <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                                                 2. Configure Subjects
@@ -1288,15 +1286,14 @@ export function SubjectsPage() {
                                         <div className="group relative bg-slate-50/80 dark:bg-slate-800/40 rounded-xl p-3.5 border border-slate-200/60 dark:border-slate-800 hover:border-emerald-500/30 transition-all hover:bg-white dark:hover:bg-slate-800/60 shadow-2xs">
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
-                                                    <Sparkles className="w-4 h-4" />
+                                                    <CheckCircle2 className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-xl font-black text-slate-200 dark:text-slate-700 group-hover:text-emerald-500/40 transition-colors">03</span>
                                             </div>
                                             <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1 flex items-center gap-2">
-                                                3. Automate Workflow
+                                                3. Automatic Report Sync
                                             </h4>
                                             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug">
-                                                Subjects automatically sync with class records, E-Class sheets, and SF9/SF10 reports.
+                                                Subjects automatically sync with class records, E-Class sheets, and official SF9/SF10 reports.
                                             </p>
                                         </div>
                                     </div>

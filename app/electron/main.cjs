@@ -1018,4 +1018,50 @@ ipcMain.handle('app:export-html-pdf', async (event, payload) => {
   }
 });
 
+ipcMain.handle('send-sms-http-request', async (event, { url, method, headers, body }) => {
+  return new Promise((resolve) => {
+    try {
+      const urlObj = new URL(url);
+      const httpModule = urlObj.protocol === 'https:' ? require('https') : require('http');
+      const payloadData = typeof body === 'string' ? body : JSON.stringify(body);
+      const reqHeaders = Object.assign({
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payloadData)
+      }, headers || {});
+
+      const req = httpModule.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
+        method: method || 'POST',
+        headers: reqHeaders,
+        timeout: 5000
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          resolve({
+            success: res.statusCode >= 200 && res.statusCode < 300,
+            statusCode: res.statusCode,
+            data
+          });
+        });
+      });
+
+      req.on('timeout', () => {
+        req.destroy(new Error('Connection timed out after 5 seconds'));
+      });
+
+      req.on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+
+      req.write(payloadData);
+      req.end();
+    } catch (err) {
+      resolve({ success: false, error: err.message });
+    }
+  });
+});
+
 

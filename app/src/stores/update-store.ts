@@ -341,7 +341,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = '2.8.3';
+      const CURRENT_VERSION = '2.8.4';
       const api = window.electronAPI;
 
       try {

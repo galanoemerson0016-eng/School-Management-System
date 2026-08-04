@@ -674,57 +674,57 @@ export function BackupRestoreModal({
                                     {[
                                         {
                                             id: 'schoolProfile',
-                                            label: '🏫 School Profile',
+                                            label: 'School Profile',
                                             count: 1,
                                         },
                                         {
                                             id: 'students',
-                                            label: '👥 Students',
+                                            label: 'Students',
                                             count: state.backup.summary.students,
                                         },
                                         {
                                             id: 'sections',
-                                            label: '📚 Sections',
+                                            label: 'Sections',
                                             count: state.backup.summary.sections,
                                         },
                                         {
                                             id: 'subjects',
-                                            label: '📖 Subjects',
+                                            label: 'Subjects',
                                             count: state.backup.summary.subjects,
                                         },
                                         {
                                             id: 'enrollments',
-                                            label: '✍️ Enrollments',
+                                            label: 'Enrollments',
                                             count: state.backup.summary.enrollments,
                                         },
                                         {
                                             id: 'classRecords',
-                                            label: '📊 Subject Grades',
+                                            label: 'Subject Grades',
                                             count: state.backup.summary.grades,
                                         },
                                         {
                                             id: 'hpsRecords',
-                                            label: '🎯 Highest Possible Score (HPS) Records',
+                                            label: 'Highest Possible Score (HPS) Records',
                                             count: state.backup.summary.hpsRecords || 0,
                                         },
                                         {
                                             id: 'gradingSheetRecords',
-                                            label: '📈 Consolidated Grades',
+                                            label: 'Consolidated Grades',
                                             count: state.backup.summary.gradingSheetRecords || 0,
                                         },
                                         {
                                             id: 'observedValues',
-                                            label: '💬 Teacher\'s Comments/Remarks',
+                                            label: 'Teacher\'s Comments/Remarks',
                                             count: state.backup.summary.observedValues || 0,
                                         },
                                         {
                                             id: 'attendanceRecords',
-                                            label: '📅 Attendance Records',
+                                            label: 'Attendance Records',
                                             count: state.backup.summary.attendanceRecords || 0,
                                         },
                                         {
                                             id: 'sf2Sheets',
-                                            label: '📝 SF2 Attendance Sheets',
+                                            label: 'SF2 Attendance Sheets',
                                             count: state.backup.summary.sf2Sheets || 0,
                                         },
                                         {

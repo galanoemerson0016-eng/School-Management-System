@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, X, Trash2, Pencil, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, X, Trash2, Pencil, RotateCcw, Printer, MessageSquare, Send } from 'lucide-react';
 import type { CalendarEvent } from '../types';
 import { canManageCalendarEvents } from '../lib/rbac';
-import { useAuthStore } from '../stores';
+import { useAuthStore, useAppStore } from '../stores';
 import { OFFICIAL_CALENDAR_2026_2027 } from '../data/calendar-events';
+import { broadcastParentSms, type SmsBroadcastProgress } from '../services/sms-gateway';
+import { formatLearnerName } from '../utils/student-name';
 
 const EVENT_TYPES = {
     holiday: { label: 'Holiday', color: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
@@ -19,6 +21,7 @@ const EVENT_TYPES = {
 
 export function CalendarPage() {
     const { user } = useAuthStore();
+    const { students, schoolProfile, showNotification } = useAppStore();
     const canManageEvents = canManageCalendarEvents(user);
     const [currentDate, setCurrentDate] = useState(new Date());
     const storageKey = 'school_calendar_events';
@@ -45,6 +48,64 @@ export function CalendarPage() {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     });
     const [formData, setFormData] = useState<Partial<CalendarEvent>>({ type: 'event' });
+
+    // Category filter
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+    // Event SMS Broadcast Modal State
+    const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
+    const [smsEventTemplate, setSmsEventTemplate] = useState('');
+    const [isSendingSms, setIsSendingSms] = useState(false);
+    const [smsProgress, setSmsProgress] = useState<SmsBroadcastProgress | null>(null);
+
+    const handleOpenEventSmsModal = (evt: CalendarEvent) => {
+        const dateStr = evt.date;
+        setSmsEventTemplate(`Notice: ${evt.title} is scheduled at {school_name} on ${dateStr}. Please be guided accordingly.`);
+        setIsSmsModalOpen(true);
+    };
+
+    const handleSendEventSmsBroadcast = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!smsEventTemplate.trim()) {
+            showNotification('Please enter SMS message text', 'error');
+            return;
+        }
+
+        const targetStudents = students.filter(s => {
+            const phone = s.parent_contact || s.parent_guardian_contact || s.contact_number;
+            return !!phone && phone.trim().length >= 7;
+        });
+
+        if (targetStudents.length === 0) {
+            showNotification('No learners found with parent contact numbers', 'error');
+            return;
+        }
+
+        const targets = targetStudents.map(s => ({
+            studentName: formatLearnerName(s, { middleInitialOnly: true }),
+            parentPhone: s.parent_contact || s.parent_guardian_contact || s.contact_number || '',
+        }));
+
+        setIsSendingSms(true);
+        setSmsProgress({ total: targets.length, sent: 0, failed: 0, currentStudent: targets[0].studentName });
+
+        try {
+            const schoolName = schoolProfile?.name || 'Calibungan High School';
+            const res = await broadcastParentSms(targets, smsEventTemplate, schoolName, (p) => setSmsProgress(p));
+            showNotification(`📱 Broadcast Complete: ${res.sent} Parent SMS Sent (${res.failed} skipped)`, 'success');
+            setIsSmsModalOpen(false);
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'SMS Broadcast failed';
+            showNotification(errorMessage, 'error');
+        } finally {
+            setIsSendingSms(false);
+            setSmsProgress(null);
+        }
+    };
+
+    const handlePrintCalendar = () => {
+        window.print();
+    };
 
     // Persist events to localStorage whenever they change
     useEffect(() => {
@@ -188,10 +249,12 @@ export function CalendarPage() {
             .filter(e => {
                 const startsInMonth = e.date.startsWith(monthPrefix);
                 const spansMonth = e.end_date && e.date <= `${monthPrefix}-31` && e.end_date >= `${monthPrefix}-01`;
-                return startsInMonth || spansMonth;
+                const matchesMonth = startsInMonth || spansMonth;
+                const matchesCategory = categoryFilter === 'all' || e.type === categoryFilter;
+                return matchesMonth && matchesCategory;
             })
             .sort((a, b) => a.date.localeCompare(b.date));
-    }, [events, currentDate]);
+    }, [events, currentDate, categoryFilter]);
 
     return (
         <div className="space-y-3 md:space-y-4 pb-3 md:pb-4 h-full min-h-0 flex flex-col overflow-hidden pr-1 lg:pr-2">
@@ -207,23 +270,32 @@ export function CalendarPage() {
                     </h2>
                     <p className="text-[10px] text-gray-500 dark:text-slate-400 font-medium -mt-0.5">SY 2026-2027 Events & Holidays</p>
                 </div>
-                {canManageEvents && (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleResetDefaults}
-                            className="px-3.5 py-2 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                            title="Reset to official calendar defaults"
-                        >
-                            <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Reset Defaults
-                        </button>
-                        <button
-                            onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate || todayStr }); }}
-                            className="px-4 py-2 bg-deped-blue dark:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <Plus className="w-4 h-4" /> Add Event
-                        </button>
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handlePrintCalendar}
+                        className="px-3.5 py-2 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Print School Calendar"
+                    >
+                        <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Print
+                    </button>
+                    {canManageEvents && (
+                        <>
+                            <button
+                                onClick={handleResetDefaults}
+                                className="px-3.5 py-2 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                title="Reset to official calendar defaults"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Reset Defaults
+                            </button>
+                            <button
+                                onClick={() => { setIsModalOpen(true); setFormData({ type: 'event', date: selectedDate || todayStr }); }}
+                                className="px-4 py-2 bg-deped-blue dark:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <Plus className="w-4 h-4" /> Add Event
+                            </button>
+                        </>
+                    )}
+                </div>
             </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4 flex-1 min-h-0 items-stretch">
@@ -324,24 +396,33 @@ export function CalendarPage() {
                                                      <p className="font-bold text-[11px] text-gray-800 dark:text-white leading-tight wrap-break-word">{evt.title}</p>
                                                      {evt.description && <p className="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5 leading-tight wrap-break-word">{evt.description}</p>}
                                                  </div>
-                                                {canManageEvents && (
-                                                    <div className="flex items-center gap-1 shrink-0">
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }} 
-                                                            className="p-0.5 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors cursor-pointer"
-                                                            title="Edit Event"
-                                                        >
-                                                            <Pencil className="w-3 h-3" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }} 
-                                                            className="p-0.5 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors cursor-pointer"
-                                                            title="Delete Event"
-                                                        >
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleOpenEventSmsModal(evt); }}
+                                                        className="p-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded text-emerald-600 dark:text-emerald-400 font-bold transition-colors cursor-pointer"
+                                                        title="Broadcast Event SMS to Parents"
+                                                    >
+                                                        <MessageSquare className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    {canManageEvents && (
+                                                        <>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleEditEvent(evt); }} 
+                                                                className="p-0.5 hover:bg-blue-100 dark:hover:bg-white/10 rounded text-blue-500 dark:text-blue-400 hover:text-blue-700 transition-colors cursor-pointer"
+                                                                title="Edit Event"
+                                                            >
+                                                                <Pencil className="w-3 h-3" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteEvent(evt.id); }} 
+                                                                className="p-0.5 hover:bg-red-100 dark:hover:bg-red-500/20 rounded text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                                                title="Delete Event"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))
@@ -403,15 +484,33 @@ export function CalendarPage() {
                         </div>
                     </div>
 
-                    {/* Event Type Legend */}
+                    {/* Category Quick Filter */}
                     <div className="bg-white dark:bg-[#0d1225] rounded-xl shadow-xs border border-gray-100 dark:border-white/10 p-2.5 shrink-0">
-                        <h4 className="font-bold text-gray-800 dark:text-slate-300 text-[10px] mb-1.5 uppercase tracking-wider">Legend</h4>
+                        <h4 className="font-bold text-gray-800 dark:text-slate-300 text-[10px] mb-1.5 uppercase tracking-wider">Filter by Category</h4>
                         <div className="grid grid-cols-1 gap-1">
+                            <button
+                                onClick={() => setCategoryFilter('all')}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-left ${
+                                    categoryFilter === 'all'
+                                        ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs'
+                                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                                }`}
+                            >
+                                All Categories
+                            </button>
                             {Object.entries(EVENT_TYPES).map(([key, val]) => (
-                                <div key={key} className="flex items-center gap-1.5">
-                                    <div className={`w-2.5 h-2.5 rounded-full ${val.color} shrink-0`} />
-                                    <span className="text-[10px] font-semibold text-gray-600 dark:text-slate-300 leading-tight">{val.label}</span>
-                                </div>
+                                <button
+                                    key={key}
+                                    onClick={() => setCategoryFilter(categoryFilter === key ? 'all' : key)}
+                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-left ${
+                                        categoryFilter === key
+                                            ? `${val.color} text-white shadow-xs`
+                                            : 'text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                                    }`}
+                                >
+                                    <div className={`w-2.5 h-2.5 rounded-full ${categoryFilter === key ? 'bg-white/40' : val.color} shrink-0`} />
+                                    {val.label}
+                                </button>
                             ))}
                         </div>
                     </div>
@@ -509,6 +608,97 @@ export function CalendarPage() {
                                     </button>
                                 </div>
                             </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Event SMS Broadcast Modal */}
+            <AnimatePresence>
+                {isSmsModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+                        onClick={() => !isSendingSms && setIsSmsModalOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white dark:bg-[#0d1225] rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 max-w-lg w-full overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="bg-linear-to-r from-emerald-600 to-teal-600 text-white px-6 py-4 flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <MessageSquare className="w-5 h-5" />
+                                    <h3 className="text-sm font-black uppercase tracking-wider">Broadcast Event SMS to Parents</h3>
+                                </div>
+                                {!isSendingSms && (
+                                    <button onClick={() => setIsSmsModalOpen(false)} className="text-white text-xl hover:bg-white/20 rounded-lg px-2 py-0.5 cursor-pointer">×</button>
+                                )}
+                            </div>
+
+                            <form onSubmit={handleSendEventSmsBroadcast} className="p-6 space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                        SMS Message Content *
+                                    </label>
+                                    <textarea
+                                        rows={4}
+                                        value={smsEventTemplate}
+                                        onChange={(e) => setSmsEventTemplate(e.target.value)}
+                                        disabled={isSendingSms}
+                                        required
+                                        placeholder="Write SMS announcement text..."
+                                        className="w-full p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-hidden leading-relaxed"
+                                    />
+                                    <div className="flex flex-wrap gap-1.5 text-[10px]">
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-mono font-bold">{'{student_name}'}</span>
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-mono font-bold">{'{school_name}'}</span>
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-mono font-bold">{'{time}'}</span>
+                                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-mono font-bold">{'{date}'}</span>
+                                    </div>
+                                </div>
+
+                                {smsProgress && (
+                                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 space-y-1.5">
+                                        <div className="flex justify-between text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                                            <span>Sending: {smsProgress.sent + smsProgress.failed} / {smsProgress.total}</span>
+                                            <span>{Math.round(((smsProgress.sent + smsProgress.failed) / smsProgress.total) * 100)}%</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-emerald-200 dark:bg-emerald-900/50 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-emerald-600 dark:bg-emerald-400 transition-all duration-200"
+                                                style={{ width: `${((smsProgress.sent + smsProgress.failed) / smsProgress.total) * 100}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                                            Current: {smsProgress.currentStudent}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        disabled={isSendingSms}
+                                        onClick={() => setIsSmsModalOpen(false)}
+                                        className="px-4 py-2 border border-slate-200 dark:border-white/10 rounded-xl text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSendingSms}
+                                        className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                                    >
+                                        <Send className="w-3.5 h-3.5" />
+                                        {isSendingSms ? 'Broadcasting...' : 'Send SMS to All Parents'}
+                                    </button>
+                                </div>
+                            </form>
                         </motion.div>
                     </motion.div>
                 )}

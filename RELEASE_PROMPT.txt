@@ -49,6 +49,7 @@ Files to Modify :
   ✓ app/package.json
   ✓ app/src/stores/update-store.ts
   ✓ VERSION_HISTORY.md
+  ✓ app/src/pages/SettingsPage.tsx
   ✓ app/dist-electron/main.cjs
   ✓ app/dist-electron/preload.cjs
   ✓ app/dist-electron/license.cjs
@@ -70,8 +71,8 @@ Upon user approval:
 
 ---
 
-## 6. Update Version History (VERSION_HISTORY.md)
-Insert a new release entry at the very top of `VERSION_HISTORY.md` (below `<!-- markdownlint-disable -->`):
+## 6. Update Version History (VERSION_HISTORY.md & Settings Page)
+1. Insert a new release entry at the very top of `VERSION_HISTORY.md` (below `<!-- markdownlint-disable -->`):
 
 ```markdown
 ## v<new-version> (<YYYY-MM-DD>)
@@ -92,6 +93,10 @@ Insert a new release entry at the very top of `VERSION_HISTORY.md` (below `<!-- 
 
 - Fully backward compatible update with zero risk of data loss.
 ```
+
+2. Update `app/src/pages/SettingsPage.tsx` under the Version History tab (`activeTab === 'versions'`):
+   - Add the new version block at the top of the version timeline list.
+   - Move the `<span className="...">Latest Production</span>` badge to the new top version entry.
 
 *Note: Ensure sub-headings are surrounded by blank lines to satisfy markdown linting rules.*
 
@@ -142,6 +147,7 @@ Modified Files   :
   ✓ app/package.json
   ✓ app/src/stores/update-store.ts
   ✓ VERSION_HISTORY.md
+  ✓ app/src/pages/SettingsPage.tsx
   ✓ app/dist-electron/main.cjs
   ✓ app/dist-electron/preload.cjs
   ✓ app/dist-electron/license.cjs

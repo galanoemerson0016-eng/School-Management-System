@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor } from 'lucide-react';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare } from 'lucide-react';
 import { AboutPage } from './AboutPage';
+import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
 import { CloudSyncService } from '../services/cloud-sync';
 import { DiagnosticEngine, type DiagnosticIssue } from '../services/diagnostic-engine';
@@ -72,7 +73,7 @@ export function SettingsPage() {
     const [autoBackups, setAutoBackups] = useState<AutomatedBackupEntry[]>([]);
     const [fsBackups, setFsBackups] = useState<FsBackupEntry[]>([]);
     const updateStore = useUpdateStore();
-    const [activeTab, setActiveTab] = useState<'account' | 'cloud' | 'backups' | 'maintenance' | 'versions' | 'about'>('account');
+    const [activeTab, setActiveTab] = useState<'account' | 'cloud' | 'backups' | 'sms' | 'maintenance' | 'versions' | 'about'>('account');
 
     const [disableAnimations, setDisableAnimations] = useState(() => {
         return localStorage.getItem('disable-animations') === 'true';
@@ -1868,6 +1869,18 @@ export function SettingsPage() {
                     )}
                 </button>
 
+                <button
+                    onClick={() => setActiveTab('sms')}
+                    className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        activeTab === 'sms'
+                            ? 'bg-white dark:bg-[#1e293b] text-emerald-600 dark:text-emerald-400 shadow-xs border border-slate-200/40 dark:border-white/5'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-white/5'
+                    }`}
+                >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="truncate">Parent SMS Gateway</span>
+                </button>
+
                 {canPurge && (
                     <button
                         onClick={() => setActiveTab('maintenance')}
@@ -1909,6 +1922,9 @@ export function SettingsPage() {
 
             {/* Main Full-Width Content Pane */}
             <div className="w-full space-y-6">
+                    {/* Tab: Parent SMS Gateway */}
+                    {activeTab === 'sms' && <SmsGatewaySettings />}
+
                     {/* Tab 1: Account & Security */}
                     {activeTab === 'account' && (
                         <>
@@ -2206,25 +2222,24 @@ export function SettingsPage() {
                                             {/* Modern 4-column micro-stats grid */}
                                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                                                 <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">👥 Students</span>
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Students</span>
                                                     <span className="text-[11px] text-slate-400 font-extrabold">{students.length} enrollment(s)</span>
                                                 </div>
                                                 <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">🏫 Sections</span>
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Sections</span>
                                                     <span className="text-[11px] text-slate-400 font-extrabold">{sections.length} section(s)</span>
                                                 </div>
                                                 <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">📚 Subjects</span>
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Subjects</span>
                                                     <span className="text-[11px] text-slate-400 font-extrabold">{subjects.length} subject(s)</span>
                                                 </div>
                                                 <div className="p-3 rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
-                                                    <span className="block font-black text-slate-700 dark:text-gray-200">📝 Grades</span>
+                                                    <span className="block font-black text-slate-700 dark:text-gray-200">Grades</span>
                                                     <span className="text-[11px] text-slate-400 font-extrabold">All records</span>
                                                 </div>
                                             </div>
 
                                             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 mt-2">
-                                                <span className="text-sm">💡</span>
                                                 <p className="text-[10px] text-amber-600 dark:text-amber-300 font-extrabold leading-relaxed">
                                                     Keep this downloaded backup file safe in an external drive (e.g. USB flash drive) or secure cloud storage.
                                                 </p>
@@ -2703,16 +2718,16 @@ export function SettingsPage() {
                                         disabled={isCleaning}
                                         className="rounded-xl border border-rose-150 dark:border-rose-900/35 bg-rose-50/30 dark:bg-rose-950/15 hover:bg-rose-50/60 dark:hover:bg-rose-950/30 px-4 py-3 text-left text-xs font-bold text-rose-700 dark:text-rose-400 transition-all disabled:opacity-50 cursor-pointer"
                                     >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-rose-800 dark:text-rose-300">Purge Ghost Students</div>
-                                        <span className="text-[10px] text-rose-400/80 font-semibold">Remove students not assigned to any active section.</span>
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-rose-800 dark:text-rose-300">Unassigned Student Cleanup</div>
+                                        <span className="text-[10px] text-rose-400/80 font-semibold">Remove student records not assigned to an active section.</span>
                                     </button>
                                     <button
                                         onClick={handleCleanGhostSections}
                                         disabled={isPurgingSections}
                                         className="rounded-xl border border-amber-150 dark:border-amber-900/35 bg-amber-50/30 dark:bg-amber-950/15 hover:bg-amber-50/60 dark:hover:bg-amber-950/30 px-4 py-3 text-left text-xs font-bold text-amber-700 dark:text-amber-400 transition-all disabled:opacity-50 cursor-pointer"
                                     >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-amber-800 dark:text-amber-300">Purge Ghost Sections</div>
-                                        <span className="text-[10px] text-amber-400/80 font-semibold">Delete sections with 0 students and 0 subjects.</span>
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-amber-800 dark:text-amber-300">Empty Section Cleanup</div>
+                                        <span className="text-[10px] text-amber-400/80 font-semibold">Delete section records with 0 students and 0 subjects.</span>
                                     </button>
                                     
                                     {/* Feature 1: Duplicate LRN Detector */}
@@ -2740,7 +2755,7 @@ export function SettingsPage() {
                                         onClick={handleCleanOrphanAttendance}
                                         className="rounded-xl border border-fuchsia-150 dark:border-fuchsia-900/35 bg-fuchsia-50/30 dark:bg-fuchsia-950/15 hover:bg-fuchsia-50/60 dark:hover:bg-fuchsia-950/30 px-4 py-3 text-left text-xs font-bold text-fuchsia-700 dark:text-fuchsia-400 transition-all cursor-pointer"
                                     >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-fuchsia-800 dark:text-fuchsia-300">Purge Orphan Attendance</div>
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-fuchsia-800 dark:text-fuchsia-300">Orphan Attendance Log Cleanup</div>
                                         <span className="text-[10px] text-fuchsia-400/80 font-semibold">Delete attendance logs without active students.</span>
                                     </button>
 
@@ -2781,15 +2796,15 @@ export function SettingsPage() {
                                         onClick={() => setShowDangerZone((prev) => !prev)}
                                         className="w-full rounded-xl border border-red-200 dark:border-red-900/30 bg-white hover:bg-red-50/30 dark:bg-transparent dark:hover:bg-red-950/10 px-4 py-3 text-center text-xs font-black uppercase tracking-wider text-red-600 dark:text-red-400 transition-all cursor-pointer"
                                     >
-                                        {showDangerZone ? 'Hide Admin Danger Zone' : 'Show Admin Danger Zone ⚠️'}
+                                        {showDangerZone ? 'Hide Administrative Reset Controls' : 'Show System Reset Controls'}
                                     </button>
                                 </div>
 
                                 {showDangerZone && (
                                     <div className="space-y-3 rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/15 p-5 animate-in slide-in-from-top-2 duration-200">
                                         <div className="pb-2 border-b border-red-100 dark:border-red-950/30">
-                                            <h4 className="text-xs font-black text-red-800 dark:text-red-400 uppercase tracking-widest">⚠️ Administrative Reset Actions</h4>
-                                            <p className="text-[10px] text-red-500 font-semibold mt-0.5">These destructive actions are permanent and reset database modules.</p>
+                                            <h4 className="text-xs font-black text-red-800 dark:text-red-400 uppercase tracking-widest">Administrative System Reset Utilities</h4>
+                                            <p className="text-[10px] text-red-500 font-semibold mt-0.5">These destructive operations permanently purge selected database modules.</p>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                             <button
@@ -2928,16 +2943,24 @@ export function SettingsPage() {
                                             <p className="text-xs font-semibold text-slate-400 mt-0.5">Download individual database tables as clean CSV spreadsheets.</p>
                                         </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'].map(table => (
-                                            <button
-                                                key={table}
-                                                onClick={() => handleExportTableCsv(table)}
-                                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-gray-300 cursor-pointer"
-                                            >
-                                                {table.replace('Records', '')} ↓
-                                            </button>
-                                        ))}
+                                    <div className="space-y-3">
+                                        <button
+                                            onClick={handleExportAllTablesCsv}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                        >
+                                            <Download className="w-4 h-4" /> Download All 7 Database Tables (Bulk CSV Package)
+                                        </button>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'].map(table => (
+                                                <button
+                                                    key={table}
+                                                    onClick={() => handleExportTableCsv(table)}
+                                                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-gray-300 cursor-pointer"
+                                                >
+                                                    {table.replace('Records', '')} ↓
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3167,12 +3190,152 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.7.1 */}
+                                {/* Version 2.8.4 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.1</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.4</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 4, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Added <strong>Parent SMS Broadcast Center</strong> with 57 categorized message templates across 11 categories (Weather, PTC, Grades, Awards, Exams, Programs, Clearance, Graduation, Attendance, Health, General).</li>
+                                        <li>Added <strong>Specific Student SMS Targeting</strong> — send SMS to individual student parents with searchable picker and checkbox selection.</li>
+                                        <li>Added <strong>SMS Broadcast History Log</strong> tracking last 10 broadcasts with sent/failed delivery metrics.</li>
+                                        <li>Redesigned <strong>Announcements Page</strong> with Quick-Action Dashboard Cards, collapsible login banner, and enriched empty states.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.8.3 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.3</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 4, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Added <strong>Parent SMS Broadcast Center</strong> with 57 categorized message templates across 11 categories (Weather, PTC, Grades, Awards, Exams, Programs, Clearance, Graduation, Attendance, Health, General).</li>
+                                        <li>Added <strong>Specific Student Targeting</strong> — send SMS to individual student parents with searchable picker and checkbox selection.</li>
+                                        <li>Added <strong>SMS Broadcast History Log</strong> tracking last 10 broadcasts with sent/failed counts.</li>
+                                        <li>Redesigned <strong>Announcements Page</strong> with Quick-Action Dashboard Cards, collapsible login banner, and enriched empty states.</li>
+                                        <li>Expanded onboarding wizard to 22 spotlight steps with auto-scrolling.</li>
+                                        <li>Standardized E-Class Record terminology from "Quarterly" to "Term" for 3-term calendar support.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.8.2 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.2</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 2, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Deduplicated E-Class Record subject selector options by normalized title.</li>
+                                        <li>Fixed dark mode printable document sheet background to enforce pure paper-white canvas for printing.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.8.1 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.1</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 2, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Added <strong>SF2 Attendance Roster Filtering</strong> based on learner's first day of attendance date.</li>
+                                        <li>Pre-enrollment date cells are now shaded and non-editable with helpful tooltips.</li>
+                                        <li>Added <strong>Clean Duplicates</strong> utility in Subjects manager for bulk-deleting redundant database records.</li>
+                                        <li>Automatic normalized subject deduplication in SF9 and Consolidated Grade matrices.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.8.0 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.8.0</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 30, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Full <strong>Dark Mode</strong> support across all School Forms (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags).</li>
+                                        <li>Added <strong>Post-Update What's New</strong> screen on app startup after updating.</li>
+                                        <li>macOS auto-updater and release download fallback with Firebase Hosting redirects.</li>
+                                        <li>Excel template export sheet name sanitization and deduplication.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.6 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.6</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Embedded <strong>Version Description (What's New)</strong> inside the post-update Data Reconciliation Report modal.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.5 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.5</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Fixed SF2 summary column header from TARDY back to PRESENT and synchronized student row totals.</li>
+                                        <li>Synchronized Excel export headers and calculated present counts.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.4 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.4</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Added Section selection dropdown in <strong>Temporary Grade Slips</strong> for browsing and printing any section's grade slips.</li>
+                                        <li>Prioritized advisory classes at the top of the dropdown list.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.3 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.3</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Updated all 35 DepEd-compliant AI prompt generators with exact decoded <strong>Gemini share links</strong>.</li>
+                                        <li>Added 35th template card: Daily Lesson Log (DLL) + Exemplar.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.2 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.2</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 28, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Fixed SF2 button redirecting to Dashboard instead of Attendance page.</li>
+                                        <li>Resolved fixed backdrop overlay and scrolling issues in Student Information modal.</li>
+                                        <li>Assigned valid URLs to all 34+ DepEd generator cards with interactive template launchers.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.7.1 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.7.1</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">July 27, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

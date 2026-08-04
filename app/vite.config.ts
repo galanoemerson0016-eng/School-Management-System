@@ -74,6 +74,13 @@ export default defineConfig(({ mode }) => ({
     port: 3001,
     strictPort: false,
     host: true,
+    proxy: {
+      '/api-sms-cloud': {
+        target: 'https://api.sms-gate.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-sms-cloud/, ''),
+      },
+    },
     hmr: {
       overlay: true,
     },
