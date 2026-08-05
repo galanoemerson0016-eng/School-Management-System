@@ -8,11 +8,13 @@ import { useAppStore } from '../stores';
 import { extractLrnFromScan } from '../utils/scan-utils';
 import type { AttendanceRecord, Student } from '../types';
 import {
-    ClipboardCheck, ScanLine, Camera, X, Search, CheckCircle2, AlertCircle, QrCode, Download, Printer, FileDown,
+    ClipboardCheck, ScanLine, Camera, X, Search, CheckCircle2, AlertCircle, QrCode, Download, Printer, FileDown, Smartphone,
 } from 'lucide-react';
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
+import { subscribeToAttendanceUpdates, broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
+import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -105,8 +107,54 @@ export function DailyAttendancePage() {
     const [lastScan, setLastScan] = useState<{ ok: boolean; text: string; lrn?: string } | null>(null);
     const schoolProfile = useAppStore((s) => s.schoolProfile);
     const [showQrModal, setShowQrModal] = useState(false);
+    const [showPhoneGatewayModal, setShowPhoneGatewayModal] = useState(false);
+
+    // Push active desktop roster & session data to local server for mobile clients
+    useEffect(() => {
+        if (!students || students.length === 0) return;
+        const host = window.location.hostname || 'localhost';
+        const currentPort = window.location.port || '3003';
+        const proto = window.location.protocol.startsWith('https') ? 'https:' : 'http:';
+        const endpoints = Array.from(new Set([
+            `/api/attendance/session`,
+            `${proto}//${host}:${currentPort}/api/attendance/session`,
+            `${proto}//${host}:3003/api/attendance/session`,
+            `${proto}//${host}:3001/api/attendance/session`
+        ]));
+
+        const payload = JSON.stringify({
+            date,
+            students,
+            sections,
+            records: attendanceRecords,
+            schoolProfile,
+        });
+
+        for (const url of endpoints) {
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+            }).catch(() => {});
+        }
+    }, [date, students, sections, attendanceRecords, schoolProfile]);
     const [selectedStudentForQr, setSelectedStudentForQr] = useState<Student | null>(null);
     const [studentQrDataUrl, setStudentQrDataUrl] = useState<string>('');
+
+    // Subscribe to live phone attendance scans/edits from teacher's smartphone
+    useEffect(() => {
+        const unsubscribe = subscribeToAttendanceUpdates((event) => {
+            if (event.record) {
+                void upsertAttendanceRecords([event.record]);
+                const name = event.studentName || event.record.student_lrn;
+                showNotification(
+                    `📱 Smartphone Scan: ${name} marked ${event.record.status.toUpperCase()}`,
+                    'success'
+                );
+            }
+        });
+        return () => unsubscribe();
+    }, [upsertAttendanceRecords, showNotification]);
 
     useEffect(() => {
         if (!selectedStudentForQr) return;
@@ -344,13 +392,17 @@ export function DailyAttendancePage() {
             if (status === null) {
                 await deleteAttendanceRecords([id]);
             } else {
-                await upsertAttendanceRecords([{
+                const record: AttendanceRecord = {
                     id,
                     student_lrn: student.lrn,
                     date,
                     status,
                     section_id: student.student_section || '',
-                }]);
+                };
+                await upsertAttendanceRecords([record]);
+
+                const studentName = composeName(student);
+                broadcastAttendanceUpdate(record, studentName);
 
                 // Trigger Parent SMS Notification for all attendance statuses (present, absent, late, cutting, excused)
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
@@ -709,6 +761,14 @@ export function DailyAttendancePage() {
                     >
                         <Camera className="w-4 h-4" />
                         Camera
+                    </button>
+                    <button
+                        onClick={() => setShowPhoneGatewayModal(true)}
+                        className="h-10 px-3.5 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95"
+                        title="Scan QR code on your phone to open Phone Attendance Gateway"
+                    >
+                        <Smartphone className="w-4 h-4 text-indigo-200" />
+                        Phone Gateway
                     </button>
                 </div>
             </div>
@@ -1217,6 +1277,12 @@ export function DailyAttendancePage() {
                     </div>
                 </div>
             )}
+
+            {/* Mobile Phone Gateway QR Modal */}
+            <PhoneAttendanceModal
+                isOpen={showPhoneGatewayModal}
+                onClose={() => setShowPhoneGatewayModal(false)}
+            />
         </div>
     );
 }

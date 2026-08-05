@@ -1869,7 +1869,7 @@ export function EClassRecord() {
                                 </div>
                                 <div className="text-center flex-1 mx-4 text-black">
                                     <h1 className="text-2xl font-bold font-serif tracking-wide text-black mb-0 uppercase">Class Record</h1>
-                                    <p className="text-[12px] italic text-red-600 font-serif mb-2">(Pursuant to DepEd Order 8 series of 2015)</p>
+                                    <p className="text-[12px] italic text-red-600 font-serif mb-2">(Pursuant to DepEd Order 15 series of 2026)</p>
                                     <div className="grid gap-x-4 gap-y-3 text-[10px] font-bold uppercase mb-6 justify-center w-full px-2 text-black" style={{ gridTemplateColumns: '42% 33% 25%' }}>
                                         {/* Row 1, Col 1: Region */}
                                         <div className="flex items-center min-h-6.5 text-black">

@@ -109,6 +109,17 @@ if (!gotTheLock) {
     }
     createWindow();
 
+    // Start local Express server for Mobile Attendance Gateway
+    try {
+      const serverPath = path.join(__dirname, '..', 'server.js');
+      if (fs.existsSync(serverPath)) {
+        require(serverPath);
+        if (log && log.info) log.info('[FormEase Pro] Mobile Gateway server started on port 3001');
+      }
+    } catch (err) {
+      console.warn('[FormEase Pro] Express server startup notice:', err.message || err);
+    }
+
     // Check for updates after the app is ready (only in production)
     if (!isDev) {
       setTimeout(() => {
@@ -193,6 +204,62 @@ ipcMain.handle('get-machine-id', () => {
   } catch (error) {
     console.error('Failed to get machine ID:', error);
     return 'UNKNOWN-DEVICE';
+  }
+});
+
+ipcMain.handle('get-local-ip', () => {
+  try {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    const candidates = [];
+
+    for (const name in interfaces) {
+      const lowerName = name.toLowerCase();
+      // Skip virtual adapters & virtual switches
+      if (lowerName.includes('virtual') || lowerName.includes('vbox') || lowerName.includes('vmware') || lowerName.includes('vethernet') || lowerName.includes('pseudo') || lowerName.includes('hyper-v')) {
+        continue;
+      }
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          if (!iface.address.startsWith('169.254.')) {
+            // Prioritize Wi-Fi or Wireless or Ethernet
+            if (lowerName.includes('wi-fi') || lowerName.includes('wlan') || lowerName.includes('wireless') || lowerName.includes('ethernet')) {
+              return iface.address;
+            }
+            candidates.push(iface.address);
+          }
+        }
+      }
+    }
+    // Fallback: search all interfaces non-internal IPv4
+    for (const name in interfaces) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal && !iface.address.startsWith('169.254.')) {
+          return iface.address;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to get local IP:', e);
+  }
+  return 'localhost';
+});
+
+ipcMain.handle('get-all-local-ips', () => {
+  try {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    const list = [];
+    for (const name in interfaces) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal && !iface.address.startsWith('169.254.')) {
+          list.push({ name, address: iface.address });
+        }
+      }
+    }
+    return list;
+  } catch (e) {
+    return [];
   }
 });
 

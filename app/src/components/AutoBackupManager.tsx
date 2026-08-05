@@ -5,6 +5,9 @@ import { ConfirmationModal } from './ui/ConfirmationModal';
 export function AutoBackupManager() {
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const isMobile = typeof window !== 'undefined' && 
+    (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
+
   const performSilentBackup = useCallback(async () => {
     try {
       // 1. Export all data from IndexedDB
@@ -53,6 +56,8 @@ export function AutoBackupManager() {
   }, []);
 
   useEffect(() => {
+    if (isMobile) return;
+
     // A. Silent Auto-Backup on Mount (App Opening)
     const startupTimer = setTimeout(() => {
       void performSilentBackup();
@@ -69,7 +74,9 @@ export function AutoBackupManager() {
     return () => {
       clearTimeout(startupTimer);
     };
-  }, [performSilentBackup]);
+  }, [performSilentBackup, isMobile]);
+
+  if (isMobile) return null;
 
   return (
     <ConfirmationModal

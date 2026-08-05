@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   version: process.versions.electron,
   getMachineId: () => ipcRenderer.invoke('get-machine-id'),
+  getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
+  getAllLocalIps: () => ipcRenderer.invoke('get-all-local-ips'),
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),
   onUpdateMessage: (callback) => {
     // Remove previous listeners to prevent duplicates

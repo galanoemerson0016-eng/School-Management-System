@@ -362,6 +362,8 @@ export interface AttendanceRecord {
     date: string;
     status: 'present' | 'absent' | 'late' | 'cutting' | 'excused';
     section_id: string;
+    time_in?: string;
+    time_out?: string;
 }
 
 export type UserRole =

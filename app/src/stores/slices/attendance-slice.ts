@@ -30,9 +30,15 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
 
   const syncAttendanceState = (records: AttendanceRecord[]) => {
     set((state: { attendanceRecords: AttendanceRecord[] }) => {
-      const ids = new Set(records.map((record) => record.id));
+      const incomingKeys = new Set(records.map((r) => `${r.student_lrn}_${r.date}`));
+      const incomingIds = new Set(records.map((r) => r.id));
+
+      const filteredExisting = state.attendanceRecords.filter(
+        (r) => !incomingIds.has(r.id) && !incomingKeys.has(`${r.student_lrn}_${r.date}`)
+      );
+
       return {
-        attendanceRecords: [...state.attendanceRecords.filter((record) => !ids.has(record.id)), ...records],
+        attendanceRecords: [...filteredExisting, ...records],
       };
     });
   };
@@ -130,13 +136,16 @@ export function createAttendanceSlice(set: (state: any) => void, get: () => any)
     attendanceRecords: [],
     setAttendanceRecords: (records) => set({ attendanceRecords: records }),
     upsertAttendanceRecords: async (records) => {
+      // 1. Always persist to IndexedDB and update in-memory state
+      await db.putRecordsBulk('attendanceRecords', records);
+      syncAttendanceState(records);
+
+      // 2. SF2 sync is desktop-only; never let it break attendance marking
       try {
-        await db.putRecordsBulk('attendanceRecords', records);
-        syncAttendanceState(records);
         await upsertAttendanceToSf2(records);
-      } catch (error) {
-        console.error('Error saving attendance records:', error);
-        throw error;
+      } catch (sf2Err) {
+        // Silently skip SF2 sync on phone (no activeSchoolYear)
+        console.debug('[Attendance] SF2 sync skipped:', sf2Err);
       }
     },
     deleteAttendanceRecords: async (ids) => {

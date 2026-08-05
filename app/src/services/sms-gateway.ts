@@ -60,6 +60,15 @@ export function saveSmsGatewayConfig(config: Partial<SmsGatewayConfig>): SmsGate
 }
 
 /**
+ * Reset SMS Gateway Configuration and Clear Logs
+ */
+export function resetSmsGatewayConfig(): SmsGatewayConfig {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SMS_LOGS_KEY);
+    return DEFAULT_SMS_CONFIG;
+}
+
+/**
  * Format phone number to E.164 or local international format (+63...)
  */
 export function formatPhoneNumber(phone: string): string {

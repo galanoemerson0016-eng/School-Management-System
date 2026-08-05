@@ -9,6 +9,8 @@ declare global {
       platform: string;
       version: string;
       getMachineId: () => Promise<string>;
+      getLocalIp: () => Promise<string>;
+      getAllLocalIps: () => Promise<Array<{ name: string; address: string }>>;
       checkForUpdates: () => void;
       onUpdateMessage: (callback: (message: SafeAny) => void) => void;
       saveAutoBackup: (data: unknown, filename: string) => Promise<{ success: boolean; path?: string; error?: string }>;

@@ -268,7 +268,7 @@ export const ClassRecordPDF = ({
 
                         <View style={styles.headerTextContainer}>
                             <Text style={styles.headerTitle}>CLASS RECORD</Text>
-                            <Text style={styles.headerSubtitle}>(Pursuant to DepEd Order 8 series of 2015)</Text>
+                            <Text style={styles.headerSubtitle}>(Pursuant to DepEd Order 15 series of 2026)</Text>
                         </View>
 
                         {/* DepEd Logo */}

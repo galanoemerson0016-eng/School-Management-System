@@ -357,7 +357,7 @@ export function getWeights(cluster: SubjectCluster, subject?: { written_weight?:
     }
 }
 
-// Transmutation table (DepEd Order 8 s. 2015 / Adjusted for SY 2026-2027)
+// Transmutation table (DepEd Order 15 s. 2026 / Adjusted for SY 2026-2027)
 export function transmuteGrade(initialGrade: number, schoolYear?: string): number {
     const roundedGrade = Math.round(initialGrade * 100) / 100;
     const score = Math.min(100, Math.max(0, roundedGrade)); // Clamp 0-100

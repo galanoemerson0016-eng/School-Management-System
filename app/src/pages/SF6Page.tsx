@@ -484,7 +484,7 @@ export function SF6Page() {
                                         <div className="text-center leading-tight mt-0">
                                             <h1 className="text-[22px] font-black tracking-tight">School Form 6 (SF6)</h1>
                                             <h2 className="text-[20px] font-black tracking-tight mt-0.5">Summarized Report on Promotion and Learning Progress & Achievement</h2>
-                                            <p className="text-[10px] italic mt-0.5">Revised to conform with the instructions of DepEd Order 8, s. 2015</p>
+                                            <p className="text-[10px] italic mt-0.5">Revised to conform with the instructions of DepEd Order 15, s. 2026</p>
                                         </div>
 
                                         <div className="mt-2.5 text-[11px] space-y-2">

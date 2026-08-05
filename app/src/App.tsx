@@ -47,6 +47,7 @@ const TemporaryGradeSlipPage = lazy(() => import('./pages/TemporaryGradeSlipPage
 const GamesAndToolsPage = lazy(() => import('./pages/GamesAndToolsPage').then(m => ({ default: m.GamesAndToolsPage })));
 const OnlineGeneratorsPage = lazy(() => import('./pages/OnlineGeneratorsPage').then(m => ({ default: m.OnlineGeneratorsPage })));
 const StudentIDGeneratorPage = lazy(() => import('./pages/StudentIDGeneratorPage').then(m => ({ default: m.StudentIDGeneratorPage })));
+const MobileAttendancePage = lazy(() => import('./pages/MobileAttendancePage').then(m => ({ default: m.MobileAttendancePage })));
 
 function ContentLoading() {
   return (
@@ -123,6 +124,8 @@ function App() {
   const isSyncReady = useAppStore(state => state.isSyncReady);
   const selectedSection = useAppStore(state => state.selectedSection);
   const sections = useAppStore(state => state.sections);
+  const students = useAppStore(state => state.students);
+  const attendanceRecords = useAppStore(state => state.attendanceRecords);
   const pendingConflicts = useAppStore(state => state.pendingConflicts);
   const resolveMergeConflict = useAppStore(state => state.resolveMergeConflict);
   const currentConflict = pendingConflicts[0];
@@ -266,8 +269,12 @@ function App() {
       try {
         await initializeAppStore();
         await initializeAuthStore();
-        void AutoBackupService.init();
-        IncrementalBackupService.init();
+        const isMobile = typeof window !== 'undefined' && 
+          (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
+        if (!isMobile) {
+          void AutoBackupService.init();
+          IncrementalBackupService.init();
+        }
         
         // Check for post-update data reconciliation
         if (window.electronAPI) {
@@ -392,6 +399,41 @@ function App() {
       });
     }
   }, [isAuthenticated]);
+
+  // Global Mobile Gateway Roster Sync Effect
+  // Pushes student roster & sections to local attendance gateway endpoints across all ports
+  useEffect(() => {
+    if (!students || students.length === 0) return;
+    const currentPort = window.location.port || '3001';
+    const ports = Array.from(new Set(['3001', '3003', currentPort]));
+
+    const payload = JSON.stringify({
+      date: new Date().toISOString().split('T')[0],
+      students,
+      sections,
+      records: attendanceRecords,
+      schoolProfile,
+    });
+
+    for (const p of ports) {
+      fetch(`http://localhost:${p}/api/attendance/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  }, [students, sections, attendanceRecords, schoolProfile]);
+
+  // Standalone Mobile Phone Attendance Portal (accessed via scanning QR code on phone)
+  const isMobileAttendance = typeof window !== 'undefined' && 
+    (window.location.hash.includes('mobile-attendance') || window.location.search.includes('mobile-attendance'));
+  if (isMobileAttendance) {
+    return (
+      <Suspense fallback={<LoadingSplash />}>
+        <MobileAttendancePage />
+      </Suspense>
+    );
+  }
 
   // Use a synchronized loading state to prevent race conditions during reload
   if (isLoading || (isAuthenticated && !isSyncReady) || licenseVerdict === 'pending') {

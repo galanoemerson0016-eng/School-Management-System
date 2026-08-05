@@ -1492,7 +1492,7 @@ export function ShsEClassRecord() {
                                     <div className="text-center flex-1 mx-4 text-black">
                                         <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
                                         <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
-                                            (Pursuant to DepEd Order 8 series of 2015)
+                                            (Pursuant to DepEd Order 15 series of 2026)
                                         </p>
                                     </div>
                                     <div className="w-24 h-14 shrink-0 flex items-center justify-center">
@@ -1648,7 +1648,7 @@ export function ShsEClassRecord() {
                                      <div className="text-center flex-1 mx-4 text-black">
                                          <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
                                          <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
-                                             (Pursuant to DepEd Order 8 series of 2015)
+                                             (Pursuant to DepEd Order 15 series of 2026)
                                          </p>
                                      </div>
                                      <div className="w-24 h-14 shrink-0 flex items-center justify-center">

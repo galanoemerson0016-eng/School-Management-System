@@ -5,6 +5,7 @@ import {
 import { 
     getSmsGatewayConfig, 
     saveSmsGatewayConfig, 
+    resetSmsGatewayConfig,
     sendSmsViaGateway, 
     getSmsDeliveryLogs, 
     clearSmsDeliveryLogs, 
@@ -22,6 +23,13 @@ export function SmsGatewaySettings() {
     const handleSave = (updated: Partial<SmsGatewayConfig>) => {
         const newCfg = saveSmsGatewayConfig(updated);
         setConfig(newCfg);
+    };
+
+    const handleResetDefaults = () => {
+        const resetCfg = resetSmsGatewayConfig();
+        setConfig(resetCfg);
+        setLogs([]);
+        setTestFeedback({ success: true, message: 'SMS Gateway settings and logs have been reset to clean defaults.' });
     };
 
     const handleTestSms = async () => {
@@ -134,7 +142,7 @@ export function SmsGatewaySettings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Server URL */}
                     <div className="space-y-1.5 md:col-span-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
                             <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                 Gateway Server Endpoint URL
                             </label>
@@ -142,9 +150,9 @@ export function SmsGatewaySettings() {
                                 <button
                                     type="button"
                                     onClick={() => handleSave({ 
-                                        serverUrl: 'http://192.168.10.75:8080/message',
-                                        username: 'emerson',
-                                        password: 'emerson101'
+                                        serverUrl: 'http://192.168.1.100:8080/message',
+                                        username: '',
+                                        password: ''
                                     })}
                                     className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                                 >
@@ -155,12 +163,20 @@ export function SmsGatewaySettings() {
                                     type="button"
                                     onClick={() => handleSave({ 
                                         serverUrl: 'https://api.sms-gate.app/3rdparty/v1/message',
-                                        username: 'BDT7QR',
-                                        password: '1gwtm_0mwpuni0'
+                                        username: '',
+                                        password: ''
                                     })}
                                     className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
                                 >
                                     Cloud Server Preset
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button
+                                    type="button"
+                                    onClick={handleResetDefaults}
+                                    className="text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:underline cursor-pointer"
+                                >
+                                    Reset to Defaults
                                 </button>
                             </div>
                         </div>
@@ -168,11 +184,11 @@ export function SmsGatewaySettings() {
                             type="text"
                             value={config.serverUrl}
                             onChange={(e) => handleSave({ serverUrl: e.target.value })}
-                            placeholder="http://192.168.10.75:8080/message"
+                            placeholder="http://192.168.1.100:8080/message"
                             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 text-slate-800 dark:text-white text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                         />
                         <p className="text-[10px] text-slate-400 font-medium">
-                            Enter local network IP endpoint (e.g. <code className="font-mono">http://192.168.10.75:8080/message</code>) or Cloud API URL.
+                            Enter local network IP endpoint (e.g. <code className="font-mono">http://192.168.1.100:8080/message</code>) or Cloud API URL.
                         </p>
                     </div>
 

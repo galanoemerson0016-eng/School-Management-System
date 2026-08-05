@@ -2,6 +2,25 @@
 
 # Version History
 
+## v2.9.0 (2026-08-05)
+
+### 🚀 New Features & Enhancements
+
+- **Mobile Phone Attendance Portal**: Added dedicated `/mobile-attendance` web interface for teachers to mark student attendance from any smartphone on local Wi-Fi.
+- **Real-Time Cross-Device Sync Engine**: Built multi-device synchronization using BroadcastChannel, LocalStorage events, and background REST API polling with server timestamping.
+- **Attendance Legend & Layout**: Added visual legend guide (P, A, L, CC, EX) and single-line student name formatting for mobile devices.
+- **Interactive 1-Click Chrome Setup Guide**: Integrated copy buttons for Chrome flags (`chrome://flags/#unsafely-treat-insecure-origin-as-secure`) and laptop IP address for 1-minute setup.
+- **Native Camera QR Photo Scanner**: Added 1-tap `Snap QR Photo` fallback using native OS camera file capture and `jsQR` decoding.
+
+### ⚡ Improvements
+
+- **DepEd Order 15 s. 2026 Standardization**: Updated all Class Record and School Form headers to conform to DepEd Order 15 series of 2026.
+- **LAN Wi-Fi Auto-Discovery API**: Added `/api/network-ip` endpoint to automatically detect and select laptop local Wi-Fi IP address.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.8.4 (2026-08-04)
 
 ### 🚀 New Features & Enhancements
