@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { generateQrDataUrl } from '../../services/id-card/codes';
 import { 
     subscribeToAttendanceUpdates, 
+    pushAttendanceSessionToBackend,
     type MobileAttendanceSyncEvent 
 } from '../../services/mobile-attendance-sync';
 import { useAppStore } from '../../stores';
@@ -117,22 +118,13 @@ export function PhoneAttendanceModal({ isOpen, onClose }: PhoneAttendanceModalPr
     // Push active desktop session data (students, sections, records) to Express server for mobile phone clients
     useEffect(() => {
         if (!isOpen) return;
-
-        const port = window.location.port || '3001';
-        const host = localIp || window.location.hostname || 'localhost';
-        const proto = window.location.protocol.startsWith('https') ? 'https:' : 'http:';
-        const apiUrl = `${proto}//${host}:${port}/api/attendance/session`;
-
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                students,
-                sections,
-                records: attendanceRecords,
-                schoolProfile,
-            }),
-        }).catch(() => {});
+        pushAttendanceSessionToBackend({
+            students,
+            sections,
+            records: attendanceRecords,
+            schoolProfile,
+            localIp
+        });
     }, [isOpen, localIp, students, sections, attendanceRecords, schoolProfile]);
 
     // Subscribe to live phone scans & updates

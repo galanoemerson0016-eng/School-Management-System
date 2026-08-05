@@ -2,6 +2,12 @@
 
 # Version History
 
+## v2.9.3 (2026-08-05)
+
+### ⚡ Fixes & Improvements
+
+- **Instant Mobile Student Roster Sync**: Integrated 24/7 background session push from desktop App store to Express server memory (`/api/attendance/session`) so mobile devices load all students and sections instantly upon scanning.
+
 ## v2.9.2 (2026-08-05)
 
 ### ⚡ Fixes & Improvements

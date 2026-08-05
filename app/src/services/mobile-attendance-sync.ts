@@ -198,3 +198,45 @@ export function getCachedSessionState(): MobileAttendanceSessionData | null {
     }
     return null;
 }
+
+/**
+ * Push active desktop session data (students, sections, records, school profile) to Express backend
+ */
+export function pushAttendanceSessionToBackend(data: {
+    students?: Student[];
+    sections?: Section[];
+    records?: AttendanceRecord[];
+    schoolProfile?: any;
+    localIp?: string;
+}): void {
+    if (typeof window === 'undefined') return;
+
+    const payload = JSON.stringify({
+        students: data.students || [],
+        sections: data.sections || [],
+        records: data.records || [],
+        schoolProfile: data.schoolProfile || null,
+        lastUpdated: Date.now()
+    });
+
+    const host = data.localIp || window.location.hostname || 'localhost';
+    const port = window.location.port || '3001';
+    const endpoints = Array.from(new Set([
+        `/api/attendance/session`,
+        `http://localhost:3001/api/attendance/session`,
+        `http://127.0.0.1:3001/api/attendance/session`,
+        `http://localhost:3003/api/attendance/session`,
+        `http://${host}:3001/api/attendance/session`,
+        `http://${host}:${port}/api/attendance/session`
+    ]));
+
+    for (const url of endpoints) {
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+        }).catch(() => {
+            // Silently ignore unreachable endpoints
+        });
+    }
+}

@@ -13,6 +13,7 @@ import { UpdateCenterModal } from './components/updates/UpdateCenterModal';
 import { ReconciliationReportModal } from './components/updates/ReconciliationReportModal';
 import { ProfileDiffModal } from './components/ProfileDiffModal';
 import { useUpdateStore } from './stores/update-store';
+import { pushAttendanceSessionToBackend } from './services/mobile-attendance-sync';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -192,6 +193,18 @@ function App() {
       window.removeEventListener('online', handleOnline);
     };
   }, []);
+
+  // Keep background Express server memory updated with active students & sections 24/7
+  useEffect(() => {
+    if (students.length > 0 || sections.length > 0) {
+      pushAttendanceSessionToBackend({
+        students,
+        sections,
+        records: attendanceRecords,
+        schoolProfile
+      });
+    }
+  }, [students, sections, attendanceRecords, schoolProfile]);
 
   useEffect(() => {
     if (isAuthenticated && isSyncReady) {
