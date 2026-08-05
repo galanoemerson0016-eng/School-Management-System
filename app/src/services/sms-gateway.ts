@@ -41,7 +41,24 @@ export function getSmsGatewayConfig(): SmsGatewayConfig {
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-            return { ...DEFAULT_SMS_CONFIG, ...JSON.parse(stored) };
+            const parsed = JSON.parse(stored);
+            // Automatic Sanitization Safeguard: Purge any legacy test credentials or hardcoded URLs
+            if (
+                parsed.username === 'BDT7QR' || 
+                (parsed.password && parsed.password.includes('Emerica')) || 
+                (parsed.serverUrl && parsed.serverUrl.includes('api.sms-gate.app'))
+            ) {
+                const sanitized = {
+                    ...DEFAULT_SMS_CONFIG,
+                    enabled: false,
+                    serverUrl: 'http://192.168.1.100:8080/message',
+                    username: '',
+                    password: ''
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+                return sanitized;
+            }
+            return { ...DEFAULT_SMS_CONFIG, ...parsed };
         }
     } catch (error) {
         console.error('Failed to parse SMS gateway config:', error);
