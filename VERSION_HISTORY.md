@@ -2,6 +2,12 @@
 
 # Version History
 
+## v2.9.2 (2026-08-05)
+
+### ⚡ Fixes & Improvements
+
+- **Packaged Electron Server Fix**: Bundled `server.js` into production ASAR build (`files` manifest) so Mobile Attendance Gateway server automatically starts on port 3001 in installed desktop apps.
+
 ## v2.9.1 (2026-08-05)
 
 ### 🚀 New Features & Enhancements
