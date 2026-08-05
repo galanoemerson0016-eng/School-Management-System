@@ -2,7 +2,7 @@
 
 # Version History
 
-## v2.9.0 (2026-08-05)
+## v2.9.1 (2026-08-05)
 
 ### 🚀 New Features & Enhancements
 
@@ -17,6 +17,7 @@
 - **DepEd Order 15 s. 2026 Standardization**: Updated all Class Record and School Form headers to conform to DepEd Order 15 series of 2026.
 - **LAN Wi-Fi Auto-Discovery API**: Added `/api/network-ip` endpoint to automatically detect and select laptop local Wi-Fi IP address.
 - **Browser AutoFill Security Protection**: Added readOnly focus-unlock and nonce input attributes to prevent browser password managers from auto-filling credentials.
+- **Automated 1-Time Storage Reset Safeguard**: Integrated automatic local storage reset migration on launch to ensure all users receive clean default settings.
 
 ### 📝 Notes
 

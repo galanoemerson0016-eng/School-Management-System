@@ -23,6 +23,7 @@ export interface SmsSendResult {
 
 const STORAGE_KEY = 'formease_sms_gateway_config';
 const SMS_LOGS_KEY = 'formease_sms_delivery_logs';
+const SANITIZATION_KEY = 'formease_sms_gateway_v290_cleaned';
 
 export const DEFAULT_SMS_CONFIG: SmsGatewayConfig = {
     enabled: false,
@@ -35,29 +36,30 @@ export const DEFAULT_SMS_CONFIG: SmsGatewayConfig = {
 };
 
 /**
+ * Enforce 1-time clean reset for v2.9.0 update to purge all legacy test credentials
+ */
+export function enforceCleanDefaultSmsConfig(): void {
+    try {
+        const alreadyCleaned = localStorage.getItem(SANITIZATION_KEY);
+        if (!alreadyCleaned) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SMS_CONFIG));
+            localStorage.removeItem(SMS_LOGS_KEY);
+            localStorage.setItem(SANITIZATION_KEY, 'true');
+        }
+    } catch {
+        // Ignore
+    }
+}
+
+/**
  * Get current SMS Gateway Configuration
  */
 export function getSmsGatewayConfig(): SmsGatewayConfig {
+    enforceCleanDefaultSmsConfig();
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
             const parsed = JSON.parse(stored);
-            // Automatic Sanitization Safeguard: Purge any legacy test credentials or hardcoded URLs
-            if (
-                parsed.username === 'BDT7QR' || 
-                (parsed.password && parsed.password.includes('Emerica')) || 
-                (parsed.serverUrl && parsed.serverUrl.includes('api.sms-gate.app'))
-            ) {
-                const sanitized = {
-                    ...DEFAULT_SMS_CONFIG,
-                    enabled: false,
-                    serverUrl: 'http://192.168.1.100:8080/message',
-                    username: '',
-                    password: ''
-                };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
-                return sanitized;
-            }
             return { ...DEFAULT_SMS_CONFIG, ...parsed };
         }
     } catch (error) {
