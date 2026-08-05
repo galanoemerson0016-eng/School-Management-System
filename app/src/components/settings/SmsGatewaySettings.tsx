@@ -199,6 +199,11 @@ export function SmsGatewaySettings() {
                         </label>
                         <input
                             type="text"
+                            name="api_user_nonce_no_autofill"
+                            autoComplete="off"
+                            readOnly
+                            onFocus={(e) => e.target.removeAttribute('readonly')}
+                            data-lpignore="true"
                             value={config.username || ''}
                             onChange={(e) => handleSave({ username: e.target.value })}
                             placeholder="Optional API username"
@@ -214,6 +219,11 @@ export function SmsGatewaySettings() {
                         <div className="relative">
                             <input
                                 type={showPassword ? 'text' : 'password'}
+                                name="api_pass_nonce_no_autofill"
+                                autoComplete="new-password"
+                                readOnly
+                                onFocus={(e) => e.target.removeAttribute('readonly')}
+                                data-lpignore="true"
                                 value={config.password || ''}
                                 onChange={(e) => handleSave({ password: e.target.value })}
                                 placeholder="Optional API password"

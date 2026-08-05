@@ -16,6 +16,7 @@
 
 - **DepEd Order 15 s. 2026 Standardization**: Updated all Class Record and School Form headers to conform to DepEd Order 15 series of 2026.
 - **LAN Wi-Fi Auto-Discovery API**: Added `/api/network-ip` endpoint to automatically detect and select laptop local Wi-Fi IP address.
+- **Browser AutoFill Security Protection**: Added readOnly focus-unlock and nonce input attributes to prevent browser password managers from auto-filling credentials.
 
 ### 📝 Notes
 
