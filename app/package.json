@@ -72,13 +72,14 @@
       }
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
       "deleteAppDataOnUninstall": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "FormEase Pro"
+      "shortcutName": "FormEase Pro",
+      "allowElevation": true
     },
     "files": [
       "dist/**/*",

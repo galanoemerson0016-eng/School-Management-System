@@ -103,6 +103,8 @@ if (!gotTheLock) {
     });
   }
 
+let expressServer = null;
+
   app.whenReady().then(() => {
     if (process.platform === 'win32') {
       app.setAppUserModelId('com.formease.pro');
@@ -113,7 +115,7 @@ if (!gotTheLock) {
     try {
       const serverPath = path.join(__dirname, '..', 'server.js');
       if (fs.existsSync(serverPath)) {
-        require(serverPath);
+        expressServer = require(serverPath);
         if (log && log.info) log.info('[FormEase Pro] Mobile Gateway server started on port 3001');
       }
     } catch (err) {
@@ -397,6 +399,13 @@ if (autoUpdater) {
   ipcMain.on('quit-and-install', () => {
     if (autoUpdater) {
       isQuitting = true;
+      if (expressServer && typeof expressServer.close === 'function') {
+        try {
+          expressServer.close();
+        } catch {
+          // ignore
+        }
+      }
       // Cleanly destroy all open windows so file handles are released for NSIS
       BrowserWindow.getAllWindows().forEach((w) => {
         try {
@@ -406,7 +415,7 @@ if (autoUpdater) {
         }
       });
       setImmediate(() => {
-        autoUpdater.quitAndInstall(true, true);
+        autoUpdater.quitAndInstall(false, true);
       });
     }
   });
