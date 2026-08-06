@@ -410,10 +410,22 @@ if (autoUpdater) {
     autoUpdater.checkForUpdatesAndNotify();
   });
 
-  ipcMain.handle('download-update', () => {
+  ipcMain.handle('download-update', async () => {
     if (autoUpdater) {
-      autoUpdater.downloadUpdate();
-      return { success: true };
+      try {
+        await autoUpdater.downloadUpdate();
+        return { success: true };
+      } catch (err) {
+        console.error('[AutoUpdater] downloadUpdate failed:', err);
+        if (process.platform === 'darwin') {
+          return {
+            success: false,
+            isMac: true,
+            error: 'macOS requires downloading the updated .dmg installer directly. Click "Download macOS Update (.dmg)" below to update.'
+          };
+        }
+        return { success: false, error: err.message || String(err) };
+      }
     }
     return { success: false, error: 'Auto-updater not available' };
   });

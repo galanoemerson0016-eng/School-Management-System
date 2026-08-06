@@ -28,10 +28,18 @@ export function UpdateCenterModal() {
     }
   };
 
+  const isMac = (window.electronAPI?.platform === 'darwin') || (typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac'));
+
   const handleStartUpdate = async () => {
     const passed = await runPreUpdatePipeline();
     if (passed) {
-      await startDownload();
+      if (isMac) {
+        // Open macOS DMG release download URL directly in browser
+        window.open('https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/latest', '_blank');
+        useUpdateStore.setState({ updateStep: 'idle' });
+      } else {
+        await startDownload();
+      }
     }
   };
 
@@ -61,7 +69,7 @@ export function UpdateCenterModal() {
             <div className="flex justify-between items-center">
               <span className="text-xs font-black uppercase tracking-widest text-slate-400">Target Version</span>
               <span className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs px-2.5 py-1 rounded-full uppercase">
-                v{updateInfo?.version}
+                v{updateInfo?.version} {isMac ? '(macOS)' : ''}
               </span>
             </div>
             {updateInfo?.notes && updateInfo.notes.length > 0 && (
@@ -80,14 +88,25 @@ export function UpdateCenterModal() {
           {updateStep === 'ready-to-start' && (
             <div className="space-y-4 text-center">
               <p className="text-sm text-slate-600 dark:text-gray-400 font-medium leading-relaxed">
-                A critical application update is ready. Before downloading, FormEase will run a system validation check and create an automatic full backup to local storage.
+                {isMac 
+                  ? 'A new macOS version is available! FormEase will run a quick backup check, then launch the 1-click DMG installer download in your browser.'
+                  : 'A critical application update is ready. Before downloading, FormEase will run a system validation check and create an automatic full backup to local storage.'}
               </p>
+
+              {isMac && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-left space-y-1 text-xs text-amber-800 dark:text-amber-300 font-medium">
+                  <p className="font-bold text-amber-900 dark:text-amber-200">🍏 macOS 2-Step Install Guide:</p>
+                  <p>1. Tap <b>Download macOS Update (.dmg)</b> below.</p>
+                  <p>2. Open the downloaded <b>.dmg</b> file and drag <b>FormEase Pro</b> into <b>Applications</b> to complete the update.</p>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button
                   onClick={handleStartUpdate}
                   className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[13px] uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
-                  Start Update
+                  {isMac ? '🍏 Download macOS Update (.dmg)' : 'Start Update'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
@@ -197,7 +216,7 @@ export function UpdateCenterModal() {
                   className="w-full py-3 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-800/40 text-indigo-600 dark:text-indigo-300 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Download Direct Installer (.dmg / .zip / .exe)
+                  {isMac ? '🍏 Download macOS Update (.dmg)' : 'Download Direct Installer (.exe / .dmg / .zip)'}
                 </a>
                 <div className="flex gap-3">
                   <button
