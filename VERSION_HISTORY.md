@@ -2,6 +2,19 @@
 
 # Version History
 
+## v2.9.4 (2026-08-06)
+
+### 🚀 New Features & Enhancements
+
+- **Dynamic Summative Tests & Term Examination (30%) Computation**: Updated Total Score and Total HPS to calculate dynamically based on valid, completed assessments only. Blank/un-administered Term Exam scores and HPS are excluded from numerator and denominator, preventing premature grade drops.
+- **Unified Summary of Grades Transmuted Grade Engine**: Re-aligned transmuted grade calculations between E-Class Records and Summary of Grades for 100% exact parity with zero discrepancy across all school forms (SF9, SF10, LIR).
+- **Tailored macOS Update Experience**: Added 1-click 🍏 **Download macOS Update (.dmg)** installer workflow with 2-step drag-and-drop installation instructions for Mac users.
+- **Packaged Real-Time Mobile Attendance Server**: Embedded Express mobile gateway in production ASAR build with 2-way real-time polling, server timestamping, and 24/7 background session roster push.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.9.3 (2026-08-05)
 
 ### ⚡ Fixes & Improvements
