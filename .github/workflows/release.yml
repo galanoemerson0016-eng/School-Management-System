@@ -153,6 +153,14 @@ jobs:
             app/release/*.yml
             app/release/*.blockmap
 
+      # 2.5 Auto-Purge Old Releases & Upload New Assets to Google Drive
+      - name: Auto-Sync Release to Google Drive
+        working-directory: app
+        run: npm run sync:gdrive
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+
       # 3. Deploy update-server metadata to Firebase
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
