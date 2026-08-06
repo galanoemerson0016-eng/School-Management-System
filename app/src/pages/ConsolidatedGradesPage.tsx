@@ -1662,7 +1662,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, selectedTerm]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, selectedSection, sectionObj, selectedTerm]);
 
     const promotionStats = useMemo(() => {
         const stats = {
