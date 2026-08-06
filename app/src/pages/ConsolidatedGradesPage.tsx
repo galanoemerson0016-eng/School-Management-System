@@ -766,10 +766,10 @@ export function ConsolidatedGradesPage() {
                     const wwScores = normalizeScores(record.written_works, WW_COUNT).map(v => Number(v) || 0);
                     const ptScores = normalizeScores(record.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
                     const rawQa = (record as any).summative_tests;
-                    const qaScores = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
-                        if (i === 2 && (v === undefined || v === '')) return Number(record.quarterly_exam) || 0;
-                        return Number(v) || 0;
-                    });
+                    const normQaScores = normalizeScores(rawQa, ST_COUNT);
+                    if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && record.quarterly_exam !== '' && record.quarterly_exam !== undefined && record.quarterly_exam !== null) {
+                        normQaScores[2] = record.quarterly_exam;
+                    }
 
                     const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
                     const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
@@ -781,11 +781,17 @@ export function ConsolidatedGradesPage() {
                     const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
                     const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
 
-                    const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
+                    const parseNumOrNull = (val: number | string | null | undefined): number | null => {
+                        if (val === '' || val === null || val === undefined) return null;
+                        const n = Number(val);
+                        return isNaN(n) ? null : n;
+                    };
+
+                    const st1Score = parseNumOrNull(normQaScores[0]);
                     const st1HPS = Number(hps_qa[0]) || 0;
-                    const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
+                    const st2Score = parseNumOrNull(normQaScores[1]);
                     const st2HPS = Number(hps_qa[1]) || 0;
-                    const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
+                    const teScore = parseNumOrNull(normQaScores[2]);
                     const teHPS = Number(hps_qa[2]) || 0;
 
                     const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
