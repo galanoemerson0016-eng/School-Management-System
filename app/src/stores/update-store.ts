@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.5';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.6';
       const api = window.electronAPI;
 
       try {
@@ -402,11 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)",
-              "🎨 Enhanced native dropdown (<optgroup>) header contrast in dark & light themes",
-              "🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades",
-              "⚡ Fixed day-of-week header text visibility in printable attendance sheets",
-              "🍏 Improved macOS auto-update compatibility & direct release download links"
+              "☁️ Optimized Google Drive release asset syncing engine (binary installer focus: .exe for Windows & 2 .dmg files for Mac)",
+              "🛡️ Enhanced auto-updater Express server shutdown safeguard during automatic updates",
+              "📊 Real-time unified transmuted grade engine across all school forms (SF9, SF10, SF5, SF6, LIR, Grade Slips)",
+              "🔢 Natural grade-level numerical section sorting (Grade 7 ➔ Grade 12)",
+              "🏆 Restored Subject Excellence Awards (FG ≥ 90) across all JHS and SHS grade levels"
             ],
             timestamp: Date.now(),
             status: 'success',

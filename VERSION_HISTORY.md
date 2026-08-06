@@ -2,6 +2,16 @@
 
 # Version History
 
+## v2.9.6 (2026-08-06)
+
+### 🚀 New Features & Enhancements
+
+- ☁️ **Optimized Google Drive Release Asset Sync Engine**: Updated automated Google Drive release sync pipeline (`sync-gdrive-release.cjs`) to upload strictly binary installers (`.exe` for Windows and the 2 `.dmg` installers for macOS) and auto-purge metadata files (`.yml`, `.yaml`, `.blockmap`, `.zip`) from target release folders.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.9.5 (2026-08-06)
 
 ### 🚀 New Features & Enhancements

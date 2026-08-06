@@ -241,14 +241,13 @@ async function main() {
     const accessToken = await getAccessToken();
     console.log(`✅ Authenticated successfully! Root Folder ID: ${rootFolderId}`);
 
-    // Process Windows Subfolder (Strictly latest version v2.9.5 .exe and latest.yml, NO blockmaps)
+    // Process Windows Subfolder (Strictly latest version .exe binary only, NO .yml, NO .blockmap)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'windows',
       (filename) => {
-        if (filename.endsWith('.blockmap')) return false;
-        if (filename === 'latest.yml') return true;
+        if (filename.endsWith('.blockmap') || filename.endsWith('.yml') || filename.endsWith('.yaml')) return false;
         const ext = path.extname(filename).toLowerCase();
         if (ext === '.exe') {
           return filename.includes(version);
@@ -257,16 +256,15 @@ async function main() {
       }
     );
 
-    // Process Mac Subfolder (Strictly latest version v2.9.5 .dmg/.zip and latest-mac.yml, NO blockmaps)
+    // Process Mac Subfolder (Strictly latest version 2 .dmg binaries only, NO .yml, NO .zip, NO .blockmap)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'mac',
       (filename) => {
-        if (filename.endsWith('.blockmap')) return false;
-        if (filename === 'latest-mac.yml') return true;
+        if (filename.endsWith('.blockmap') || filename.endsWith('.yml') || filename.endsWith('.yaml') || filename.endsWith('.zip')) return false;
         const ext = path.extname(filename).toLowerCase();
-        if (ext === '.dmg' || ext === '.zip') {
+        if (ext === '.dmg') {
           return filename.includes(version);
         }
         return false;

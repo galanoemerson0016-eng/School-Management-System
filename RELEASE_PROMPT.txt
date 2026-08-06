@@ -107,7 +107,7 @@ Upon user approval:
 Verify release asset automation integrity:
 1. **Metadata Upload List (`.github/workflows/release.yml`)**: Ensure `app/release/*.yml` (`latest.yml`, `latest-mac.yml`) and `app/release/*.blockmap` are included in the release upload files section so Windows and macOS update metadata are published to GitHub Releases.
 2. **SHA-512 Hash Generation (`app/scripts/patch-metadata-ci.cjs`)**: Ensure `patch-metadata-ci.cjs` dynamically re-computes `crypto.createHash('sha512')` for renamed binary assets (`FormEase.Pro.Setup.X.Y.Z.exe` / `.dmg`) and saves patched metadata back into `app/release/latest.yml` and `latest-mac.yml` to prevent `404 latest.yml` or `sha512 checksum mismatch` errors.
-3. **Google Drive Sync & Old Asset Purge (`app/scripts/sync-gdrive-release.cjs`)**: Automatically deletes previous version installer binaries (.exe, .dmg, .yml) from the target Google Drive folder and uploads fresh v<new-version> release binaries.
+3. **Google Drive Sync & Old Asset Purge (`app/scripts/sync-gdrive-release.cjs`)**: Automatically deletes previous version installer binaries from the target Google Drive folder and uploads fresh v<new-version> release binaries (strictly the `.exe` for Windows and the 2 `.dmg` files for macOS; excluding `.yml`, `.yaml`, `.zip`, and `.blockmap`).
 
 ---
 
