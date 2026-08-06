@@ -6,13 +6,12 @@
 
 ### 🚀 New Features & Enhancements
 
-- ✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)
-- 🎨 Enhanced native dropdown (`<optgroup>`) header contrast in dark & light themes
-- 🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades
-- ⚡ Fixed day-of-week header text visibility in printable attendance sheets
-- 🍏 Improved macOS auto-update compatibility & direct release download links
-- **Auto-Updater Installer Restart Safeguard**: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).
-- **Unified Live Grade Engine Across All School Forms & Reports**: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades across SF9, SF10, SF5, SF6, LIR, Grade Slips, and Analytics.
+- 🛡️ **Auto-Updater Installer Restart Safeguard**: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).
+- 📊 **Unified Live Grade Engine Across All School Forms & Reports**: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades live across SF9 (Report Card), SF10 (Form 137), SF5, SF6, LIR, Grade Slips, and Analytics.
+- 🔢 **Natural Grade-Level Section Sorting**: Updated Temporary Grade Slips and Reports to sort strictly by numerical Grade Level (Grade 7 ➔ Grade 12), then alphabetically by Section Name.
+- 🏆 **Excellence Awards & Certificate Generator Restoration**: Restored Subject Excellence Awards (FG ≥ 90) across all JHS and SHS grade levels with enhanced section ID and name matching.
+- 🔑 **Unrestricted Application Master Access**: Updated RBAC permissions so all installed standalone application instances provide 100% full access to all forms, certificates, and settings.
+- 🧹 **Cascade Section & Roster Purge Maintenance Utility**: Added a 1-click database cleanup tool under Settings ➔ Data Maintenance to purge orphaned sections, ghost rosters, and unlinked grade records.
 
 ### 📝 Notes
 

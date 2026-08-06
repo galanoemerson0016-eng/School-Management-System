@@ -3348,13 +3348,12 @@ export function SettingsPage() {
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)</li>
-                                        <li>🎨 Enhanced native dropdown (&lt;optgroup&gt;) header contrast in dark & light themes</li>
-                                        <li>🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades</li>
-                                        <li>⚡ Fixed day-of-week header text visibility in printable attendance sheets</li>
-                                        <li>🍏 Improved macOS auto-update compatibility & direct release download links</li>
-                                        <li>Fixed <strong>Auto-Updater Installer Restart Safeguard</strong>: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).</li>
-                                        <li>Unified <strong>Live Grade Engine Across All School Forms & Reports</strong>: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades across SF9, SF10, SF5, SF6, LIR, Grade Slips, and Analytics.</li>
+                                        <li>🛡️ <strong>Auto-Updater Installer Restart Safeguard</strong>: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).</li>
+                                        <li>📊 <strong>Unified Live Grade Engine Across All School Forms & Reports</strong>: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades live across SF9 (Report Card), SF10 (Form 137), SF5, SF6, LIR, Grade Slips, and Analytics.</li>
+                                        <li>🔢 <strong>Natural Grade-Level Section Sorting</strong>: Updated Temporary Grade Slips and Reports to sort strictly by numerical Grade Level (Grade 7 ➔ Grade 12), then alphabetically by Section Name.</li>
+                                        <li>🏆 <strong>Excellence Awards & Certificate Generator Restoration</strong>: Restored Subject Excellence Awards (FG ≥ 90) across all JHS and SHS grade levels with enhanced section ID and name matching.</li>
+                                        <li>🔑 <strong>Unrestricted Application Master Access</strong>: Updated RBAC permissions so all installed standalone application instances provide 100% full access to all forms, certificates, and settings.</li>
+                                        <li>🧹 <strong>Cascade Section & Roster Purge Maintenance Utility</strong>: Added a 1-click database cleanup tool under Settings ➔ Data Maintenance to purge orphaned sections, ghost rosters, and unlinked grade records.</li>
                                     </ul>
                                 </div>
 
