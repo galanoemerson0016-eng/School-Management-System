@@ -148,26 +148,48 @@ export const EXS_NONE_CLUSTERS: SubjectCluster[] = ['shs_research', 'shs_immersi
  * @returns A percentage score (0–100) for the EXs component
  */
 export function computeExamsWeightedScore(
-    st1Score: number, st1HPS: number,
-    st2Score: number, st2HPS: number,
-    teScore: number, teHPS: number,
+    st1Score: number | string | null | undefined, st1HPS: number,
+    st2Score: number | string | null | undefined, st2HPS: number,
+    teScore: number | string | null | undefined, teHPS: number,
     cluster: SubjectCluster
 ): number {
     // No EXs component for these clusters
     if (EXS_NONE_CLUSTERS.includes(cluster)) return 0;
 
+    const parseVal = (val: number | string | null | undefined): number | null => {
+        if (val === '' || val === null || val === undefined) return null;
+        const n = Number(val);
+        return isNaN(n) ? null : n;
+    };
+
+    const s1 = parseVal(st1Score);
+    const s2 = parseVal(st2Score);
+    const te = parseVal(teScore);
+
     // TE-only EXs: TE gets 100% of the EXs percentage score
     if (EXS_TE_ONLY_CLUSTERS.includes(cluster)) {
-        if (teHPS <= 0) return 0;
-        return (teScore / teHPS) * 100;
+        if (teHPS <= 0 || te === null) return 0;
+        return (te / teHPS) * 100;
     }
 
-    // Standard: ST1 (30%), ST2 (30%), TE (40%) of EXs component
-    const st1PS = st1HPS > 0 ? (st1Score / st1HPS) * 100 : 0;
-    const st2PS = st2HPS > 0 ? (st2Score / st2HPS) * 100 : 0;
-    const tePS  = teHPS  > 0 ? (teScore  / teHPS)  * 100 : 0;
+    let totalScore = 0;
+    let totalHPS = 0;
 
-    return (st1PS * EXS_SUBWEIGHTS.st1) + (st2PS * EXS_SUBWEIGHTS.st2) + (tePS * EXS_SUBWEIGHTS.te);
+    if (st1HPS > 0 && s1 !== null) {
+        totalHPS += st1HPS;
+        totalScore += s1;
+    }
+    if (st2HPS > 0 && s2 !== null) {
+        totalHPS += st2HPS;
+        totalScore += s2;
+    }
+    if (teHPS > 0 && te !== null) {
+        totalHPS += teHPS;
+        totalScore += te;
+    }
+
+    if (totalHPS <= 0) return 0;
+    return (totalScore / totalHPS) * 100;
 }
 
 // Determine subject cluster based on subject name, grade level, and track

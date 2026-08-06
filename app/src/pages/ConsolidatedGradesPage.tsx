@@ -781,12 +781,12 @@ export function ConsolidatedGradesPage() {
                     const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
                     const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
 
-                    const st1Score = qaScores[0] || 0;
-                    const st1HPS = hps_qa[0] || 0;
-                    const st2Score = qaScores[1] || 0;
-                    const st2HPS = hps_qa[1] || 0;
-                    const teScore = qaScores[2] || 0;
-                    const teHPS = hps_qa[2] || 0;
+                    const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
+                    const st1HPS = Number(hps_qa[0]) || 0;
+                    const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
+                    const st2HPS = Number(hps_qa[1]) || 0;
+                    const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
+                    const teHPS = Number(hps_qa[2]) || 0;
 
                     const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
                     const qaWS = qaPS * weights.quarterly_exam;

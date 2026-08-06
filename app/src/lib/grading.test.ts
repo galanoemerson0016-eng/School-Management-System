@@ -99,18 +99,32 @@ describe('transmuteGrade — zero-based grading from SY 2027-2028', () => {
 });
 
 describe('computeExamsWeightedScore', () => {
-  it('weights ST1 30%, ST2 30%, TE 40% for standard clusters', () => {
-    // 80% * .3 + 90% * .3 + 70% * .4 = 24 + 27 + 28 = 79
+  it('computes PS based on total raw score divided by total HPS for valid assessments', () => {
+    // ST1: 8/10, ST2: 9/10, TE: 35/50 -> Total Score = 52, Total HPS = 70 -> (52/70)*100 = 74.2857%
     expect(
       computeExamsWeightedScore(8, 10, 9, 10, 35, 50, 'science_math')
-    ).toBeCloseTo(79, 5);
+    ).toBeCloseTo(74.2857, 3);
   });
 
-  it('treats a zero-HPS component as 0 instead of dividing by zero', () => {
-    // ST1 missing (HPS 0): 0 + 100% * .3 + 100% * .4 = 70
+  it('excludes un-administered / blank TE HPS and scores from numerator and denominator', () => {
+    // User scenario: ST1 = 22/30, ST2 = 29/30, TE = blank, TE HPS = 0
+    // Total Score = 51, Total HPS = 60 -> PS = (51/60)*100 = 85%
+    expect(
+      computeExamsWeightedScore(22, 30, 29, 30, null, 0, 'science_math')
+    ).toBeCloseTo(85.00, 2);
+
+    // After teacher enters TE Score = 38, TE HPS = 50
+    // Total Score = 89, Total HPS = 110 -> PS = (89/110)*100 = 80.909%
+    expect(
+      computeExamsWeightedScore(22, 30, 29, 30, 38, 50, 'science_math')
+    ).toBeCloseTo(80.909, 3);
+  });
+
+  it('treats zero-HPS assessment as excluded instead of dividing by zero', () => {
+    // ST1 missing HPS (0): ST2 10/10, TE 50/50 -> Total Score = 60, Total HPS = 60 -> 100%
     expect(
       computeExamsWeightedScore(5, 0, 10, 10, 50, 50, 'science_math')
-    ).toBeCloseTo(70, 5);
+    ).toBeCloseTo(100, 5);
   });
 
   it('gives TE 100% of the component for TE-only clusters (field exposure)', () => {

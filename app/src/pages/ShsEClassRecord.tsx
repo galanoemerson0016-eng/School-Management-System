@@ -291,15 +291,27 @@ const StudentGradeRow = memo(({
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * (currentWeights.performance_tasks || 0);
 
-        const qaScore = qaScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-        const qaHPS = hps.qa.reduce<number>((a, b) => a + Number(b), 0);
-        
-        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : 0;
+        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
-        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : 0;
+        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
         const st2HPS = Number(hps.qa[1]) || 0;
-        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : 0;
+        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
+
+        let qaScore = 0;
+        let qaHPS = 0;
+        if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
+            qaHPS += st1HPS;
+            qaScore += (st1Score as number);
+        }
+        if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
+            qaHPS += st2HPS;
+            qaScore += (st2Score as number);
+        }
+        if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+            qaHPS += teHPS;
+            qaScore += (teScore as number);
+        }
 
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
@@ -764,15 +776,27 @@ export function ShsEClassRecord() {
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * (currentWeights.performance_tasks || 0);
 
-        const qaScore = qaScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-        const qaHPS = hps.qa.reduce<number>((a, b) => a + Number(b), 0);
-        
-        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : 0;
+        const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
-        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : 0;
+        const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
         const st2HPS = Number(hps.qa[1]) || 0;
-        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : 0;
+        const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
+
+        let qaScore = 0;
+        let qaHPS = 0;
+        if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
+            qaHPS += st1HPS;
+            qaScore += (st1Score as number);
+        }
+        if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
+            qaHPS += st2HPS;
+            qaScore += (st2Score as number);
+        }
+        if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+            qaHPS += teHPS;
+            qaScore += (teScore as number);
+        }
 
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
@@ -1076,11 +1100,11 @@ export function ShsEClassRecord() {
         const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * currentWeights.performance_tasks;
-        const st1Score = Number(qaScores[0]) || 0;
+        const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
         const st1HPS = Number(hps.qa[0]) || 0;
-        const st2Score = Number(qaScores[1]) || 0;
+        const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
         const st2HPS = Number(hps.qa[1]) || 0;
-        const teScore = Number(qaScores[2]) || 0;
+        const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
         const teHPS = Number(hps.qa[2]) || 0;
 
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
