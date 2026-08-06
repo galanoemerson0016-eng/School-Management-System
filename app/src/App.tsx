@@ -13,7 +13,7 @@ import { UpdateCenterModal } from './components/updates/UpdateCenterModal';
 import { ReconciliationReportModal } from './components/updates/ReconciliationReportModal';
 import { ProfileDiffModal } from './components/ProfileDiffModal';
 import { useUpdateStore } from './stores/update-store';
-import { pushAttendanceSessionToBackend } from './services/mobile-attendance-sync';
+import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -196,15 +196,33 @@ function App() {
 
   // Keep background Express server memory updated with active students & sections 24/7
   useEffect(() => {
-    if (students.length > 0 || sections.length > 0) {
-      pushAttendanceSessionToBackend({
-        students,
-        sections,
-        records: attendanceRecords,
-        schoolProfile
-      });
-    }
+    const doPush = () => {
+      const state = useAppStore.getState();
+      if (state.students.length > 0 || state.sections.length > 0) {
+        pushAttendanceSessionToBackend({
+          students: state.students,
+          sections: state.sections,
+          records: state.attendanceRecords,
+          schoolProfile: state.schoolProfile
+        });
+      }
+    };
+
+    doPush();
   }, [students, sections, attendanceRecords, schoolProfile]);
+
+  // Globally subscribe to mobile attendance updates so taps are never missed
+  useEffect(() => {
+    const unsubscribe = subscribeToAttendanceUpdates((event) => {
+      if (event.record) {
+        const state = useAppStore.getState();
+        void state.upsertAttendanceRecords([event.record]);
+        const name = event.studentName || event.record.student_lrn;
+        state.showNotification(`📱 Smartphone Scan: ${name} marked ${event.record.status.toUpperCase()}`, 'success');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && isSyncReady) {

@@ -207,6 +207,17 @@ export function MobileAttendancePage() {
                         }
                         if (data.records && Array.isArray(data.records) && data.records.length > 0) {
                             void upsertAttendanceRecords(data.records);
+                            // Prune local marks only if reflected in incoming desktop records
+                            setLocalMarks(prev => {
+                                const next = new Map(prev);
+                                for (const rec of data.records) {
+                                    const local = next.get(rec.student_lrn);
+                                    if (local && local.status === rec.status && local.date === rec.date) {
+                                        next.delete(rec.student_lrn);
+                                    }
+                                }
+                                return next;
+                            });
                             updated = true;
                         }
                         if (data.schoolProfile) {

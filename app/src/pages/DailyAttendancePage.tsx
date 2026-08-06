@@ -13,7 +13,7 @@ import {
 import { generateQrDataUrl } from '../services/id-card/codes';
 import { triggerParentAttendanceSms } from '../services/sms-gateway';
 import { formatLearnerName } from '../utils/student-name';
-import { subscribeToAttendanceUpdates, broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
+import { broadcastAttendanceUpdate } from '../services/mobile-attendance-sync';
 import { PhoneAttendanceModal } from '../components/attendance/PhoneAttendanceModal';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -141,21 +141,7 @@ export function DailyAttendancePage() {
     const [selectedStudentForQr, setSelectedStudentForQr] = useState<Student | null>(null);
     const [studentQrDataUrl, setStudentQrDataUrl] = useState<string>('');
 
-    // Subscribe to live phone attendance scans/edits from teacher's smartphone
-    useEffect(() => {
-        const unsubscribe = subscribeToAttendanceUpdates((event) => {
-            if (event.record) {
-                void upsertAttendanceRecords([event.record]);
-                const name = event.studentName || event.record.student_lrn;
-                showNotification(
-                    `📱 Smartphone Scan: ${name} marked ${event.record.status.toUpperCase()}`,
-                    'success'
-                );
-            }
-        });
-        return () => unsubscribe();
-    }, [upsertAttendanceRecords, showNotification]);
-
+    // (Mobile attendance is now globally synced in App.tsx)
     useEffect(() => {
         if (!selectedStudentForQr) return;
         let cancelled = false;
@@ -441,6 +427,14 @@ export function DailyAttendancePage() {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${roster.length} student(s) as ${status}`, 'success');
 
+            // Broadcast real-time sync update for each record to mobile clients
+            roster.forEach((student, idx) => {
+                const rec = records[idx];
+                if (rec) {
+                    broadcastAttendanceUpdate(rec, composeName(student));
+                }
+            });
+
             // Trigger SMS to parents for ALL statuses (present, absent, late, cutting, excused)
             const schoolName = schoolProfile?.name || 'Calibungan High School';
             let smsCount = 0;
@@ -472,6 +466,14 @@ export function DailyAttendancePage() {
         try {
             await upsertAttendanceRecords(records);
             showNotification(`Marked ${unmarkedStudents.length} unmarked student(s) as Present`, 'success');
+
+            // Broadcast real-time sync update for each record to mobile clients
+            unmarkedStudents.forEach((student, idx) => {
+                const rec = records[idx];
+                if (rec) {
+                    broadcastAttendanceUpdate(rec, composeName(student));
+                }
+            });
 
             const schoolName = schoolProfile?.name || 'Calibungan High School';
             let smsCount = 0;

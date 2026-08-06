@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gdriveDownloadBackup: (fileId) => ipcRenderer.invoke('gdrive:download-backup', fileId),
   exportHtmlPdf: (data) => ipcRenderer.invoke('app:export-html-pdf', data),
   sendSmsHttpRequest: (options) => ipcRenderer.invoke('send-sms-http-request', options),
+  pushAttendanceSession: (sessionData) => ipcRenderer.invoke('push-attendance-session', sessionData),
+  pushAttendanceUpdate: (syncEvent) => ipcRenderer.invoke('push-attendance-update', syncEvent),
+  getAttendanceUpdates: (sinceTimestamp) => ipcRenderer.invoke('get-attendance-updates', sinceTimestamp),
 });
 
 // Setup dynamic keyboard and mouse scroll zoom controls

@@ -3,6 +3,7 @@
  * Enables real-time two-way synchronization between Mobile Phone Attendance and FormEase Pro Desktop.
  * 
  * Supports:
+ * - Electron IPC (zero-latency direct sync via main process — EXE only)
  * - BroadcastChannel API (sub-millisecond instant sync across local windows/tabs)
  * - LocalStorage sync fallback
  * - Local Wi-Fi HTTP Server REST API push & pull sync
@@ -55,6 +56,11 @@ export function broadcastAttendanceUpdate(
         sourceDevice: window.navigator?.userAgent?.includes('Mobile') ? 'Smartphone' : 'Desktop PC',
     };
 
+    // 0. Electron IPC — direct main-process bridge (zero-CORS, instant, EXE only)
+    if (window.electronAPI && window.electronAPI.pushAttendanceUpdate) {
+        window.electronAPI.pushAttendanceUpdate(event).catch(() => {});
+    }
+
     // 1. BroadcastChannel
     try {
         if (channel) {
@@ -72,13 +78,15 @@ export function broadcastAttendanceUpdate(
     }
 
     // 3. Push to Local Express REST API server across all active ports
+    //    Port 3001 is the production default (EXE); 3003 is a legacy fallback.
     const targetHost = serverHost || window.location.hostname || 'localhost';
-    const port = window.location.port || '3003';
+    const port = window.location.port || '3001';
     const endpoints = Array.from(new Set([
+        `http://localhost:3001/api/attendance/update`,
+        `http://127.0.0.1:3001/api/attendance/update`,
         `/api/attendance/update`,
         `http://${targetHost}:${port}/api/attendance/update`,
         `http://${targetHost}:3003/api/attendance/update`,
-        `http://${targetHost}:3001/api/attendance/update`
     ]));
 
     for (const apiUrl of endpoints) {
@@ -100,12 +108,41 @@ export function subscribeToAttendanceUpdates(
     serverHost?: string
 ): () => void {
     const handlers: Array<() => void> = [];
+    const seenEventKeys = new Set<string>();
+    const seenRecordFingerprints = new Map<string, { status: string; timestamp: number }>();
+
+    function deduplicatedOnEvent(ev: MobileAttendanceSyncEvent): void {
+        if (!ev || !ev.record) return;
+        const lrn = ev.record.student_lrn;
+        const date = ev.record.date;
+        const status = ev.record.status;
+        const ts = ev.timestamp || Date.now();
+
+        const exactKey = `${lrn}_${date}_${status}_${ts}`;
+        if (seenEventKeys.has(exactKey)) return;
+        seenEventKeys.add(exactKey);
+
+        // Keep set size manageable
+        if (seenEventKeys.size > 2000) {
+            const first = seenEventKeys.values().next().value;
+            if (first) seenEventKeys.delete(first);
+        }
+
+        const fingerprintKey = `${lrn}_${date}`;
+        const existing = seenRecordFingerprints.get(fingerprintKey);
+        if (existing && existing.status === status && existing.timestamp >= ts) {
+            return; // Ignore duplicate or older state for the same student on the same day
+        }
+
+        seenRecordFingerprints.set(fingerprintKey, { status, timestamp: ts });
+        onEvent(ev);
+    }
 
     // 1. BroadcastChannel listener
     if (channel) {
         const bcHandler = (e: MessageEvent<MobileAttendanceSyncEvent>) => {
             if (e.data && e.data.type === 'ATTENDANCE_UPDATE') {
-                onEvent(e.data);
+                deduplicatedOnEvent(e.data);
             }
         };
         channel.addEventListener('message', bcHandler);
@@ -118,7 +155,7 @@ export function subscribeToAttendanceUpdates(
             try {
                 const event: MobileAttendanceSyncEvent = JSON.parse(e.newValue);
                 if (event && event.type === 'ATTENDANCE_UPDATE') {
-                    onEvent(event);
+                    deduplicatedOnEvent(event);
                 }
             } catch (err) {
                 console.error('Failed to parse storage sync event:', err);
@@ -128,19 +165,48 @@ export function subscribeToAttendanceUpdates(
     window.addEventListener('storage', storageHandler);
     handlers.push(() => window.removeEventListener('storage', storageHandler));
 
-    // 3. HTTP Polling Fallback (Every 1.5 seconds for active sync across Wi-Fi networks)
-    let lastCheckTimestamp = Date.now() - 120000; // 2-minute sliding lookback window
-    const seenEventKeys = new Set<string>();
-    const targetHost = serverHost || window.location.hostname || 'localhost';
-    const currentPort = window.location.port || '3003';
-    const pollUrls = Array.from(new Set([
+    // 3. Electron IPC direct polling (most reliable for EXE — bypasses network entirely)
+    // 4. HTTP Polling Fallback (Every 1.5 seconds for active sync across Wi-Fi networks)
+    let lastCheckTimestamp = 0; // 0 queries all pending events on first poll
+    const targetHost = serverHost || (typeof window !== 'undefined' ? window.location.hostname : '') || 'localhost';
+    const currentPort = (typeof window !== 'undefined' ? window.location.port : '') || '3001';
+    
+    // Build valid HTTP endpoints
+    const rawUrls = [
+        `http://localhost:3001/api/attendance/updates`,
+        `http://127.0.0.1:3001/api/attendance/updates`,
         `/api/attendance/updates`,
-        `http://${targetHost}:${currentPort}/api/attendance/updates`,
-        `http://${targetHost}:3003/api/attendance/updates`,
-        `http://${targetHost}:3001/api/attendance/updates`
-    ]));
+        targetHost && currentPort ? `http://${targetHost}:${currentPort}/api/attendance/updates` : '',
+        targetHost ? `http://${targetHost}:3001/api/attendance/updates` : '',
+        targetHost ? `http://${targetHost}:3003/api/attendance/updates` : '',
+    ].filter(Boolean);
+    const pollUrls = Array.from(new Set(rawUrls));
 
     const intervalId = setInterval(async () => {
+        // Electron IPC path — direct main-process query, zero network overhead
+        if (window.electronAPI && window.electronAPI.getAttendanceUpdates) {
+            try {
+                const data = await window.electronAPI.getAttendanceUpdates(lastCheckTimestamp);
+                if (data) {
+                    if (data.events && Array.isArray(data.events) && data.events.length > 0) {
+                        for (const ev of data.events) {
+                            deduplicatedOnEvent(ev as MobileAttendanceSyncEvent);
+                        }
+                    }
+                    const serverTs = (data as { serverTime?: number; lastUpdated?: number }).serverTime || (data as { lastUpdated?: number }).lastUpdated;
+                    if (serverTs && serverTs > 0) {
+                        lastCheckTimestamp = serverTs;
+                    } else if (lastCheckTimestamp === 0) {
+                        lastCheckTimestamp = Date.now() - 60000;
+                    }
+                }
+                return; // IPC succeeded, skip HTTP polling
+            } catch {
+                // Fall through to HTTP polling
+            }
+        }
+
+        // HTTP Polling fallback
         for (const pollUrl of pollUrls) {
             try {
                 const res = await fetch(`${pollUrl}?since=${lastCheckTimestamp}`);
@@ -148,15 +214,16 @@ export function subscribeToAttendanceUpdates(
                     const data = await res.json();
                     if (data.events && Array.isArray(data.events) && data.events.length > 0) {
                         for (const ev of data.events) {
-                            const eventKey = `${ev.record?.student_lrn}_${ev.record?.date}_${ev.record?.status}_${ev.timestamp}`;
-                            if (!seenEventKeys.has(eventKey)) {
-                                seenEventKeys.add(eventKey);
-                                onEvent(ev);
-                            }
+                            deduplicatedOnEvent(ev);
                         }
                     }
-                    // Keep a sliding 2-minute lookback window so cross-device clock drift never drops events
-                    lastCheckTimestamp = Math.max(0, Date.now() - 120000);
+                    // Update lastCheckTimestamp using serverTime or lastUpdated from server response
+                    const serverTs = data.serverTime || data.lastUpdated;
+                    if (serverTs && serverTs > 0) {
+                        lastCheckTimestamp = serverTs;
+                    } else if (lastCheckTimestamp === 0) {
+                        lastCheckTimestamp = Date.now() - 60000;
+                    }
                     break; // Endpoint succeeded, don't query remaining fallback ports
                 }
             } catch {
@@ -206,19 +273,26 @@ export function pushAttendanceSessionToBackend(data: {
     students?: Student[];
     sections?: Section[];
     records?: AttendanceRecord[];
-    schoolProfile?: any;
+    schoolProfile?: unknown;
     localIp?: string;
 }): void {
     if (typeof window === 'undefined') return;
 
-    const payload = JSON.stringify({
+    const sessionObj = {
         students: data.students || [],
         sections: data.sections || [],
         records: data.records || [],
         schoolProfile: data.schoolProfile || null,
         lastUpdated: Date.now()
-    });
+    };
 
+    // 1. Direct Electron Native Main Process Bridge (Zero-CORS, 100% Reliable)
+    if (window.electronAPI && window.electronAPI.pushAttendanceSession) {
+        window.electronAPI.pushAttendanceSession(sessionObj).catch(() => {});
+    }
+
+    // 2. Web REST API Fallback
+    const payload = JSON.stringify(sessionObj);
     const host = data.localIp || window.location.hostname || 'localhost';
     const port = window.location.port || '3001';
     const endpoints = Array.from(new Set([

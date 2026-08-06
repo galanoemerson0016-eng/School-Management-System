@@ -14,8 +14,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // CORS Middleware for Local Network Mobile Sync
 app.use((req, res, next) => {
@@ -48,6 +48,26 @@ let activeAttendanceSession = {
 };
 let syncEventsQueue = [];
 
+function updateActiveSession(data) {
+  if (!data) return;
+  const newStudents = Array.isArray(data.students) && data.students.length > 0
+    ? data.students
+    : activeAttendanceSession.students;
+  const newSections = Array.isArray(data.sections) && data.sections.length > 0
+    ? data.sections
+    : activeAttendanceSession.sections;
+  const newRecords = Array.isArray(data.records) ? data.records : activeAttendanceSession.records;
+
+  activeAttendanceSession = {
+    date: data.date || activeAttendanceSession.date,
+    records: newRecords,
+    students: newStudents,
+    sections: newSections,
+    schoolProfile: data.schoolProfile || activeAttendanceSession.schoolProfile,
+    lastUpdated: Date.now()
+  };
+}
+
 // Local LAN Network IP Discovery Endpoint
 app.get('/api/network-ip', (req, res) => {
   const interfaces = os.networkInterfaces();
@@ -71,7 +91,7 @@ app.get('/api/network-ip', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', app: 'FormEase G7', sessionDate: activeAttendanceSession.date });
+  res.json({ status: 'ok', app: 'FormEase G7', sessionDate: activeAttendanceSession.date, studentCount: activeAttendanceSession.students.length });
 });
 
 // Sync Attendance State Endpoint
@@ -81,14 +101,7 @@ app.get('/api/attendance/session', (req, res) => {
 
 app.post('/api/attendance/session', (req, res) => {
   if (req.body) {
-    activeAttendanceSession = {
-      date: req.body.date || activeAttendanceSession.date,
-      records: req.body.records || activeAttendanceSession.records,
-      students: req.body.students || activeAttendanceSession.students,
-      sections: req.body.sections || activeAttendanceSession.sections,
-      schoolProfile: req.body.schoolProfile || activeAttendanceSession.schoolProfile,
-      lastUpdated: Date.now()
-    };
+    updateActiveSession(req.body);
   }
   res.json({ success: true, count: activeAttendanceSession.records.length, studentCount: activeAttendanceSession.students.length });
 });
@@ -126,7 +139,9 @@ app.post('/api/attendance/update', (req, res) => {
 app.get('/api/attendance/updates', (req, res) => {
   const since = parseInt(req.query.since || '0', 10);
   const newEvents = syncEventsQueue.filter(e => e.timestamp > since);
+  const now = Date.now();
   res.json({
+    serverTime: now,
     lastUpdated: activeAttendanceSession.lastUpdated,
     events: newEvents
   });
@@ -167,4 +182,36 @@ process.on('SIGINT', () => {
   });
 });
 
-module.exports = server;
+module.exports = {
+  server,
+  updateActiveSession,
+  getActiveSession: () => activeAttendanceSession,
+  /** Push an attendance update event into the sync queue (used by Electron IPC) */
+  pushSyncEvent: (event) => {
+    if (!event || !event.record) return;
+    event.timestamp = Date.now();
+    syncEventsQueue.push(event);
+    if (syncEventsQueue.length > 500) syncEventsQueue.shift();
+    // Also update the in-memory session record
+    const rec = event.record;
+    const idx = activeAttendanceSession.records.findIndex(
+      r => (r.id && r.id === rec.id) || (r.student_lrn === rec.student_lrn && r.date === rec.date)
+    );
+    if (idx >= 0) {
+      activeAttendanceSession.records[idx] = rec;
+    } else {
+      activeAttendanceSession.records.push(rec);
+    }
+    activeAttendanceSession.lastUpdated = Date.now();
+  },
+  /** Get sync events since a given timestamp (used by Electron IPC) */
+  getSyncEventsSince: (since) => {
+    const sinceTs = parseInt(since || '0', 10);
+    const now = Date.now();
+    return {
+      serverTime: now,
+      lastUpdated: activeAttendanceSession.lastUpdated,
+      events: syncEventsQueue.filter(e => e.timestamp > sinceTs)
+    };
+  }
+};

@@ -74,6 +74,9 @@ declare global {
         headers?: Record<string, string>;
         body?: unknown;
       }) => Promise<{ success: boolean; statusCode?: number; data?: string; error?: string }>;
+      pushAttendanceSession?: (sessionData: unknown) => Promise<{ success: boolean; error?: string }>;
+      pushAttendanceUpdate?: (syncEvent: unknown) => Promise<{ success: boolean; error?: string }>;
+      getAttendanceUpdates?: (sinceTimestamp: number) => Promise<{ events: Array<{ record: unknown; studentName?: string; timestamp: number; sourceDevice?: string }>; lastUpdated: number }>;
     };
   }
   const __APP_VERSION__: string;

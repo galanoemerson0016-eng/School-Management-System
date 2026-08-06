@@ -190,8 +190,10 @@ function attendanceApiPlugin() {
           const urlObj = new URL(url, 'http://localhost');
           const since = parseInt(urlObj.searchParams.get('since') || '0', 10);
           const newEvents = syncEventsQueue.filter(e => e.timestamp > since);
+          const now = Date.now();
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
+            serverTime: now,
             lastUpdated: activeAttendanceSession.lastUpdated,
             events: newEvents
           }));
