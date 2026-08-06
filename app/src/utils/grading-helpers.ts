@@ -1,9 +1,120 @@
 // Grading helper utilities
 // Updated per DepEd Order (SY 2026-2027): Assessment, Grading System, Awards & Recognition
 
-import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet } from '../types';
+import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
-import { isDescriptiveGrading } from '../lib/grading';
+import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
+
+/**
+ * Resolves the final transmuted grade for a student, subject, quarter, and school year.
+ * Performs live dynamic calculation from classRecords + hpsRecords matching EClassRecord.tsx / ConsolidatedGradesPage.tsx,
+ * with fallback to pre-stored classRecord.final_grade and gradingSheetRecord.final_grade.
+ */
+export function resolveStudentQuarterGrade(
+    studentLrn: string,
+    subjectIdOrName: string,
+    quarter: number,
+    schoolYear: string,
+    classRecords: ClassRecord[] = [],
+    gradingSheetRecords: ClassRecord[] = [],
+    hpsRecords: HPSRecord[] = [],
+    sectionGradeLevel?: string,
+    sectionTrack?: string
+): number {
+    const normTarget = (subjectIdOrName || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // 1. Check primary classRecords
+    const cRecord = classRecords.find(r =>
+        r.student_lrn === studentLrn &&
+        (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) &&
+        Number(r.quarter) === quarter &&
+        (!schoolYear || r.school_year === schoolYear)
+    );
+
+    if (cRecord) {
+        const hpsRec = hpsRecords.find(h =>
+            (h.subject_id === subjectIdOrName || h.subject_id === cRecord.subject_id) &&
+            (!schoolYear || h.school_year === schoolYear) &&
+            Number(h.quarter) === quarter
+        );
+
+        if (hpsRec) {
+            const hps_ww = normalizeScores(hpsRec.written_works, 10).map((v: number | string) => v === '' ? 0 : Number(v));
+            const hps_pt = normalizeScores(hpsRec.performance_tasks, 10).map((v: number | string) => v === '' ? 0 : Number(v));
+            const rawHpsQa = (hpsRec as HPSRecord & { summative_tests?: (number | string)[] }).summative_tests;
+            const hps_qa = normalizeScores(rawHpsQa, 3).map((v: number | string, i: number) => {
+                if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
+                return Number(v) || 0;
+            });
+
+            const wwScores = normalizeScores(cRecord.written_works, 10).map((v: number | string) => Number(v) || 0);
+            const ptScores = normalizeScores(cRecord.performance_tasks, 10).map((v: number | string) => Number(v) || 0);
+            const rawQa = (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
+            const normQaScores = normalizeScores(rawQa, 3);
+            if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null) {
+                normQaScores[2] = cRecord.quarterly_exam;
+            }
+
+            const wwTotalScore = wwScores.reduce((a: number, b: number) => a + b, 0);
+            const wwTotalHPS = hps_ww.reduce((a: number, b: number) => a + b, 0);
+            const ptTotalScore = ptScores.reduce((a: number, b: number) => a + b, 0);
+            const ptTotalHPS = hps_pt.reduce((a: number, b: number) => a + b, 0);
+
+            const subjectName = cRecord.subject_name || subjectIdOrName;
+            const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
+            const weights = getWeights(cluster, { subject_name: subjectName } as Subject);
+
+            const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * (weights.written_works || 0);
+            const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * (weights.performance_tasks || 0);
+
+            const parseNumOrNull = (val: number | string | null | undefined): number | null => {
+                if (val === '' || val === null || val === undefined) return null;
+                const n = Number(val);
+                return isNaN(n) ? null : n;
+            };
+
+            const st1Score = parseNumOrNull(normQaScores[0]);
+            const st1HPS = Number(hps_qa[0]) || 0;
+            const st2Score = parseNumOrNull(normQaScores[1]);
+            const st2HPS = Number(hps_qa[1]) || 0;
+            const teScore = parseNumOrNull(normQaScores[2]);
+            const teHPS = Number(hps_qa[2]) || 0;
+
+            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
+            const qaWS = qaPS * (weights.quarterly_exam || 0);
+
+            const initialGrade = wwWS + ptWS + qaWS;
+
+            const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
+            const hasScores =
+                wwScores.some(isValidScore) ||
+                ptScores.some(isValidScore) ||
+                normQaScores.some(isValidScore);
+
+            if (hasScores) {
+                return transmuteGrade(initialGrade, schoolYear || cRecord.school_year);
+            }
+        }
+
+        if (cRecord.final_grade && Number(cRecord.final_grade) > 0) {
+            return Number(cRecord.final_grade);
+        }
+    }
+
+    // 2. Check gradingSheetRecords
+    const gRecord = gradingSheetRecords.find(r =>
+        r.student_lrn === studentLrn &&
+        (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) &&
+        Number(r.quarter) === quarter &&
+        (!schoolYear || r.school_year === schoolYear)
+    );
+
+    if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
+        return Number(gRecord.final_grade);
+    }
+
+    return 0;
+}
 
 // ─── Award Types ──────────────────────────────────────────────────────────────
 
@@ -101,9 +212,6 @@ export function isAcademicExcellenceAwardee(
  * Replaced by: Academic Excellence Award (GA ≥ 90, no FG < 80, listed alphabetically)
  */
 export function getHonorType(average: number): AwardStudent['awardType'] | null {
-    // Returns only the single new award type for GA ≥ 90.
-    // Note: This does NOT check for no-FG-below-80 since subject grades are not passed here.
-    // Use isAcademicExcellenceAwardee() for the full check.
     if (average >= 90) return 'Academic Excellence Award';
     return null;
 }
@@ -135,7 +243,7 @@ export function generateHonorRoll(
 
         const studentRecords = classRecords.filter(
             r => r.student_lrn === student.lrn &&
-                 (quarter === 'overall' || r.quarter === quarter) &&
+                 (quarter === 'overall' || Number(r.quarter) === Number(quarter)) &&
                  (Number(r.final_grade) || 0) > 0
         );
 
@@ -151,7 +259,7 @@ export function generateHonorRoll(
         const hasFgBelow80 = subjectGrades.some(sg => sg.grade > 0 && sg.grade < 80);
         if (hasFgBelow80) continue;
 
-        const section = sections.find(s => s.section_name === student.student_section);
+        const section = sections.find(s => s.section_name === student.student_section || s.id === student.student_section);
 
         awardees.push({
             student,
@@ -186,7 +294,7 @@ export function getAtRiskStudents(
     const atRisk: { student: Student; subjectName: string; grade: number }[] = [];
 
     for (const record of classRecords) {
-        if (record.quarter !== quarter) continue;
+        if (Number(record.quarter) !== Number(quarter)) continue;
         const finalGrade = Number(record.final_grade) || 0;
         if (finalGrade <= 0) continue;
         if (finalGrade >= 75) continue;
@@ -217,35 +325,29 @@ export function getMPSPerSubject(
     quarter: 1 | 2 | 3 | 4 | 'overall'
 ): { subjectName: string; mps: number; passRate: number; totalStudents: number }[] {
     if (quarter === 'overall') return [];
-    const subjectMap = new Map<string, number[]>();
 
-    for (const record of classRecords) {
-        if (record.quarter !== quarter) continue;
-        const finalGrade = Number(record.final_grade) || 0;
-        if (finalGrade <= 0) continue;
+    return subjects.map(subject => {
+        const subjectRecords = classRecords.filter(r =>
+            r.subject_id === subject.id &&
+            Number(r.quarter) === Number(quarter) &&
+            (Number(r.final_grade) || 0) > 0
+        );
 
-        const subject = subjects.find(s => s.id === record.subject_id);
-        const key = subject?.subject_name || record.subject_id;
+        if (subjectRecords.length === 0) {
+            return { subjectName: subject.subject_name, mps: 0, passRate: 0, totalStudents: 0 };
+        }
 
-        if (!subjectMap.has(key)) subjectMap.set(key, []);
-        subjectMap.get(key)!.push(finalGrade);
-    }
+        const totalStudents = subjectRecords.length;
+        const totalGrades = subjectRecords.reduce((sum, r) => sum + (Number(r.final_grade) || 0), 0);
+        const mps = Math.round((totalGrades / totalStudents) * 100) / 100;
+        const passingCount = subjectRecords.filter(r => (Number(r.final_grade) || 0) >= 75).length;
+        const passRate = Math.round((passingCount / totalStudents) * 100);
 
-    return Array.from(subjectMap.entries()).map(([subjectName, grades]) => {
-        const mps = Math.round((grades.reduce((a, b) => a + b, 0) / grades.length) * 100) / 100;
-        const passing = grades.filter(g => g >= 75).length;
-        const passRate = Math.round((passing / grades.length) * 100);
-
-        return {
-            subjectName,
-            mps,
-            passRate,
-            totalStudents: grades.length,
-        };
-    }).sort((a, b) => b.mps - a.mps);
+        return { subjectName: subject.subject_name, mps, passRate, totalStudents };
+    }).filter(d => d.totalStudents > 0);
 }
 
-// ─── Excellence in a Specific Learning Area Award ─────────────────────────────
+// ─── Subject Awardees ─────────────────────────────────────────────────────────
 
 export interface SubjectAward {
     sectionName: string;
@@ -277,13 +379,16 @@ export function getSubjectAwardees(
         const sectionStudents = students.filter(s => {
             // Exclude descriptive grading levels from Subject Excellence Awards
             if (isDescriptiveGrading(s.grade_level, sy)) return false;
-            return s.student_section === section.section_name;
+            return s.student_section === section.section_name || s.student_section === section.id;
         });
         if (sectionStudents.length === 0) continue;
 
-        const sectionSubjects = subjects.filter(sub => sub.section_id === section.id);
+        // Get section-specific subjects or fall back to subjects matching section ID / taught subjects
+        const sectionSubjectIds = new Set(subjects.filter(sub => sub.section_id === section.id || (section.taught_subjects || []).includes(sub.subject_name)).map(s => s.id));
+        const relevantSubjects = subjects.filter(sub => sectionSubjectIds.has(sub.id) || sub.section_id === section.id);
+        const allSubjectsToEvaluate = relevantSubjects.length > 0 ? relevantSubjects : subjects.filter(s => s.term !== 'none');
 
-        for (const subject of sectionSubjects) {
+        for (const subject of allSubjectsToEvaluate) {
             let topGrade = -1;
             let topStudents: Student[] = [];
 
@@ -296,7 +401,7 @@ export function getSubjectAwardees(
                         grade = Math.round((studentRecords.reduce((sum, r) => sum + (Number(r.final_grade) || 0), 0) / studentRecords.length) * 100) / 100;
                     }
                 } else {
-                    const record = classRecords.find(r => r.student_lrn === student.lrn && r.subject_id === subject.id && r.quarter === quarter);
+                    const record = classRecords.find(r => r.student_lrn === student.lrn && r.subject_id === subject.id && Number(r.quarter) === Number(quarter));
                     if (record && (Number(record.final_grade) || 0) > 0) {
                         grade = Number(record.final_grade) || 0;
                     }

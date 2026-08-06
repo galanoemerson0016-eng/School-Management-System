@@ -3,6 +3,7 @@ import { useAppStore } from '../stores';
 import { ArrowLeft, Printer, Layout, Plus, Minus } from 'lucide-react';
 import { sortSubjects, normalizeSubjectName } from '../lib/subjectConfig';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 
 type PaperSize = 'a4' | 'letter' | 'folio';
 
@@ -14,17 +15,19 @@ export function TemporaryGradeSlipPage() {
 
     const sortedSections = useMemo(() => {
         if (!sections || sections.length === 0) return [];
-        // Return all sections sorted by grade level and section name, prioritizing advisory classes
+        // Sort strictly by grade level (numeric) then section name (alphabetical)
         return [...sections].sort((a, b) => {
-            const aIsAdv = a.is_advisory || (a as Section & { is_advisory_class?: boolean }).is_advisory_class;
-            const bIsAdv = b.is_advisory || (b as Section & { is_advisory_class?: boolean }).is_advisory_class;
-            
-            if (aIsAdv && !bIsAdv) return -1;
-            if (!aIsAdv && bIsAdv) return 1;
+            const getGradeNum = (gl?: string) => {
+                if (!gl) return 99;
+                const num = parseInt(gl.replace(/\D/g, ''), 10);
+                return isNaN(num) ? 99 : num;
+            };
 
-            const glCompare = (a.section_grade_level || '').localeCompare(b.section_grade_level || '', undefined, { numeric: true });
-            if (glCompare !== 0) return glCompare;
-            return (a.section_name || '').localeCompare(b.section_name || '');
+            const glA = getGradeNum(a.section_grade_level);
+            const glB = getGradeNum(b.section_grade_level);
+
+            if (glA !== glB) return glA - glB;
+            return (a.section_name || '').localeCompare(b.section_name || '', undefined, { sensitivity: 'base' });
         });
     }, [sections]);
 
@@ -400,14 +403,26 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const termTotals = { t1: 0, t2: 0, t3: 0 };
         const termCounts = { t1: 0, t2: 0, t3: 0 };
 
+        const classRecords = useAppStore.getState().classRecords || [];
+        const hpsRecords = useAppStore.getState().hpsRecords || [];
+
         subjects.forEach((subj: Subject) => {
             let q1 = '', q2 = '', q3 = '';
             let sTotal = 0, sCount = 0;
 
             for (let q = 1; q <= 3; q++) {
-                const r = records.find((rec: ClassRecord) => rec.student_lrn === student.lrn && rec.subject_id === subj.id && Number(rec.quarter) === q && rec.school_year === activeSchoolYear);
-                if (r && r.final_grade && Number(r.final_grade) > 0) {
-                    const g = Number(r.final_grade);
+                const g = resolveStudentQuarterGrade(
+                    student.lrn,
+                    subj.id,
+                    q,
+                    activeSchoolYear,
+                    classRecords,
+                    records,
+                    hpsRecords,
+                    section?.section_grade_level,
+                    section?.track
+                );
+                if (g > 0) {
                     if (q === 1) { q1 = g.toString(); termTotals.t1 += g; termCounts.t1++; }
                     if (q === 2) { q2 = g.toString(); termTotals.t2 += g; termCounts.t2++; }
                     if (q === 3) { q3 = g.toString(); termTotals.t3 += g; termCounts.t3++; }
@@ -438,7 +453,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const genT3 = termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [subjects, records, student.lrn, activeSchoolYear]);
+    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     

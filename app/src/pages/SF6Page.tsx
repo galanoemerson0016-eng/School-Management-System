@@ -2,6 +2,8 @@ import { Fragment, useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Printer, Plus, Minus, ChevronDown, Download, ShieldCheck } from 'lucide-react';
 import { useAppStore } from '../stores';
+import type { Subject } from '../types';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 
 type PaperSize = 'a4' | 'folio';
 type GenderKey = 'male' | 'female' | 'total';
@@ -107,6 +109,8 @@ export function SF6Page() {
         sections,
         subjects,
         gradingSheetRecords,
+        classRecords,
+        hpsRecords,
         schoolProfile,
         activeSchoolYear,
         setCurrentView,
@@ -266,34 +270,37 @@ export function SF6Page() {
 
             addToCounts(bucket.enrollment, gender);
 
-            const studentRecords = gradingSheetRecords.filter((record) => record.student_lrn === student.lrn);
-            const recordsBySubject = new Map<string, typeof gradingSheetRecords>();
-
-            studentRecords.forEach((record) => {
-                if (!recordsBySubject.has(record.subject_id)) {
-                    recordsBySubject.set(record.subject_id, []);
-                }
-                recordsBySubject.get(record.subject_id)?.push(record);
-            });
+            const sectionSubjects = subjects.filter(s => (s.section_id === sectionMatch?.id || (s as Subject & { section_name?: string }).section_name === student.student_section) && s.term !== 'none');
 
             let finalGradesTotal = 0;
             let subjectsCount = 0;
             let failedCount = 0;
 
-            recordsBySubject.forEach((records, subjectId) => {
-                const linkedSubject = subjects.find((subject) => subject.id === subjectId);
-                if (!linkedSubject || linkedSubject.term === 'none') return;
+            sectionSubjects.forEach((subject) => {
+                const quarterGrades: number[] = [];
+                for (let q = 1; q <= 3; q++) {
+                    const gradeVal = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subject.id,
+                        q,
+                        activeSchoolYear,
+                        classRecords,
+                        gradingSheetRecords,
+                        hpsRecords,
+                        sectionMatch?.section_grade_level,
+                        sectionMatch?.track
+                    );
+                    if (gradeVal > 0) {
+                        quarterGrades.push(gradeVal);
+                    }
+                }
 
-                const graded = records.filter((record) => (Number(record.final_grade) || 0) > 0);
-                if (graded.length === 0) return;
-
-                const average = graded.reduce((sum, item) => sum + (Number(item.final_grade) || 0), 0) / graded.length;
-                const finalGrade = Math.round(average);
-
-                finalGradesTotal += finalGrade;
-                subjectsCount += 1;
-
-                if (finalGrade < 75) failedCount += 1;
+                if (quarterGrades.length > 0) {
+                    const finalGrade = Math.round(quarterGrades.reduce((sum, g) => sum + g, 0) / quarterGrades.length);
+                    finalGradesTotal += finalGrade;
+                    subjectsCount += 1;
+                    if (finalGrade < 75) failedCount += 1;
+                }
             });
 
             if (subjectsCount === 0) return;
@@ -318,7 +325,7 @@ export function SF6Page() {
         baseBuckets.forEach((bucket) => addBucketData(grandTotal, bucket));
 
         return [...baseBuckets, grandTotal];
-    }, [students, sections, subjects, gradingSheetRecords]);
+    }, [students, sections, subjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear]);
 
     const renderTripletCells = (getCounts: (bucket: BucketSummary) => GenderCounts) => {
         return buckets.map((bucket) => {

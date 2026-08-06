@@ -544,13 +544,56 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   deleteStudent: async (lrn) => {
     const previousStudents = get().students;
+    const previousClassRecords = get().classRecords;
+    const previousGradingSheetRecords = get().gradingSheetRecords;
+    const previousEnrollments = get().enrollments;
+    const previousAttendanceRecords = get().attendanceRecords;
     try {
-      set((state) => ({ students: state.students.filter((s) => s.lrn !== lrn) }));
+      // 1. Delete student
       await db.deleteRecord('students', lrn);
-      get().showNotification('Student deleted', 'success');
+
+      // 2. Cascade delete from classRecords
+      const matchingClassRecs = previousClassRecords.filter(r => r.student_lrn === lrn);
+      for (const rec of matchingClassRecs) {
+        await db.deleteRecord('classRecords', rec.id);
+      }
+
+      // 3. Cascade delete from gradingSheetRecords
+      const matchingGradingRecs = previousGradingSheetRecords.filter(r => r.student_lrn === lrn);
+      for (const rec of matchingGradingRecs) {
+        await db.deleteRecord('gradingSheetRecords', rec.id);
+      }
+
+      // 4. Cascade delete from enrollments
+      const matchingEnrollments = previousEnrollments.filter(r => r.student_lrn === lrn);
+      for (const rec of matchingEnrollments) {
+        await db.deleteRecord('enrollments', rec.id);
+      }
+
+      // 5. Cascade delete from attendanceRecords
+      const matchingAttendance = previousAttendanceRecords.filter(r => r.student_lrn === lrn);
+      for (const rec of matchingAttendance) {
+        await db.deleteRecord('attendanceRecords', rec.id);
+      }
+
+      set((state) => ({
+        students: state.students.filter((s) => s.lrn !== lrn),
+        classRecords: state.classRecords.filter((r) => r.student_lrn !== lrn),
+        gradingSheetRecords: state.gradingSheetRecords.filter((r) => r.student_lrn !== lrn),
+        enrollments: state.enrollments.filter((r) => r.student_lrn !== lrn),
+        attendanceRecords: state.attendanceRecords.filter((r) => r.student_lrn !== lrn),
+      }));
+
+      get().showNotification('Student and associated records deleted', 'success');
     } catch (error) {
       console.error('Error deleting student:', error);
-      set({ students: previousStudents });
+      set({
+        students: previousStudents,
+        classRecords: previousClassRecords,
+        gradingSheetRecords: previousGradingSheetRecords,
+        enrollments: previousEnrollments,
+        attendanceRecords: previousAttendanceRecords,
+      });
       get().showNotification('Failed to delete student', 'error');
       throw error;
     }

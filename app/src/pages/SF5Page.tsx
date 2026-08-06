@@ -4,12 +4,15 @@ import { useAppStore, useAuthStore } from '../stores';
 import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download, ShieldCheck } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 
 export function SF5Page() {
     const students = useAppStore(s => s.students);
     const sections = useAppStore(s => s.sections);
     const subjects = useAppStore(s => s.subjects);
     const gradingSheetRecords = useAppStore(s => s.gradingSheetRecords);
+    const classRecords = useAppStore(s => s.classRecords);
+    const hpsRecords = useAppStore(s => s.hpsRecords);
     const schoolProfile = useAppStore(s => s.schoolProfile);
     const activeSchoolYear = useAppStore(s => s.activeSchoolYear);
     const teachers = useAppStore(s => s.teachers);
@@ -133,8 +136,6 @@ export function SF5Page() {
         }
 
         return sectionStudents.map(student => {
-            const studentRecords = recordsByLrn.get(student.lrn) || [];
-
             let finalGradesTotal = 0;
             let subjectsCount = 0;
             const failedSubjects: string[] = [];
@@ -149,15 +150,33 @@ export function SF5Page() {
                     for (let quarter = 1; quarter <= 3; quarter++) {
                         const musicArtsGrades = musicArtsComponents
                             .map((component) => {
-                                const rec = studentRecords.find((record) => record.subject_id === component.id && Number(record.quarter) === quarter);
-                                return Number(rec?.final_grade) || 0;
+                                return resolveStudentQuarterGrade(
+                                    student.lrn,
+                                    component.id,
+                                    quarter,
+                                    activeSchoolYear,
+                                    classRecords,
+                                    gradingSheetRecords,
+                                    hpsRecords,
+                                    currentSectionInfo?.section_grade_level,
+                                    currentSectionInfo?.track
+                                );
                             })
                             .filter((grade) => grade > 0);
 
                         const peHealthGrades = peHealthComponents
                             .map((component) => {
-                                const rec = studentRecords.find((record) => record.subject_id === component.id && Number(record.quarter) === quarter);
-                                return Number(rec?.final_grade) || 0;
+                                return resolveStudentQuarterGrade(
+                                    student.lrn,
+                                    component.id,
+                                    quarter,
+                                    activeSchoolYear,
+                                    classRecords,
+                                    gradingSheetRecords,
+                                    hpsRecords,
+                                    currentSectionInfo?.section_grade_level,
+                                    currentSectionInfo?.track
+                                );
                             })
                             .filter((grade) => grade > 0);
 
@@ -193,8 +212,17 @@ export function SF5Page() {
                 let subjectQuarterCount = 0;
 
                 for (let quarter = 1; quarter <= 3; quarter++) {
-                    const record = studentRecords.find((r) => r.subject_id === subject.id && Number(r.quarter) === quarter);
-                    const grade = Number(record?.final_grade) || 0;
+                    const grade = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subject.id,
+                        quarter,
+                        activeSchoolYear,
+                        classRecords,
+                        gradingSheetRecords,
+                        hpsRecords,
+                        currentSectionInfo?.section_grade_level,
+                        currentSectionInfo?.track
+                    );
                     if (grade > 0) {
                         subjectQuarterTotal += grade;
                         subjectQuarterCount++;
@@ -230,7 +258,7 @@ export function SF5Page() {
                 failedSubjects: uniqueFailedSubjects.join(', '),
             };
         }).sort((a, b) => a.last_name.localeCompare(b.last_name));
-    }, [sectionStudents, sectionSubjects, gradingSheetRecords, activeSchoolYear, currentSectionInfo]);
+    }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo]);
 
     const males = studentData.filter(s => (s.gender || '').toLowerCase() === 'male');
     const females = studentData.filter(s => (s.gender || '').toLowerCase() === 'female');

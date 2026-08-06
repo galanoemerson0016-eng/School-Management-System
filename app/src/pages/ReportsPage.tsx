@@ -3,11 +3,11 @@ import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3, ClipboardList } from 'lucide-react';
-import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees, getStudentAbsences } from '../utils/grading-helpers';
+import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees, getStudentAbsences, resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { isKeyStage1 } from '../lib/grading';
 import { exportToCSV } from '../utils/csv-export';
 import { canEditReport, canViewReport, filterOfficialSectionsForUser, filterOfficialRecords, type ReportType } from '../lib/rbac';
-import type { Student, AwardEvaluation } from '../types';
+import type { Student, AwardEvaluation, Section } from '../types';
 
 const COLORS = ['#003f87', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
 
@@ -67,7 +67,7 @@ const getStudentRequirementStats = (student: Student) => {
 };
 
 export function ReportsPage() {
-    const { students, sections, subjects, gradingSheetRecords, setCurrentView, setSelectedSection, setSelectedSubject, activeSchoolYear } = useAppStore();
+    const { students, sections, subjects, gradingSheetRecords, classRecords, hpsRecords, setCurrentView, setSelectedSection, setSelectedSubject, activeSchoolYear } = useAppStore();
     const { user } = useAuthStore();
     const [activeReport, setActiveReport] = useState<string | null>(null);
     const [selectedQuarter, setSelectedQuarter] = useState<1 | 2 | 3 | 'overall'>(1);
@@ -103,7 +103,10 @@ export function ReportsPage() {
     const reportTypeForActive = activeReport ? reportKeyByActive[activeReport] : null;
     const safeActiveReport = reportTypeForActive && canViewReport(user, reportTypeForActive) ? activeReport : null;
 
-    const officialSections = useMemo(() => filterOfficialSectionsForUser(user, sections), [user, sections]);
+    const officialSections = useMemo(() => {
+        return filterOfficialSectionsForUser(user, sections).filter(s => !(s as Section & { is_archived?: boolean }).is_archived);
+    }, [user, sections]);
+
     const officialSubjects = useMemo(() => filterOfficialRecords(subjects).filter(s => s.term !== 'none'), [subjects]);
 
     const activeSectionName = useMemo(() => {
@@ -141,10 +144,13 @@ export function ReportsPage() {
         return officialSubjects.filter(s => s.section_id === selectedSectionFilter);
     }, [officialSubjects, selectedSectionFilter]);
 
-    // Active Students ONLY (No Ghosts!)
+    // Active Students ONLY (No Ghosts & No Orphaned Sections!)
     const validStudents = useMemo(() => {
-        const validSections = new Set([...officialSections.map(s => s.section_name), ...officialSections.map(s => s.id)]);
-        return students.filter(s => s.student_section && validSections.has(s.student_section));
+        const activeSectionKeys = new Set([
+            ...officialSections.map(s => s.id),
+            ...officialSections.map(s => s.section_name)
+        ]);
+        return students.filter(s => s.student_section && activeSectionKeys.has(s.student_section));
     }, [students, officialSections]);
 
     const consolidatedOfficialRecords = useMemo(() => {
@@ -154,11 +160,35 @@ export function ReportsPage() {
         // LIMIT TO VALID SUBJECTS (exclude orphaned grades for deleted subjects)
         const validSubjectIds = new Set(officialSubjects.map(s => s.id));
 
-        const baseRecords = filterOfficialRecords(gradingSheetRecords).filter(r => {
+        const allRawRecords = [...classRecords, ...gradingSheetRecords];
+
+        const baseRecords = filterOfficialRecords(allRawRecords).filter(r => {
             const hasValidRefs = validLrns.has(r.student_lrn) && validSubjectIds.has(r.subject_id);
             if (!hasValidRefs) return false;
 
-            return (Number(r.final_grade) || 0) > 0;
+            const liveGrade = resolveStudentQuarterGrade(
+                r.student_lrn,
+                r.subject_id,
+                Number(r.quarter),
+                r.school_year || activeSchoolYear,
+                classRecords,
+                gradingSheetRecords,
+                hpsRecords
+            );
+
+            const fg = liveGrade > 0 ? liveGrade : (Number(r.final_grade) || 0);
+            return fg > 0;
+        }).map(r => {
+            const liveGrade = resolveStudentQuarterGrade(
+                r.student_lrn,
+                r.subject_id,
+                Number(r.quarter),
+                r.school_year || activeSchoolYear,
+                classRecords,
+                gradingSheetRecords,
+                hpsRecords
+            );
+            return liveGrade > 0 ? { ...r, final_grade: liveGrade } : r;
         });
 
         // AUTO-CONSOLIDATE: Group by student/subject/quarter to eliminate ghost duplicates
@@ -191,7 +221,7 @@ export function ReportsPage() {
         });
 
         return Array.from(consolidatedMap.values());
-    }, [gradingSheetRecords, validStudents, officialSubjects]);
+    }, [gradingSheetRecords, classRecords, hpsRecords, validStudents, officialSubjects, activeSchoolYear]);
 
     const filteredRecords = useMemo(() => {
         if (selectedSectionFilter === 'all') return consolidatedOfficialRecords;

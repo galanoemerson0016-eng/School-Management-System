@@ -103,6 +103,7 @@ if (!gotTheLock) {
     });
   }
 
+let expressServer = null;
 global.expressServer = null;
 
   app.whenReady().then(() => {
@@ -120,12 +121,14 @@ global.expressServer = null;
         // Force kill any process using Port 3001 (e.g., leftover dev server) to prevent conflicts
         exec('for /f "tokens=5" %a in (\'netstat -aon ^| find "LISTENING" ^| find ":3001"\') do taskkill /f /pid %a', () => {
           try {
-            global.expressServer = require(serverPath);
+            expressServer = require(serverPath);
+            global.expressServer = expressServer;
             if (log && log.info) log.info('[FormEase Pro] Mobile Gateway server started on port 3001');
 
             // Add error listener to check for port conflicts
-            if (global.expressServer.server) {
-              global.expressServer.server.on('error', (err) => {
+            const srv = global.expressServer || expressServer;
+            if (srv && srv.server) {
+              srv.server.on('error', (err) => {
                 if (err.code === 'EADDRINUSE') {
                    const { dialog } = require('electron');
                    dialog.showErrorBox(
@@ -433,23 +436,37 @@ if (autoUpdater) {
   ipcMain.on('quit-and-install', () => {
     if (autoUpdater) {
       isQuitting = true;
-      if (global.expressServer && typeof global.expressServer.close === 'function') {
-        try {
-          global.expressServer.close();
-        } catch {
-          // ignore
+      try {
+        const srv = global.expressServer || expressServer;
+        if (srv && srv.server && typeof srv.server.close === 'function') {
+          srv.server.close();
+        } else if (srv && typeof srv.close === 'function') {
+          srv.close();
         }
+      } catch (err) {
+        console.warn('[AutoUpdater] Error closing Express server:', err);
       }
+
       // Cleanly destroy all open windows so file handles are released for NSIS
-      BrowserWindow.getAllWindows().forEach((w) => {
-        try {
-          w.destroy();
-        } catch {
-          // ignore
-        }
-      });
+      try {
+        BrowserWindow.getAllWindows().forEach((w) => {
+          try {
+            w.destroy();
+          } catch {
+            // ignore
+          }
+        });
+      } catch (err) {
+        console.warn('[AutoUpdater] Error destroying windows:', err);
+      }
+
       setImmediate(() => {
-        autoUpdater.quitAndInstall(false, true);
+        try {
+          autoUpdater.quitAndInstall(false, true);
+        } catch (err) {
+          console.error('[AutoUpdater] quitAndInstall failed:', err);
+          app.quit();
+        }
       });
     }
   });
@@ -1130,8 +1147,9 @@ ipcMain.handle('app:export-html-pdf', async (event, payload) => {
 
 ipcMain.handle('push-attendance-session', async (event, sessionData) => {
   try {
-    if (global.expressServer && global.expressServer.updateActiveSession) {
-      global.expressServer.updateActiveSession(sessionData);
+    const srv = global.expressServer || expressServer;
+    if (srv && srv.updateActiveSession) {
+      srv.updateActiveSession(sessionData);
     }
   } catch (err) {
     console.warn('[IPC] In-memory session update warning:', err.message || err);
@@ -1170,8 +1188,9 @@ ipcMain.handle('push-attendance-session', async (event, sessionData) => {
 
 ipcMain.handle('push-attendance-update', async (_event, syncEvent) => {
   try {
-    if (global.expressServer && global.expressServer.pushSyncEvent) {
-      global.expressServer.pushSyncEvent(syncEvent);
+    const srv = global.expressServer || expressServer;
+    if (srv && srv.pushSyncEvent) {
+      srv.pushSyncEvent(syncEvent);
       return { success: true };
     }
     return { success: false, error: 'Express server not available' };
@@ -1182,8 +1201,9 @@ ipcMain.handle('push-attendance-update', async (_event, syncEvent) => {
 
 ipcMain.handle('get-attendance-updates', async (_event, sinceTimestamp) => {
   try {
-    if (global.expressServer && global.expressServer.getSyncEventsSince) {
-      return global.expressServer.getSyncEventsSince(sinceTimestamp);
+    const srv = global.expressServer || expressServer;
+    if (srv && srv.getSyncEventsSince) {
+      return srv.getSyncEventsSince(sinceTimestamp);
     }
     return { events: [], lastUpdated: 0 };
   } catch (err) {

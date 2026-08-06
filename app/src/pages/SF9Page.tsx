@@ -17,6 +17,7 @@ try {
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
@@ -878,15 +879,23 @@ function computeStudentGrades(
         if (matchingSubjects.length > 0) {
             const getQuarterAverage = (q: 1 | 2 | 3) => {
                 const results: number[] = [];
+                const classRecords = useAppStore.getState().classRecords;
+                const hpsRecords = useAppStore.getState().hpsRecords;
+
                 matchingSubjects.forEach(subject => {
-                    const r = gradingSheetRecords.find(rec =>
-                        rec.student_lrn === student.lrn &&
-                        rec.subject_id === subject.id &&
-                        rec.school_year === schoolYear &&
-                        Number(rec.quarter) === q
+                    const gradeVal = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subject.id,
+                        q,
+                        schoolYear,
+                        classRecords,
+                        gradingSheetRecords,
+                        hpsRecords,
+                        sectionObj?.section_grade_level,
+                        sectionObj?.track
                     );
-                    if (r && r.final_grade && Number(r.final_grade) > 0) {
-                        results.push(Number(r.final_grade));
+                    if (gradeVal > 0) {
+                        results.push(gradeVal);
                     }
                 });
                 return results.length > 0 ? Math.round(results.reduce((a, b) => a + b, 0) / results.length) : 0;

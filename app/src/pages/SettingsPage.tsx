@@ -96,6 +96,7 @@ export function SettingsPage() {
     const [isLoadingCloudBackups, setIsLoadingCloudBackups] = useState(false);
     const [isRestoringCloudBackup, setIsRestoringCloudBackup] = useState(false);
     const [showEmergencyRollbacks, setShowEmergencyRollbacks] = useState(false);
+    const [selectedSectionToCascadePurge, setSelectedSectionToCascadePurge] = useState<string>('');
 
     const handleLinkGoogle = async () => {
         try {
@@ -1164,27 +1165,59 @@ export function SettingsPage() {
     const [isCleaning, setIsCleaning] = useState(false);
     const handleCleanGhostStudents = async () => {
         try {
-            const ghostStudents = students.filter(s => !sections.some(sec => sec.section_name === s.student_section));
+            const validSectionKeys = new Set([
+                ...sections.map(s => s.id),
+                ...sections.map(s => s.section_name)
+            ]);
+
+            const ghostStudents = students.filter(s => !s.student_section || !validSectionKeys.has(s.student_section));
+            const ghostLrns = new Set(ghostStudents.map(s => s.lrn));
+
+            const orphanClassRecords = classRecords.filter(r => ghostLrns.has(r.student_lrn) || !students.some(s => s.lrn === r.student_lrn));
+            const orphanGradingSheetRecords = gradingSheetRecords.filter(r => ghostLrns.has(r.student_lrn) || !students.some(s => s.lrn === r.student_lrn));
+
+            const totalItems = ghostStudents.length + orphanClassRecords.length + orphanGradingSheetRecords.length;
             
-            if (ghostStudents.length === 0) {
-                alert('Database is clean. No ghost students found!');
+            if (totalItems === 0) {
+                alert('🎉 Database is 100% clean! No ghost students or orphaned grade records found.');
                 return;
             }
             
             setPendingConfirmation({
-                title: `Delete ${ghostStudents.length} ghost student(s)?`,
-                message: 'These unassigned student records will be permanently removed from the system.',
-                details: 'This action cannot be undone.',
-                confirmLabel: 'Delete Students',
+                title: `Delete ${ghostStudents.length} ghost student(s) & ${orphanClassRecords.length + orphanGradingSheetRecords.length} grade record(s)?`,
+                message: 'These unassigned student records (e.g. Archimedes) and associated grade entries will be permanently removed from the system.',
+                details: 'This action cannot be undone. Active students belonging to registered sections will NOT be affected.',
+                confirmLabel: 'Purge Ghost Data',
                 intent: 'danger',
                 onConfirm: async () => {
                     setIsCleaning(true);
                     try {
+                        let count = 0;
+                        startProgress('Purging Ghost & Sample Data', totalItems, 'Cleaning database...');
+
                         for (const student of ghostStudents) {
                             await deleteStudent(student.lrn);
+                            count++;
+                            setProgressCompleted(count);
                         }
-                        alert(`Success! Purged ${ghostStudents.length} ghost student record(s) from the database.`);
+
+                        for (const rec of orphanClassRecords) {
+                            await db.deleteRecord('classRecords', rec.id);
+                            count++;
+                            setProgressCompleted(count);
+                        }
+
+                        for (const rec of orphanGradingSheetRecords) {
+                            await db.deleteRecord('gradingSheetRecords', rec.id);
+                            count++;
+                            setProgressCompleted(count);
+                        }
+
+                        finishProgress('Completed');
+                        alert(`Success! Purged ${ghostStudents.length} ghost student record(s) and ${orphanClassRecords.length + orphanGradingSheetRecords.length} grade entries.`);
+                        await initializeAppStore();
                     } catch (error) {
+                        finishProgress('Failed');
                         alert('Failed to perform database clean-up: ' + error);
                     } finally {
                         setIsCleaning(false);
@@ -1195,6 +1228,74 @@ export function SettingsPage() {
         } catch (error) {
             alert('Failed to perform database clean-up: ' + error);
         }
+    };
+
+    const handleCascadeDeleteSection = async () => {
+        if (!selectedSectionToCascadePurge) {
+            alert('Please select a section to purge.');
+            return;
+        }
+
+        const targetSection = sections.find(s => s.id === selectedSectionToCascadePurge || s.section_name === selectedSectionToCascadePurge);
+        if (!targetSection) {
+            alert('Selected section not found.');
+            return;
+        }
+
+        const sectionStudents = students.filter(s => s.student_section === targetSection.id || s.student_section === targetSection.section_name);
+        const studentLrns = new Set(sectionStudents.map(s => s.lrn));
+
+        const sectionClassRecs = classRecords.filter(r => studentLrns.has(r.student_lrn));
+        const sectionGradingSheetRecs = gradingSheetRecords.filter(r => studentLrns.has(r.student_lrn));
+
+        const totalCount = 1 + sectionStudents.length + sectionClassRecs.length + sectionGradingSheetRecs.length;
+
+        setPendingConfirmation({
+            title: `Purge Section "${targetSection.section_name}" & All Roster Data?`,
+            message: `This will permanently delete section "${targetSection.section_name}", ${sectionStudents.length} student(s), and ${sectionClassRecs.length + sectionGradingSheetRecs.length} grade record(s).`,
+            details: 'This action cannot be undone. All student records in this section will be removed.',
+            confirmLabel: 'Purge Section & Students',
+            intent: 'danger',
+            onConfirm: async () => {
+                setIsCleaning(true);
+                try {
+                    startProgress(`Purging Section ${targetSection.section_name}`, totalCount, 'Deleting section and roster...');
+                    let done = 0;
+
+                    await db.deleteRecord('sections', targetSection.id);
+                    done++;
+                    setProgressCompleted(done);
+
+                    for (const student of sectionStudents) {
+                        await deleteStudent(student.lrn);
+                        done++;
+                        setProgressCompleted(done);
+                    }
+
+                    for (const rec of sectionClassRecs) {
+                        await db.deleteRecord('classRecords', rec.id);
+                        done++;
+                        setProgressCompleted(done);
+                    }
+
+                    for (const rec of sectionGradingSheetRecs) {
+                        await db.deleteRecord('gradingSheetRecords', rec.id);
+                        done++;
+                        setProgressCompleted(done);
+                    }
+
+                    finishProgress('Completed');
+                    alert(`✅ Successfully purged section "${targetSection.section_name}", ${sectionStudents.length} student(s), and all associated grades.`);
+                    setSelectedSectionToCascadePurge('');
+                    await initializeAppStore();
+                } catch (err) {
+                    finishProgress('Failed');
+                    alert('Failed to purge section: ' + err);
+                } finally {
+                    setIsCleaning(false);
+                }
+            }
+        });
     };
     
     const [isPurgingSections, setIsPurgingSections] = useState(false);
@@ -1716,17 +1817,22 @@ export function SettingsPage() {
         const effectiveStudents = studentProfiles.length > 0 ? studentProfiles : students;
         const studentLrns = new Set(effectiveStudents.map((s) => s.lrn));
         const subjectIds = new Set(subjects.map((s) => s.id));
-        const orphanIds = classRecords
+        const orphanClassIds = classRecords
+            .filter((record) => !studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id))
+            .map((record) => record.id);
+        const orphanGradingSheetIds = gradingSheetRecords
             .filter((record) => !studentLrns.has(record.student_lrn) || !subjectIds.has(record.subject_id))
             .map((record) => record.id);
 
-        if (orphanIds.length === 0) {
-            alert('No orphan grade records found.');
+        const totalOrphans = orphanClassIds.length + orphanGradingSheetIds.length;
+
+        if (totalOrphans === 0) {
+            alert('🎉 No orphan grade records found.');
             return;
         }
 
         setPendingConfirmation({
-            title: `Delete ${orphanIds.length} orphan grade record(s)?`,
+            title: `Delete ${totalOrphans} orphan grade record(s)?`,
             message: 'These grade records are no longer linked to a valid student or subject.',
             details: 'This action is permanent.',
             confirmLabel: 'Delete Grades',
@@ -1734,11 +1840,16 @@ export function SettingsPage() {
             onConfirm: async () => {
                 setIsDeletingOrphanGrades(true);
                 try {
-                    startProgress('Delete Orphan Grade Records', orphanIds.length, 'Deleting orphan grade records...');
-                    await deleteByCollectionIds('grades', orphanIds, (deletedCount) => {
-                        setProgressCompleted(deletedCount);
+                    startProgress('Delete Orphan Grade Records', totalOrphans, 'Deleting orphan grade records...');
+                    let count = 0;
+                    await deleteByCollectionIds('grades', orphanClassIds, (deletedCount) => {
+                        count = deletedCount;
+                        setProgressCompleted(count);
                     });
-                    alert(`Deleted ${orphanIds.length} orphan grade record(s).`);
+                    await deleteByCollectionIds('gradingSheetRecords', orphanGradingSheetIds, (deletedCount) => {
+                        setProgressCompleted(count + deletedCount);
+                    });
+                    alert(`Deleted ${totalOrphans} orphan grade record(s).`);
                     setCleanupPreview(buildCleanupPreview());
                     finishProgress('Completed');
                     await initializeAppStore();
@@ -2716,10 +2827,10 @@ export function SettingsPage() {
                                     <button
                                         onClick={handleCleanGhostStudents}
                                         disabled={isCleaning}
-                                        className="rounded-xl border border-rose-150 dark:border-rose-900/35 bg-rose-50/30 dark:bg-rose-950/15 hover:bg-rose-50/60 dark:hover:bg-rose-950/30 px-4 py-3 text-left text-xs font-bold text-rose-700 dark:text-rose-400 transition-all disabled:opacity-50 cursor-pointer"
+                                        className="rounded-xl border border-rose-150 dark:border-rose-900/35 bg-rose-50/30 dark:rose-950/15 hover:bg-rose-50/60 dark:hover:bg-rose-950/30 px-4 py-3 text-left text-xs font-bold text-rose-700 dark:text-rose-400 transition-all disabled:opacity-50 cursor-pointer"
                                     >
-                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-rose-800 dark:text-rose-300">Unassigned Student Cleanup</div>
-                                        <span className="text-[10px] text-rose-400/80 font-semibold">Remove student records not assigned to an active section.</span>
+                                        <div className="font-extrabold uppercase tracking-wider text-[11px] mb-0.5 text-rose-800 dark:text-rose-300">Purge Ghost & Sample Data</div>
+                                        <span className="text-[10px] text-rose-400/80 font-semibold">Permanently remove sample/unassigned students & grade entries (e.g. Archimedes).</span>
                                     </button>
                                     <button
                                         onClick={handleCleanGhostSections}
@@ -2730,6 +2841,44 @@ export function SettingsPage() {
                                         <span className="text-[10px] text-amber-400/80 font-semibold">Delete section records with 0 students and 0 subjects.</span>
                                     </button>
                                     
+                                    {/* Cascade Section Purge Card */}
+                                    <div className="rounded-xl border border-red-200/60 dark:border-red-900/40 bg-red-50/40 dark:bg-red-950/20 p-4 space-y-2 sm:col-span-2 md:col-span-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div>
+                                                <div className="font-extrabold uppercase tracking-wider text-[11px] text-red-800 dark:text-red-300">
+                                                    Purge Specific Section & Roster (e.g. Archimedes)
+                                                </div>
+                                                <span className="text-[10px] text-red-600/80 dark:text-red-400/80 font-semibold">
+                                                    Select a section to permanently purge the section, its students, and all grade records.
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <select
+                                                    value={selectedSectionToCascadePurge}
+                                                    onChange={(e) => setSelectedSectionToCascadePurge(e.target.value)}
+                                                    className="text-xs bg-white dark:bg-black/40 border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2 font-bold text-slate-800 dark:text-gray-200 outline-hidden"
+                                                >
+                                                    <option value="">-- Select Section to Purge --</option>
+                                                    {sections.map(sec => {
+                                                        const studentCount = students.filter(s => s.student_section === sec.id || s.student_section === sec.section_name).length;
+                                                        return (
+                                                            <option key={sec.id} value={sec.id}>
+                                                                {sec.section_grade_level ? `${sec.section_grade_level} - ` : ''}{sec.section_name} ({studentCount} students)
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
+                                                <button
+                                                    onClick={handleCascadeDeleteSection}
+                                                    disabled={!selectedSectionToCascadePurge || isCleaning}
+                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+                                                >
+                                                    Purge Section
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Feature 1: Duplicate LRN Detector */}
                                     <button
                                         onClick={handleDuplicateLrnScan}
@@ -3190,12 +3339,30 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.9.4 */}
+                                {/* Version 2.9.5 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.4</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.5</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)</li>
+                                        <li>🎨 Enhanced native dropdown (&lt;optgroup&gt;) header contrast in dark & light themes</li>
+                                        <li>🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades</li>
+                                        <li>⚡ Fixed day-of-week header text visibility in printable attendance sheets</li>
+                                        <li>🍏 Improved macOS auto-update compatibility & direct release download links</li>
+                                        <li>Fixed <strong>Auto-Updater Installer Restart Safeguard</strong>: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).</li>
+                                        <li>Unified <strong>Live Grade Engine Across All School Forms & Reports</strong>: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades across SF9, SF10, SF5, SF6, LIR, Grade Slips, and Analytics.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.9.4 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.4</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

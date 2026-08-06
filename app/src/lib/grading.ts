@@ -1,5 +1,10 @@
 import { useAppStore } from '../stores';
 
+export const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
+    const src = Array.isArray(scores) ? scores : [];
+    return Array.from({ length: count }, (_, i) => src[i] ?? '');
+};
+
 // Grade computation weights based on current school policy
 // Updated per DepEd Order (SY 2026-2027): Assessment, Grading System, Awards & Recognition
 

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { filterSubjectsForSection } from '../lib/rbac';
 import { normalizeSubjectName } from '../lib/subjectConfig';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { LIRRenderer } from '../components/LIRRenderer';
 import { exportElementsToPdf, printElements } from '../utils/pdf-export';
 
@@ -202,6 +203,18 @@ export function LIRPage() {
 
             const clean = (val: unknown) => (val === '' || val === null || val === undefined) ? '' : (val as number | string);
 
+            const resolvedFG = resolveStudentQuarterGrade(
+                student.lrn,
+                subjectObj?.id || selectedSubject,
+                term,
+                activeSchoolYear,
+                classRecords,
+                gradingSheetRecords,
+                hpsRecords,
+                selectedSectionObj?.section_grade_level,
+                selectedSectionObj?.track
+            );
+
             data[term] = {
                 scores: {
                     ww: normalize(record?.written_works, 10).map(clean),
@@ -215,11 +228,11 @@ export function LIRPage() {
                     st: normalize(hpsWithSummative?.summative_tests, 5).map(clean),
                     te: clean(hpsRec?.quarterly_exam ?? '')
                 },
-                finalGrade: clean(record?.final_grade ?? '')
+                finalGrade: resolvedFG > 0 ? resolvedFG : clean(record?.final_grade ?? '')
             };
         });
         return data;
-    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSubject]);
 
     const attendanceData = useMemo(() => {
         return getAttendanceDataForStudent(selectedStudent);

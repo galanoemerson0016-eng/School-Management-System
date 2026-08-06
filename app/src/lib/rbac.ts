@@ -229,14 +229,13 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     return uniqueDirect;
 }
 
-export function canAccessSF9Section(user: User | null | undefined, section: Section): boolean {
-    if (!user) return false;
-    return !section.is_teaching_load;
+export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {
+    return !!user;
 }
 
 export function filterSF9Sections(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections.filter((section) => section.is_advisory || !section.is_teaching_load);
+    return sections;
 }
 
 export function canAccessAttendanceSection(user: User | null | undefined, _section: Section): boolean {
@@ -254,9 +253,9 @@ export function filterAttendanceSections(user: User | null | undefined, sections
 
 export function filterOfficialSectionsForUser(user: User | null | undefined, sections: Section[]): Section[] {
     if (!user) return [];
-    return sections.filter((section) => section.is_advisory || !section.is_teaching_load);
+    return sections;
 }
 
 export function filterOfficialRecords<T extends { is_teaching_load?: boolean; is_advisory?: boolean }>(records: T[]): T[] {
-    return records.filter((record) => record.is_advisory || !record.is_teaching_load);
+    return records;
 }

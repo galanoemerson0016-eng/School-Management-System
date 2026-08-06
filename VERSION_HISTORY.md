@@ -2,6 +2,22 @@
 
 # Version History
 
+## v2.9.5 (2026-08-06)
+
+### 🚀 New Features & Enhancements
+
+- ✨ Full Dark Mode support across all School Forms & Reports (SF2, SF5, SF6, SF8, SF9, SF10, LIR, Grade Slips, Name Tags)
+- 🎨 Enhanced native dropdown (`<optgroup>`) header contrast in dark & light themes
+- 🚀 Optimized Excel template export & bulk grade import for Elementary, JHS, and SHS in Summary of Grades
+- ⚡ Fixed day-of-week header text visibility in printable attendance sheets
+- 🍏 Improved macOS auto-update compatibility & direct release download links
+- **Auto-Updater Installer Restart Safeguard**: Integrated top-level module scope protection and safe fallback checks around Express gateway server shutdown during automatic updates to prevent installer restart JavaScript errors (`expressServer is not defined`).
+- **Unified Live Grade Engine Across All School Forms & Reports**: Real-time transmuted grade calculation matching E-Class Record and Summary of Grades across SF9, SF10, SF5, SF6, LIR, Grade Slips, and Analytics.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.9.4 (2026-08-06)
 
 ### 🚀 New Features & Enhancements

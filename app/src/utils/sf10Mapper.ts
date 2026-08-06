@@ -1,6 +1,8 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
 import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
 import { formatLearnerName } from './student-name';
+import { resolveStudentQuarterGrade } from './grading-helpers';
+import { useAppStore } from '../stores';
 
 /**
  * Standard DepEd JHS Subject List (SF10)
@@ -307,9 +309,13 @@ export function mapStudentToSpecData({
     const subjectsData = blankSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
     const standardSubjectsForGrade = getStandardJhsSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
 
-    // If we have actual grading sheet records for this student, try to fill in real grades
-    if (gradingSheetRecords.length > 0) {
-      const studentRecords = gradingSheetRecords.filter(r => {
+    // If we have actual grading sheet records or class records for this student, try to fill in real grades
+    const classRecords = useAppStore.getState().classRecords || [];
+    const hpsRecords = useAppStore.getState().hpsRecords || [];
+    const allRecords = [...classRecords, ...gradingSheetRecords];
+
+    if (allRecords.length > 0) {
+      const studentRecords = allRecords.filter(r => {
         if (r.student_lrn !== student.lrn) return false;
         
         const dbSubject = dbSubjects.find(s => s.id === r.subject_id);
@@ -352,7 +358,18 @@ export function mapStudentToSpecData({
         if (!mappedSubject) continue;
 
         const quarter = record.quarter;
-        const grade = record.final_grade;
+        const gradeVal = resolveStudentQuarterGrade(
+            student.lrn,
+            record.subject_id,
+            Number(quarter),
+            record.school_year || schoolYear,
+            classRecords,
+            gradingSheetRecords,
+            hpsRecords,
+            dbSubject.grade_level
+        );
+
+        const grade = gradeVal > 0 ? gradeVal : record.final_grade;
         // Verify it isn't an invalid/empty grade or 0
         if (grade && Number(grade) > 0) {
           const qKey = `q${quarter}` as 'q1' | 'q2' | 'q3' | 'q4';
