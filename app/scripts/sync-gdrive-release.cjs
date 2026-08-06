@@ -1,64 +1,38 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const crypto = require('crypto');
 
 // Determine directories
 const appDir = path.resolve(__dirname, '..');
 const releaseDir = path.resolve(appDir, 'release');
+const packageJson = require(path.join(appDir, 'package.json'));
+const version = packageJson.version; // e.g. "2.9.5"
 
 console.log(`\n=============================================================`);
-console.log(`☁️ Google Drive Release Sync & Purge Engine (Windows & Mac)`);
+console.log(`☁️ Google Drive Release Sync Engine (v${version})`);
 console.log(`=============================================================\n`);
 
-const serviceAccountEnv = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
+const clientId = process.env.GDRIVE_CLIENT_ID;
+const clientSecret = process.env.GDRIVE_CLIENT_SECRET;
+const refreshToken = process.env.GDRIVE_REFRESH_TOKEN;
 const rootFolderId = process.env.GDRIVE_FOLDER_ID || '1HKQyBkXcVjZ3dKvQPb5Ulv2KqgymyLze';
 
-if (!serviceAccountEnv) {
-  console.log(`⚠️ Skipping Google Drive sync: GDRIVE_SERVICE_ACCOUNT_JSON environment variable is not set.`);
-  console.log(`💡 To enable Google Drive auto-upload, add GDRIVE_SERVICE_ACCOUNT_JSON in GitHub Repo Settings -> Secrets and variables -> Actions.`);
+let serviceAccountEnv = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
+const fallbackKeyPath = 'C:\\Users\\Emerson\\Downloads\\velvety-gearbox-491004-b7-b1262fa1ddee.json';
+if (!serviceAccountEnv && fs.existsSync(fallbackKeyPath)) {
+  serviceAccountEnv = fs.readFileSync(fallbackKeyPath, 'utf8');
+}
+
+if (!clientId && !serviceAccountEnv) {
+  console.log(`⚠️ Skipping Google Drive sync: GDRIVE_CLIENT_ID or GDRIVE_SERVICE_ACCOUNT_JSON environment variables are not set.`);
+  console.log(`💡 To enable Google Drive auto-upload, configure secrets in GitHub Repo Settings -> Secrets and variables -> Actions.`);
   process.exit(0);
 }
 
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(serviceAccountEnv);
-} catch (err) {
-  console.error(`❌ Failed to parse GDRIVE_SERVICE_ACCOUNT_JSON environment variable:`, err.message);
-  process.exit(1);
-}
-
-// Helpers for Base64URL encoding
-function base64UrlEncode(data) {
-  const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
-  return buf.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
-
-// Generate OAuth2 Access Token using RS256 JWT
-function getAccessToken(serviceAccount) {
+// Generate OAuth2 Access Token using Refresh Token
+function getAccessToken() {
   return new Promise((resolve, reject) => {
-    const iat = Math.floor(Date.now() / 1000);
-    const exp = iat + 3600;
-
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const payload = {
-      iss: serviceAccount.client_email,
-      scope: 'https://www.googleapis.com/auth/drive',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: exp,
-      iat: iat,
-    };
-
-    const encodedHeader = base64UrlEncode(JSON.stringify(header));
-    const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-    const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-
-    const signer = crypto.createSign('RSA-SHA256');
-    signer.update(unsignedToken);
-    const signature = signer.sign(serviceAccount.private_key, 'base64url');
-
-    const jwtToken = `${unsignedToken}.${signature}`;
-    const postData = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwtToken}`;
+    const postData = `client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&refresh_token=${encodeURIComponent(refreshToken)}&grant_type=refresh_token`;
 
     const req = https.request('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -163,10 +137,18 @@ async function getOrCreateSubfolder(accessToken, parentFolderId, subfolderName) 
   return res.id;
 }
 
-// Delete file from Google Drive
+// Delete/Trash file from Google Drive
 async function deleteDriveFile(accessToken, fileId, fileName, folderLabel) {
-  console.log(`🧹 Deleting old file from Google Drive [${folderLabel}]: "${fileName}" (${fileId})`);
-  await driveRequest(accessToken, 'DELETE', `/drive/v3/files/${fileId}`);
+  console.log(`🧹 Trashing old file in Google Drive [${folderLabel}]: "${fileName}" (${fileId})`);
+  try {
+    await driveRequest(accessToken, 'PATCH', `/drive/v3/files/${fileId}`, { 'Content-Type': 'application/json' }, JSON.stringify({ trashed: true }));
+  } catch (_err) {
+    try {
+      await driveRequest(accessToken, 'DELETE', `/drive/v3/files/${fileId}`);
+    } catch (err) {
+      console.warn(`⚠️ Note: Could not delete prior file "${fileName}": ${err.message}`);
+    }
+  }
 }
 
 // Upload file to Google Drive using multipart upload
@@ -191,7 +173,6 @@ async function uploadDriveFile(accessToken, targetFolderId, filePath, folderLabe
   if (ext === '.exe') contentType = 'application/vnd.microsoft.portable-executable';
   else if (ext === '.dmg') contentType = 'application/x-apple-diskimage';
   else if (ext === '.yml' || ext === '.yaml') contentType = 'text/yaml';
-  else if (ext === '.blockmap') contentType = 'application/json';
 
   const multipartRequestBody = Buffer.concat([
     Buffer.from(
@@ -227,7 +208,7 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
   const platformFolderId = await getOrCreateSubfolder(accessToken, parentFolderId, platformName);
   console.log(`✅ ${platformName.toUpperCase()} Folder ID: ${platformFolderId}`);
 
-  // 1. Purge old installer files in this platform folder
+  // 1. Purge old installer & blockmap files in this platform folder
   const existingFiles = await listDriveItems(accessToken, platformFolderId);
   const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap'];
 
@@ -238,7 +219,7 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
     }
   }
 
-  // 2. Upload matching release assets from local app/release/
+  // 2. Upload matching latest version release assets from local app/release/
   if (!fs.existsSync(releaseDir)) return;
 
   const localFiles = fs.readdirSync(releaseDir);
@@ -247,7 +228,7 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
     return fs.statSync(filePath).isFile() && filePredicate(f);
   });
 
-  console.log(`🚀 Uploading ${validAssets.length} asset(s) to "${platformName}" subfolder...`);
+  console.log(`🚀 Uploading ${validAssets.length} latest release asset(s) to "${platformName}" subfolder...`);
   for (const file of validAssets) {
     const filePath = path.join(releaseDir, file);
     await uploadDriveFile(accessToken, platformFolderId, filePath, platformName);
@@ -256,29 +237,39 @@ async function syncTargetPlatform(accessToken, parentFolderId, platformName, fil
 
 async function main() {
   try {
-    console.log(`🔑 Authenticating with Google OAuth2 Service Account...`);
-    const accessToken = await getAccessToken(serviceAccount);
+    console.log(`🔑 Authenticating with Google OAuth 2.0 User Access...`);
+    const accessToken = await getAccessToken();
     console.log(`✅ Authenticated successfully! Root Folder ID: ${rootFolderId}`);
 
-    // Process Windows Subfolder
+    // Process Windows Subfolder (Strictly latest version v2.9.5 .exe and latest.yml, NO blockmaps)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'windows',
       (filename) => {
+        if (filename.endsWith('.blockmap')) return false;
+        if (filename === 'latest.yml') return true;
         const ext = path.extname(filename).toLowerCase();
-        return ext === '.exe' || filename === 'latest.yml' || (ext === '.blockmap' && !filename.includes('mac'));
+        if (ext === '.exe') {
+          return filename.includes(version);
+        }
+        return false;
       }
     );
 
-    // Process Mac Subfolder
+    // Process Mac Subfolder (Strictly latest version v2.9.5 .dmg/.zip and latest-mac.yml, NO blockmaps)
     await syncTargetPlatform(
       accessToken,
       rootFolderId,
       'mac',
       (filename) => {
+        if (filename.endsWith('.blockmap')) return false;
+        if (filename === 'latest-mac.yml') return true;
         const ext = path.extname(filename).toLowerCase();
-        return ext === '.dmg' || ext === '.zip' || filename === 'latest-mac.yml' || (ext === '.blockmap' && filename.includes('mac'));
+        if (ext === '.dmg' || ext === '.zip') {
+          return filename.includes(version);
+        }
+        return false;
       }
     );
 
