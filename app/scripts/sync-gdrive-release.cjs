@@ -8,15 +8,15 @@ const appDir = path.resolve(__dirname, '..');
 const releaseDir = path.resolve(appDir, 'release');
 
 console.log(`\n=============================================================`);
-console.log(`☁️ Google Drive Release Sync & Purge Engine`);
+console.log(`☁️ Google Drive Release Sync & Purge Engine (Windows & Mac)`);
 console.log(`=============================================================\n`);
 
 const serviceAccountEnv = process.env.GDRIVE_SERVICE_ACCOUNT_JSON;
-const folderId = process.env.GDRIVE_FOLDER_ID;
+const rootFolderId = process.env.GDRIVE_FOLDER_ID || '1HKQyBkXcVjZ3dKvQPb5Ulv2KqgymyLze';
 
-if (!serviceAccountEnv || !folderId) {
-  console.log(`⚠️ Skipping Google Drive sync: GDRIVE_SERVICE_ACCOUNT_JSON or GDRIVE_FOLDER_ID environment variables are not set.`);
-  console.log(`💡 To enable Google Drive auto-upload, add these secrets in GitHub Repo Settings -> Secrets and variables -> Actions.`);
+if (!serviceAccountEnv) {
+  console.log(`⚠️ Skipping Google Drive sync: GDRIVE_SERVICE_ACCOUNT_JSON environment variable is not set.`);
+  console.log(`💡 To enable Google Drive auto-upload, add GDRIVE_SERVICE_ACCOUNT_JSON in GitHub Repo Settings -> Secrets and variables -> Actions.`);
   process.exit(0);
 }
 
@@ -132,26 +132,50 @@ function driveRequest(accessToken, method, urlPath, headers = {}, body = null) {
   });
 }
 
-// List existing files in Google Drive folder
-async function listDriveFiles(accessToken, folderId) {
+// List existing items in a Google Drive folder
+async function listDriveItems(accessToken, folderId) {
   const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
   const res = await driveRequest(accessToken, 'GET', `/drive/v3/files?q=${q}&fields=files(id,name,mimeType)`);
   return res.files || [];
 }
 
+// Find or create subfolder by name
+async function getOrCreateSubfolder(accessToken, parentFolderId, subfolderName) {
+  const items = await listDriveItems(accessToken, parentFolderId);
+  const existingFolder = items.find(i => i.name.toLowerCase() === subfolderName.toLowerCase() && i.mimeType === 'application/vnd.google-apps.folder');
+
+  if (existingFolder) {
+    return existingFolder.id;
+  }
+
+  console.log(`📁 Creating subfolder "${subfolderName}" in Google Drive...`);
+  const res = await driveRequest(
+    accessToken,
+    'POST',
+    '/drive/v3/files',
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({
+      name: subfolderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+    })
+  );
+  return res.id;
+}
+
 // Delete file from Google Drive
-async function deleteDriveFile(accessToken, fileId, fileName) {
-  console.log(`🧹 Deleting old file from Google Drive: "${fileName}" (${fileId})`);
+async function deleteDriveFile(accessToken, fileId, fileName, folderLabel) {
+  console.log(`🧹 Deleting old file from Google Drive [${folderLabel}]: "${fileName}" (${fileId})`);
   await driveRequest(accessToken, 'DELETE', `/drive/v3/files/${fileId}`);
 }
 
 // Upload file to Google Drive using multipart upload
-async function uploadDriveFile(accessToken, folderId, filePath) {
+async function uploadDriveFile(accessToken, targetFolderId, filePath, folderLabel) {
   const fileName = path.basename(filePath);
   const fileStats = fs.statSync(filePath);
   const fileBuffer = fs.readFileSync(filePath);
 
-  console.log(`📤 Uploading to Google Drive: "${fileName}" (${(fileStats.size / (1024 * 1024)).toFixed(2)} MB)...`);
+  console.log(`📤 Uploading to Google Drive [${folderLabel}]: "${fileName}" (${(fileStats.size / (1024 * 1024)).toFixed(2)} MB)...`);
 
   const boundary = '-------FormEaseDriveBoundary' + Date.now().toString(16);
   const delimiter = `\r\n--${boundary}\r\n`;
@@ -159,7 +183,7 @@ async function uploadDriveFile(accessToken, folderId, filePath) {
 
   const metadata = {
     name: fileName,
-    parents: [folderId],
+    parents: [targetFolderId],
   };
 
   const ext = path.extname(fileName).toLowerCase();
@@ -192,52 +216,74 @@ async function uploadDriveFile(accessToken, folderId, filePath) {
     multipartRequestBody
   );
 
-  console.log(`✅ Successfully uploaded: "${fileName}" -> Google Drive ID: ${response.id}`);
+  console.log(`✅ Successfully uploaded to [${folderLabel}]: "${fileName}" -> Google Drive ID: ${response.id}`);
+}
+
+async function syncTargetPlatform(accessToken, parentFolderId, platformName, filePredicate) {
+  console.log(`\n-------------------------------------------------------------`);
+  console.log(`📂 Processing Platform: ${platformName.toUpperCase()}`);
+  console.log(`-------------------------------------------------------------`);
+
+  const platformFolderId = await getOrCreateSubfolder(accessToken, parentFolderId, platformName);
+  console.log(`✅ ${platformName.toUpperCase()} Folder ID: ${platformFolderId}`);
+
+  // 1. Purge old installer files in this platform folder
+  const existingFiles = await listDriveItems(accessToken, platformFolderId);
+  const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap'];
+
+  for (const file of existingFiles) {
+    const ext = path.extname(file.name).toLowerCase();
+    if (extsToPurge.includes(ext) || file.name.startsWith('FormEase') || file.name.startsWith('latest')) {
+      await deleteDriveFile(accessToken, file.id, file.name, platformName);
+    }
+  }
+
+  // 2. Upload matching release assets from local app/release/
+  if (!fs.existsSync(releaseDir)) return;
+
+  const localFiles = fs.readdirSync(releaseDir);
+  const validAssets = localFiles.filter(f => {
+    const filePath = path.join(releaseDir, f);
+    return fs.statSync(filePath).isFile() && filePredicate(f);
+  });
+
+  console.log(`🚀 Uploading ${validAssets.length} asset(s) to "${platformName}" subfolder...`);
+  for (const file of validAssets) {
+    const filePath = path.join(releaseDir, file);
+    await uploadDriveFile(accessToken, platformFolderId, filePath, platformName);
+  }
 }
 
 async function main() {
   try {
     console.log(`🔑 Authenticating with Google OAuth2 Service Account...`);
     const accessToken = await getAccessToken(serviceAccount);
-    console.log(`✅ Authenticated successfully! Target Folder ID: ${folderId}`);
+    console.log(`✅ Authenticated successfully! Root Folder ID: ${rootFolderId}`);
 
-    // 1. Fetch current files in Google Drive folder
-    console.log(`\n🔍 Fetching existing files in Google Drive folder...`);
-    const existingFiles = await listDriveFiles(accessToken, folderId);
-    console.log(`📋 Found ${existingFiles.length} file(s) in target Google Drive folder.`);
-
-    // Target extension types to clean up
-    const extsToPurge = ['.exe', '.dmg', '.zip', '.yml', '.yaml', '.blockmap'];
-
-    // 2. Delete existing old installer files in Google Drive folder
-    for (const file of existingFiles) {
-      const ext = path.extname(file.name).toLowerCase();
-      if (extsToPurge.includes(ext) || file.name.startsWith('FormEase')) {
-        await deleteDriveFile(accessToken, file.id, file.name);
+    // Process Windows Subfolder
+    await syncTargetPlatform(
+      accessToken,
+      rootFolderId,
+      'windows',
+      (filename) => {
+        const ext = path.extname(filename).toLowerCase();
+        return ext === '.exe' || filename === 'latest.yml' || (ext === '.blockmap' && !filename.includes('mac'));
       }
-    }
+    );
 
-    // 3. Scan local app/release directory for new release assets
-    if (!fs.existsSync(releaseDir)) {
-      console.error(`❌ Release directory not found at ${releaseDir}`);
-      process.exit(1);
-    }
-
-    const localFiles = fs.readdirSync(releaseDir);
-    const validAssets = localFiles.filter(f => {
-      const ext = path.extname(f).toLowerCase();
-      const isFile = fs.statSync(path.join(releaseDir, f)).isFile();
-      return isFile && extsToPurge.includes(ext);
-    });
-
-    console.log(`\n🚀 Uploading ${validAssets.length} new release asset(s) to Google Drive...`);
-    for (const file of validAssets) {
-      const filePath = path.join(releaseDir, file);
-      await uploadDriveFile(accessToken, folderId, filePath);
-    }
+    // Process Mac Subfolder
+    await syncTargetPlatform(
+      accessToken,
+      rootFolderId,
+      'mac',
+      (filename) => {
+        const ext = path.extname(filename).toLowerCase();
+        return ext === '.dmg' || ext === '.zip' || filename === 'latest-mac.yml' || (ext === '.blockmap' && filename.includes('mac'));
+      }
+    );
 
     console.log(`\n=============================================================`);
-    console.log(`🎉 Google Drive Auto-Purge & Upload Complete!`);
+    console.log(`🎉 Google Drive Auto-Purge & Upload Complete for Windows and Mac!`);
     console.log(`=============================================================\n`);
   } catch (err) {
     console.error(`❌ Google Drive Release Sync Failed:`, err);
