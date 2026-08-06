@@ -7,7 +7,7 @@ Prepare, verify, and publish a new official release for FormEase Pro by strictly
 ## 1. Pre-Flight Verification & Health Check
 Before initiating the release, verify project health:
 1. Check that the Git working tree is clean (`git status`).
-2. Run pre-flight build check in `app/`: execute `npm run build && npx tsc --noEmit`.
+2. Run pre-flight build check in `app/`: execute `npm run build && npm run obfuscate:electron && npx tsc --noEmit`.
 3. Run unit test suite in `app/`: execute `npx vitest run`.
 4. If any pre-flight step fails, ABORT immediately and display the error traceback.
 
@@ -28,7 +28,7 @@ Collect details regarding the release:
 
 Generate:
 - A Conventional Commit message (e.g., `chore(release): v2.8.1` or `feat: add student ID bulk exporter`).
-- A human-readable release summary formatted for `VERSION_HISTORY.md`.
+- A human-readable release summary formatted for `VERSION_HISTORY.md` and `SettingsPage.tsx`.
 
 ---
 
@@ -58,15 +58,16 @@ Release Notes   :
   • Fixed electron-updater metadata checksum matching
   • Enhanced SF2 attendance roster filtering by First Day of Attendance
   • Automatic normalized subject deduplication in SF9 and Consolidated Grades
+  • Tailored 1-click macOS DMG installer update workflow
 =============================================================
 ```
 
 ---
 
-## 5. Update Version Files & Electron Shields
+## 5. Update Version Files, Reconciliation Notes & Electron Shields
 Upon user approval:
 1. Update `"version"` in `app/package.json`.
-2. Update application version constants (`CURRENT_VERSION` in `app/src/stores/update-store.ts`).
+2. Update application version constants (`CURRENT_VERSION` in `app/src/stores/update-store.ts`) and add release highlight notes in `checkForPostUpdateReconciliation`.
 3. Execute `npm run obfuscate:electron` inside `app/` to generate updated production Electron main & preload shields (`dist-electron/main.cjs`, `preload.cjs`, `license.cjs`).
 
 ---
@@ -98,19 +99,19 @@ Upon user approval:
    - Add the new version block at the top of the version timeline list.
    - Move the `<span className="...">Latest Production</span>` badge to the new top version entry.
 
-*Note: Ensure sub-headings are surrounded by blank lines to satisfy markdown linting rules.*
+*Formatting Rule: Ensure sub-headings are surrounded by blank lines to satisfy markdown linting rules (MD022/MD032).*
 
 ---
 
-## 7. CI/CD Workflow & Checksum Safeguards
+## 7. CI/CD Workflow, Checksum & Multi-Platform Safeguards
 Verify release asset automation integrity:
-1. **Metadata Upload List (`.github/workflows/release.yml`)**: Ensure `app/release/*.yml` and `app/release/*.blockmap` are included in the release upload files section so `latest.yml` and `latest-mac.yml` are published to GitHub Releases.
-2. **SHA-512 Hash Generation (`app/scripts/patch-metadata-ci.cjs`)**: Ensure `patch-metadata-ci.cjs` dynamically re-computes `crypto.createHash('sha512')` for renamed binary assets (`FormEase.Pro.Setup.X.Y.Z.exe`) and saves the patched `latest.yml` back into `app/release/latest.yml` to prevent `404 latest.yml` or `sha512 checksum mismatch` errors.
+1. **Metadata Upload List (`.github/workflows/release.yml`)**: Ensure `app/release/*.yml` (`latest.yml`, `latest-mac.yml`) and `app/release/*.blockmap` are included in the release upload files section so Windows and macOS update metadata are published to GitHub Releases.
+2. **SHA-512 Hash Generation (`app/scripts/patch-metadata-ci.cjs`)**: Ensure `patch-metadata-ci.cjs` dynamically re-computes `crypto.createHash('sha512')` for renamed binary assets (`FormEase.Pro.Setup.X.Y.Z.exe` / `.dmg`) and saves patched metadata back into `app/release/latest.yml` and `latest-mac.yml` to prevent `404 latest.yml` or `sha512 checksum mismatch` errors.
 
 ---
 
 ## 8. Create Release Commit & Git Tag
-1. Stage all modified files (`app/package.json`, `app/src/stores/update-store.ts`, `VERSION_HISTORY.md`, `app/dist-electron/*`, `.github/workflows/*`).
+1. Stage all modified files (`app/package.json`, `app/src/stores/update-store.ts`, `VERSION_HISTORY.md`, `app/src/pages/SettingsPage.tsx`, `app/dist-electron/*`, `.github/workflows/*`).
 2. Commit with the release message:
    `git commit -m "chore(release): v<new-version>"`
 3. Create an annotated Git tag matching the exact version:
@@ -131,8 +132,8 @@ Verify:
 - [x] Working directory is clean (`git status`).
 - [x] Commit and Tag exist on GitHub remote (`origin/main` & `v<new-version>`).
 - [x] `app/package.json`, `update-store.ts`, and `VERSION_HISTORY.md` match `v<new-version>`.
-- [x] Inform user that GitHub Actions takes 3–5 minutes to compile the installer and publish `latest.yml` on GitHub Releases.
-- [x] Ensure release on `FormEase-Releases` repository is published (not draft).
+- [x] Inform user that GitHub Actions takes 3–5 minutes to compile installers (`.exe` and `.dmg`) and publish release metadata on GitHub Releases.
+- [x] Ensure release on target repository is published (not draft).
 
 Output final summary:
 ```
@@ -157,7 +158,7 @@ Modified Files   :
 
 ## Strict Rules
 - **Never skip Preview**: Always display the preview and receive confirmation before writing file changes.
-- **Fail-Fast**: If `npm run build`, `tsc --noEmit`, or `vitest run` fails, stop immediately.
+- **Fail-Fast**: If `npm run build`, `npm run obfuscate:electron`, `tsc --noEmit`, or `vitest run` fails, stop immediately.
 - **Reverse Chronological**: Ensure latest releases are at the top of `VERSION_HISTORY.md`.
 - **Tag Formatting**: Always prefix version tags with `v` (e.g., `v2.8.1`).
-- **Dynamic Checksum Protection**: Always write patched `latest.yml` with re-calculated SHA-512 hashes back to `app/release/latest.yml` before uploading release assets.
+- **Dynamic Checksum Protection**: Always write patched `latest.yml` and `latest-mac.yml` with re-calculated SHA-512 hashes back to release metadata before uploading assets.

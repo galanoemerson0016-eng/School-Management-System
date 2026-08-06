@@ -3190,12 +3190,26 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.9.3 */}
+                                {/* Version 2.9.4 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.3</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.4</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>Fixed <strong>Summative Tests & Term Examination (30%) Computation</strong>: Updated Total Score and Total HPS to calculate dynamically based on completed assessments only, preventing premature grade drops when Term Exams are un-administered.</li>
+                                        <li>Unified <strong>Summary of Grades & E-Class Record Transmuted Grade Engine</strong>: Re-aligned transmuted grade calculations between E-Class Records and Summary of Grades for 100% exact parity with zero discrepancy across all school forms (SF9, SF10, LIR).</li>
+                                        <li>Optimized <strong>macOS Update Flow</strong>: Provided tailored 1-click 🍏 <strong>Download macOS Update (.dmg)</strong> installer workflow with 2-step drag-and-drop installation instructions for Mac users.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.9.3 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.3</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 5, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
