@@ -122,6 +122,7 @@ export function MobileAttendancePage() {
     const schoolProfile = useAppStore((s) => s.schoolProfile);
 
     const [date, setDate] = useState(todayIso());
+    const userHasCustomDateRef = useRef(false);
     const [selectedSectionId, setSelectedSectionId] = useState<string>(() => {
         const adv = sections.find(s => s.is_advisory);
         return adv ? adv.id : 'all';
@@ -194,7 +195,7 @@ export function MobileAttendancePage() {
                     if (res.ok) {
                         const data = await res.json();
                         let updated = false;
-                        if (data.date) {
+                        if (data.date && (!userHasCustomDateRef.current || manual)) {
                             setDate(data.date);
                         }
                         if (data.students && Array.isArray(data.students) && data.students.length > 0) {
@@ -428,7 +429,10 @@ export function MobileAttendancePage() {
         broadcastAttendanceUpdate(record, studentFullName);
 
         // 4. SMS trigger (fire-and-forget)
-        void triggerParentAttendanceSms(studentFullName, student.contact_number || '', schoolProfile?.name || 'School', targetStatus);
+        const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
+        if (parentPhone) {
+            void triggerParentAttendanceSms(studentFullName, parentPhone, schoolProfile?.name || 'School', targetStatus, date);
+        }
 
         setLastScanResult({
             ok: true,
@@ -483,6 +487,11 @@ export function MobileAttendancePage() {
         };
         reader.readAsDataURL(file);
     }, [processScannedCode, triggerHaptic, playBeep]);
+
+    const processScannedCodeRef = useRef(processScannedCode);
+    useEffect(() => {
+        processScannedCodeRef.current = processScannedCode;
+    }, [processScannedCode]);
 
     useEffect(() => {
         if (!cameraOpen) return;
@@ -569,7 +578,7 @@ export function MobileAttendancePage() {
                     if (code.data !== lastScannedCode || now - lastScanTime > 2500) {
                         lastScannedCode = code.data;
                         lastScanTime = now;
-                        void processScannedCode(code.data);
+                        void processScannedCodeRef.current(code.data);
                     }
                 }
             }
@@ -583,7 +592,7 @@ export function MobileAttendancePage() {
                 (currentVideo.srcObject as MediaStream).getTracks().forEach(t => t.stop());
             }
         };
-    }, [cameraOpen, facingMode, processScannedCode]);
+    }, [cameraOpen, facingMode]);
 
     return (
         <div className="min-h-screen bg-[#f2f2f7] text-slate-900 font-sans pb-28 select-none antialiased">
@@ -638,12 +647,17 @@ export function MobileAttendancePage() {
 
                 <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-slate-100">
                     <div className="bg-slate-100/70 hover:bg-slate-100 rounded-xl px-3 py-1.5 flex items-center justify-between transition-colors">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 w-full">
                             <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                             <input
                                 type="date"
                                 value={date}
-                                onChange={(e) => setDate(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        setDate(e.target.value);
+                                        userHasCustomDateRef.current = true;
+                                    }
+                                }}
                                 className="bg-transparent border-none text-slate-800 text-xs font-semibold focus:outline-none cursor-pointer w-full"
                             />
                         </div>

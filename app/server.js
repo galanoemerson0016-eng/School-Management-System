@@ -37,9 +37,17 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 }
 
+function getLocalDateIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // In-Memory Live Mobile Attendance Buffer
 let activeAttendanceSession = {
-  date: new Date().toISOString().split('T')[0],
+  date: getLocalDateIso(),
   records: [],
   students: [],
   sections: [],

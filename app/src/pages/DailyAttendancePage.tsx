@@ -395,7 +395,7 @@ export function DailyAttendancePage() {
                 if (parentPhone) {
                     const studentName = composeName(student);
                     const schoolName = schoolProfile?.name || 'Calibungan High School';
-                    void triggerParentAttendanceSms(studentName, parentPhone, schoolName, status)
+                    void triggerParentAttendanceSms(studentName, parentPhone, schoolName, status, date)
                         .then((res) => {
                             if (res && res.success) {
                                 showNotification(`📱 SMS Alert (${status.toUpperCase()}) Sent to Parent (${parentPhone})`, 'info');
@@ -442,7 +442,7 @@ export function DailyAttendancePage() {
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
                 if (parentPhone) {
                     smsCount++;
-                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, status);
+                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, status, date);
                 }
             });
             if (smsCount > 0) {
@@ -481,7 +481,7 @@ export function DailyAttendancePage() {
                 const parentPhone = student.parent_contact || student.parent_guardian_contact || student.contact_number || '';
                 if (parentPhone) {
                     smsCount++;
-                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, 'present');
+                    void triggerParentAttendanceSms(composeName(student), parentPhone, schoolName, 'present', date);
                 }
             });
             if (smsCount > 0) {
@@ -563,6 +563,10 @@ export function DailyAttendancePage() {
     // Camera QR scanning via jsQR
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const lastDecodeRef = useRef<{ payload: string; time: number }>({ payload: '', time: 0 });
+    const handleScanRef = useRef(handleScan);
+    useEffect(() => {
+        handleScanRef.current = handleScan;
+    }, [handleScan]);
 
     useEffect(() => {
         if (!cameraOpen) return;
@@ -602,7 +606,7 @@ export function DailyAttendancePage() {
                         // Debounce: ignore the same code re-read within 3 seconds
                         if (code.data === last.payload && now - last.time < 3000) return;
                         lastDecodeRef.current = { payload: code.data, time: now };
-                        handleScan(code.data);
+                        handleScanRef.current(code.data);
                     }
                 }, 200);
             } catch (error) {
@@ -617,7 +621,7 @@ export function DailyAttendancePage() {
             if (timer) clearInterval(timer);
             if (stream) stream.getTracks().forEach((t) => t.stop());
         };
-    }, [cameraOpen, handleScan]);
+    }, [cameraOpen]);
 
     // ---------- Summary + trend ----------
     const summary = useMemo(() => {
@@ -702,7 +706,7 @@ export function DailyAttendancePage() {
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value || todayIso())}
-                    className="h-10 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-400"
+                    className="h-10 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-400 cursor-pointer shadow-xs"
                 />
                 <select
                     value={sectionFilter}

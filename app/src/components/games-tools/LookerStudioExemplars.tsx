@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, ExternalLink, BookOpen, Sparkles, CheckCircle2, Monitor, Layers, Filter, FileText } from 'lucide-react';
+import { ArrowLeft, ExternalLink, BookOpen, Sparkles, Monitor, Layers, Filter, FileText } from 'lucide-react';
 
 interface LookerStudioExemplarsProps {
   onBack: () => void;

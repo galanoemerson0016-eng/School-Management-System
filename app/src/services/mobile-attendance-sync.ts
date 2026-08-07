@@ -270,6 +270,7 @@ export function getCachedSessionState(): MobileAttendanceSessionData | null {
  * Push active desktop session data (students, sections, records, school profile) to Express backend
  */
 export function pushAttendanceSessionToBackend(data: {
+    date?: string;
     students?: Student[];
     sections?: Section[];
     records?: AttendanceRecord[];
@@ -278,7 +279,11 @@ export function pushAttendanceSessionToBackend(data: {
 }): void {
     if (typeof window === 'undefined') return;
 
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     const sessionObj = {
+        date: data.date || todayIso,
         students: data.students || [],
         sections: data.sections || [],
         records: data.records || [],

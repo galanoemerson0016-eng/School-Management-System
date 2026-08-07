@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.6';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.7';
       const api = window.electronAPI;
 
       try {
@@ -402,11 +402,12 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "☁️ Optimized Google Drive release asset syncing engine (binary installer focus: .exe for Windows & 2 .dmg files for Mac)",
-              "🛡️ Enhanced auto-updater Express server shutdown safeguard during automatic updates",
-              "📊 Real-time unified transmuted grade engine across all school forms (SF9, SF10, SF5, SF6, LIR, Grade Slips)",
-              "🔢 Natural grade-level numerical section sorting (Grade 7 ➔ Grade 12)",
-              "🏆 Restored Subject Excellence Awards (FG ≥ 90) across all JHS and SHS grade levels"
+              "📅 Unified MM/DD/YYYY attendance calendar format across desktop and mobile screens",
+              "🗓️ Multi-date historical attendance marking and live cross-device sync",
+              "🛡️ Today-Only Parent SMS Safeguard preventing accidental alerts on past date updates",
+              "📱 Real-time Parent SMS Notification triggers for smartphone attendance punches",
+              "📹 Stabilized live camera QR scanner stream eliminating 3-second black screen flickering",
+              "🔑 Refactored Google Drive OAuth refresh token caching & NSIS 1-click silent background update protection"
             ],
             timestamp: Date.now(),
             status: 'success',

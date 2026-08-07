@@ -1,7 +1,7 @@
 {
   "name": "form-ease-pro",
   "private": true,
-  "version": "2.9.6",
+  "version": "2.9.7",
   "description": "Professional School Management System",
   "author": "Emerson M. Galano",
   "main": "electron/main.cjs",
@@ -19,7 +19,8 @@
     "electron:build": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder",
     "electron:build:mac": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --mac",
     "electron:build:win": "cross-env CSC_LINK=null WIN_CSC_LINK=null npm run build && npm run obfuscate:electron && electron-builder --win",
-    "sync:gdrive": "node scripts/sync-gdrive-release.cjs"
+    "sync:gdrive": "node scripts/sync-gdrive-release.cjs",
+    "release:check": "node scripts/check-release.cjs"
   },
   "build": {
     "appId": "com.formease.pro",
@@ -73,7 +74,7 @@
       }
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
       "deleteAppDataOnUninstall": false,

@@ -14,6 +14,8 @@ import { ReconciliationReportModal } from './components/updates/ReconciliationRe
 import { ProfileDiffModal } from './components/ProfileDiffModal';
 import { useUpdateStore } from './stores/update-store';
 import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
+import { triggerParentAttendanceSms } from './services/sms-gateway';
+import { formatLearnerName } from './utils/student-name';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AccountSetupPage = lazy(() => import('./pages/AccountSetupPage').then(m => ({ default: m.AccountSetupPage })));
@@ -219,6 +221,15 @@ function App() {
         void state.upsertAttendanceRecords([event.record]);
         const name = event.studentName || event.record.student_lrn;
         state.showNotification(`📱 Smartphone Scan: ${name} marked ${event.record.status.toUpperCase()}`, 'success');
+
+        // Trigger Parent SMS Notification on Laptop when mobile phone punches attendance
+        const student = state.students.find(s => s.lrn === event.record.student_lrn);
+        const parentPhone = student?.parent_contact || student?.parent_guardian_contact || student?.contact_number || '';
+        if (parentPhone) {
+          const studentFullName = student ? formatLearnerName(student, { middleInitialOnly: true }) : name;
+          const schoolName = state.schoolProfile?.name || 'Calibungan High School';
+          void triggerParentAttendanceSms(studentFullName, parentPhone, schoolName, event.record.status, event.record.date);
+        }
       }
     });
     return () => unsubscribe();

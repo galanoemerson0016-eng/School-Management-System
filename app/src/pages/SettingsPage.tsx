@@ -3339,12 +3339,29 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.9.6 */}
+                                {/* Version 2.9.7 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.6</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.7</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 7, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>📅 <strong>Unified MM/DD/YYYY Attendance Format</strong>: Standardized attendance calendar date pickers across desktop and mobile screens into a clean, single-box control displaying dates in <code>MM/DD/YYYY</code> format.</li>
+                                        <li>🗓️ <strong>Multi-Date Historical Attendance Editing</strong>: Enabled teachers to select any past date from the calendar on laptop or mobile phone to view, mark, or edit attendance records with real-time cross-device sync.</li>
+                                        <li>🛡️ <strong>Today-Only Parent SMS Safeguard</strong>: Integrated date verification into the SMS gateway so updating attendance for past dates automatically skips sending SMS alerts to parents.</li>
+                                        <li>📱 <strong>Real-Time Smartphone Parent SMS Alerts</strong>: Triggered live Parent SMS notifications on the laptop app whenever attendance is punched or scanned from a connected mobile phone.</li>
+                                        <li>📹 <strong>Camera Stream Stabilization</strong>: Refactored QR scanner video stream lifecycle using React refs to eliminate 3-second black screen flickering.</li>
+                                        <li>🔑 <strong>Google Drive Token & Auto-Updater Protection</strong>: Refactored Google Drive OAuth refresh token storage and configured NSIS 1-click background updates (<code>oneClick: true</code>) for silent binary upgrades.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.9.6 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.9.6</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 6, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

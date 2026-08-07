@@ -462,7 +462,7 @@ if (autoUpdater) {
 
       setImmediate(() => {
         try {
-          autoUpdater.quitAndInstall(false, true);
+          autoUpdater.quitAndInstall(true, true);
         } catch (err) {
           console.error('[AutoUpdater] quitAndInstall failed:', err);
           app.quit();
@@ -700,15 +700,27 @@ const { shell } = require('electron');
 
 const getGdriveAuthPath = () => path.join(app.getPath('userData'), 'gdrive_auth.json');
 
-const storeGdriveRefreshToken = (refreshToken, clientId, clientSecret, email) => {
+const storeGdriveTokens = ({ refreshToken, accessToken, expiresIn, clientId, clientSecret, email }) => {
   const authPath = getGdriveAuthPath();
   const currentAuth = getGdriveAuth() || {};
+  
+  const finalRefreshToken = refreshToken || currentAuth.refresh_token || null;
+  const finalAccessToken = accessToken || currentAuth.access_token || null;
+  const expiresAt = expiresIn ? Date.now() + (expiresIn - 60) * 1000 : (currentAuth.expires_at || null);
+  const finalEmail = email || currentAuth.email || null;
+
   fs.writeFileSync(authPath, JSON.stringify({
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    email: email || currentAuth.email || null
+    refresh_token: finalRefreshToken,
+    access_token: finalAccessToken,
+    expires_at: expiresAt,
+    client_id: clientId || currentAuth.client_id,
+    client_secret: clientSecret || currentAuth.client_secret,
+    email: finalEmail
   }, null, 2), 'utf-8');
+};
+
+const storeGdriveRefreshToken = (refreshToken, clientId, clientSecret, email) => {
+  storeGdriveTokens({ refreshToken, clientId, clientSecret, email });
 };
 
 const getGdriveAuth = () => {
@@ -790,28 +802,46 @@ const refreshAccessToken = async (refreshToken, clientId, clientSecret) => {
 
 const getGoogleAccessToken = async () => {
   const auth = getGdriveAuth();
-  if (!auth || !auth.refresh_token || !auth.client_id) return null;
+  if (!auth) return null;
+
+  // 1. If we have a cached access_token that is still valid, return it directly!
+  if (auth.access_token && auth.expires_at && Date.now() < auth.expires_at) {
+    return auth.access_token;
+  }
+
+  // 2. If no refresh_token stored, fall back to cached access_token
+  if (!auth.refresh_token) {
+    return auth.access_token || null;
+  }
+
   try {
     const data = await refreshAccessToken(auth.refresh_token, auth.client_id, auth.client_secret);
     
-    // If the access token was refreshed and we don't have the email cached, fetch and save it!
-    if (data.access_token && !auth.email) {
-      const email = await fetchUserEmail(data.access_token);
-      if (email) {
-        storeGdriveRefreshToken(auth.refresh_token, auth.client_id, auth.client_secret, email);
-      }
+    let email = auth.email;
+    if (data.access_token && !email) {
+      email = await fetchUserEmail(data.access_token);
     }
+
+    storeGdriveTokens({
+      refreshToken: data.refresh_token || auth.refresh_token,
+      accessToken: data.access_token,
+      expiresIn: data.expires_in || 3600,
+      clientId: auth.client_id,
+      clientSecret: auth.client_secret,
+      email: email
+    });
 
     return data.access_token;
   } catch (e) {
     console.error('[GDrive] Failed to refresh access token:', e);
-    if (e.message && e.message.includes('invalid_grant')) {
+    // Only unlink if Google returned explicit invalid_grant / revoked token
+    if (e.message && (e.message.includes('invalid_grant') || e.message.includes('unauthorized_client'))) {
       const authPath = getGdriveAuthPath();
       if (fs.existsSync(authPath)) {
-        fs.unlinkSync(authPath);
+        try { fs.unlinkSync(authPath); } catch {}
       }
     }
-    return null;
+    return auth.access_token || null;
   }
 };
 
@@ -928,8 +958,14 @@ ipcMain.handle('gdrive:auth-start', async (event, { clientId, clientSecret } = {
               email = await fetchUserEmail(tokens.access_token);
             }
 
-            const tokenToStore = tokens.refresh_token || tokens.access_token || '';
-            storeGdriveRefreshToken(tokenToStore, clientId, clientSecret, email);
+            storeGdriveTokens({
+              refreshToken: tokens.refresh_token,
+              accessToken: tokens.access_token,
+              expiresIn: tokens.expires_in,
+              clientId: clientId,
+              clientSecret: clientSecret,
+              email: email
+            });
 
             resolve({ success: true, email: email || 'school-admin@gmail.com' });
           } catch (e) {
@@ -971,7 +1007,16 @@ ipcMain.handle('gdrive:status', async () => {
   if (!auth || !auth.refresh_token) {
     return { connected: false, email: null };
   }
-  return { connected: true, email: auth.email || 'school-admin@gmail.com' };
+  try {
+    const accessToken = await getGoogleAccessToken();
+    if (!accessToken) {
+      return { connected: false, email: null };
+    }
+    const freshAuth = getGdriveAuth();
+    return { connected: true, email: freshAuth?.email || auth.email || 'school-admin@gmail.com' };
+  } catch (_e) {
+    return { connected: false, email: null };
+  }
 });
 
 ipcMain.handle('gdrive:disconnect', async () => {
@@ -985,7 +1030,7 @@ ipcMain.handle('gdrive:disconnect', async () => {
 ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }) => {
   try {
     const accessToken = await getGoogleAccessToken();
-    if (!accessToken) throw new Error('Not connected to Google Drive.');
+    if (!accessToken) throw new Error('Google Drive authorization has expired or is invalid. Please click Disconnect and then Link Drive to re-authorize.');
 
     let folderId = await findFolderId(accessToken, 'FormEase_Backups');
     if (!folderId) {

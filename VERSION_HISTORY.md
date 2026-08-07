@@ -2,6 +2,21 @@
 
 # Version History
 
+## v2.9.7 (2026-08-07)
+
+### 🚀 New Features & Enhancements
+
+- 📅 **Unified MM/DD/YYYY Attendance Format**: Standardized attendance calendar date pickers across desktop and mobile screens into a clean, single-box control displaying dates in `MM/DD/YYYY` format.
+- 🗓️ **Multi-Date Historical Attendance Editing**: Enabled teachers to select any past date from the calendar on laptop or mobile phone to view, mark, or edit attendance records with real-time cross-device sync.
+- 🛡️ **Today-Only Parent SMS Safeguard**: Integrated date verification into the SMS gateway so updating attendance for past dates automatically skips sending SMS alerts to parents.
+- 📱 **Real-Time Smartphone Parent SMS Alerts**: Triggered live Parent SMS notifications on the laptop app whenever attendance is punched or scanned from a connected mobile phone.
+- 📹 **Camera Stream Stabilization**: Refactored QR scanner video stream lifecycle using React refs to eliminate 3-second black screen flickering.
+- 🔑 **Google Drive Token & Auto-Updater Protection**: Refactored Google Drive OAuth refresh token storage and configured NSIS 1-click background updates (`oneClick: true`) for silent binary upgrades.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.9.6 (2026-08-06)
 
 ### 🚀 New Features & Enhancements

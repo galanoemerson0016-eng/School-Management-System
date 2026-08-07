@@ -265,6 +265,11 @@ export const CloudSyncService = {
       return true;
     } catch (err) {
       console.error('❌ Cloud sync failed:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('Not connected') || errMsg.includes('expired') || errMsg.includes('invalid')) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(EMAIL_KEY);
+      }
       throw err;
     }
   },

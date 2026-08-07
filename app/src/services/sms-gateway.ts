@@ -291,12 +291,28 @@ export async function triggerParentAttendanceSms(
     studentName: string,
     parentContact: string,
     schoolName: string,
-    statusType: string = 'present'
+    statusType: string = 'present',
+    attendanceDate?: string
 ): Promise<SmsSendResult | null> {
     const config = getSmsGatewayConfig();
 
     if (!config.enabled) {
         return null; // Gateway disabled
+    }
+
+    // Safety rule: SMS is strictly for TODAY's attendance updates.
+    // Do NOT send SMS to parents when updating historical or past date attendance records!
+    if (attendanceDate) {
+        const now = new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const cleanDate = attendanceDate.split('T')[0];
+        if (cleanDate !== todayIso) {
+            return {
+                success: false,
+                message: `Skipped SMS: Attendance date (${cleanDate}) is not today (${todayIso}).`,
+                timestamp: Date.now(),
+            };
+        }
     }
 
     if (!parentContact || parentContact.trim().length < 7) {

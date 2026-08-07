@@ -7,7 +7,7 @@ Prepare, verify, and publish a new official release for FormEase Pro by strictly
 ## 1. Pre-Flight Verification & Health Check
 Before initiating the release, verify project health:
 1. Check that the Git working tree is clean (`git status`).
-2. Run pre-flight build check in `app/`: execute `npm run build && npm run obfuscate:electron && npx tsc --noEmit`.
+2. Run pre-flight build check in `app/`: execute `npm run build && npm run obfuscate:electron && npm run release:check && npx tsc --noEmit`.
 3. Run unit test suite in `app/`: execute `npx vitest run`.
 4. If any pre-flight step fails, ABORT immediately and display the error traceback.
 
@@ -108,6 +108,7 @@ Verify release asset automation integrity:
 1. **Metadata Upload List (`.github/workflows/release.yml`)**: Ensure `app/release/*.yml` (`latest.yml`, `latest-mac.yml`) and `app/release/*.blockmap` are included in the release upload files section so Windows and macOS update metadata are published to GitHub Releases.
 2. **SHA-512 Hash Generation (`app/scripts/patch-metadata-ci.cjs`)**: Ensure `patch-metadata-ci.cjs` dynamically re-computes `crypto.createHash('sha512')` for renamed binary assets (`FormEase.Pro.Setup.X.Y.Z.exe` / `.dmg`) and saves patched metadata back into `app/release/latest.yml` and `latest-mac.yml` to prevent `404 latest.yml` or `sha512 checksum mismatch` errors.
 3. **Google Drive Sync & Old Asset Purge (`app/scripts/sync-gdrive-release.cjs`)**: Automatically deletes previous version installer binaries from the target Google Drive folder and uploads fresh v<new-version> release binaries (strictly the `.exe` for Windows and the 2 `.dmg` files for macOS; excluding `.yml`, `.yaml`, `.zip`, and `.blockmap`).
+4. **Seamless 1-Click NSIS Auto-Updater Protection (`app/package.json` & `app/electron/main.cjs`)**: Ensure `"nsis": { "oneClick": true }` in `package.json` and `autoUpdater.quitAndInstall(true, true)` in `main.cjs` so Windows auto-updates perform a silent background binary swap without triggering interactive installer wizard prompts that uninstall the app.
 
 ---
 
