@@ -849,22 +849,23 @@ export function AttendancePage() {
 
     const getStatusSymbol = (status?: string) => {
         switch (status) {
-            case 'absent': return 'X';
+            case 'absent':
+                return <span className="flex items-center justify-center w-full h-full leading-none text-center font-black select-none">X</span>;
             case 'tardy-upper':
             case 'tardy':
                 return (
-                    <svg className="w-full h-full p-px" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <svg className="w-full h-full block p-[0.5px]" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <polygon points="0,0 100,0 100,100" fill="#000000" />
                     </svg>
                 );
             case 'tardy-lower':
             case 'cutting':
                 return (
-                    <svg className="w-full h-full p-px" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <polygon points="0,0 100,100 0,100" fill="#000000" />
+                    <svg className="w-full h-full block p-[0.5px]" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points="0,100 100,0 100,100" fill="#000000" />
                     </svg>
                 );
-            default: return '';
+            default: return null;
         }
     };
 
@@ -1268,7 +1269,7 @@ export function AttendancePage() {
                 sectionWidth: 'w-40',
                 headerMarginRight: 'mr-2',
                 colNameWidth: '165px',
-                colDayWidth: '20px',
+                colDayWidth: '22px',
                 colAbsentWidth: '38px',
                 colPresentWidth: '38px',
                 colRemarksWidth: '80px',
@@ -1296,7 +1297,7 @@ export function AttendancePage() {
                 sectionWidth: 'w-44',
                 headerMarginRight: 'mr-6',
                 colNameWidth: '195px',
-                colDayWidth: '21px',
+                colDayWidth: '22px',
                 colAbsentWidth: '40px',
                 colPresentWidth: '40px',
                 colRemarksWidth: '90px',
@@ -1324,7 +1325,7 @@ export function AttendancePage() {
                 sectionWidth: 'w-48',
                 headerMarginRight: 'mr-15',
                 colNameWidth: '225px',
-                colDayWidth: '25px',
+                colDayWidth: '22px',
                 colAbsentWidth: '42px',
                 colPresentWidth: '42px',
                 colRemarksWidth: '95px',
@@ -1446,7 +1447,7 @@ export function AttendancePage() {
         <colgroup>
             <col style={{ width: '22px' }} />
             <col style={{ width: layoutConfig.colNameWidth }} />
-            {days.map(d => <col key={d} style={{ width: layoutConfig.colDayWidth }} />)}
+            {days.map(d => <col key={d} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth }} />)}
             <col style={{ width: layoutConfig.colAbsentWidth }} />
             <col style={{ width: layoutConfig.colPresentWidth }} />
             <col style={{ width: layoutConfig.colRemarksWidth }} />
@@ -1476,7 +1477,7 @@ export function AttendancePage() {
             {/* Row 2: Date numbers (editable) */}
             <tr className="bg-slate-50">
                 {days.map((d, i) => (
-                    <th key={d} className={`border border-black bg-slate-50 p-1 text-center font-black h-7${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
+                    <th key={d} className={`border border-black bg-slate-50 p-0 text-center font-black h-7${getBorderClass(i)} ${layoutConfig.tableTextSize}`} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box' }}>
                         <DebouncedInput
                             type="text"
                             maxLength={2}
@@ -1493,7 +1494,8 @@ export function AttendancePage() {
                                     return newLabels;
                                 });
                             }}
-                            className={`w-full h-full text-center font-black text-black bg-transparent border-none outline-none p-0 ${layoutConfig.tableTextSize}`}
+                            className={`w-full h-full text-center font-black text-black bg-transparent border-none outline-none p-0 overflow-hidden ${layoutConfig.tableTextSize}`}
+                            style={{ width: '100%', boxSizing: 'border-box' }}
                         />
                     </th>
                 ))}
@@ -1501,8 +1503,10 @@ export function AttendancePage() {
             {/* Row 3: Day letters M T W TH F */}
             <tr className="bg-slate-50">
                 {days.map((d, i) => (
-                    <th key={d} className={`border border-black bg-slate-50 p-1 text-center font-black text-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`}>
-                        {getColumnDayLetter(i)}
+                    <th key={d} className={`border border-black bg-slate-50 p-0 text-center font-black text-black h-6${getBorderClass(i)} ${layoutConfig.tableTextSize}`} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box' }}>
+                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                            {getColumnDayLetter(i)}
+                        </div>
                     </th>
                 ))}
             </tr>
@@ -1514,7 +1518,7 @@ export function AttendancePage() {
                         <th 
                             key={d} 
                             className={`border border-black p-0 h-4${getBorderClass(i)}`}
-                            style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : undefined}
+                            style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box', ...(isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : {}) }}
                         />
                     );
                 })}
@@ -1561,12 +1565,14 @@ export function AttendancePage() {
                 return (
                     <td 
                         key={d} 
-                        className={`border border-black text-center font-black text-black p-0${getBorderClass(i)} ${canEditCurrentSection && !isBeforeStart ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
-                        style={isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : isBeforeStart ? { backgroundColor: '#f1f5f9', color: '#94a3b8' } : undefined}
+                        className={`border border-black text-center font-black text-black p-0 overflow-hidden h-5.5 ${getBorderClass(i)} ${canEditCurrentSection && !isBeforeStart ? 'cursor-pointer hover:bg-yellow-50' : ''} ${layoutConfig.studentNameSize}`}
+                        style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box', ...(isUnfilled ? { backgroundImage: 'repeating-linear-gradient(-45deg, #cbd5e1 0px, #cbd5e1 1.5px, #ffffff 1.5px, #ffffff 5px)' } : isBeforeStart ? { backgroundColor: '#f1f5f9', color: '#94a3b8' } : {}) }}
                         title={isBeforeStart ? `Learner first attended on ${student.first_day_attendance || student.enrollment_date}` : undefined}
                         onClick={() => canEditCurrentSection && !isBeforeStart && toggleAttendance(student.lrn, d)}
                     >
-                        {isBeforeStart ? '' : getStatusSymbol(getStudentStatus(student.lrn, d))}
+                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                            {isBeforeStart ? '' : getStatusSymbol(getStudentStatus(student.lrn, d))}
+                        </div>
                     </td>
                 );
             })}
@@ -1603,8 +1609,10 @@ export function AttendancePage() {
                 MALE | TOTAL Per Day
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`}>
-                    {calculateDailyPresent(d, 'Male') || ''}
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box' }}>
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        {calculateDailyPresent(d, 'Male') || ''}
+                    </div>
                 </td>
             ))}
             <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent}</td>
@@ -1624,8 +1632,10 @@ export function AttendancePage() {
                 FEMALE | TOTAL Per Day
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`}>
-                    {calculateDailyPresent(d, 'Female') || ''}
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-50/80 ${layoutConfig.tableTextSize}`} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box' }}>
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        {calculateDailyPresent(d, 'Female') || ''}
+                    </div>
                 </td>
             ))}
             <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-100 ${layoutConfig.studentNameSize}`}>{totalFemaleAbsent}</td>
@@ -1645,8 +1655,10 @@ export function AttendancePage() {
                 Combined TOTAL PER DAY
             </td>
             {days.map((d, i) => (
-                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-200/40 ${layoutConfig.tableTextSize}`}>
-                    {calculateDailyPresent(d, 'Total') || ''}
+                <td key={d} className={`border border-black border-t-2 border-t-black text-center p-0 font-black text-black${getBorderClass(i)} bg-slate-200/40 ${layoutConfig.tableTextSize}`} style={{ width: layoutConfig.colDayWidth, minWidth: layoutConfig.colDayWidth, maxWidth: layoutConfig.colDayWidth, boxSizing: 'border-box' }}>
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        {calculateDailyPresent(d, 'Total') || ''}
+                    </div>
                 </td>
             ))}
             <td className={`border border-black border-t-2 border-t-black text-center font-black text-black bg-slate-200 ${layoutConfig.studentNameSize}`}>{totalMaleAbsent + totalFemaleAbsent}</td>
@@ -1666,88 +1678,94 @@ export function AttendancePage() {
 
     const renderFooterBlock = (hasTable = true) => (
         <>
-                {/* === FOOTER === */}
-                <div className={`flex border-l-2 border-r-2 border-b-2 border-black ${hasTable ? '' : 'border-t-2'}`} style={{ fontSize: layoutConfig.guidelinesTextSize }}>
+                    {/* Bottom Section: Guidelines, Codes, Summary */}
+                    <div className="flex border-2 border-black" style={{ fontSize: layoutConfig.guidelinesTextSize }}>
+                        {/* Col 1: GUIDELINES & FORMULAS */}
+                        <div className="w-[45%] p-2 border-r-2 border-black flex flex-col justify-between text-black relative">
+                            <div>
+                                <p className={`font-black text-black mb-1 ${layoutConfig.studentNameSize}`}>GUIDELINES:</p>
+                                <p className={`mb-0.5 font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>1. The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
+                                <p className={`mb-1 font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>2. Dates shall be written in the preceding columns beside Learner's Name.</p>
+                                <p className={`mb-1 font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>3. To compute the following:</p>
+                                
+                                <div className="pl-4 pr-2 mb-2 leading-tight text-black space-y-1.5">
+                                    <div className={`font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                                        <span className="whitespace-nowrap">a. Percentage of Enrolment =&nbsp;</span>
+                                        <span className="inline-flex flex-col items-center justify-center text-center mx-1">
+                                            <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the Month</span>
+                                            <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Enrolment as of 1st Friday of the school year</span>
+                                        </span>
+                                        <span className="whitespace-nowrap font-black">&nbsp;x 100</span>
+                                    </div>
+                                    <div className={`font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                                        <span className="whitespace-nowrap">b. Average Daily Attendance =&nbsp;</span>
+                                        <span className="inline-flex flex-col items-center justify-center text-center mx-1">
+                                            <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Total Daily Attendance</span>
+                                            <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Number of School Days in reporting month</span>
+                                        </span>
+                                    </div>
+                                    <div className={`font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
+                                        <span className="whitespace-nowrap">c. Percentage of Attendance for the month =&nbsp;</span>
+                                        <span className="inline-flex flex-col items-center justify-center text-center mx-1">
+                                            <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Average daily attendance</span>
+                                            <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the month</span>
+                                        </span>
+                                        <span className="whitespace-nowrap font-black">&nbsp;x 100</span>
+                                    </div>
+                                </div>
 
-                    {/* Col 1: GUIDELINES */}
-                    <div className="w-[35%] p-2.5 border-r-2 border-black leading-tight text-black">
-                        <p className={`font-black text-black mb-1.5 ${layoutConfig.studentNameSize}`}>GUIDELINES:</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>1 The attendance shall be accomplished daily. Refer to the codes for checking learners' attendance.</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>2 Dates shall be written in the preceding columns beside Learner's Name.</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>3. Every End of the month, the class adviser will submit this form to the office of the principal for recording of summary table into the School Form 4. Once signed by the principal, this form should be returned to the advisor.</p>
-                        <p className={`mb-1 font-bold text-black ${layoutConfig.guidelinesTextSize}`}>4. The adviser will extend necessary intervention including but not limited to home visitation to learner/s that committed 5 consecutive days of absences or those with potentials of dropping out.</p>
-                        <p className={`font-bold text-black ${layoutConfig.guidelinesTextSize}`}>5. Attendance performance of learner is expected to reflect in Form 137 and Form 138 every grading period.<br />* Beginning of School Year cut off report is every 1st Friday of School Calendar Days</p>
-                    </div>
-
-                    {/* Col 2: CODES & FORMULAS */}
-                    <div className="w-[35%] border-r-2 border-black flex flex-col text-black">
-                        {/* 3. TO COMPUTE THE FOLLOWING */}
-                        <div className="p-2 border-b-2 border-black bg-slate-50">
-                            <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>3. TO COMPUTE THE FOLLOWING</p>
-                        </div>
-                        <div className="p-2.5 leading-tight text-black border-b-2 border-black">
-                            <div className={`mb-2 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
-                                <span>a. Percentage of Enrolment =&nbsp;</span>
-                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the Month</span>
-                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Enrolment as of 1st Friday of the school year</span>
-                                </span>
-                                <span>&nbsp;x 100</span>
+                                <p className={`mb-1 font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>4. Every end of the month, the class adviser will submit this form to the office of the principal for recording of summary table into School Form 4. Once signed by the principal, this form should be returned to the adviser.</p>
+                                <p className={`mb-1 font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>5. The adviser will provide necessary interventions including but not limited to home visitation to learner/s who were absent for 5 consecutive days and/or those at risk of dropping out.</p>
+                                <p className={`font-bold text-black leading-tight ${layoutConfig.guidelinesTextSize}`}>6. Attendance performance of learners will be reflected in Form 137 and Form 138 every grading period.</p>
                             </div>
-                            <div className={`mb-2 font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
-                                <span>b. Average Daily Attendance =&nbsp;</span>
-                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Total Daily Attendance</span>
-                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Number of School Days in reporting month</span>
-                                </span>
-                            </div>
-                            <div className={`font-bold text-black flex items-center flex-wrap leading-none ${layoutConfig.guidelinesTextSize}`}>
-                                <span>c. Percentage of Attendance for the month =&nbsp;</span>
-                                <span className="inline-flex flex-col items-center justify-center text-center mx-1.5">
-                                    <span className={`border-b border-black px-1 font-black pb-0.5 ${layoutConfig.guidelinesTextSize}`}>Average daily attendance</span>
-                                    <span className={`font-bold text-black pt-0.5 ${layoutConfig.guidelinesTextSize}`}>Registered Learner as of End of the month</span>
-                                </span>
-                                <span>&nbsp;x 100</span>
+                            
+                            <div className="text-center mt-4">
+                                <p className={`font-bold text-black italic ${layoutConfig.guidelinesTextSize}`}>* Beginning of School Year cut-off report is every 1st Friday of the School Year</p>
                             </div>
                         </div>
 
-                        {/* 1. CODES FOR CHECKING ATTENDANCE */}
-                        <div className="p-2 border-b-2 border-black bg-slate-50">
-                            <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>1. CODES FOR CHECKING ATTENDANCE</p>
-                        </div>
-                        <div className={`p-2.5 flex-1 flex flex-col leading-normal text-black font-bold ${layoutConfig.guidelinesTextSize}`}>
-                                <p className="mb-3 leading-normal">
-                                blank- Present;&nbsp;&nbsp;(x)- Absent;&nbsp;&nbsp;Tardy (half shaded = upper for late comer, lower for cutting classes)
-                            </p>
-                            <p className={`font-black text-black mb-1.5 uppercase tracking-wide ${layoutConfig.tableTextSize}`}>2. REASONS/CAUSES OF NLS</p>
-                            <div className={`leading-[1.3] font-bold text-black space-y-0.5 ${layoutConfig.guidelinesTextSize}`}>
+                        {/* Col 2: CODES & REASONS */}
+                        <div className="w-[25%] border-r-2 border-black flex flex-col text-black">
+                            {/* 1. CODES FOR CHECKING ATTENDANCE */}
+                            <div className="p-1 border-b-2 border-black bg-slate-50">
+                                <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>1. CODES FOR CHECKING ATTENDANCE</p>
+                            </div>
+                            <div className={`p-1.5 flex flex-col leading-tight text-black font-bold ${layoutConfig.guidelinesTextSize} border-b-2 border-black`}>
+                                <p className="leading-tight text-center">
+                                    (blank) - Present; (x) - Absent; Tardy (half shaded = Upper for Late Comer, Lower for Cutting Classes)
+                                </p>
+                            </div>
+                            
+                            <div className="p-1 border-b-2 border-black bg-slate-50">
+                                <p className={`font-black text-black uppercase tracking-wide ${layoutConfig.tableTextSize}`}>2. REASONS/CAUSES FOR NLS</p>
+                            </div>
+                            <div className={`p-1.5 flex-1 flex flex-col leading-tight font-bold text-black space-y-0.5 ${layoutConfig.guidelinesTextSize}`}>
                                 <p className="font-black">a. Domestic-Related Factors</p>
-                                <p className="pl-2">a.1. Had to take care of siblings</p>
-                                <p className="pl-2">a.2. Early marriage/pregnancy</p>
-                                <p className="pl-2">a.3. Parents' attitude toward schooling</p>
-                                <p className="pl-2">a.4. Family problems</p>
+                                <p className="pl-1">a.1. Had to take care of siblings</p>
+                                <p className="pl-1">a.2. Early marriage/pregnancy</p>
+                                <p className="pl-1">a.3. Parents' attitude toward schooling</p>
+                                <p className="pl-1">a.4. Family problems</p>
                                 <p className="font-black mt-1">b. Individual-Related Factors</p>
-                                <p className="pl-2">b.1. Illness</p>
-                                <p className="pl-2">b.2. Overage</p>
-                                <p className="pl-2">b.3. Death</p>
-                                <p className="pl-2">b.4. Drug Abuse</p>
-                                <p className="pl-2">b.5. Poor academic performance</p>
-                                <p className="pl-2">b.6. Lack of interest/Distractions</p>
-                                <p className="pl-2">b.7. Hunger/Malnutrition</p>
+                                <p className="pl-1">b.1. Illness</p>
+                                <p className="pl-1">b.2. Overage</p>
+                                <p className="pl-1">b.3. Death</p>
+                                <p className="pl-1">b.4. Drug Abuse</p>
+                                <p className="pl-1">b.5. Poor academic performance</p>
+                                <p className="pl-1">b.6. Lack of interest/Distractions</p>
+                                <p className="pl-1">b.7. Hunger/Malnutrition</p>
                                 <p className="font-black mt-1">c. School-Related Factors</p>
-                                <p className="pl-2">c.1. Teacher Factor</p>
-                                <p className="pl-2">c.2. Physical condition of classroom</p>
-                                <p className="pl-2">c.3. Peer influence</p>
+                                <p className="pl-1">c.1. Teacher Factor</p>
+                                <p className="pl-1">c.2. Physical condition of classroom</p>
+                                <p className="pl-1">c.3. Peer influence</p>
                                 <p className="font-black mt-1">d. Geographic/Environmental</p>
-                                <p className="pl-2">d.1. Distance between home and school</p>
-                                <p className="pl-2">d.2. Armed conflict (incl. Tribal wars &amp; clanfeuds)</p>
-                                <p className="pl-2">d.3. Calamities/Disasters</p>
+                                <p className="pl-1">d.1. Distance between home and school</p>
+                                <p className="pl-1">d.2. Armed conflict (incl. Tribal wars & clanfeuds)</p>
+                                <p className="pl-1">d.3. Calamities/Disasters</p>
                                 <p className="font-black mt-1">e. Financial-Related</p>
-                                <p className="pl-2">e.1. Child labor, work</p>
+                                <p className="pl-1">e.1. Child labor, work</p>
                                 <p className="font-black mt-1">f. Others</p>
                             </div>
                         </div>
-                    </div>
 
                     {/* Col 3: Summary + Certification */}
                     <div className="w-[30%] flex flex-col text-black">
@@ -1796,27 +1814,27 @@ export function AttendancePage() {
                                 {/* Summary rows */}
                                 {[
                                     { label: 'Enrolment as of (1st Friday of the school year)', m: summaryStats.maleBaseline, f: summaryStats.femaleBaseline, t: summaryStats.totalBaseline, italic: true },
-                                    { label: 'Late Enrollment during the month (beyond cut-off)', m: summaryStats.maleLate, f: summaryStats.femaleLate, t: summaryStats.totalLate, italic: true },
+                                    { label: 'Late Enrollment during the month (beyond cut-off)', m: '', f: '', t: '', italic: true },
                                     { label: 'Registered Learner as of end of the month', m: summaryStats.maleRegistered, f: summaryStats.femaleRegistered, t: summaryStats.totalRegistered },
                                     { label: 'Percentage of Enrolment as of end of the month', m: summaryStats.maleBaseline > 0 ? (summaryStats.maleRegistered / summaryStats.maleBaseline * 100).toFixed(0) : '0', f: summaryStats.femaleBaseline > 0 ? (summaryStats.femaleRegistered / summaryStats.femaleBaseline * 100).toFixed(0) : '0', t: summaryStats.totalBaseline > 0 ? (summaryStats.totalRegistered / summaryStats.totalBaseline * 100).toFixed(0) : '0' },
-                                    { label: 'Average Daily Attendance', m: summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA.toFixed(2), t: summaryStats.totalADA.toFixed(2) },
-                                    { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc.toFixed(0), t: summaryStats.totalPerc.toFixed(0) },
+                                    { label: 'Average Daily Attendance', m: summaryStats.maleADA === 0 ? '' : summaryStats.maleADA.toFixed(2), f: summaryStats.femaleADA === 0 ? '' : summaryStats.femaleADA.toFixed(2), t: summaryStats.totalADA === 0 ? '' : summaryStats.totalADA.toFixed(2) },
+                                    { label: 'Percentage of Attendance for the month', m: summaryStats.malePerc === 0 ? '' : summaryStats.malePerc.toFixed(0), f: summaryStats.femalePerc === 0 ? '' : summaryStats.femalePerc.toFixed(0), t: summaryStats.totalPerc === 0 ? '' : summaryStats.totalPerc.toFixed(0) },
                                     { label: 'Number of students with 5 consecutive days of absences:', m: summaryStats.maleConsecutive, f: summaryStats.femaleConsecutive, t: summaryStats.totalConsecutive },
-                                    { label: 'NLS', m: 0, f: 0, t: 0 },
-                                    { label: 'Transferred out', m: 0, f: 0, t: 0 },
-                                    { label: 'Transferred in', m: 0, f: 0, t: 0 }
+                                    { label: 'NLS', m: '', f: '', t: '' },
+                                    { label: 'Transferred out', m: '', f: '', t: '' },
+                                    { label: 'Transferred in', m: '', f: '', t: '' }
                                 ].map((row, i) => (
                                     <tr key={i} className="h-5.5 border-b border-black">
                                         <td colSpan={2} className={`border-r border-black p-1 font-bold text-black leading-tight text-center ${row.italic ? 'italic' : ''} ${layoutConfig.summaryTextSize}`}>
                                             {row.label}
                                         </td>
-                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
+                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black outline-none focus:bg-blue-50/50 hover:bg-slate-50 transition-colors ${layoutConfig.tableTextSize}`} contentEditable suppressContentEditableWarning>
                                             {row.m}
                                         </td>
-                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black ${layoutConfig.tableTextSize}`}>
+                                        <td className={`border-r border-black p-1 text-center font-extrabold text-black outline-none focus:bg-blue-50/50 hover:bg-slate-50 transition-colors ${layoutConfig.tableTextSize}`} contentEditable suppressContentEditableWarning>
                                             {row.f}
                                         </td>
-                                        <td className={`p-1 text-center font-black text-black ${layoutConfig.tableTextSize}`}>
+                                        <td className={`p-1 text-center font-black text-black outline-none focus:bg-blue-50/50 hover:bg-slate-50 transition-colors ${layoutConfig.tableTextSize}`} contentEditable suppressContentEditableWarning>
                                             {row.t}
                                         </td>
                                     </tr>

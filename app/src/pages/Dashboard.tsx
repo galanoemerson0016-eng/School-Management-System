@@ -1585,31 +1585,30 @@ export function Dashboard() {
                 {renderAttendanceTrendChart()}
 
                 {/* ═══ 3. Insight Pillars ═══ */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch lg:h-55">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
                     {/* Left — Action Cards */}
-                    <div className="flex flex-col gap-3 h-full">
+                    <div className="flex flex-col gap-4 justify-between">
                         {/* Top Performers */}
                         <motion.button
                             variants={itemVariants}
                             whileHover={{ y: -3 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSelectedMetric('top')}
-                            className="flex-1 w-full relative overflow-hidden bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 p-4 lg:p-4 rounded-2xl text-white flex justify-between items-center group shadow-xl shadow-emerald-600/15 transition-all duration-500 hover:shadow-emerald-500/25 border border-emerald-400/20"
+                            className="flex-1 w-full relative overflow-hidden bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 p-5 rounded-2xl text-white flex justify-between items-center group shadow-lg shadow-emerald-600/15 transition-all duration-300 hover:shadow-emerald-500/25 border border-emerald-400/20"
                         >
-                            <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/8 rounded-full blur-2xl group-hover:scale-[1.8] transition-transform duration-700" />
-                            <div className="absolute bottom-0 left-0 w-full h-1/2 bg-linear-to-t from-black/15 to-transparent rounded-b-3xl" />
-                            <div className="relative z-10 flex items-center gap-3">
-                                <div className="w-9.5 h-9.5 bg-white/15 backdrop-blur-xl rounded-xl flex items-center justify-center ring-1 ring-white/20">
+                            <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/8 rounded-full blur-2xl group-hover:scale-[1.8] transition-transform duration-700 pointer-events-none" />
+                            <div className="relative z-10 flex items-center gap-3.5">
+                                <div className="w-10 h-10 bg-white/15 backdrop-blur-xl rounded-xl flex items-center justify-center ring-1 ring-white/20 shrink-0">
                                     <Trophy className="w-5 h-5" />
                                 </div>
                                 <div className="text-left">
-                                    <h4 className="text-[15px] font-black tracking-tight leading-tight">Academic Achievers</h4>
-                                    <p className="text-emerald-100/80 text-[8px] font-bold uppercase tracking-[0.2em] mt-0.5">GA ≥ 90%</p>
+                                    <h4 className="text-sm font-black tracking-tight leading-snug">Academic Achievers</h4>
+                                    <p className="text-emerald-100/80 text-[8.5px] font-bold uppercase tracking-wider mt-0.5">GA ≥ 90%</p>
                                 </div>
                             </div>
-                            <div className="relative z-10 flex flex-col items-center justify-center shrink-0">
+                            <div className="relative z-10 flex flex-col items-end justify-center shrink-0 pl-2">
                                 <span className="text-3xl font-black block tabular-nums drop-shadow-md leading-none mb-0.5">{achieversCountForCard}</span>
-                                <span className="text-[7.5px] font-bold uppercase tracking-[0.15em] opacity-60 leading-none">Learners</span>
+                                <span className="text-[8px] font-bold uppercase tracking-widest opacity-75 leading-none">Learners</span>
                             </div>
                         </motion.button>
 
@@ -1619,69 +1618,65 @@ export function Dashboard() {
                             whileHover={{ y: -3 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setSelectedMetric('at-risk')}
-                            className="flex-1 w-full relative overflow-hidden bg-linear-to-br from-rose-500 via-rose-600 to-pink-700 p-4 lg:p-4 rounded-2xl text-white flex justify-between items-center group shadow-xl shadow-rose-600/15 transition-all duration-500 hover:shadow-rose-500/25 border border-rose-400/20"
+                            className="flex-1 w-full relative overflow-hidden bg-linear-to-br from-rose-500 via-rose-600 to-pink-700 p-5 rounded-2xl text-white flex justify-between items-center group shadow-lg shadow-rose-600/15 transition-all duration-300 hover:shadow-rose-500/25 border border-rose-400/20"
                         >
-                            <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/8 rounded-full blur-2xl group-hover:scale-[1.8] transition-transform duration-700" />
-                            <div className="absolute bottom-0 left-0 w-full h-1/2 bg-linear-to-t from-black/15 to-transparent rounded-b-3xl" />
-                            <div className="relative z-10 flex items-center gap-3">
-                                <div className="w-9.5 h-9.5 bg-white/15 backdrop-blur-xl rounded-xl flex items-center justify-center ring-1 ring-white/20">
+                            <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/8 rounded-full blur-2xl group-hover:scale-[1.8] transition-transform duration-700 pointer-events-none" />
+                            <div className="relative z-10 flex items-center gap-3.5">
+                                <div className="w-10 h-10 bg-white/15 backdrop-blur-xl rounded-xl flex items-center justify-center ring-1 ring-white/20 shrink-0">
                                     <AlertTriangle className="w-5 h-5" />
                                 </div>
                                 <div className="text-left">
-                                    <h4 className="text-[15px] font-black tracking-tight leading-tight">At-Risk Learners</h4>
-                                    <p className="text-rose-100/80 text-[8px] font-bold uppercase tracking-[0.2em] mt-0.5">GPA &lt; 75%</p>
+                                    <h4 className="text-sm font-black tracking-tight leading-snug">At-Risk Learners</h4>
+                                    <p className="text-rose-100/80 text-[8.5px] font-bold uppercase tracking-wider mt-0.5">GPA &lt; 75%</p>
                                 </div>
                             </div>
-                            <div className="relative z-10 flex flex-col items-center justify-center shrink-0">
+                            <div className="relative z-10 flex flex-col items-end justify-center shrink-0 pl-2">
                                 <span className="text-3xl font-black block tabular-nums drop-shadow-md leading-none mb-0.5">{metricsResult.atRiskCount}</span>
-                                <span className="text-[7.5px] font-bold uppercase tracking-[0.15em] opacity-60 leading-none">Learners</span>
+                                <span className="text-[8px] font-bold uppercase tracking-widest opacity-75 leading-none">Learners</span>
                             </div>
                         </motion.button>
                     </div>
 
                     {/* Center — Gender Distribution */}
-                    <div className="bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl p-4 lg:p-4.5 rounded-2xl border border-white/80 dark:border-slate-800 shadow-[0_20px_40px_-16px_rgba(0,0,0,0.03)] dark:shadow-none flex flex-col h-full group hover:shadow-[0_28px_56px_-20px_rgba(15,23,42,0.08)] transition-all duration-300">
+                    <div className="bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl p-5 rounded-2xl border border-white/80 dark:border-slate-800 shadow-xs dark:shadow-none flex flex-col justify-between h-full group hover:shadow-md transition-all duration-300">
                         <div className="flex justify-between items-center mb-2">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">Gender Distribution</h3>
-                                <p className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest">Enrollment Diversity</p>
+                                <p className="text-[8.5px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mt-0.5">Enrollment Diversity</p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#003f87] ring-2 ring-blue-100 dark:ring-blue-900" /><span className="text-[7.5px] font-black text-slate-500 dark:text-slate-400 uppercase">M</span></div>
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#ec4899] ring-2 ring-pink-100 dark:ring-pink-900" /><span className="text-[7.5px] font-black text-slate-500 dark:text-slate-400 uppercase">F</span></div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#003f87] ring-2 ring-blue-100 dark:ring-blue-900" /><span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase">M</span></div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#ec4899] ring-2 ring-pink-100 dark:ring-pink-900" /><span className="text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase">F</span></div>
                             </div>
                         </div>
-                        <div className="flex-1 flex items-center justify-center relative min-h-26.25 h-26.25">
+                        <div className="flex-1 flex items-center justify-center relative min-h-28 py-2">
                             {renderDonutChart()}
                         </div>
                     </div>
+
                     {/* Right — Academic Performance */}
-                    <div className="bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl p-4 lg:p-4.5 rounded-2xl border border-white/80 dark:border-slate-800 shadow-[0_20px_40px_-16px_rgba(0,0,0,0.03)] dark:shadow-none flex flex-col h-full group hover:shadow-[0_28px_56px_-20px_rgba(15,23,42,0.08)] transition-all duration-300">
-                        <div className="flex justify-between items-center mb-2">
-                            <div>
-                                <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">Academic Performance</h3>
-                                <p className="text-[8px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest">Top Average Scores</p>
-                            </div>
-                            <div className="flex flex-col items-end space-y-1">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black uppercase text-slate-500 dark:text-slate-400">Top Subject:</span>
-                                    <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/80 rounded-full text-indigo-600 dark:text-indigo-300 text-[7px] font-bold">{subjectAverages[0]?.name ?? 'N/A'}</span>
+                    <div className="bg-white/70 dark:bg-slate-900/80 backdrop-blur-xl p-5 rounded-2xl border border-white/80 dark:border-slate-800 shadow-xs dark:shadow-none flex flex-col justify-between h-full group hover:shadow-md transition-all duration-300">
+                        <div>
+                            <div className="flex justify-between items-start mb-3 gap-2">
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">Academic Performance</h3>
+                                    <p className="text-[8.5px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest mt-0.5">Subject Averages Overview</p>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black uppercase text-slate-500 dark:text-slate-400">Score:</span>
-                                    <span className="text-green-600 dark:text-green-400 text-[7px] font-black">{subjectAverages[0]?.avg ?? 'N/A'}%</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-black uppercase text-slate-500 dark:text-slate-400">Pass Rate:</span>
-                                    <span className="text-blue-600 dark:text-blue-400 text-[7px] font-black">{totalStudents === 0 ? 'N/A' : Math.round(((totalStudents - failingStudentList.length) / totalStudents) * 100)}%</span>
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0 max-w-[55%]">
+                                    <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-300 text-[8px] font-bold rounded-md border border-indigo-100 dark:border-indigo-900/40">
+                                        Top: {subjectAverages[0]?.name ?? 'N/A'} ({subjectAverages[0]?.avg ?? '0'}%)
+                                    </span>
+                                    <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 text-[8px] font-bold rounded-md border border-emerald-100 dark:border-emerald-900/40">
+                                        Pass: {totalStudents === 0 ? 'N/A' : Math.round(((totalStudents - failingStudentList.length) / totalStudents) * 100)}%
+                                    </span>
                                 </div>
                             </div>
+                            <div className="w-full h-28 my-1">
+                                {renderBarChart()}
+                            </div>
                         </div>
-                        <div className="flex-1 flex flex-col justify-between min-h-26.25 h-26.25 py-1">
-                            {renderBarChart()}
-                        </div>
-                        <div className="mt-1.5 pt-1.5 border-t border-slate-100/60 dark:border-slate-800 flex justify-center">
-                            <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em] italic text-center">
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex justify-center">
+                            <p className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
                                 Computed across all verified official sections
                             </p>
                         </div>
@@ -1691,67 +1686,69 @@ export function Dashboard() {
                 {/* 4. Operation Center - Complex Bottom Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                     {/* Bulletins Section */}
-                    <div className="lg:col-span-7 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-95">
-                        <div className="flex justify-between items-center mb-5">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none">
-                                    <Bell className="w-6 h-6 text-white" />
+                    <div className="lg:col-span-7 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[400px]">
+                        <div>
+                            <div className="flex justify-between items-center mb-5">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none">
+                                        <Bell className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Announcements</h3>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest">{announcements.length} bulletins</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Announcements</h3>
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest">{announcements.length} bulletins</p>
-                                </div>
+                                <motion.button 
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setCurrentView('announcements')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-900/20 dark:shadow-none cursor-pointer"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    New Post
+                                </motion.button>
                             </div>
-                            <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setCurrentView('announcements')}
-                                className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-900/20 dark:shadow-none cursor-pointer"
-                            >
-                                <Plus className="w-3.5 h-3.5" />
-                                New Post
-                            </motion.button>
-                        </div>
 
-                        <div className="flex-1 space-y-3 overflow-hidden pr-1">
-                            {announcements.length > 0 ? (
-                                announcements.slice(0, 3).map((announcement) => {
-                                    const colors = announcement.announcement_type === 'urgent' 
-                                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/40 text-rose-700 dark:text-rose-300' 
-                                        : announcement.announcement_type === 'event' 
-                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300' 
-                                            : 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/40 text-blue-700 dark:text-blue-300';
-                                    return (
-                                        <div key={announcement.id} className={`p-4 rounded-2xl border ${colors} transition-transform hover:scale-[1.02] cursor-pointer`}>
-                                            <div className="flex justify-between items-start mb-1.5">
-                                                <h5 className="text-sm font-black tracking-tight line-clamp-1">{announcement.announcement_title}</h5>
-                                                {announcement.is_cloud && (
-                                                    <div className="p-1 bg-white/60 dark:bg-slate-800/60 rounded-lg"><Activity className="w-3 h-3" /></div>
-                                                )}
+                            <div className="max-h-[270px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
+                                {announcements.length > 0 ? (
+                                    announcements.map((announcement) => {
+                                        const colors = announcement.announcement_type === 'urgent' 
+                                            ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/40 text-rose-700 dark:text-rose-300' 
+                                            : announcement.announcement_type === 'event' 
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300' 
+                                                : 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/40 text-blue-700 dark:text-blue-300';
+                                        return (
+                                            <div key={announcement.id} className={`p-4 rounded-2xl border ${colors} transition-transform hover:scale-[1.01] cursor-pointer`}>
+                                                <div className="flex justify-between items-start mb-1.5">
+                                                    <h5 className="text-sm font-black tracking-tight line-clamp-1">{announcement.announcement_title}</h5>
+                                                    {announcement.is_cloud && (
+                                                        <div className="p-1 bg-white/60 dark:bg-slate-800/60 rounded-lg"><Activity className="w-3 h-3" /></div>
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] font-medium leading-relaxed opacity-80 line-clamp-2 mb-2.5">{announcement.announcement_content}</p>
+                                                <div className="flex items-center justify-between mt-auto">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{announcement.announcement_date}</span>
+                                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-white/50 dark:bg-slate-800/50 rounded-md tracking-tighter">{announcement.announcement_type}</span>
+                                                </div>
                                             </div>
-                                            <p className="text-[11px] font-medium leading-relaxed opacity-80 line-clamp-2 mb-2.5">{announcement.announcement_content}</p>
-                                            <div className="flex items-center justify-between mt-auto">
-                                                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{announcement.announcement_date}</span>
-                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-white/50 dark:bg-slate-800/50 rounded-md tracking-tighter">{announcement.announcement_type}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 opacity-40">
-                                    <Search className="w-12 h-12" />
-                                    <p className="text-xs font-black uppercase tracking-widest">No bulletins found</p>
-                                </div>
-                            )}
+                                        );
+                                    })
+                                ) : (
+                                    <div className="h-44 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 opacity-40">
+                                        <Search className="w-12 h-12" />
+                                        <p className="text-xs font-black uppercase tracking-widest">No bulletins found</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         
-                        <button onClick={() => setCurrentView('announcements')} className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800 text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                        <button onClick={() => setCurrentView('announcements')} className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em] hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center justify-center gap-2 cursor-pointer">
                             Access Bulletin Board <ChevronRight className="w-3 h-3" />
                         </button>
                     </div>
 
                     {/* School Calendar */}
-                    <div className="lg:col-span-5 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col h-95">
+                    <div className="lg:col-span-5 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[400px]">
                         <div className="flex justify-between items-center mb-5 gap-3">
                             <div>
                                 <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Calendar</h3>

@@ -405,6 +405,30 @@ function fillDailyTotalsAndSummary(
     let totalMaleAbsent = 0;
     let totalFemaleAbsent = 0;
 
+    const calculateConsecutive = (studentList: Student[]) => {
+        let count = 0;
+        studentList.forEach(s => {
+            let consecutive = 0;
+            let has5 = false;
+            dateLabels.forEach((dl, idx) => {
+                if (idx < dateCols.length && dl.dateStr) {
+                    const status = (attendanceData[s.lrn]?.[`date_${dl.dateStr}`] || '').toLowerCase();
+                    if (status === 'absent') {
+                        consecutive++;
+                        if (consecutive >= 5) has5 = true;
+                    } else {
+                        consecutive = 0;
+                    }
+                }
+            });
+            if (has5) count++;
+        });
+        return count;
+    };
+
+    const totalMaleConsecutive = calculateConsecutive(males);
+    const totalFemaleConsecutive = calculateConsecutive(females);
+
     const setCell = (cell: ExcelJS.Cell, val: string | number, size: number = 7) => {
         cell.value = val;
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -497,45 +521,45 @@ function fillDailyTotalsAndSummary(
                     classCell.value = `No. of Days of Classes: ${totalSchoolDays}`;
                 }
             } else if (rowText.includes('percentage of enrolment')) {
-                setCell(r.getCell(summaryCols.m), mLen > 0 ? 100 : 0);
-                setCell(r.getCell(summaryCols.f), fLen > 0 ? 100 : 0);
-                setCell(r.getCell(summaryCols.total), totalLen > 0 ? 100 : 0);
-            } else if (rowText.includes('late enrolment')) {
-                setCell(r.getCell(summaryCols.m), 0);
-                setCell(r.getCell(summaryCols.f), 0);
-                setCell(r.getCell(summaryCols.total), 0);
+                setCell(r.getCell(summaryCols.m), mLen > 0 ? 100 : '');
+                setCell(r.getCell(summaryCols.f), fLen > 0 ? 100 : '');
+                setCell(r.getCell(summaryCols.total), totalLen > 0 ? 100 : '');
+            } else if (rowText.includes('late enrolment') || rowText.includes('late enrollment')) {
+                setCell(r.getCell(summaryCols.m), '');
+                setCell(r.getCell(summaryCols.f), '');
+                setCell(r.getCell(summaryCols.total), '');
             } else if (rowText.includes('enrolment as of')) {
                 setCell(r.getCell(summaryCols.m), mLen);
                 setCell(r.getCell(summaryCols.f), fLen);
                 setCell(r.getCell(summaryCols.total), totalLen);
-            } else if (rowText.includes('registered learners as of')) {
+            } else if (rowText.includes('registered learners as of') || rowText.includes('registered learner as of')) {
                 setCell(r.getCell(summaryCols.m), mLen);
                 setCell(r.getCell(summaryCols.f), fLen);
                 setCell(r.getCell(summaryCols.total), totalLen);
             } else if (rowText.includes('percentage of attendance')) {
-                setCell(r.getCell(summaryCols.m), malePct === 0 ? 0 : round2(malePct) + '%', 5);
-                setCell(r.getCell(summaryCols.f), femalePct === 0 ? 0 : round2(femalePct) + '%', 5);
-                setCell(r.getCell(summaryCols.total), totalPct === 0 ? 0 : round2(totalPct) + '%', 5);
+                setCell(r.getCell(summaryCols.m), malePct === 0 ? '' : round2(malePct) + '%', 5);
+                setCell(r.getCell(summaryCols.f), femalePct === 0 ? '' : round2(femalePct) + '%', 5);
+                setCell(r.getCell(summaryCols.total), totalPct === 0 ? '' : round2(totalPct) + '%', 5);
             } else if (rowText.includes('average daily attendance')) {
-                setCell(r.getCell(summaryCols.m), maleADA === 0 ? 0 : round2(maleADA), 6);
-                setCell(r.getCell(summaryCols.f), femaleADA === 0 ? 0 : round2(femaleADA), 6);
-                setCell(r.getCell(summaryCols.total), totalADA === 0 ? 0 : round2(totalADA), 6);
+                setCell(r.getCell(summaryCols.m), maleADA === 0 ? '' : round2(maleADA), 6);
+                setCell(r.getCell(summaryCols.f), femaleADA === 0 ? '' : round2(femaleADA), 6);
+                setCell(r.getCell(summaryCols.total), totalADA === 0 ? '' : round2(totalADA), 6);
             } else if (rowText.includes('5 consecutive days')) {
-                setCell(r.getCell(summaryCols.m), 0);
-                setCell(r.getCell(summaryCols.f), 0);
-                setCell(r.getCell(summaryCols.total), 0);
-            } else if (rowText.includes('dropped out')) {
-                setCell(r.getCell(summaryCols.m), 0);
-                setCell(r.getCell(summaryCols.f), 0);
-                setCell(r.getCell(summaryCols.total), 0);
+                setCell(r.getCell(summaryCols.m), totalMaleConsecutive);
+                setCell(r.getCell(summaryCols.f), totalFemaleConsecutive);
+                setCell(r.getCell(summaryCols.total), totalMaleConsecutive + totalFemaleConsecutive);
+            } else if (rowText.includes('dropped out') || rowText.includes('nls')) {
+                setCell(r.getCell(summaryCols.m), '');
+                setCell(r.getCell(summaryCols.f), '');
+                setCell(r.getCell(summaryCols.total), '');
             } else if (rowText.includes('transferred out')) {
-                setCell(r.getCell(summaryCols.m), 0);
-                setCell(r.getCell(summaryCols.f), 0);
-                setCell(r.getCell(summaryCols.total), 0);
+                setCell(r.getCell(summaryCols.m), '');
+                setCell(r.getCell(summaryCols.f), '');
+                setCell(r.getCell(summaryCols.total), '');
             } else if (rowText.includes('transferred in')) {
-                setCell(r.getCell(summaryCols.m), 0);
-                setCell(r.getCell(summaryCols.f), 0);
-                setCell(r.getCell(summaryCols.total), 0);
+                setCell(r.getCell(summaryCols.m), '');
+                setCell(r.getCell(summaryCols.f), '');
+                setCell(r.getCell(summaryCols.total), '');
             }
         }
     });

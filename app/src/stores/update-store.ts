@@ -402,8 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🐛 Fixed an Electron application URL protocol error that caused 'Failed to fetch' errors when attempting to download SF2 Excel files in the production binary.",
-              "📁 Re-linked local template fetch routes to bypass 'file:///' absolute root mapping conflicts on Windows and macOS."
+              "🐛 Fixed SF2 Excel export fetch error in production binary.",
+              "🏛️ Redesigned SF2 bottom section to match official 3-column DepEd format (Formulas under Guidelines #3).",
+              "📐 Standardized SF2 attendance matrix cells to strict 22px x 22px uniform squares across all symbols.",
+              "✏️ Enabled in-app summary cell editing and blank defaults for Late Enrollment, NLS, Transferred In/Out.",
+              "🎨 Redesigned Dashboard cards (Academic Performance, At-Risk Learners, Announcements) to eliminate text clipping."
             ],
             timestamp: Date.now(),
             status: 'success',

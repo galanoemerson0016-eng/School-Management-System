@@ -1,8 +1,11 @@
 ## v2.10.2 (2026-08-08)
 
-### Fixed
-- Fixed an Electron application URL protocol error that caused "Failed to fetch" errors when attempting to download SF2 Excel files in the production binary.
-- Re-linked local template fetch routes to bypass `file:///` absolute root mapping conflicts on Windows and macOS.
+### Fixed & Enhanced
+- **SF2 Excel Export Fix**: Fixed an Electron application URL protocol error (`file:///` path mapping) that caused "Failed to fetch" errors when attempting to download SF2 Excel files in the production desktop app.
+- **Official DepEd 3-Column SF2 Layout**: Overhauled the SF2 bottom guidelines & codes section into the official DepEd 3-column layout (Formulas nested under Guideline #3 in Column 1, Codes & NLS Reasons in Column 2, Summary Table in Column 3).
+- **Uniform Square Attendance Cells**: Standardized attendance matrix cells to strict 22px × 22px uniform squares across all symbols (`X`, tardy half-shaded triangles, cutting, and empty states).
+- **Editable Summary Fields**: Made summary table cells (Late Enrollment, NLS, Transferred Out, Transferred In) editable in-app and blank by default for teacher customization.
+- **Dashboard Layout Overhaul**: Redesigned Dashboard cards (Academic Performance, At-Risk Learners, Academic Achievers, and Announcements) to prevent text clipping and overlapping.
 
 ## v2.10.1 (2026-08-08)
 
