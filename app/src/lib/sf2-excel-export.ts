@@ -22,9 +22,9 @@ export async function exportSF2Excel(params: SF2ExportParams) {
     if (isSHS) {
         await exportSHS(params);
     } else if (isElem) {
-        await exportJHS(params, '/templates/SF2_ELEM.xlsx');
+        await exportJHS(params, './templates/SF2_ELEM.xlsx');
     } else {
-        await exportJHS(params, '/templates/SF2_JHS.xlsx');
+        await exportJHS(params, './templates/SF2_JHS.xlsx');
     }
 }
 
@@ -49,7 +49,7 @@ async function downloadWorkbook(workbook: ExcelJS.Workbook, filename: string) {
 /**
  * Junior High School SF2 Export
  */
-async function exportJHS(params: SF2ExportParams, templatePath = '/templates/SF2_JHS.xlsx') {
+async function exportJHS(params: SF2ExportParams, templatePath = './templates/SF2_JHS.xlsx') {
     const { schoolProfile, section, students, activeSchoolYear, selectedMonth, attendanceData, dateLabels } = params;
     
     const response = await fetch(templatePath);
@@ -157,7 +157,7 @@ async function exportJHS(params: SF2ExportParams, templatePath = '/templates/SF2
 async function exportSHS(params: SF2ExportParams) {
     const { schoolProfile, section, students, activeSchoolYear, selectedMonth, attendanceData, dateLabels } = params;
     
-    const response = await fetch('/templates/SF2_SHS.xlsx');
+    const response = await fetch('./templates/SF2_SHS.xlsx');
     if (!response.ok) throw new Error("Failed to load SHS Template. Ensure SF2_SHS.xlsx is in the public/templates/ folder.");
     const arrayBuffer = await response.arrayBuffer();
     

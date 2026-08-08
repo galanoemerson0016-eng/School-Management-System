@@ -1,4 +1,16 @@
-## v2.10.1 (2026-08-08)\n\n### Fixed\n- Fixed a mathematical oversight in the Summative Tests calculation to strictly enforce the independent 30/30/40 weighting for ST1, ST2, and TE components.\n- Ensured missing assessments are dynamically re-weighted to prevent penalizing students for exams not yet administered.\n\n\n<!-- markdownlint-disable -->
+## v2.10.2 (2026-08-08)
+
+### Fixed
+- Fixed an Electron application URL protocol error that caused "Failed to fetch" errors when attempting to download SF2 Excel files in the production binary.
+- Re-linked local template fetch routes to bypass `file:///` absolute root mapping conflicts on Windows and macOS.
+
+## v2.10.1 (2026-08-08)
+
+### Fixed
+- Fixed a mathematical oversight in the Summative Tests calculation to strictly enforce the independent 30/30/40 weighting for ST1, ST2, and TE components.
+- Ensured missing assessments are dynamically re-weighted to prevent penalizing students for exams not yet administered.
+
+<!-- markdownlint-disable -->
 
 # Version History
 

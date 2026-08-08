@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.2';
       const api = window.electronAPI;
 
       try {
@@ -402,8 +402,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🧮 Fixed a mathematical oversight in the Summative Tests calculation to strictly enforce the independent 30/30/40 weighting for ST1, ST2, and TE components.",
-              "⚖️ Ensured missing assessments are dynamically re-weighted to prevent penalizing students for exams not yet administered."
+              "🐛 Fixed an Electron application URL protocol error that caused 'Failed to fetch' errors when attempting to download SF2 Excel files in the production binary.",
+              "📁 Re-linked local template fetch routes to bypass 'file:///' absolute root mapping conflicts on Windows and macOS."
             ],
             timestamp: Date.now(),
             status: 'success',
