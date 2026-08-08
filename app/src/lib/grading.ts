@@ -177,24 +177,26 @@ export function computeExamsWeightedScore(
         return (te / teHPS) * 100;
     }
 
-    let totalScore = 0;
-    let totalHPS = 0;
+    let ps = 0;
+    let totalWeightGiven = 0;
 
     if (st1HPS > 0 && s1 !== null) {
-        totalHPS += st1HPS;
-        totalScore += s1;
+        ps += (s1 / st1HPS) * 100 * 0.30;
+        totalWeightGiven += 0.30;
     }
     if (st2HPS > 0 && s2 !== null) {
-        totalHPS += st2HPS;
-        totalScore += s2;
+        ps += (s2 / st2HPS) * 100 * 0.30;
+        totalWeightGiven += 0.30;
     }
     if (teHPS > 0 && te !== null) {
-        totalHPS += teHPS;
-        totalScore += te;
+        ps += (te / teHPS) * 100 * 0.40;
+        totalWeightGiven += 0.40;
     }
 
-    if (totalHPS <= 0) return 0;
-    return (totalScore / totalHPS) * 100;
+    if (totalWeightGiven <= 0) return 0;
+    
+    // Normalize based on tests actually administered (e.g., if TE is missing, ST1+ST2 accounts for 100% of the grade so far)
+    return ps / totalWeightGiven;
 }
 
 // Determine subject cluster based on subject name, grade level, and track

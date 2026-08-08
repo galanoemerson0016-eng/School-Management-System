@@ -1,4 +1,4 @@
-<!-- markdownlint-disable -->
+## v2.10.1 (2026-08-08)\n\n### Fixed\n- Fixed a mathematical oversight in the Summative Tests calculation to strictly enforce the independent 30/30/40 weighting for ST1, ST2, and TE components.\n- Ensured missing assessments are dynamically re-weighted to prevent penalizing students for exams not yet administered.\n\n\n<!-- markdownlint-disable -->
 
 # Version History
 

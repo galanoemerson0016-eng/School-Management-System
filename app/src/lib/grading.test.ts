@@ -99,25 +99,27 @@ describe('transmuteGrade — zero-based grading from SY 2027-2028', () => {
 });
 
 describe('computeExamsWeightedScore', () => {
-  it('computes PS based on total raw score divided by total HPS for valid assessments', () => {
-    // ST1: 8/10, ST2: 9/10, TE: 35/50 -> Total Score = 52, Total HPS = 70 -> (52/70)*100 = 74.2857%
+  it('computes PS using independent 30/30/40 weights for ST1, ST2, and TE', () => {
+    // Old: (8+9+35)/(10+10+50) = 74.2857
+    // New: (8/10*30) + (9/10*30) + (35/50*40) = 24 + 27 + 28 = 79
     expect(
       computeExamsWeightedScore(8, 10, 9, 10, 35, 50, 'science_math')
-    ).toBeCloseTo(74.2857, 3);
+    ).toBeCloseTo(79, 3);
   });
 
-  it('excludes un-administered / blank TE HPS and scores from numerator and denominator', () => {
-    // User scenario: ST1 = 22/30, ST2 = 29/30, TE = blank, TE HPS = 0
-    // Total Score = 51, Total HPS = 60 -> PS = (51/60)*100 = 85%
+  it('excludes un-administered / blank TE HPS and recalculates weights', () => {
+    // (22/30*30) + (29/30*30) = 22 + 29 = 51. Total weight = 60. PS = 51/0.6 = 85.
     expect(
       computeExamsWeightedScore(22, 30, 29, 30, null, 0, 'science_math')
-    ).toBeCloseTo(85.00, 2);
+    ).toBeCloseTo(85, 3);
+  });
 
-    // After teacher enters TE Score = 38, TE HPS = 50
-    // Total Score = 89, Total HPS = 110 -> PS = (89/110)*100 = 80.909%
+  it('computes correctly across asymmetric HPS values with 30/30/40 weights', () => {
+    // Old: (22+29+38)/(30+30+50) = 80.909
+    // New: (22/30*30) + (29/30*30) + (38/50*40) = 22 + 29 + 30.4 = 81.4
     expect(
       computeExamsWeightedScore(22, 30, 29, 30, 38, 50, 'science_math')
-    ).toBeCloseTo(80.909, 3);
+    ).toBeCloseTo(81.4, 3);
   });
 
   it('treats zero-HPS assessment as excluded instead of dividing by zero', () => {
