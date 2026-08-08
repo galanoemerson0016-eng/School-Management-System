@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.9.7';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.0';
       const api = window.electronAPI;
 
       try {
@@ -402,12 +402,14 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
+              "📊 Added native SF2 Excel (JHS & SHS & ELEM) export functionality with automated summary table calculations",
+              "🛡️ Enforced 1-click silent NSIS background updates to prevent application uninstallation prompts during auto-updates",
+              "✨ Fixed various template mismatching issues for perfectly aligned Excel formatting",
               "📅 Unified MM/DD/YYYY attendance calendar format across desktop and mobile screens",
               "🗓️ Multi-date historical attendance marking and live cross-device sync",
-              "🛡️ Today-Only Parent SMS Safeguard preventing accidental alerts on past date updates",
               "📱 Real-time Parent SMS Notification triggers for smartphone attendance punches",
               "📹 Stabilized live camera QR scanner stream eliminating 3-second black screen flickering",
-              "🔑 Refactored Google Drive OAuth refresh token caching & NSIS 1-click silent background update protection"
+              "🔑 Refactored Google Drive OAuth refresh token caching"
             ],
             timestamp: Date.now(),
             status: 'success',

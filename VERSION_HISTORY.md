@@ -2,6 +2,18 @@
 
 # Version History
 
+## v2.10.0 (2026-08-08)
+
+### 🚀 New Features & Enhancements
+
+- 📊 **Native SF2 Excel Export**: Added native SF2 Excel (JHS & SHS & ELEM) export functionality with automated summary table calculations.
+- 🛡️ **Silent Auto-Updates**: Enforced 1-click silent NSIS background updates to prevent application uninstallation prompts during auto-updates.
+- ✨ **Template Alignment Fixes**: Fixed various template mismatching issues for perfectly aligned Excel formatting, and protected user's hardcoded template School Name fields from being overwritten.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.9.7 (2026-08-07)
 
 ### 🚀 New Features & Enhancements

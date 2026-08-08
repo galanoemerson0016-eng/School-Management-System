@@ -7,7 +7,7 @@ import { Printer, ArrowLeft, ArrowRight, ChevronDown, Plus, Minus, Search, Downl
 import { canEditAttendanceSection, filterAttendanceSections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 import { db } from '../services/database';
-import { exportSF2ToExcel } from '../services/excel-export';
+import { exportSF2Excel } from '../lib/sf2-excel-export';
 
 import type { Section, Student, SF2Sheet, CalendarEvent } from '../types';
 
@@ -19,7 +19,7 @@ type AttendanceMonthData = Record<string, Record<string | number, AttendanceDayS
 type DateLabels = Record<number, string>;
  
 const SCHOOL_CALENDAR_2026_2027: Record<string, number[]> = {
-    JUNE: [8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
+    JUNE: [1, 2, 3, 4, 5, 8, 9, 10, 11, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26, 29, 30],
     JULY: [1, 2, 3, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31],
     AUGUST: [3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 20, 24, 25, 26, 27, 28],
     SEPTEMBER: [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 28, 29, 30],
@@ -326,10 +326,10 @@ export function AttendancePage() {
     const [paperSize, setPaperSize] = useState<'letter' | 'a4' | 'folio'>('folio');
     const [zoom, setZoom] = useState(0.85);
 
-    // Interactive Preview Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [previewModalZoom, setPreviewModalZoom] = useState(0.85);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
     const previewViewportRef = useRef<HTMLDivElement>(null);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
     const [includeSaturdays, setIncludeSaturdays] = useState(() => {
@@ -980,6 +980,35 @@ export function AttendancePage() {
         document.title = `SF2_${schoolProfile.name || 'School'}_${selectedSectionName}_${selectedMonth}_${activeSchoolYear}`;
         window.print();
         document.title = originalTitle;
+    };
+
+    const handleExportExcelSF2 = async () => {
+        if (!selectedSectionObj) {
+            showNotification('Please select a section first.', 'error');
+            return;
+        }
+        setIsExportingExcel(true);
+        try {
+            await exportSF2Excel({
+                schoolProfile,
+                section: selectedSectionObj,
+                students: sectionStudents,
+                activeSchoolYear,
+                selectedMonth,
+                attendanceData: currentAttendance,
+                dateLabels: Array.from({ length: totalColumns }, (_, i) => ({
+                    dayNumber: currentDateLabels[i + 1] || '',
+                    weekday: '',
+                    dateStr: (currentDateLabels[i + 1] || '').trim()
+                }))
+            });
+            showNotification('SF2 Excel exported successfully!', 'success');
+        } catch (error: unknown) {
+            console.error('Export failed:', error);
+            showNotification(error instanceof Error ? error.message : 'Failed to export SF2 Excel.', 'error');
+        } finally {
+            setIsExportingExcel(false);
+        }
     };
 
     const handleDownloadAttendance = async () => {
@@ -2101,6 +2130,16 @@ export function AttendancePage() {
                             <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
                         </button>
 
+                        {/* Export Excel Button */}
+                        <button
+                            onClick={handleExportExcelSF2}
+                            disabled={!selectedSection || isExportingExcel}
+                            className="w-7 h-7 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40 border border-green-200 dark:border-green-800/30 text-green-700 dark:text-green-400 active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center justify-center group duration-200 cursor-pointer"
+                            title="Export to Excel (SF2 Template)"
+                        >
+                            <FileSpreadsheet className={`w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform ${isExportingExcel ? 'animate-pulse' : ''}`} />
+                        </button>
+
                         {/* Print Primary Button */}
                         <button
                             onClick={handlePrint}
@@ -2346,20 +2385,7 @@ export function AttendancePage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => {
-                                            exportSF2ToExcel({
-                                                schoolName: schoolProfile?.name || 'School',
-                                                schoolId: schoolProfile?.school_id || '',
-                                                schoolYear: activeSchoolYear,
-                                                month: selectedMonth,
-                                                gradeLevel: sections.find(s => s.section_name === selectedSection)?.section_grade_level || '',
-                                                sectionName: selectedSection,
-                                                males: displayStudents.males,
-                                                females: displayStudents.females,
-                                                attendanceData: attendanceData[selectedMonth] || {},
-                                                monthDateLabels: currentDateLabels,
-                                                remarksData: remarksData[selectedMonth] || {},
-                                                totalColumns
-                                            });
+                                            handleExportExcelSF2();
                                         }}
                                         className="px-4 py-2 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/15 text-slate-800 dark:text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                                     >

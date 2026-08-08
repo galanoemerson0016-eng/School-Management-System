@@ -26,6 +26,11 @@ if (!isDev) {
   try {
     const { autoUpdater: au } = require('electron-updater');
     autoUpdater = au;
+    
+    // Ensure silent background update on download completion
+    autoUpdater.on('update-downloaded', () => {
+      autoUpdater.quitAndInstall(true, true);
+    });
   } catch (e) {
     console.log('electron-updater not available');
   }
