@@ -1686,7 +1686,7 @@ export function Dashboard() {
                 {/* 4. Operation Center - Complex Bottom Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                     {/* Bulletins Section */}
-                    <div className="lg:col-span-7 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[400px]">
+                    <div className="lg:col-span-7 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-100">
                         <div>
                             <div className="flex justify-between items-center mb-5">
                                 <div className="flex items-center gap-4">
@@ -1709,7 +1709,7 @@ export function Dashboard() {
                                 </motion.button>
                             </div>
 
-                            <div className="max-h-[270px] overflow-y-auto custom-scrollbar pr-1 space-y-3">
+                            <div className="max-h-67.5 overflow-y-auto custom-scrollbar pr-1 space-y-3">
                                 {announcements.length > 0 ? (
                                     announcements.map((announcement) => {
                                         const colors = announcement.announcement_type === 'urgent' 
@@ -1748,7 +1748,7 @@ export function Dashboard() {
                     </div>
 
                     {/* School Calendar */}
-                    <div className="lg:col-span-5 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[400px]">
+                    <div className="lg:col-span-5 bg-white dark:bg-slate-900/90 p-6 lg:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-100">
                         <div className="flex justify-between items-center mb-5 gap-3">
                             <div>
                                 <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Calendar</h3>

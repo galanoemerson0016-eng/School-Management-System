@@ -19,7 +19,9 @@ import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2S
 import { db } from '../services/database';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3 } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet } from 'lucide-react';
+import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
+import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
@@ -1779,17 +1781,17 @@ function SF9Pages({
                                 <Text style={[{ fontSize: 11, fontWeight: 'bold', textAlign: 'center', marginBottom: 10, marginTop: -15 }, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold' }]}>LEARNING PROGRESS AND ACHIEVEMENT</Text>
                                 <View style={[styles.singleLpTable, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                                     <View style={[styles.singleLpHeaderRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
-                                        <View style={[styles.singleLpHeaderCell, { width: '42%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Learning Areas</Text></View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '42%', borderBottomWidth: 0, alignItems: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Learning Areas</Text></View>
                                         <View style={[styles.singleLpHeaderCell, { width: '24%', padding: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
-                                            <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 1, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>TERM</Text></View>
+                                            <View style={{ borderBottomWidth: 1, borderColor: borderColor, padding: 1, alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>TERM</Text></View>
                                             <View style={{ flexDirection: 'row', flex: 1 }}>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>1</Text></View>
-                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>2</Text></View>
-                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>3</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>1</Text></View>
+                                                <View style={{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>2</Text></View>
+                                                <View style={{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>3</Text></View>
                                             </View>
                                         </View>
-                                        <View style={[styles.singleLpHeaderCell, { width: '14%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Final Grade</Text></View>
-                                        <View style={[styles.singleLpHeaderCell, { width: '20%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold' } : { fontFamily: 'BookmanOldStyle-Bold' }}>Remarks</Text></View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '14%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Final Grade</Text></View>
+                                        <View style={[styles.singleLpHeaderCell, { width: '20%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Remarks</Text></View>
                                     </View>
                                     {currentSubjects.filter(subj => !subj.isReserved).map((subj, idx) => {
                                         const gradeRow = grades[subj.name] || [0, 0, 0];
@@ -2772,6 +2774,100 @@ export function SF9Page() {
         };
     }, [batchBlobUrl]);
 
+    /** Builds the subjectTerm resolver callback for the Excel exporter */
+    const buildSubjectTermResolver = useCallback(() => {
+        return (subjectName: string, subjectId?: string) => {
+            const dbSubjects = useAppStore.getState().subjects;
+            const dbSubj = subjectId
+                ? dbSubjects.find(s => s.id === subjectId)
+                : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === subjectName.toLowerCase().trim());
+            return dbSubj?.term;
+        };
+    }, []);
+
+    /** Export single student SF9 to Excel */
+    const handleExcelExport = useCallback(async () => {
+        if (!selectedStudent || !selectedSectionObj) return;
+        try {
+            const attendance = computeStudentAttendance(selectedStudent, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+            const resolvedSection = sections.find(s => s.id === selectedStudent.student_section || s.section_name === selectedStudent.student_section);
+            const resolvedSectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+            const getQComment = (q: number) => observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+            const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
+
+            const exportOpts: SF9ExcelExportOptions = {
+                student: selectedStudent,
+                schoolProfile,
+                schoolYear: activeSchoolYear,
+                section: resolvedSectionName,
+                adviser: adviserName,
+                principal: schoolProfile.head_name || '',
+                principalTitle: schoolProfile.head_position || 'School Head',
+                grades: studentGrades.grades || {},
+                subjects: studentGrades.subjects || [],
+                observedValues: studentValues,
+                comments: studentComments,
+                attendance,
+                gradeLevel: selectedStudent.grade_level,
+                subjectTerm: buildSubjectTermResolver(),
+                pageSize: pageSize,
+            };
+
+            await exportSF9ToExcel(exportOpts);
+            useAppStore.getState().showNotification('SF9 Excel exported successfully', 'success');
+        } catch (error) {
+            console.error('Excel export failed:', error);
+            useAppStore.getState().showNotification('Failed to export SF9 to Excel: ' + (error as Error).message, 'error');
+        }
+    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, buildSubjectTermResolver, pageSize]);
+
+    /** Export batch SF9 (all students in section) to Excel */
+    const handleBatchExcelExport = useCallback(async () => {
+        if (!selectedSectionObj) return;
+        try {
+            useAppStore.getState().showNotification('Generating SF9 Excel batch...', 'info');
+            const sortedStudents = [...males, ...females];
+            if (sortedStudents.length === 0) {
+                useAppStore.getState().showNotification('No students found to export.', 'error');
+                return;
+            }
+
+            const batchOptions: SF9ExcelExportOptions[] = sortedStudents.map(student => {
+                const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const values = computeStudentValues(student, observedValues, activeSchoolYear);
+                const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+                const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
+                const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+                const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
+                const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
+
+                return {
+                    student,
+                    schoolProfile,
+                    schoolYear: activeSchoolYear,
+                    section: sectionName,
+                    adviser: adviserName,
+                    principal: schoolProfile.head_name || '',
+                    principalTitle: schoolProfile.head_position || 'School Head',
+                    grades,
+                    subjects: compSubjects,
+                    observedValues: values,
+                    comments: studentComments,
+                    attendance,
+                    gradeLevel: student.grade_level,
+                    subjectTerm: buildSubjectTermResolver(),
+                    pageSize: pageSize,
+                };
+            });
+
+            await exportSF9BatchToExcel(batchOptions, selectedSectionObj.section_name, activeSchoolYear);
+            useAppStore.getState().showNotification('SF9 Excel batch exported successfully', 'success');
+        } catch (error) {
+            console.error('Batch Excel export failed:', error);
+            useAppStore.getState().showNotification('Failed to export batch SF9 to Excel: ' + (error as Error).message, 'error');
+        }
+    }, [selectedSectionObj, males, females, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections, observedValues, sf2Sheets, attendanceRecords, sections, adviserName, buildSubjectTermResolver, pageSize]);
+
     const handleCommitValues = async () => {
         if (!selectedStudent || Object.keys(pendingChanges).length === 0) {
             setIsValuesModalOpen(false);
@@ -3062,6 +3158,13 @@ export function SF9Page() {
                                 >
                                     <Download className="w-3 h-3" />
                                 </PDFDownloadLink>
+                                <button
+                                    onClick={handleExcelExport}
+                                    className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-emerald-200/60 dark:border-emerald-700/30 hover:border-emerald-300 transition-all flex items-center justify-center shrink-0 active:scale-95 duration-200"
+                                    title="Export to Excel"
+                                >
+                                    <FileSpreadsheet className="w-3 h-3" />
+                                </button>
                             </div>
                         )}
                     </div>
@@ -3792,6 +3895,18 @@ export function SF9Page() {
                                             <Download className="w-4 h-4" />
                                             Download Official PDF
                                         </a>
+                                        <button
+                                            onClick={() => {
+                                                handleBatchExcelExport();
+                                                setShowCompletionModal(false);
+                                                setIsGeneratingBatch(false);
+                                                setBatchProgress(0);
+                                            }}
+                                            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black text-[12px] uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" />
+                                            Download Excel Version
+                                        </button>
                                     </div>
                                 )}
                                 <button 
