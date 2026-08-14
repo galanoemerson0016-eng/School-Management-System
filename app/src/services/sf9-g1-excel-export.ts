@@ -39,7 +39,9 @@ export interface SF9Grade1ExcelExportOptions {
 export function isGrade1(gradeLevel?: string): boolean {
   if (!gradeLevel) return false;
   const g = gradeLevel.toString().trim().toLowerCase();
-  return g === '1' || g === 'grade 1' || g === 'grade-1' || g === 'g1' || g.startsWith('grade 1 ') || g.includes('grade 1');
+  const digits = g.replace(/\D/g, '');
+  if (digits === '10' || digits === '11' || digits === '12') return false;
+  return digits === '1' || g === 'g1' || /^grade\s*1(\D|$)/i.test(g);
 }
 
 /**

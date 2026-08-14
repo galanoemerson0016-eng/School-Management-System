@@ -3339,12 +3339,26 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.10.3 */}
+                                {/* Version 2.10.4 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.3</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.4</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🏫 <strong>Grade 11 & Grade 12 SF9 Routing Fix</strong>: Fixed Grade 11 and Grade 12 SF9 template matching to strictly exclude Senior High from Grade 1 rules.</li>
+                                        <li>📜 <strong>Restored SHS Template Layout</strong>: Restored official SHS multi-semester Track/Strand SF9 template rendering and Excel exporter for Grade 11 & Grade 12.</li>
+                                        <li>📐 <strong>Junior High & Elementary Alignment</strong>: Standardized <code>isGrade1to10</code> range check (1 to 10) for Junior High and Elementary sections.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 2.10.3 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.10.3</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

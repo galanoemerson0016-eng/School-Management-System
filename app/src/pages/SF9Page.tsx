@@ -1595,7 +1595,8 @@ const isGrade1Level = (gLevel?: string): boolean => {
     if (!gLevel) return false;
     const g = gLevel.toString().trim().toLowerCase();
     const digits = g.replace(/\D/g, '');
-    return digits === '1' || g.includes('grade 1') || g.includes('grade1') || g === 'g1' || g === '1' || g.startsWith('1');
+    if (digits === '10' || digits === '11' || digits === '12') return false;
+    return digits === '1' || g === 'g1' || /^grade\s*1(\D|$)/i.test(g);
 };
 
 function SF9Pages({
@@ -2718,7 +2719,7 @@ export function SF9Page() {
     const isGrade1to10 = useMemo(() => {
         if (!selectedStudent) return false;
         const gradeNum = parseInt(selectedStudent.grade_level?.replace(/\D/g, '') || '0');
-        return gradeNum >= 1 && gradeNum <= 12;
+        return gradeNum >= 1 && gradeNum <= 10;
     }, [selectedStudent]);
 
     useEffect(() => {

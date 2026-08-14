@@ -1,5 +1,17 @@
 # Version History
 
+## v2.10.4 (2026-08-14)
+
+### 🐞 Bug Fixes
+
+- Fixed Grade 11 and Grade 12 SF9 template routing to strictly exclude Senior High from Grade 1 rules.
+- Restored SHS multi-semester Track/Strand SF9 template rendering and Excel exporter for Grade 11 & Grade 12.
+- Standardized `isGrade1to10` range check (1 to 10) for Junior High and Elementary sections.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.10.3 (2026-08-14)
 
 ### 🚀 New Features & Enhancements
