@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.2';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.3';
       const api = window.electronAPI;
 
       try {
@@ -402,11 +402,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🐛 Fixed SF2 Excel export fetch error in production binary.",
-              "🏛️ Redesigned SF2 bottom section to match official 3-column DepEd format (Formulas under Guidelines #3).",
-              "📐 Standardized SF2 attendance matrix cells to strict 22px x 22px uniform squares across all symbols.",
-              "✏️ Enabled in-app summary cell editing and blank defaults for Late Enrollment, NLS, Transferred In/Out.",
-              "🎨 Redesigned Dashboard cards (Academic Performance, At-Risk Learners, Announcements) to eliminate text clipping."
+              "🎓 Enhanced Certificate Generator with instant 50ms scan and multi-format term matching.",
+              "🔗 Resolved bidirectional subject ID and subject name resolution for DepEd honor awards.",
+              "📊 Fixed attendance absent sentinel (-1) calculation in Reports page.",
+              "📋 Added Grade 1 SF9 template and PACE Reading & Literacy excel exporter."
             ],
             timestamp: Date.now(),
             status: 'success',

@@ -1,5 +1,26 @@
 # Version History
 
+## v2.10.3 (2026-08-14)
+
+### 🚀 New Features & Enhancements
+
+- Added official DepEd Grade 1 SF9 Excel Export template and service.
+- Added PACE Form Reading & Literacy template support.
+
+### ⚡ Improvements
+
+- Instant 50ms Certificate Generator scan with zero-flicker stale state clearing.
+- Bidirectional subject ID and subject name matching for DepEd Honor evaluation.
+
+### 🐞 Bug Fixes
+
+- Fixed Term 1 Academic Excellence Certificate evaluation for quarter string variations (`q1`, `Term 1`, `1`).
+- Fixed perfect attendance absent sentinel calculation (-1) in Reports Page.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.10.2 (2026-08-08)
 
 ### Fixed & Enhanced
