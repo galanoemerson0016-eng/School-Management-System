@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.10.4';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.0';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🏫 Fixed Grade 11 and Grade 12 SF9 template routing to strictly exclude Senior High from Grade 1 rules.",
-              "📜 Restored SHS multi-semester Track/Strand SF9 template rendering and Excel exporter for Grade 11 & Grade 12.",
-              "📐 Standardized isGrade1to10 range check (1 to 10) for Junior High and Elementary."
+              "📋 Added Grade 1 PACE Form Excel export templates & services (Reading & Literacy, GMRC & MAKABANSA, Language, and Mathematics).",
+              "📄 Added dedicated PACE Form interactive rendering page & template configuration.",
+              "🎓 Integrated PACE Form navigation tab in School Forms Page."
             ],
             timestamp: Date.now(),
             status: 'success',

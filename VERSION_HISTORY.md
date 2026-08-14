@@ -1,5 +1,21 @@
 # Version History
 
+## v2.11.0 (2026-08-14)
+
+### 🚀 New Features & Enhancements
+
+- Added Grade 1 PACE Form Excel export templates & services for Reading & Literacy, GMRC & MAKABANSA, Language, and Mathematics.
+- Added dedicated interactive PACE Form rendering page & template configuration.
+- Integrated PACE Form navigation tab in School Forms Page.
+
+### 🐞 Bug Fixes
+
+- Fixed candidate subject type evaluation in Academic Excellence evaluation.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.10.4 (2026-08-14)
 
 ### 🐞 Bug Fixes
