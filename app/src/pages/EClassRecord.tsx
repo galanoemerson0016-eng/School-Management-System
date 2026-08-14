@@ -2,10 +2,11 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
+import { isGrade1 } from '../services/sf9-g1-excel-export';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -492,7 +493,9 @@ export function EClassRecord() {
         return sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
     }, [sections, selectedSection]);
 
+    const setCurrentView = useAppStore((s) => s.setCurrentView);
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
+    const isGrade1Section = isGrade1(sectionGradeLevel);
     const selectedSubjectObj = useMemo(() => {
         return subjects.find(s => s.id === selectedSubject);
     }, [subjects, selectedSubject]);
@@ -1512,8 +1515,8 @@ export function EClassRecord() {
                         <select
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
-                            disabled={!selectedSection}
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                            disabled={isGrade1Section || !selectedSection}
                         >
                             <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
                             {groupedSubjects ? (
@@ -1542,7 +1545,8 @@ export function EClassRecord() {
                             <select
                                 value={selectedMapehComponentId}
                                 onChange={(e) => setSelectedMapehComponentId(e.target.value)}
-                                className="form-input border-amber-400 bg-amber-50 h-8 py-1 px-2 text-[11px] rounded-xl"
+                                className="form-input border-amber-400 bg-amber-50 h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                                disabled={isGrade1Section}
                             >
                                 {mapehComponents.map((c) => (
                                     <option key={c.id} value={c.id}>{c.subject_name}</option>
@@ -1553,14 +1557,19 @@ export function EClassRecord() {
 
                     <div className="w-full lg:w-25 shrink-0">
                         <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
-                        <select value={quarter} onChange={(e) => {
-                            const val = e.target.value;
-                            if (val.startsWith('summary')) {
-                                setQuarter(val as any);
-                            } else {
-                                setQuarter(Number(val) as any);
-                            }
-                        }} className="form-input h-8 py-1 px-2 text-[11px] rounded-xl">
+                        <select 
+                            value={quarter} 
+                            disabled={isGrade1Section}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val.startsWith('summary')) {
+                                    setQuarter(val as any);
+                                } else {
+                                    setQuarter(Number(val) as any);
+                                }
+                            }} 
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                        >
                             <option value={1}>Term 1</option>
                             <option value={2}>Term 2</option>
                             <option value={3}>Term 3</option>
@@ -1582,8 +1591,9 @@ export function EClassRecord() {
                         </label>
                         <select
                             value={paperSize}
+                            disabled={isGrade1Section}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
                                 <option key={key} value={key}>{label}</option>
@@ -1591,10 +1601,11 @@ export function EClassRecord() {
                         </select>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <div className="flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200">
+                        <div className={`flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200 ${isGrade1Section ? 'opacity-40 cursor-not-allowed' : ''}`}>
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                disabled={isGrade1Section}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
                                 title="Zoom Out"
                             >
                                 <Minus className="w-3 h-3" />
@@ -1604,7 +1615,8 @@ export function EClassRecord() {
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                disabled={isGrade1Section}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
                                 title="Zoom In"
                             >
                                 <Plus className="w-3 h-3" />
@@ -1613,19 +1625,24 @@ export function EClassRecord() {
                         {selectedSubject && selectedSubject !== 'virtual_mapeh' && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
-                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                disabled={isGrade1Section}
+                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale disabled:scale-100"
                                 title="Manage Enrolled Students"
                             >
                                 <Users className="w-3.5 h-3.5" /> Enrolled Learners
                             </button>
                         )}
-                        <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
+                        <button 
+                            onClick={handlePrint} 
+                            disabled={isGrade1Section}
+                            className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                        >
                             <Printer className="w-3.5 h-3.5" /> Print Record
                         </button>
                         <button 
                             onClick={handleDownload}
-                            disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
+                            disabled={isGrade1Section || isDownloading || !selectedSubject || sectionStudents.length === 0}
+                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
                         >
                             {isDownloading ? (
                                 <>
@@ -1674,8 +1691,8 @@ export function EClassRecord() {
                                     showNotification("Failed to publish grades.", "error");
                                 }
                             }}
-                            disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
+                            disabled={isGrade1Section || !selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
+                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
                         >
                             <CloudUpload className="w-3.5 h-3.5" /> Publish
                         </button>
@@ -1690,7 +1707,66 @@ export function EClassRecord() {
                         className="eclass-zoom-shell origin-top transition-all duration-300"
                         style={{ transform: `scale(${zoom})` }}
                     >
-                    {typeof quarter === 'string' && quarter.startsWith('summary') ? (
+                    {isGrade1Section ? (
+                        <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-6">
+                            <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-blue-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(37,99,235,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                                {/* Ambient Blue Soft Gradient Orbs */}
+                                <div className="absolute -top-28 -left-28 w-56 h-56 bg-blue-400/15 rounded-full blur-3xl pointer-events-none" />
+                                <div className="absolute -bottom-28 -right-28 w-56 h-56 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Left/Top Column: Centered 3D Floating Icon Stack */}
+                                <div className="shrink-0 flex justify-center mx-auto md:mx-0">
+                                    <div className="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-slate-800 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)] flex items-center justify-center relative border border-slate-100 dark:border-slate-700/60 transition-transform duration-500 hover:scale-105">
+                                        <FileText className="w-14 h-14 md:w-18 md:h-18 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                                        
+                                        {/* Overlapping Badge */}
+                                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-linear-to-br from-blue-600 to-indigo-600 text-white font-black text-xs md:text-sm tracking-wider flex items-center justify-center shadow-lg shadow-blue-600/30 absolute -bottom-3 -right-3 border-2 border-white dark:border-slate-900">
+                                            PACE
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Fully Center-Aligned Information & Actions */}
+                                <div className="flex-1 space-y-3.5 text-center flex flex-col items-center justify-center">
+                                    {/* Status Pill Header */}
+                                    <div className="flex justify-center w-full">
+                                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/80 text-blue-600 dark:text-blue-400 text-[10.5px] font-black uppercase tracking-widest shadow-xs">
+                                            <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                            <span>OFFICIAL DEPED MATATAG ASSESSMENT STANDARD</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Title & Main Explanation */}
+                                    <div className="space-y-2 text-center w-full">
+                                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight text-center">
+                                            GRADE 1 PACE FORM MODULE ACTIVE
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium text-center max-w-xl mx-auto">
+                                            Under the DepEd MATATAG Curriculum, Grade 1 learners do not use traditional numerical percentages or numerical E-Class Records.
+                                        </p>
+                                        <p className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal text-center max-w-lg mx-auto">
+                                            All Grade 1 assessment logic and student competency evaluations are managed qualitatively via the official Performance & Competency Evaluation (PACE) Form module.
+                                        </p>
+                                    </div>
+
+                                    {/* Sub-label & Primary Action Pill Button */}
+                                    <div className="pt-1 flex flex-col items-center justify-center text-center w-full gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 block text-center">
+                                            MATATAG CURRICULUM ROUTE QUEUE
+                                        </span>
+                                        <button
+                                            onClick={() => setCurrentView('pace-form')}
+                                            className="inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-blue-600/30 hover:shadow-blue-600/40 cursor-pointer"
+                                        >
+                                            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                            <span>OPEN GRADE 1 PACE FORM MODULE</span>
+                                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : typeof quarter === 'string' && quarter.startsWith('summary') ? (
                         <div id="printable-summary-record" className="bg-white text-black px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
                             {/* Header Section matching image */}
                              <div className="flex justify-between items-start mb-6 text-black">

@@ -290,6 +290,17 @@ export function SchoolFormsPage() {
                 { label: 'Sections', value: activeSectionsCount },
             ],
         },
+        {
+            id: 'pace',
+            title: 'PACE Form',
+            description: 'Performance Assessment in Reading and Literacy (PACE Form 138-Reading). DepEd MATATAG competency assessment.',
+            icon: FileText,
+            color: 'amber',
+            stats: [
+                { label: 'Competencies', value: 27 },
+                { label: 'Terms', value: 3 },
+            ],
+        },
     ];
 
     const handleFormOpen = (id: string) => {
@@ -318,6 +329,8 @@ export function SchoolFormsPage() {
             setCurrentView('lir');
         } else if (id === 'tgs') {
             setCurrentView('tgs');
+        } else if (id === 'pace') {
+            setCurrentView('pace');
         }
     };
 

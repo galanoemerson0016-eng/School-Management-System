@@ -47,6 +47,7 @@ const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m
 const ActivationPage = lazy(() => import('./pages/ActivationPage').then(m => ({ default: m.ActivationPage })));
 const LIRPage = lazy(() => import('./pages/LIRPage').then(m => ({ default: m.LIRPage })));
 const TemporaryGradeSlipPage = lazy(() => import('./pages/TemporaryGradeSlipPage').then(m => ({ default: m.TemporaryGradeSlipPage })));
+const PaceFormPage = lazy(() => import('./pages/PaceFormPage').then(m => ({ default: m.PaceFormPage })));
 const GamesAndToolsPage = lazy(() => import('./pages/GamesAndToolsPage').then(m => ({ default: m.GamesAndToolsPage })));
 const OnlineGeneratorsPage = lazy(() => import('./pages/OnlineGeneratorsPage').then(m => ({ default: m.OnlineGeneratorsPage })));
 const StudentIDGeneratorPage = lazy(() => import('./pages/StudentIDGeneratorPage').then(m => ({ default: m.StudentIDGeneratorPage })));
@@ -575,6 +576,8 @@ function App() {
         return <LIRPage />;
       case 'tgs':
         return <TemporaryGradeSlipPage />;
+      case 'pace':
+        return <PaceFormPage />;
       case 'games-tools':
         return <GamesAndToolsPage />;
       case 'online-generators':
@@ -628,7 +631,7 @@ function App() {
           <div className="print:hidden">
             <Header />
           </div>
-          <div className={`flex-1 flex flex-col ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
+          <div className={`flex-1 flex flex-col ${['sf9', 'sf10', 'sf8', 'sf5', 'sf6', 'attendance', 'lir', 'certificates', 'name-tags', 'class-record', 'eclass', 'student-id-generator', 'consolidated-grades', 'tgs', 'pace'].includes(currentView) ? 'overflow-hidden p-0' : 'overflow-y-auto p-3 lg:p-4 custom-scrollbar'} print:p-0 print:overflow-visible`}>
             <ErrorBoundary>
               <Suspense fallback={<ContentLoading />}>
                 {renderContent()}

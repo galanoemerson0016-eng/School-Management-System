@@ -73,7 +73,7 @@ export function calculateStudentAverage(
     const targetLrn = String(studentLrn || '').trim();
     const sectionSubjects = getSectionSubjects(sectionId, sectionGradeLevel, subjects);
 
-    let candidateSubjects: { id: string; name: string }[] = sectionSubjects.map(s => ({ id: s.id, name: s.subject_name }));
+    const candidateSubjects: { id: string; name: string }[] = sectionSubjects.map(s => ({ id: s.id, name: s.subject_name }));
 
     // Fallback: If no candidate subjects derived from section/store, check student records
     if (candidateSubjects.length === 0) {
