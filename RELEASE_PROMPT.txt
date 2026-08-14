@@ -1,4 +1,4 @@
-# Release FormEase Pro (Enhanced Workflow)
+# Release FormEase Pro (Enhanced Workflow v2.1)
 
 Prepare, verify, and publish a new official release for FormEase Pro by strictly following this workflow.
 
@@ -6,7 +6,8 @@ Prepare, verify, and publish a new official release for FormEase Pro by strictly
 
 ## 1. Pre-Flight Verification & Health Check
 Before initiating the release, verify project health:
-1. Check that the Git working tree is clean (`git status`).
+1. Inspect Git working tree state (`git status`).
+   - If there are uncommitted feature/fix changes, stage and commit them first (`git commit -m "feat/fix: ..."`).
 2. Run pre-flight build check in `app/`: execute `npm run build && npm run obfuscate:electron && npm run release:check && npx tsc --noEmit`.
 3. Run unit test suite in `app/`: execute `npx vitest run`.
 4. If any pre-flight step fails, ABORT immediately and display the error traceback.
@@ -15,20 +16,21 @@ Before initiating the release, verify project health:
 
 ## 2. Determine Release Type
 Determine the version bump level:
-- **Patch** (e.g., 2.8.0 -> 2.8.1): Bug fixes, performance tweaks, or minor text/styling updates.
-- **Minor** (e.g., 2.8.0 -> 2.9.0): New backward-compatible features, modules, or enhancements.
-- **Major** (e.g., 2.8.0 -> 3.0.0): Breaking changes, major structural updates, or architectural overhauls.
+- **Patch** (e.g., 2.10.2 -> 2.10.3): Bug fixes, performance tweaks, or minor text/styling updates.
+- **Minor** (e.g., 2.10.2 -> 2.11.0): New backward-compatible features, modules, or enhancements.
+- **Major** (e.g., 2.10.2 -> 3.0.0): Breaking changes, major structural updates, or architectural overhauls.
 
 ---
 
-## 3. Collect Release Information
-Collect details regarding the release:
-- Summary of new features, performance improvements, bug fixes, or security patches.
-- Associated GitHub issue numbers or commit references (if applicable).
-
-Generate:
-- A Conventional Commit message (e.g., `chore(release): v2.8.1` or `feat: add student ID bulk exporter`).
-- A human-readable release summary formatted for `VERSION_HISTORY.md` and `SettingsPage.tsx`.
+## 3. Collect Release Information & Synthesize History
+1. Run `git log v<current-version>..HEAD --oneline` to extract all commits since the last release tag.
+2. Group extracted commits into:
+   - 🚀 **New Features & Enhancements**
+   - ⚡ **Improvements**
+   - 🐞 **Bug Fixes**
+3. Generate:
+   - A Conventional Commit message (e.g., `chore(release): v2.10.3`).
+   - A human-readable release summary formatted for `VERSION_HISTORY.md` and `SettingsPage.tsx`.
 
 ---
 
@@ -39,11 +41,11 @@ Display a release preview plan and WAIT for explicit user approval (`Proceed`) b
 =============================================================
   FormEase Pro Release Preview
 =============================================================
-Current Version : v2.8.0
+Current Version : v2.10.2
 Release Type    : Patch
-New Version     : v2.8.1
+New Version     : v2.10.3
 
-Commit Message  : chore(release): v2.8.1
+Commit Message  : chore(release): v2.10.3
 
 Files to Modify :
   ✓ app/package.json
@@ -55,10 +57,9 @@ Files to Modify :
   ✓ app/dist-electron/license.cjs
 
 Release Notes   :
-  • Fixed electron-updater metadata checksum matching
-  • Enhanced SF2 attendance roster filtering by First Day of Attendance
-  • Automatic normalized subject deduplication in SF9 and Consolidated Grades
-  • Tailored 1-click macOS DMG installer update workflow
+  • Fixed Term 1 certificate evaluation & multi-format quarter matching
+  • Enhanced attendance absent sentinel calculation (-1) in Reports page
+  • Automated subject ID to subject name resolution in certificate generator
 =============================================================
 ```
 
@@ -113,7 +114,8 @@ Verify release asset automation integrity:
 ---
 
 ## 8. Create Release Commit & Git Tag
-1. Stage all modified files (`app/package.json`, `app/src/stores/update-store.ts`, `VERSION_HISTORY.md`, `app/src/pages/SettingsPage.tsx`, `app/dist-electron/*`, `.github/workflows/*`).
+1. Stage all modified files:
+   `git add app/package.json app/src/stores/update-store.ts VERSION_HISTORY.md app/src/pages/SettingsPage.tsx app/dist-electron/ app/public/templates/ .github/workflows/`
 2. Commit with the release message:
    `git commit -m "chore(release): v<new-version>"`
 3. Create an annotated Git tag matching the exact version:
@@ -123,7 +125,7 @@ Verify release asset automation integrity:
 ---
 
 ## 9. Publish Release & Trigger Pipeline
-Push the commit and tag to GitHub:
+Push the branch ref and tag to GitHub (using full refspecs to avoid name collisions):
 `git push origin refs/heads/main`
 `git push origin v<new-version>`
 
@@ -134,8 +136,8 @@ Verify:
 - [x] Working directory is clean (`git status`).
 - [x] Commit and Tag exist on GitHub remote (`origin/main` & `v<new-version>`).
 - [x] `app/package.json`, `update-store.ts`, and `VERSION_HISTORY.md` match `v<new-version>`.
+- [x] Provide direct link to monitor GitHub Actions pipeline: `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
 - [x] Inform user that GitHub Actions takes 3–5 minutes to compile installers (`.exe` and `.dmg`) and publish release metadata on GitHub Releases.
-- [x] Ensure release on target repository is published (not draft).
 
 Output final summary:
 ```
@@ -144,7 +146,8 @@ Output final summary:
 Released Version : v<new-version>
 Git Tag          : v<new-version>
 Release Type     : Patch / Minor / Major
-GitHub Status    : Pushed to origin/main & v<new-version>
+GitHub Status    : Pushed to refs/heads/main & v<new-version>
+Pipeline Monitor : https://github.com/galanoemerson0016-eng/School-Management-System/actions
 
 Modified Files   :
   ✓ app/package.json
@@ -162,5 +165,6 @@ Modified Files   :
 - **Never skip Preview**: Always display the preview and receive confirmation before writing file changes.
 - **Fail-Fast**: If `npm run build`, `npm run obfuscate:electron`, `tsc --noEmit`, or `vitest run` fails, stop immediately.
 - **Reverse Chronological**: Ensure latest releases are at the top of `VERSION_HISTORY.md`.
-- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v2.8.1`).
+- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v2.10.3`).
+- **Refspec Precision**: Always use `refs/heads/main` when pushing to avoid refspec ambiguity.
 - **Dynamic Checksum Protection**: Always write patched `latest.yml` and `latest-mac.yml` with re-calculated SHA-512 hashes back to release metadata before uploading assets.
