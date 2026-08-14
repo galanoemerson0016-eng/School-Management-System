@@ -298,6 +298,10 @@ const StudentGradeRow = memo(({
         const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
 
+        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
+        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
+        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
+
         let qaScore = 0;
         let qaHPS = 0;
         if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
@@ -333,6 +337,7 @@ const StudentGradeRow = memo(({
             hasScores,
             wwTotalScore, wwTotalHPS, wwPS, wwWS,
             ptTotalScore, ptTotalHPS, ptPS, ptWS,
+            st1WS, st2WS, teWS,
             qaScore, qaHPS, qaPS, qaWS,
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
@@ -400,10 +405,12 @@ const StudentGradeRow = memo(({
                     </td>
                 ))
             }
-            <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaScore : ''}</td>
-            <td className="border border-black bg-yellow-50/30">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-100/50 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-slate-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
+            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>}
+            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>}
+            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>}
+            <td className="border border-black bg-yellow-50/30 text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-100/50 font-semibold text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-slate-100 font-bold">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
             <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[9.5px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
                 {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
             </td>
@@ -1767,7 +1774,7 @@ export function ShsEClassRecord() {
                                             <span>PRODUCT / PERFORMANCE</span><br />
                                             <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
                                         </th>
-                                        <th colSpan={currentCluster === 'shs_field_exposure' ? 4 : 6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-50/50 leading-tight">
+                                        <th colSpan={currentCluster === 'shs_field_exposure' ? 3 : 8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-50/50 leading-tight">
                                             <span>SUMMATIVE TESTS & TERM</span><br />
                                             <span>EXAMINATION ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
                                         </th>
@@ -1784,12 +1791,14 @@ export function ShsEClassRecord() {
                                         <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-10 font-bold">ST1 (30%)</th>}
-                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-10 font-bold">ST2 (30%)</th>}
-                                        <th className="bg-gray-50 border border-black w-10 font-bold">{teHeaderLabel}</th>
-                                        <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
+                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST1</th>}
+                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST2</th>}
+                                        <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">{teHeaderLabel}</th>
+                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
+                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
+                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>}
+                                        <th className="border border-black w-12 bg-slate-100 font-bold text-[8px] leading-none">PS{!isFieldExposure && <><br/><span className="text-[6.5px] font-normal">(ST & TE)</span></>}</th>
+                                        <th className="border border-black w-12 bg-slate-100 font-bold text-[8px] leading-none">WS{!isFieldExposure && <><br/><span className="text-[6.5px] font-normal">(ST & TE)</span></>}</th>
                                     </tr>
                                     <tr className="font-bold h-8 text-[8px]">
                                         <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[9px] font-black uppercase bg-slate-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
@@ -1842,14 +1851,16 @@ export function ShsEClassRecord() {
                                                 </td>
                                             ))
                                         }
-                                        <td className="border border-black bg-slate-200">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-slate-200">100.00</td>
-                                        <td className="border border-black bg-slate-200">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
+                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>}
+                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>}
+                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>}
+                                        <td className="border border-black bg-slate-200 text-[8px]">100.00</td>
+                                        <td className="border border-black bg-slate-200 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold text-left h-6">
-                                        <td colSpan={isFieldExposure ? 22 : 24} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
+                                        <td colSpan={isFieldExposure ? 21 : 26} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>

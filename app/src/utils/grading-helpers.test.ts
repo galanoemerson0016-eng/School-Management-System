@@ -213,5 +213,63 @@ describe('Grading Helpers', () => {
       const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, attendanceRecords, []);
       expect(count).toBe(2);
     });
+
+    it('returns -1 when no attendance data exists at all for the term', () => {
+      // No SF2 sheets, no attendance records → should return -1 (no data)
+      const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, [], []);
+      expect(count).toBe(-1);
+    });
+
+    it('returns -1 when attendance data exists but for a different term', () => {
+      // SF2 sheet for Term 2 (september), but querying Term 1 → no data for Term 1
+      const sf2Sheets: SF2Sheet[] = [
+        {
+          id: 'sec-einstein_2026-2027_september',
+          section_id: 'sec-einstein',
+          school_year: '2026-2027',
+          month: 'september',
+          attendance: {
+            '123456789012': {
+              '2026-09-01': 'present',
+              '2026-09-02': 'absent',
+            }
+          }
+        }
+      ] as unknown as SF2Sheet[];
+
+      const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, [], sf2Sheets);
+      expect(count).toBe(-1);
+    });
+
+    it('returns 0 when attendance data exists and student has no absences (confirmed perfect)', () => {
+      const sf2Sheets: SF2Sheet[] = [
+        {
+          id: 'sec-einstein_2026-2027_june',
+          section_id: 'sec-einstein',
+          school_year: '2026-2027',
+          month: 'june',
+          attendance: {
+            '123456789012': {
+              '2026-06-01': 'present',
+              '2026-06-02': 'present',
+              '2026-06-03': 'present',
+            }
+          }
+        }
+      ] as unknown as SF2Sheet[];
+
+      const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, [], sf2Sheets);
+      expect(count).toBe(0);
+    });
+
+    it('returns 0 for confirmed present from individual attendance records', () => {
+      const attendanceRecords: AttendanceRecord[] = [
+        { id: 'a1', student_lrn: '123456789012', date: '2026-06-05', status: 'present' },
+        { id: 'a2', student_lrn: '123456789012', date: '2026-06-10', status: 'present' },
+      ] as unknown as AttendanceRecord[];
+
+      const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, attendanceRecords, []);
+      expect(count).toBe(0);
+    });
   });
 });

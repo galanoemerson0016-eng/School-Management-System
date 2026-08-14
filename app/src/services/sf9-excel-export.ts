@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import type { Student, SchoolProfile } from '../types';
 import { formatLearnerName } from '../utils/student-name';
 import { formatGradeForDisplay } from '../lib/grading';
+import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1Template } from './sf9-g1-excel-export';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -40,6 +41,14 @@ export interface SF9ExcelExportOptions {
     daysAbsent: number[];
   };
   gradeLevel: string;
+  g1Remarks?: {
+    term1CanDo?: string;
+    term1ToImprove?: string;
+    term2CanDo?: string;
+    term2ToImprove?: string;
+    term3CanDo?: string;
+    term3ToImprove?: string;
+  };
   subjectTerm?: (subjectName: string, subjectId?: string) => 1 | 2 | 3 | 'all' | 'none' | undefined;
   pageSize?: 'A4' | 'LETTER';
 }
@@ -193,9 +202,20 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   const totalAbsent = attendance.daysAbsent.length > 0 ? attendance.daysAbsent[attendance.daysAbsent.length - 1] : 0;
   
   // Col 35 (AI) is the Total column
-  ws.getCell(5, 35).value = totalDays || 0;
-  ws.getCell(7, 35).value = totalPresent || 0;
-  ws.getCell(9, 35).value = totalAbsent || 0;
+  const cTotDays = ws.getCell(5, 35);
+  delete (cTotDays as unknown as { formula?: string }).formula;
+  if (cTotDays.model) delete cTotDays.model.formula;
+  cTotDays.value = totalDays || 0;
+
+  const cTotPres = ws.getCell(7, 35);
+  delete (cTotPres as unknown as { formula?: string }).formula;
+  if (cTotPres.model) delete cTotPres.model.formula;
+  cTotPres.value = totalPresent || 0;
+
+  const cTotAbs = ws.getCell(9, 35);
+  delete (cTotAbs as unknown as { formula?: string }).formula;
+  if (cTotAbs.model) delete cTotAbs.model.formula;
+  cTotAbs.value = totalAbsent || 0;
 
   // -- Grades --
   let subjectRow = 28; // Starts at Row 28 (Row 26 & 27 are template headers)
@@ -407,34 +427,50 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
 }
 
 /**
- * Post-process the xlsx buffer to fix font entries that ExcelJS generates
- * without the 'family' attribute. Without family="1", Excel may not properly
- * resolve Bookman Old Style and falls back to default font sizing.
+ * Post-process the xlsx buffer to fix font entries and remove stale calcChain XML
+ * that causes Excel to show "Removed Records: Formula from /xl/worksheets/sheet1.xml part"
  */
 async function postProcessXlsxFonts(buffer: ArrayBuffer): Promise<ArrayBuffer> {
   const zip = await JSZip.loadAsync(buffer);
+  
+  // 1. Remove stale calcChain.xml and external links XML to prevent Excel repair warnings
+  zip.remove('xl/calcChain.xml');
+  zip.remove('xl/externalLinks/externalLink1.xml');
+  zip.remove('xl/externalLinks/_rels/externalLink1.xml.rels');
+
+  const wbRel = zip.file('xl/_rels/workbook.xml.rels');
+  if (wbRel) {
+    let xml = await wbRel.async('string');
+    xml = xml.replace(/<Relationship[^>]*Target="externalLinks\/[^"]*"[^>]*\/>/g, '');
+    zip.file('xl/_rels/workbook.xml.rels', xml);
+  }
+
+  const wbFile = zip.file('xl/workbook.xml');
+  if (wbFile) {
+    let xml = await wbFile.async('string');
+    xml = xml.replace(/<externalLink[^>]*\/>/g, '').replace(/<externalReferences>[\s\S]*?<\/externalReferences>/g, '');
+    zip.file('xl/workbook.xml', xml);
+  }
+
+  // 3. Fix Bookman Old Style font entries missing family val="1"
   const stylesFile = zip.file('xl/styles.xml');
-  if (!stylesFile) return buffer;
-
-  let stylesXml = await stylesFile.async('string');
-
-  // Fix any Bookman Old Style font entry missing family val="1"
-  // Pattern: <font>...<name val="Bookman Old Style"/>...</font> without <family
-  stylesXml = stylesXml.replace(
-    /<font>((?:(?!<family)[\s\S])*?<name val="Bookman Old Style"\/>[\s\S]*?)<\/font>/g,
-    (match, inner) => {
-      if (!inner.includes('<family')) {
-        // Insert family val="1" before the name element
-        return match.replace(
-          '<name val="Bookman Old Style"/>',
-          '<family val="1"/><name val="Bookman Old Style"/>'
-        );
+  if (stylesFile) {
+    let stylesXml = await stylesFile.async('string');
+    stylesXml = stylesXml.replace(
+      /<font>((?:(?!<family)[\s\S])*?<name val="Bookman Old Style"\/>[\s\S]*?)<\/font>/g,
+      (match, inner) => {
+        if (!inner.includes('<family')) {
+          return match.replace(
+            '<name val="Bookman Old Style"/>',
+            '<family val="1"/><name val="Bookman Old Style"/>'
+          );
+        }
+        return match;
       }
-      return match;
-    }
-  );
+    );
+    zip.file('xl/styles.xml', stylesXml);
+  }
 
-  zip.file('xl/styles.xml', stylesXml);
   const newBuf = await zip.generateAsync({ type: 'arraybuffer' });
   return newBuf;
 }
@@ -443,8 +479,9 @@ async function postProcessXlsxFonts(buffer: ArrayBuffer): Promise<ArrayBuffer> {
  * Export a single student's SF9 to Excel
  */
 export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<void> {
-  const buffer = await fetchTemplateBuffer();
-  const wb = await populateTemplate(buffer, opts);
+  const isG1 = isGrade1(opts.gradeLevel || opts.student.grade_level);
+  const buffer = isG1 ? await fetchGrade1TemplateBuffer() : await fetchTemplateBuffer();
+  const wb = isG1 ? await populateGrade1Template(buffer, opts) : await populateTemplate(buffer, opts);
   
   let outBuffer = await wb.xlsx.writeBuffer();
   
@@ -476,13 +513,23 @@ export async function exportSF9BatchToExcel(
   
   if (studentOptions.length === 0) return;
   
-  const templateBuffer = await fetchTemplateBuffer();
+  const g1Buffer = await fetchGrade1TemplateBuffer().catch(() => null);
+  const g2Buffer = await fetchTemplateBuffer().catch(() => null);
   const zip = new JSZip();
   const total = studentOptions.length;
   
   for (let i = 0; i < total; i++) {
     const opts = studentOptions[i];
-    const wb = await populateTemplate(templateBuffer, opts);
+    const isThisG1 = isGrade1(opts.gradeLevel || opts.student.grade_level);
+    
+    let wb: ExcelJS.Workbook;
+    if (isThisG1 && g1Buffer) {
+      wb = await populateGrade1Template(g1Buffer, opts);
+    } else {
+      const buf = g2Buffer || await fetchTemplateBuffer();
+      wb = await populateTemplate(buf, opts);
+    }
+
     let outBuffer = await wb.xlsx.writeBuffer();
     outBuffer = await postProcessXlsxFonts(outBuffer as ArrayBuffer);
     

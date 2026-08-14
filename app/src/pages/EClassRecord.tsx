@@ -304,6 +304,10 @@ const StudentGradeRow = memo(({
         const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
 
+        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
+        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
+        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
+
         let qaScore = 0;
         let qaHPS = 0;
         if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
@@ -339,6 +343,7 @@ const StudentGradeRow = memo(({
             hasScores,
             wwTotalScore, wwTotalHPS, wwPS, wwWS,
             ptTotalScore, ptTotalHPS, ptPS, ptWS,
+            st1WS, st2WS, teWS,
             qaScore, qaHPS, qaPS, qaWS,
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
@@ -402,10 +407,12 @@ const StudentGradeRow = memo(({
                     />
                 </td>
             ))}
-            <td className="border border-black bg-yellow-50">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaScore : ''}</td>
-            <td className="border border-black bg-yellow-50">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50/70 text-[9px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-yellow-50 font-medium">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
             <td className="border border-black bg-yellow-100 font-semibold">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-gray-100 font-bold">{summary.initialGrade.toFixed(2)}</td>
+            <td className="border border-black bg-gray-100 font-bold">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
             <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
                 {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
             </td>
@@ -1973,7 +1980,7 @@ export function EClassRecord() {
                                             <span>PRODUCT / PERFORMANCE</span><br />
                                             <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
                                         </th>
-                                        <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
+                                        <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
                                             <span>SUMMATIVE TESTS AND TERM</span><br />
                                             <span>EXAMINATIONS ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
                                         </th>
@@ -1990,12 +1997,14 @@ export function EClassRecord() {
                                         <th className="border border-black w-10 bg-gray-200">Total</th>
                                         <th className="border border-black w-14 bg-gray-200">PS</th>
                                         <th className="border border-black w-12 bg-gray-200">WS</th>
-                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5 bg-gray-100">ST1<br/><span className="text-[7px] font-normal">(30%)</span></th>
-                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5 bg-gray-100">ST2<br/><span className="text-[7px] font-normal">(30%)</span></th>
-                                        <th className="border border-black w-10 text-[9px] font-bold leading-none py-0.5 bg-gray-100">TE<br/><span className="text-[7px] font-normal">(40%)</span></th>
-                                        <th className="border border-black w-10 bg-gray-200">Total</th>
-                                        <th className="border border-black w-14 bg-gray-200">PS</th>
-                                        <th className="border border-black w-12 bg-gray-200">WS</th>
+                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST1</th>
+                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST2</th>
+                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">TE</th>
+                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>
+                                        <th className="border border-black w-14 bg-gray-200 text-[8px] font-bold leading-none">PS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
+                                        <th className="border border-black w-12 bg-gray-200 text-[8px] font-bold leading-none">WS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
                                     </tr>
                                     <tr className="font-bold h-9">
                                         <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
@@ -2044,14 +2053,16 @@ export function EClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.qa.some(v => v !== '') ? hps.qa.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
+                                        <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
+                                        <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>
                                         <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.quarterly_exam * 100}%</td>
+                                        <td className="border border-black bg-gray-100 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold">
-                                        <td colSpan={24} className="border border-black text-left px-2 py-1">{section.gender}</td>
+                                        <td colSpan={26} className="border border-black text-left px-2 py-1">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>

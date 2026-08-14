@@ -5,7 +5,8 @@ import { Printer, ArrowLeft, Calendar as CalendarIcon, Search, GraduationCap, Fi
 import { CertificateRenderer } from '../components/certificates/CertificateRenderer';
 import { filterSF9Sections } from '../lib/rbac';
 import type { CertificateType, HonorsInfo } from '../utils/certificateUtils';
-import { getHonorsInfo, calculateStudentAverage } from '../utils/certificateUtils';
+import { getHonorsInfo, calculateStudentAverage, getSectionSubjects } from '../utils/certificateUtils';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { isDescriptiveGrading } from '../lib/grading';
 
 const TEMPLATE_CONFIG: Record<CertificateType, { excellenceAward: string, dateMonth: string }> = {
@@ -65,7 +66,7 @@ interface CustomAward {
 }
 
 export function CertificateGeneratorPage() {
-    const { setCurrentView, students, schoolProfile, gradingSheetRecords, subjects, activeSchoolYear, sections, teachers } = useAppStore();
+    const { setCurrentView, students, schoolProfile, classRecords, hpsRecords, gradingSheetRecords, subjects, activeSchoolYear, sections, teachers } = useAppStore();
     const { user } = useAuthStore();
     
     // Generator View State
@@ -272,43 +273,47 @@ export function CertificateGeneratorPage() {
     }, [schoolProfile, adviserSignatureUrl]);
 
     // Batch Scanning Logic
-    const handleBatchScan = () => {
-        if (!selectedSectionId) return;
+    const handleBatchScan = (overrideCertType?: CertificateType, overrideSectionId?: string) => {
+        const secId = overrideSectionId || selectedSectionId;
+        const targetCertType = overrideCertType || certType;
+        if (!secId) return;
         setIsBatchScanning(true);
+        setBatchStudents([]);
+        setSubjectAwards([]);
+        setCustomAwards([]);
         
         setTimeout(() => {
-const section = sections.find(s => s.id === selectedSectionId);
-            const sectionStudents = students.filter(s => s.student_section === section?.section_name || (section?.id && s.student_section === section.id));
-            const term = certType === 'EOSY' ? 'EOSY' : parseInt(certType.replace('T', '')) as 1 | 2 | 3;
+            const section = sections.find(s => s.id === secId || s.section_name === secId);
+            const targetName = section?.section_name || secId;
+            const targetId = section?.id || secId;
+            const sectionStudents = students.filter(s => 
+                s.student_section === targetName || 
+                s.student_section === targetId ||
+                (s.student_section && targetName && s.student_section.toLowerCase().includes(targetName.toLowerCase())) ||
+                (s.student_section && targetId && s.student_section.toLowerCase().includes(targetId.toLowerCase()))
+            );
+            const term = targetCertType === 'EOSY' ? 'EOSY' : parseInt(targetCertType.replace('T', '')) as 1 | 2 | 3;
+            const sectionSubjects = getSectionSubjects(secId, section?.section_grade_level, subjects);
 
             const qualifying = sectionStudents.map(s => {
                 if (isDescriptiveGrading(section?.section_grade_level || '', activeSchoolYear)) return null;
 
-                const average = calculateStudentAverage(s.lrn, term, gradingSheetRecords, subjects, activeSchoolYear);
+                const average = calculateStudentAverage(s.lrn, term, gradingSheetRecords, subjects, activeSchoolYear, classRecords, hpsRecords, section?.section_grade_level, section?.track, secId);
                 const honors = getHonorsInfo(average);
                 if (honors) {
-                    // Check if no grade below 80 in any subject for this term
-                    const studentRecords = gradingSheetRecords.filter(r => 
-                        r.student_lrn === s.lrn && 
-                        r.school_year === activeSchoolYear
-                    );
+                    // Check if no grade below 80 in any section subject for this term
                     let hasGradeBelow80 = false;
-                    const uniqueSubjectIds = Array.from(new Set(studentRecords.map(r => r.subject_id)));
-                    uniqueSubjectIds.forEach(subId => {
-                        const subject = subjects.find(sub => sub.id === subId);
-                        if (!subject || subject.term === 'none') return;
+                    sectionSubjects.forEach(sub => {
                         if (term === 'EOSY') {
                             const termGrades = [1, 2, 3].map(q => {
-                                const rec = studentRecords.find(r => r.subject_id === subId && r.quarter === q);
-                                return Number(rec?.final_grade || 0);
+                                return resolveStudentQuarterGrade(s.lrn, sub.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track);
                             }).filter(g => g > 0);
                             if (termGrades.length === 3) {
                                 const finalSubGrade = Math.round(termGrades.reduce((a, b) => a + b, 0) / 3);
                                 if (finalSubGrade < 80) hasGradeBelow80 = true;
                             }
                         } else {
-                            const rec = studentRecords.find(r => r.subject_id === subId && r.quarter === term);
-                            const grade = Number(rec?.final_grade || 0);
+                            const grade = resolveStudentQuarterGrade(s.lrn, sub.id, term, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track);
                             if (grade > 0 && grade < 80) hasGradeBelow80 = true;
                         }
                     });
@@ -330,10 +335,6 @@ const section = sections.find(s => s.id === selectedSectionId);
             }).filter(Boolean) as BatchStudent[];
 
             // 2. Subject Excellence Detection (Top Scorer per Subject)
-            let sectionSubjects = subjects.filter(sub => sub.section_id === selectedSectionId && sub.term !== 'none');
-            if (sectionSubjects.length === 0 && section) {
-                sectionSubjects = subjects.filter(sub => sub.grade_level === section.section_grade_level && !sub.section_id && sub.term !== 'none');
-            }
             const sectionSubjectIds = new Set(sectionSubjects.map(sub => sub.id));
             const awards: typeof subjectAwards = [];
 
@@ -346,12 +347,17 @@ const section = sections.find(s => s.id === selectedSectionId);
                 let topName = '';
 
                 sectionStudents.forEach(s => {
-                    const rec = gradingSheetRecords.find(r => 
-                        r.student_lrn === s.lrn && 
-                        r.subject_id === subId && 
-                        r.quarter === (term === 'EOSY' ? 3 : term)
+                    const grade = resolveStudentQuarterGrade(
+                        s.lrn, 
+                        subId, 
+                        term === 'EOSY' ? 3 : term, 
+                        activeSchoolYear, 
+                        classRecords, 
+                        gradingSheetRecords, 
+                        hpsRecords, 
+                        section?.section_grade_level, 
+                        section?.track
                     );
-                    const grade = Number(rec?.final_grade || 0);
                     if (grade > topGrade) {
                         topGrade = grade;
                         topLrn = s.lrn;
@@ -360,7 +366,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                 });
 
                 if (topGrade >= 90) { // Only award for 90+
-                    awards.push({ subject: subjectName, student: topName, average: topGrade, lrn: topLrn, selected: false });
+                    awards.push({ subject: subjectName, student: topName, average: topGrade, lrn: topLrn, selected: true });
                 }
             });
 
@@ -504,7 +510,7 @@ const section = sections.find(s => s.id === selectedSectionId);
             }));
 
             setIsBatchScanning(false);
-        }, 1000);
+        }, 50);
     };
 
 
@@ -721,7 +727,17 @@ const section = sections.find(s => s.id === selectedSectionId);
                                     <select 
                                         className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-800 dark:text-white rounded-xl px-4 py-3 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                                         value={selectedSectionId}
-                                        onChange={(e) => setSelectedSectionId(e.target.value)}
+                                        onChange={(e) => {
+                                            const newSecId = e.target.value;
+                                            setSelectedSectionId(newSecId);
+                                            if (newSecId) {
+                                                handleBatchScan(certType, newSecId);
+                                            } else {
+                                                setBatchStudents([]);
+                                                setSubjectAwards([]);
+                                                setCustomAwards([]);
+                                            }
+                                        }}
                                     >
                                         <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Choose Grade & Section...</option>
                                         {sortedSections.map(section => (
@@ -745,7 +761,7 @@ const section = sections.find(s => s.id === selectedSectionId);
                                 )}
                                 
                                 <button 
-                                    onClick={handleBatchScan}
+                                    onClick={() => handleBatchScan()}
                                     disabled={!selectedSectionId || isBatchScanning}
                                     className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
                                 >
@@ -777,6 +793,9 @@ const section = sections.find(s => s.id === selectedSectionId);
                                                 ...prev,
                                                 excellenceAward: TEMPLATE_CONFIG[type].excellenceAward,
                                             }));
+                                            if (selectedSectionId) {
+                                                handleBatchScan(type, selectedSectionId);
+                                            }
                                         }}
                                         className={`px-3 py-2.5 rounded-xl text-[10px] font-black transition-all border ${certType === type ? 'bg-blue-50 dark:bg-blue-900/20 border-deped-blue text-blue-600' : 'bg-gray-50 dark:bg-white/5 border-transparent text-gray-500'}`}
                                     >

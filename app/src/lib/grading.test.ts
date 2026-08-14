@@ -136,9 +136,21 @@ describe('computeExamsWeightedScore', () => {
     expect(computeExamsWeightedScore(0, 0, 0, 0, 10, 0, 'shs_field_exposure')).toBe(0);
   });
 
-  it('returns 0 for clusters with no exams component (research, immersion)', () => {
-    expect(computeExamsWeightedScore(10, 10, 10, 10, 50, 50, 'shs_research')).toBe(0);
-    expect(computeExamsWeightedScore(10, 10, 10, 10, 50, 50, 'shs_immersion')).toBe(0);
+  it('matches DepEd Table 5 sample computation for Science 6 KS2 (Learner A)', () => {
+    // ST1: 15/20 (22.5), ST2: 18/20 (27.0), TE: 35/40 (35.0) -> PS = 84.5
+    const ps = computeExamsWeightedScore(15, 20, 18, 20, 35, 40, 'science_math');
+    expect(ps).toBeCloseTo(84.5, 2);
+
+    const weights = getWeights('science_math'); // WW: 0.20, PT: 0.50, QA: 0.30
+    const wwWS = (74 / 85) * 100 * weights.written_works; // 17.41176%
+    const ptWS = (43 / 50) * 100 * weights.performance_tasks; // 43.00%
+    const qaWS = ps * weights.quarterly_exam;                  // 25.35%
+
+    const initialGrade = wwWS + ptWS + qaWS; // 85.76176...
+    expect(initialGrade).toBeCloseTo(85.76, 1);
+
+    const transmuted = transmuteGrade(initialGrade, TRANSITION_SY);
+    expect(transmuted).toBe(88);
   });
 });
 

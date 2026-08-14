@@ -21,6 +21,7 @@ import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
+import { isGrade1 } from '../services/sf9-g1-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
@@ -1562,6 +1563,14 @@ interface SF9ExactDocumentProps {
     subjects: SF9SubjectItem[];
     observedValues: Record<string, string[]>;
     comments?: string[];
+    g1Remarks?: {
+        term1CanDo?: string;
+        term1ToImprove?: string;
+        term2CanDo?: string;
+        term2ToImprove?: string;
+        term3CanDo?: string;
+        term3ToImprove?: string;
+    };
     attendance: {
         months: string[];
         schoolDays: number[];
@@ -1582,10 +1591,17 @@ interface SF9ExactDocumentProps {
     headSigOffset?: number;
 }
 
+const isGrade1Level = (gLevel?: string): boolean => {
+    if (!gLevel) return false;
+    const g = gLevel.toString().trim().toLowerCase();
+    const digits = g.replace(/\D/g, '');
+    return digits === '1' || g.includes('grade 1') || g.includes('grade1') || g === 'g1' || g === '1' || g.startsWith('1');
+};
+
 function SF9Pages({
     student, schoolName, schoolYear, section, region, division, district,
     adviser, principal, principalTitle,
-    grades, subjects: currentSubjects, comments = ['', '', ''], attendance, pageSize, logoUrl, printMode = 'full', schoolProfile,
+    grades, subjects: currentSubjects, comments = ['', '', ''], g1Remarks, attendance, pageSize, logoUrl, printMode = 'full', schoolProfile,
     showAdviserSig = true,
     showHeadSig = true,
     adviserSigWidth = 60,
@@ -1649,11 +1665,246 @@ function SF9Pages({
 
     const generalAverage = calculateGeneralAverage(grades, currentSubjects);
 
-        const cleanDivision = (division || '')
-            .replace(/schools division office of/i, '')
-            .replace(/schools division of/i, '')
-            .trim()
-            .toUpperCase();
+    const cleanDivision = (division || '')
+        .replace(/schools division office of/i, '')
+        .replace(/schools division of/i, '')
+        .trim()
+        .toUpperCase();
+
+        const isG1 = isGrade1Level(student.grade_level);
+        if (isG1) {
+            return (
+                <Page size={pageSize} orientation="portrait" style={{ padding: 10, fontFamily: 'BookmanOldStyle' }}>
+                    <View style={[styles.singleBorderWrapper, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
+                        <View style={{ flex: 1, padding: 8 }}>
+                            {/* Header spanning full width */}
+                            <View style={[styles.singleHeaderContainer, isValuesOnly ? { opacity: 0 } : {}, { marginBottom: 4 }]}>
+                                <Image src={`${import.meta.env.BASE_URL}deped_logo_left.png`} style={[styles.singleLogo, { width: 48, height: 48 }]} />
+                                <View style={styles.singleHeaderCenter}>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Republic of the Philippines</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Department of Education</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>{region || '"RegionVIII'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>SCHOOLS DIVISION OFFICE OF {cleanDivision || 'LEYTE'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>{district || 'District of Creative'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>
+                                        {(() => {
+                                            const muniCity = schoolProfile?.municipality || schoolProfile?.city || '';
+                                            const prov = schoolProfile?.province || '';
+                                            return (muniCity && prov) ? `${muniCity}, ${prov}` : (muniCity || prov || 'Municipality/City, Province');
+                                        })()}
+                                    </Text>
+                                    <Text style={[styles.singleHeaderText, { marginTop: 2, fontFamily: 'BookmanOldStyle-Bold', fontSize: 9 }]}>{schoolName || 'RIC CREATIVE NATIONAL HIGH SCHOOL'}</Text>
+                                </View>
+                                <Image src={logoUrl || `${import.meta.env.BASE_URL}school-logo.png`} style={[styles.singleLogo, { width: 48, height: 48 }]} />
+                            </View>
+
+                            <Text style={{ textAlign: 'center', marginBottom: 6, marginTop: 1 }}>
+                                <Text style={[styles.singleReportTitle, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 12 }]}>{"LEARNER'S PROGRESS REPORT\n"}</Text>
+                                <Text style={[styles.singleSchoolYear, { fontFamily: 'BookmanOldStyle', fontSize: 8 }]}>{"School Year: " + schoolYear}</Text>
+                            </Text>
+
+                            {/* Student Info Bar (Full width) */}
+                            <View style={{ marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#000', paddingBottom: 4 }}>
+                                <View style={{ flexDirection: 'row', marginBottom: 3 }}>
+                                    <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 28 }}>LRN:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{student.lrn || ' '}</Text>
+                                    </View>
+                                    <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 30 }}>Name:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{formatLearnerName(student).toUpperCase()}</Text>
+                                    </View>
+                                    <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Sex:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{(student.gender || ' ').toUpperCase()}</Text>
+                                    </View>
+                                </View>
+                                <View style={{ flexDirection: 'row' }}>
+                                    <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 66 }}>Grade & Section:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{`1 - ${section}`}</Text>
+                                    </View>
+                                    <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 36 }}>Adviser:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{adviser ? adviser.toUpperCase() : ' '}</Text>
+                                    </View>
+                                    <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Age:</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{student.age || ' '}</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Main Content Area (2 Columns) */}
+                            <View style={{ flexDirection: 'row', flex: 1 }}>
+                                {/* Left Column (50% Width) */}
+                                <View style={{ width: '49%', paddingRight: 8, borderRightWidth: 1, borderColor: '#CCC', justifyContent: 'space-between' }}>
+                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.5, marginBottom: 4, lineHeight: 1.2 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold' }}>{"Dear Parents/Guardians,\n"}</Text>
+                                        {"This report provides a descriptive account of your child's learning progress for each term. It highlights what your child can already do, what they are currently developing, and how they can be further supported.\n\nThis report is based on varied evidence of learning including classroom activities, observations, learner outputs, and assessments. It is designed to give a clearer development rather than relying on numerical or letter grades."}
+                                    </Text>
+
+                                    {(() => {
+                                        const g1R = g1Remarks || {};
+                                        const termConfig = [
+                                            { title: 'TERM 1 (UNANG TERMINO)', canDo: g1R.term1CanDo || '', toImprove: g1R.term1ToImprove || '' },
+                                            { title: 'TERM 2 (IKALAWANG TERMINO)', canDo: g1R.term2CanDo || '', toImprove: g1R.term2ToImprove || '' },
+                                            { title: 'TERM 3 (IKATLONG TERMINO)', canDo: g1R.term3CanDo || '', toImprove: g1R.term3ToImprove || '' },
+                                        ];
+
+                                        return termConfig.map((tItem, tIdx) => (
+                                            <View key={tIdx} style={{ flex: 1, marginBottom: tIdx === 2 ? 0 : 8, justifyContent: 'space-between' }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, textAlign: 'center', marginBottom: 3 }}>{tItem.title}</Text>
+                                                <View style={{ borderWidth: 1, borderColor: '#000', flex: 1, minHeight: 44, flexDirection: 'row', marginBottom: 3 }}>
+                                                    <View style={{ width: '38%', borderRightWidth: 1, borderColor: '#000', padding: 2, justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 5.5, textAlign: 'center' }}>{"What Your Child\nCan Do\n(Mga Nagagawa)"}</Text>
+                                                    </View>
+                                                    <View style={{ width: '62%', padding: 3, justifyContent: 'center' }}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 5.5, lineHeight: 1.25 }}>{tItem.canDo}</Text>
+                                                    </View>
+                                                </View>
+                                                <View style={{ borderWidth: 1, borderColor: '#000', flex: 1, minHeight: 44, flexDirection: 'row', marginBottom: 3 }}>
+                                                    <View style={{ width: '38%', borderRightWidth: 1, borderColor: '#000', padding: 2, justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 5.5, textAlign: 'center' }}>{"What Your Child\nIs Learning to Improve\n(Dapat Linangin)"}</Text>
+                                                    </View>
+                                                    <View style={{ width: '62%', padding: 3, justifyContent: 'center' }}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 5.5, lineHeight: 1.25 }}>{tItem.toImprove}</Text>
+                                                    </View>
+                                                </View>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
+                                                    <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6.5, width: 105 }}>Parent's/Guardian Signature:</Text>
+                                                    <View style={{ flex: 1, borderBottomWidth: 1, borderColor: '#000' }} />
+                                                </View>
+                                            </View>
+                                        ));
+                                    })()}
+                                </View>
+
+                                {/* Right Column (50% Width) */}
+                                <View style={{ width: '49%', paddingLeft: 8, justifyContent: 'space-between' }}>
+                                    <View>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 9, textAlign: 'center', marginBottom: 4 }}>ATTENDANCE RECORD</Text>
+                                        <View style={{ borderWidth: 1, borderColor: '#000', marginBottom: 4 }}>
+                                            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', backgroundColor: '#F9FAFB' }}>
+                                                <View style={{ width: '12%', borderRightWidth: 1, borderColor: '#000', padding: 1.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>Term</Text></View>
+                                                <View style={{ width: '20%', borderRightWidth: 1, borderColor: '#000', padding: 1.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>Month</Text></View>
+                                                <View style={{ width: '23%', borderRightWidth: 1, borderColor: '#000', padding: 1.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6, textAlign: 'center' }}>{"No. of School\nDays"}</Text></View>
+                                                <View style={{ width: '23%', borderRightWidth: 1, borderColor: '#000', padding: 1.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6, textAlign: 'center' }}>{"No. of Days\nPresent"}</Text></View>
+                                                <View style={{ width: '22%', padding: 1.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6, textAlign: 'center' }}>{"No. of Days\nAbsent"}</Text></View>
+                                            </View>
+
+                                            {[
+                                                { term: '1', months: [{ name: 'June', idx: 0 }, { name: 'July', idx: 1 }, { name: 'August', idx: 2 }, { name: 'September', idx: 3 }] },
+                                                { term: '2', months: [{ name: 'September', idx: 4 }, { name: 'October', idx: 5 }, { name: 'November', idx: 6 }, { name: 'December', idx: 7 }] },
+                                                { term: '3', months: [{ name: 'January', idx: 8 }, { name: 'February', idx: 9 }, { name: 'March', idx: 10 }, { name: 'April', idx: 11 }] },
+                                            ].map((tg, tgIdx) => (
+                                                <View key={tgIdx} style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000' }}>
+                                                    <View style={{ width: '12%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7 }}>{tg.term}</Text>
+                                                    </View>
+                                                    <View style={{ width: '88%' }}>
+                                                        {tg.months.map((m, mInTerm) => {
+                                                            const days = attendance.schoolDays[m.idx] >= 0 ? attendance.schoolDays[m.idx] : '';
+                                                            const pres = attendance.daysPresent[m.idx] >= 0 ? attendance.daysPresent[m.idx] : '';
+                                                            const abs = attendance.daysAbsent[m.idx] >= 0 ? attendance.daysAbsent[m.idx] : '';
+                                                            return (
+                                                                <View key={m.idx} style={{ flexDirection: 'row', borderBottomWidth: mInTerm === 3 ? 0 : 1, borderColor: '#000', height: 14.5 }}>
+                                                                    <View style={{ width: '22.727%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>{m.name}</Text></View>
+                                                                    <View style={{ width: '26.136%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>{days}</Text></View>
+                                                                    <View style={{ width: '26.136%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>{pres}</Text></View>
+                                                                    <View style={{ width: '25%', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>{abs}</Text></View>
+                                                                </View>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                </View>
+                                            ))}
+
+                                            <View style={{ flexDirection: 'row', height: 16 }}>
+                                                <View style={{ width: '32%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>TOTAL</Text></View>
+                                                <View style={{ width: '23%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>{calculateTotal(attendance.schoolDays)}</Text></View>
+                                                <View style={{ width: '23%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>{calculateTotal(attendance.daysPresent)}</Text></View>
+                                                <View style={{ width: '22%', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6.5 }}>{calculateTotal(attendance.daysAbsent)}</Text></View>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    <View style={{ marginTop: 8, marginBottom: 8 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5, textAlign: 'center', marginBottom: 6 }}>IMPORTANT NOTE TO PARENTS/GUARDIANS</Text>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, marginBottom: 6, lineHeight: 1.35 }}>
+                                            A detailed record of your child's progress across specific learning competencies is attached in the succeeding pages. This includes the monitoring of skills in Reading and Literacy, Language, Mathematics, Good Manners and Right Conduct, and Makabansa.
+                                        </Text>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, marginBottom: 6 }}>Performance levels used in monitoring:</Text>
+                                        <View style={{ borderWidth: 1, borderColor: '#000' }}>
+                                            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000', backgroundColor: '#F9FAFB' }}>
+                                                <View style={{ width: '15%', borderRightWidth: 1, borderColor: '#000', padding: 2.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 5.5, textAlign: 'center' }}>{"Letter\nGrade"}</Text></View>
+                                                <View style={{ width: '30%', borderRightWidth: 1, borderColor: '#000', padding: 2.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 5.5, textAlign: 'center' }}>Descriptor</Text></View>
+                                                <View style={{ width: '55%', padding: 2.5, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 5.5, textAlign: 'center' }}>Description</Text></View>
+                                            </View>
+                                            {[
+                                                { grade: 'A', desc: 'Advancing\n(Namumukod-tangi)', detail: 'Consistently demonstrates skills and understanding beyond expectations; applies learning independently and confidently.' },
+                                                { grade: 'B', desc: 'Benchmarking\n(Naipamamalas)', detail: 'Meets expected learning standards; demonstrates skills and understanding with consistency.' },
+                                                { grade: 'C', desc: 'Connecting\n(Natutungo)', detail: 'Shows developing understanding and skills; requires minimal guidance to meet expectations.' },
+                                                { grade: 'D', desc: 'Developing\n(Napauunlad)', detail: 'Demonstrates emerging skills and understanding; requires regular guidance and support.' },
+                                                { grade: 'E', desc: 'Emerging\n(Nagsisimula)', detail: 'Beginning to demonstrate basic skills; requires close supervision and targeted intervention.' },
+                                            ].map((rItem, rIdx) => (
+                                                <View key={rIdx} style={{ flexDirection: 'row', borderBottomWidth: rIdx === 4 ? 0 : 1, borderColor: '#000' }}>
+                                                    <View style={{ width: '15%', borderRightWidth: 1, borderColor: '#000', padding: 3, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 6 }}>{rItem.grade}</Text></View>
+                                                    <View style={{ width: '30%', borderRightWidth: 1, borderColor: '#000', padding: 3, justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 5.2, textAlign: 'center' }}>{rItem.desc}</Text></View>
+                                                    <View style={{ width: '55%', padding: 3, justifyContent: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 5.2, lineHeight: 1.25 }}>{rItem.detail}</Text></View>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    <View style={{ marginTop: 4 }}>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5, textAlign: 'center', marginBottom: 4 }}>CERTIFICATE OF TRANSFER</Text>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, marginBottom: 5 }}>
+                                            This is to certify that the above-named learner has satisfactory completed the requirements for the grade level indicated.
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', marginBottom: 3 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>Admitted to Grade: </Text>
+                                            <View style={{ width: '65%', borderBottomWidth: 1, borderColor: '#000' }} />
+                                        </View>
+                                        <View style={{ flexDirection: 'row', marginBottom: 3 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>Eligible for Admission to Grade: </Text>
+                                            <View style={{ width: '45%', borderBottomWidth: 1, borderColor: '#000' }} />
+                                        </View>
+                                        <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, marginBottom: 14 }}>Approved:</Text>
+
+                                        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 12 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{adviser ? adviser.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>Adviser</Text>
+                                        </View>
+
+                                        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 14 }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
+                                        </View>
+
+                                        <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 8, textAlign: 'center', marginBottom: 4 }}>CANCELLATION OF ELIGIBILITY TO TRANSFER</Text>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                                            <View style={{ width: '60%', flexDirection: 'row' }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>Admitted in: </Text>
+                                                <View style={{ flex: 1, borderBottomWidth: 1, borderColor: '#000' }} />
+                                            </View>
+                                            <View style={{ width: '36%', flexDirection: 'row' }}>
+                                                <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>Date: </Text>
+                                                <View style={{ flex: 1, borderBottomWidth: 1, borderColor: '#000' }} />
+                                            </View>
+                                        </View>
+                                        <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center' }}>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    </View>
+                </Page>
+            );
+        }
 
         return (
             <Page size={pageSize} orientation="landscape" style={styles.singlePage}>
@@ -2255,6 +2506,45 @@ export function SF9Page() {
     // Local state for batch PDF blob URL
     const [batchBlobUrl, setBatchBlobUrl] = useState<string | null>(null);
 
+    // Grade 1 Learner Progress Modal & Remarks State
+    const [isG1ModalOpen, setIsG1ModalOpen] = useState(false);
+    const [g1RemarksState, setG1RemarksState] = useState({
+        term1CanDo: '',
+        term1ToImprove: '',
+        term2CanDo: '',
+        term2ToImprove: '',
+        term3CanDo: '',
+        term3ToImprove: '',
+    });
+    const [tempG1Remarks, setTempG1Remarks] = useState(g1RemarksState);
+
+    useEffect(() => {
+        if (selectedStudent) {
+            try {
+                const stored = localStorage.getItem(`g1_remarks_${selectedStudent.lrn}_${activeSchoolYear}`);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    setG1RemarksState(parsed);
+                    setTempG1Remarks(parsed);
+                } else {
+                    const empty = { term1CanDo: '', term1ToImprove: '', term2CanDo: '', term2ToImprove: '', term3CanDo: '', term3ToImprove: '' };
+                    setG1RemarksState(empty);
+                    setTempG1Remarks(empty);
+                }
+            } catch (e) {
+                console.error('Failed to load G1 remarks:', e);
+            }
+        }
+    }, [selectedStudent, activeSchoolYear]);
+
+    const handleSaveG1Progress = () => {
+        setG1RemarksState(tempG1Remarks);
+        if (selectedStudent) {
+            localStorage.setItem(`g1_remarks_${selectedStudent.lrn}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+        }
+        setIsG1ModalOpen(false);
+    };
+
     useEffect(() => {
         let isMounted = true;
 
@@ -2295,6 +2585,7 @@ export function SF9Page() {
     }, [hydratedAttendanceRecords, storeAttendanceRecords]);
 
     const selectedSectionObj = useMemo(() => sections.find(s => s.id === selectedSection), [sections, selectedSection]);
+    const isCurrentG1 = useMemo(() => isGrade1(selectedStudent?.grade_level || selectedSectionObj?.section_grade_level), [selectedStudent, selectedSectionObj]);
 
     useEffect(() => {
         if (selectedSectionObj) {
@@ -2586,6 +2877,7 @@ export function SF9Page() {
                 subjects={studentGrades.subjects || []}
                 observedValues={studentValues} 
                 comments={studentComments}
+                g1Remarks={g1RemarksState}
                 attendance={attendance}
                 pageSize={pageSize} 
                 logoUrl={schoolProfile.logo_url || ''}
@@ -2601,7 +2893,7 @@ export function SF9Page() {
                 headSigOffset={headSigOffset}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -2807,6 +3099,7 @@ export function SF9Page() {
                 subjects: studentGrades.subjects || [],
                 observedValues: studentValues,
                 comments: studentComments,
+                g1Remarks: g1RemarksState,
                 attendance,
                 gradeLevel: selectedStudent.grade_level,
                 subjectTerm: buildSubjectTermResolver(),
@@ -2819,7 +3112,7 @@ export function SF9Page() {
             console.error('Excel export failed:', error);
             useAppStore.getState().showNotification('Failed to export SF9 to Excel: ' + (error as Error).message, 'error');
         }
-    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, buildSubjectTermResolver, pageSize]);
+    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, g1RemarksState, buildSubjectTermResolver, pageSize]);
 
     /** Export batch SF9 (all students in section) to Excel */
     const handleBatchExcelExport = useCallback(async () => {
@@ -2831,6 +3124,15 @@ export function SF9Page() {
                 useAppStore.getState().showNotification('No students found to export.', 'error');
                 return;
             }
+
+            const getG1RemarksForStudent = (sLrn: string) => {
+                try {
+                    const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
+                    return stored ? JSON.parse(stored) : undefined;
+                } catch {
+                    return undefined;
+                }
+            };
 
             const batchOptions: SF9ExcelExportOptions[] = sortedStudents.map(student => {
                 const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
@@ -2853,6 +3155,7 @@ export function SF9Page() {
                     subjects: compSubjects,
                     observedValues: values,
                     comments: studentComments,
+                    g1Remarks: getG1RemarksForStudent(student.lrn),
                     attendance,
                     gradeLevel: student.grade_level,
                     subjectTerm: buildSubjectTermResolver(),
@@ -3046,19 +3349,21 @@ export function SF9Page() {
 
                     {/* View & Formatting Controls (Center) */}
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
-                        <div className="relative group shrink-0">
-                            <select
-                                value={printMode}
-                                onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
-                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-21.25 lg:min-w-23.75 duration-200"
-                            >
-                                <option value="full">Full Report</option>
-                                <option value="term1">Term 1 Only</option>
-                                <option value="term2">Term 2 Only</option>
-                                <option value="term3">Term 3 Only</option>
-                            </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
-                        </div>
+                        {!isCurrentG1 && (
+                            <div className="relative group shrink-0">
+                                <select
+                                    value={printMode}
+                                    onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
+                                    className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-21.25 lg:min-w-23.75 duration-200"
+                                >
+                                    <option value="full">Full Report</option>
+                                    <option value="term1">Term 1 Only</option>
+                                    <option value="term2">Term 2 Only</option>
+                                    <option value="term3">Term 3 Only</option>
+                                </select>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                            </div>
+                        )}
 
                         <div className="relative group shrink-0">
                             <select
@@ -3085,7 +3390,7 @@ export function SF9Page() {
                     <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
                         {/* Divider between Center and Right */}
                         <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
-                        {selectedStudent && !isBatchReady && !isShsSf9Section && (
+                        {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1Level(selectedStudent.grade_level) && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
                                 className="h-9 px-2.5 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-500/30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
@@ -3143,6 +3448,19 @@ export function SF9Page() {
 
                         {!isBatchReady && singleDocument && !isShsSf9Section && (
                             <div className="flex items-center gap-1 shrink-0">
+                                {isGrade1Level(selectedStudent?.grade_level) && (
+                                    <button
+                                        onClick={() => {
+                                            setTempG1Remarks(g1RemarksState);
+                                            setIsG1ModalOpen(true);
+                                        }}
+                                        className="h-9 px-3 rounded-xl bg-purple-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-purple-500/20 hover:bg-purple-700 hover:scale-[1.01] active:scale-95 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 duration-200"
+                                        title="Edit Grade 1 Learner Progress"
+                                    >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                        Edit Progress
+                                    </button>
+                                )}
                                 <button
                                     onClick={handlePrint}
                                     className="h-9 px-3 lg:px-3.5 rounded-xl bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
@@ -3954,6 +4272,90 @@ export function SF9Page() {
                         
                         onSave={handleUpdateLayout}
                     />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {isG1ModalOpen && selectedStudent && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                        >
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
+                                        <Edit3 className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Grade 1 Learner Progress</h3>
+                                        <p className="text-xs font-semibold text-slate-500">{formatLearnerName(selectedStudent)} — Progress Notes for Terms 1, 2, & 3</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setIsG1ModalOpen(false)} 
+                                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {[
+                                    { termNum: 1, title: 'TERM 1 (UNANG TERMINO)', canDoKey: 'term1CanDo', toImproveKey: 'term1ToImprove' },
+                                    { termNum: 2, title: 'TERM 2 (IKALAWANG TERMINO)', canDoKey: 'term2CanDo', toImproveKey: 'term2ToImprove' },
+                                    { termNum: 3, title: 'TERM 3 (IKATLONG TERMINO)', canDoKey: 'term3CanDo', toImproveKey: 'term3ToImprove' }
+                                ].map((t) => (
+                                    <div key={t.termNum} className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
+                                        <h4 className="text-xs font-black uppercase text-purple-700 dark:text-purple-400 tracking-wider">{t.title}</h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                    What Your Child Can Do (Mga Nagagawa)
+                                                </label>
+                                                <textarea
+                                                    value={tempG1Remarks[t.canDoKey as keyof typeof tempG1Remarks] || ''}
+                                                    onChange={(e) => setTempG1Remarks(prev => ({ ...prev, [t.canDoKey]: e.target.value }))}
+                                                    rows={3}
+                                                    placeholder="Enter learner's achievements and progress..."
+                                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                    What Your Child Is Learning to Improve (Dapat Linangin)
+                                                </label>
+                                                <textarea
+                                                    value={tempG1Remarks[t.toImproveKey as keyof typeof tempG1Remarks] || ''}
+                                                    onChange={(e) => setTempG1Remarks(prev => ({ ...prev, [t.toImproveKey]: e.target.value }))}
+                                                    rows={3}
+                                                    placeholder="Enter skills and areas needing guidance..."
+                                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    onClick={() => setIsG1ModalOpen(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveG1Progress}
+                                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-500/20 active:scale-95 transition-all"
+                                >
+                                    Save Progress
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>

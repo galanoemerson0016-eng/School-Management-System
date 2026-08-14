@@ -1955,7 +1955,7 @@ export function ReportsPage() {
                                                                                     }}
                                                                                     className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-colors cursor-pointer ${hasAward ? 'bg-green-50 dark:bg-emerald-950/60 border border-green-200 dark:border-emerald-500/30 text-green-700 dark:text-emerald-300' : 'bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-400 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/10'}`}
                                                                                 >
-                                                                                    {hasAward ? '✓ Qualified' : `Not Qualified (${abs} Abs)`}
+                                                                                    {hasAward ? '✓ Qualified' : abs === -1 ? 'No Attendance Data' : `Not Qualified (${abs} Abs)`}
                                                                                 </button>
                                                                             </td>
                                                                         </tr>

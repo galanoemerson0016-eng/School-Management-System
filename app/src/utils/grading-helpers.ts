@@ -5,6 +5,14 @@ import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
 
+function isQuarterMatch(recQuarter: any, targetQuarter: number): boolean {
+    if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
+    const num = Number(recQuarter);
+    if (!isNaN(num) && num === targetQuarter) return true;
+    const str = String(recQuarter).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return str === `q${targetQuarter}` || str === `t${targetQuarter}` || str === `quarter${targetQuarter}` || str === `term${targetQuarter}`;
+}
+
 /**
  * Resolves the final transmuted grade for a student, subject, quarter, and school year.
  * Performs live dynamic calculation from classRecords + hpsRecords matching EClassRecord.tsx / ConsolidatedGradesPage.tsx,
@@ -23,19 +31,34 @@ export function resolveStudentQuarterGrade(
 ): number {
     const normTarget = (subjectIdOrName || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
 
+    const allRecords = [...classRecords, ...gradingSheetRecords];
+    const recWithName = allRecords.find(r => (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) && r.subject_name);
+    const resolvedSubjectName = recWithName?.subject_name || '';
+    const normResolvedName = resolvedSubjectName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const isSubjectMatch = (rSubId: string, rSubName?: string) => {
+        if (rSubId === subjectIdOrName) return true;
+        const normName = (rSubName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normName && normName === normTarget) return true;
+        if (normName && normResolvedName && normName === normResolvedName) return true;
+        const normId = (rSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normId && (normId === normTarget || normId === normResolvedName)) return true;
+        return false;
+    };
+
     // 1. Check primary classRecords
     const cRecord = classRecords.find(r =>
-        r.student_lrn === studentLrn &&
-        (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) &&
-        Number(r.quarter) === quarter &&
-        (!schoolYear || r.school_year === schoolYear)
+        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
+        isSubjectMatch(r.subject_id, r.subject_name) &&
+        isQuarterMatch(r.quarter, quarter) &&
+        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
 
     if (cRecord) {
         const hpsRec = hpsRecords.find(h =>
-            (h.subject_id === subjectIdOrName || h.subject_id === cRecord.subject_id) &&
-            (!schoolYear || h.school_year === schoolYear) &&
-            Number(h.quarter) === quarter
+            (isSubjectMatch(h.subject_id, (h as any).subject_name) || h.subject_id === cRecord.subject_id) &&
+            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
+            isQuarterMatch(h.quarter, quarter)
         );
 
         if (hpsRec) {
@@ -60,7 +83,7 @@ export function resolveStudentQuarterGrade(
             const ptTotalScore = ptScores.reduce((a: number, b: number) => a + b, 0);
             const ptTotalHPS = hps_pt.reduce((a: number, b: number) => a + b, 0);
 
-            const subjectName = cRecord.subject_name || subjectIdOrName;
+            const subjectName = cRecord.subject_name || resolvedSubjectName || subjectIdOrName;
             const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
             const weights = getWeights(cluster, { subject_name: subjectName } as Subject);
 
@@ -103,10 +126,10 @@ export function resolveStudentQuarterGrade(
 
     // 2. Check gradingSheetRecords
     const gRecord = gradingSheetRecords.find(r =>
-        r.student_lrn === studentLrn &&
-        (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) &&
-        Number(r.quarter) === quarter &&
-        (!schoolYear || r.school_year === schoolYear)
+        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
+        isSubjectMatch(r.subject_id, r.subject_name) &&
+        isQuarterMatch(r.quarter, quarter) &&
+        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
 
     if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
@@ -443,6 +466,7 @@ export function getStudentAbsences(
     sf2Sheets: SF2Sheet[]
 ): number {
     let count = 0;
+    let hasAnyData = false;
     
     // Filter months to check based on term
     let monthsToInclude: string[] = [];
@@ -481,7 +505,8 @@ export function getStudentAbsences(
         const matchedKey = attendanceKeys.find(k => k.toString().trim().toLowerCase() === targetLRN);
         const studentAttendance = matchedKey ? sheet.attendance[matchedKey] : {};
 
-        if (studentAttendance) {
+        if (studentAttendance && matchedKey) {
+            hasAnyData = true;
             const hasDateLabels = sheet.date_labels && Object.keys(sheet.date_labels).length > 0;
             if (hasDateLabels) {
                 Object.keys(sheet.date_labels).forEach(colKeyStr => {
@@ -516,19 +541,34 @@ export function getStudentAbsences(
 
     // 2. Also check individual attendanceRecords for months that DO NOT have an SF2 sheet yet
     const records = attendanceRecords.filter(r => 
-        r.student_lrn.toString().trim().toLowerCase() === targetLRN && isAbsentStatus(r.status)
+        r.student_lrn.toString().trim().toLowerCase() === targetLRN
     );
-    records.forEach(r => {
+
+    // Check if any attendance records exist for the term months (regardless of status)
+    const termRecords = records.filter(r => {
         const dateObj = new Date(r.date);
         const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();
-        
-        const isTermMonth = monthsToInclude.some(mi => mi.startsWith(monthName) || monthName.startsWith(mi));
+        return monthsToInclude.some(mi => mi.startsWith(monthName) || monthName.startsWith(mi));
+    });
+
+    if (termRecords.length > 0) {
+        hasAnyData = true;
+    }
+
+    // Count absences from individual records only for months without SF2
+    termRecords.forEach(r => {
+        const dateObj = new Date(r.date);
+        const monthName = dateObj.toLocaleString('default', { month: 'long' }).toLowerCase();
         const hasSF2Sheet = Array.from(monthsWithSF2).some(m => m.startsWith(monthName) || monthName.startsWith(m));
         
-        if (isTermMonth && !hasSF2Sheet) {
+        if (!hasSF2Sheet && isAbsentStatus(r.status)) {
             count++;
         }
     });
+
+    // Return -1 if no attendance data exists at all for the term
+    // This distinguishes "confirmed zero absences" from "no data available"
+    if (!hasAnyData) return -1;
 
     return count;
 }
