@@ -7,6 +7,7 @@ import { filterSF9Sections } from '../lib/rbac';
 import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject } from '../lib/curriculum';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import type { Subject } from '../types';
 
 type QuarterGrades = {
@@ -736,69 +737,19 @@ export function ConsolidatedGradesPage() {
                 for (const subject of sectionSubjects) {
                     if (subject.is_virtual && ((subject as any)._mapehGroups || isEcmkParent(subject.subject_name))) continue;
 
-                    // 1. Find HPS for this subject/quarter
-                    const hpsRec = hpsRecords.find(r => 
-                        r.subject_id === subject.id && 
-                        r.school_year === activeSchoolYear && 
-                        Number(r.quarter) === quarter
+                    const finalGrade = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subject.id,
+                        quarter,
+                        activeSchoolYear,
+                        classRecords,
+                        gradingSheetRecords,
+                        hpsRecords,
+                        sectionGradeLevel,
+                        sectionTrack,
+                        subjects,
+                        sectionObj.id
                     );
-
-                    if (!hpsRec) continue; // No E-Class setup for this subject yet
-
-                    // 2. Find Student Record
-                    const record = classRecords.find(r => 
-                        r.student_lrn === student.lrn && 
-                        r.subject_id === subject.id && 
-                        Number(r.quarter) === quarter
-                    );
-
-                    if (!record) continue;
-
-                    // 3. Calculation Logic (Matching EClassRecord.tsx)
-                    const hps_ww = normalizeScores(hpsRec.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-                    const hps_pt = normalizeScores(hpsRec.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-                    const rawHpsQa = (hpsRec as any).summative_tests;
-                    const hps_qa = normalizeScores(rawHpsQa, ST_COUNT).map((v, i) => {
-                        if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
-                        return Number(v) || 0;
-                    });
-
-                    const wwScores = normalizeScores(record.written_works, WW_COUNT).map(v => Number(v) || 0);
-                    const ptScores = normalizeScores(record.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-                    const rawQa = (record as any).summative_tests;
-                    const normQaScores = normalizeScores(rawQa, ST_COUNT);
-                    if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && record.quarterly_exam !== '' && record.quarterly_exam !== undefined && record.quarterly_exam !== null) {
-                        normQaScores[2] = record.quarterly_exam;
-                    }
-
-                    const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
-                    const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
-                    const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
-                    const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
-
-                    const cluster = getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack);
-                    const weights = getWeights(cluster, subject);
-                    const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
-                    const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
-
-                    const parseNumOrNull = (val: number | string | null | undefined): number | null => {
-                        if (val === '' || val === null || val === undefined) return null;
-                        const n = Number(val);
-                        return isNaN(n) ? null : n;
-                    };
-
-                    const st1Score = parseNumOrNull(normQaScores[0]);
-                    const st1HPS = Number(hps_qa[0]) || 0;
-                    const st2Score = parseNumOrNull(normQaScores[1]);
-                    const st2HPS = Number(hps_qa[1]) || 0;
-                    const teScore = parseNumOrNull(normQaScores[2]);
-                    const teHPS = Number(hps_qa[2]) || 0;
-
-                    const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
-                    const qaWS = qaPS * weights.quarterly_exam;
-
-                    const initialGrade = wwWS + ptWS + qaWS;
-                    const finalGrade = transmuteGrade(initialGrade, activeSchoolYear);
 
                     if (finalGrade > 0) {
                         await updateGradingSheetRecord({
@@ -1363,18 +1314,40 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                musicArtsResults.push(Number(r.final_grade));
+                            const g = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                q,
+                                activeSchoolYear,
+                                classRecords,
+                                gradingSheetRecords,
+                                hpsRecords,
+                                sectionObj?.section_grade_level,
+                                sectionObj?.track,
+                                subjects,
+                                sectionObj?.id
+                            );
+                            if (g > 0) {
+                                musicArtsResults.push(g);
                             }
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                peHealthResults.push(Number(r.final_grade));
+                            const g = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                q,
+                                activeSchoolYear,
+                                classRecords,
+                                gradingSheetRecords,
+                                hpsRecords,
+                                sectionObj?.section_grade_level,
+                                sectionObj?.track,
+                                subjects,
+                                sectionObj?.id
+                            );
+                            if (g > 0) {
+                                peHealthResults.push(g);
                             }
                         });
 
@@ -1430,18 +1403,40 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                ecResults.push(Number(r.final_grade));
+                            const g = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                q,
+                                activeSchoolYear,
+                                classRecords,
+                                gradingSheetRecords,
+                                hpsRecords,
+                                sectionObj?.section_grade_level,
+                                sectionObj?.track,
+                                subjects,
+                                sectionObj?.id
+                            );
+                            if (g > 0) {
+                                ecResults.push(g);
                             }
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                mkResults.push(Number(r.final_grade));
+                            const g = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                q,
+                                activeSchoolYear,
+                                classRecords,
+                                gradingSheetRecords,
+                                hpsRecords,
+                                sectionObj?.section_grade_level,
+                                sectionObj?.track,
+                                subjects,
+                                sectionObj?.id
+                            );
+                            if (g > 0) {
+                                mkResults.push(g);
                             }
                         });
 
@@ -1485,96 +1480,21 @@ const groupedSections = useMemo(() => {
                     let qCount = 0;
 
                     for (let q = 1; q <= 4; q++) {
-                        // 1. Look in classRecords first
-                        const cRecord = classRecords.find(r =>
-                            r.student_lrn === student.lrn &&
-                            (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(subject.subject_name))) &&
-                            Number(r.quarter) === q
+                        const gradeVal = resolveStudentQuarterGrade(
+                            student.lrn,
+                            subject.id,
+                            q,
+                            activeSchoolYear,
+                            classRecords,
+                            gradingSheetRecords,
+                            hpsRecords,
+                            sectionObj?.section_grade_level,
+                            sectionObj?.track,
+                            subjects,
+                            sectionObj?.id
                         );
 
-                        // 2. Look in gradingSheetRecords
-                        const gRecord = gradingSheetRecords.find(r =>
-                            r.student_lrn === student.lrn &&
-                            (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(subject.subject_name))) &&
-                            Number(r.quarter) === q
-                        );
-
-                        let gradeVal: number | null = null;
-
-                        if (cRecord) {
-                            const hpsRec = hpsRecords.find(h =>
-                                (h.subject_id === subject.id || h.subject_id === cRecord.subject_id) &&
-                                h.school_year === activeSchoolYear &&
-                                Number(h.quarter) === q &&
-                                (h.section_id === selectedSection || (sectionObj?.id && h.section_id === sectionObj.id) || !h.section_id)
-                            );
-
-                            if (hpsRec) {
-                                const hps_ww = normalizeScores(hpsRec.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-                                const hps_pt = normalizeScores(hpsRec.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-                                const rawHpsQa = (hpsRec as any).summative_tests;
-                                const hps_qa = normalizeScores(rawHpsQa, ST_COUNT).map((v, i) => {
-                                    if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
-                                    return Number(v) || 0;
-                                });
-
-                                const wwScores = normalizeScores(cRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
-                                const ptScores = normalizeScores(cRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-                                const rawQa = (cRecord as any).summative_tests;
-                                const normQaScores = normalizeScores(rawQa, ST_COUNT);
-                                if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null) {
-                                    normQaScores[2] = cRecord.quarterly_exam;
-                                }
-
-                                const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
-                                const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
-                                const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
-                                const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
-
-                                const cluster = getSubjectCluster(subject.subject_name, sectionObj?.section_grade_level, sectionObj?.track);
-                                const weights = getWeights(cluster, subject);
-                                const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * (weights.written_works || 0);
-                                const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * (weights.performance_tasks || 0);
-
-                                const parseNumOrNull = (val: number | string | null | undefined): number | null => {
-                                    if (val === '' || val === null || val === undefined) return null;
-                                    const n = Number(val);
-                                    return isNaN(n) ? null : n;
-                                };
-
-                                const st1Score = parseNumOrNull(normQaScores[0]);
-                                const st1HPS = Number(hps_qa[0]) || 0;
-                                const st2Score = parseNumOrNull(normQaScores[1]);
-                                const st2HPS = Number(hps_qa[1]) || 0;
-                                const teScore = parseNumOrNull(normQaScores[2]);
-                                const teHPS = Number(hps_qa[2]) || 0;
-
-                                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
-                                const qaWS = qaPS * (weights.quarterly_exam || 0);
-
-                                const initialGrade = wwWS + ptWS + qaWS;
-
-                                const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
-                                const hasScores =
-                                    wwScores.some(isValidScore) ||
-                                    ptScores.some(isValidScore) ||
-                                    normQaScores.some(isValidScore);
-
-                                if (hasScores) {
-                                    gradeVal = transmuteGrade(initialGrade, activeSchoolYear);
-                                }
-                            }
-
-                            if (gradeVal === null && cRecord.final_grade && Number(cRecord.final_grade) > 0) {
-                                gradeVal = Number(cRecord.final_grade);
-                            }
-                        }
-
-                        if (gradeVal === null && gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
-                            gradeVal = Number(gRecord.final_grade);
-                        }
-
-                        if (gradeVal !== null && gradeVal > 0) {
+                        if (gradeVal > 0) {
                             const qKey = `q${q}` as QuarterKey;
                             subjectGrades[qKey] = gradeVal;
                             if (q <= 3) {

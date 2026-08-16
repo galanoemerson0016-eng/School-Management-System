@@ -16,8 +16,9 @@ import {
   getMPSPerSubject,
   getSubjectAwardees,
   getStudentAbsences,
+  resolveStudentQuarterGrade,
 } from './grading-helpers';
-import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet } from '../types';
+import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
 describe('Grading Helpers', () => {
   // Mock data helpers
@@ -270,6 +271,163 @@ describe('Grading Helpers', () => {
 
       const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, attendanceRecords, []);
       expect(count).toBe(0);
+    });
+  });
+
+  describe('resolveStudentQuarterGrade Custom Weights & Section HPS', () => {
+    it('applies custom subject weights when subjects array is passed', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'cr-1',
+          student_lrn: '100000000001',
+          section_id: 'sec-1',
+          subject_id: 'sub-pe',
+          subject_name: 'Physical Education and Health',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [50],
+          performance_tasks: [100],
+          quarterly_exam: 100
+        }
+      ] as unknown as ClassRecord[];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'hps-1',
+          subject_id: 'sub-pe',
+          section_id: 'sec-1',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [50],
+          performance_tasks: [100],
+          quarterly_exam: 100
+        }
+      ] as unknown as HPSRecord[];
+
+      const customSubjects: Subject[] = [
+        {
+          id: 'sub-pe',
+          subject_name: 'Physical Education and Health',
+          grade_level: 'Grade 7',
+          written_weight: 0.10,
+          performance_weight: 0.70,
+          exam_weight: 0.20
+        }
+      ] as unknown as Subject[];
+
+      // With custom weights (10/70/20):
+      // WW: 100% * 0.10 = 10
+      // PT: 100% * 0.70 = 70
+      // QA: 100% * 0.20 = 20
+      // Total Initial = 100 => Transmuted = 100
+      const grade = resolveStudentQuarterGrade(
+        '100000000001',
+        'sub-pe',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7',
+        undefined,
+        customSubjects,
+        'sec-1'
+      );
+      expect(grade).toBe(100);
+    });
+
+    it('matches section-specific HPS when multiple sections have different HPS', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'cr-sec2',
+          student_lrn: '100000000002',
+          section_id: 'sec-2',
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [40],
+          performance_tasks: [80],
+          quarterly_exam: 40
+        }
+      ] as unknown as ClassRecord[];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'hps-sec1',
+          subject_id: 'sub-math',
+          section_id: 'sec-1',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [100],
+          performance_tasks: [100],
+          quarterly_exam: 100
+        },
+        {
+          id: 'hps-sec2',
+          subject_id: 'sub-math',
+          section_id: 'sec-2',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [40],
+          performance_tasks: [80],
+          quarterly_exam: 40
+        }
+      ] as unknown as HPSRecord[];
+
+      const grade = resolveStudentQuarterGrade(
+        '100000000002',
+        'sub-math',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7',
+        undefined,
+        undefined,
+        'sec-2'
+      );
+      // Perfect scores against sec-2 HPS (40/40, 80/80, 40/40) -> 100% -> Transmuted = 100
+      expect(grade).toBe(100);
+    });
+
+    it('matches grades recorded under "Filipino 10" when querying official subject "Filipino"', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'cr-fil10',
+          student_lrn: '100000000003',
+          section_id: 'sec-10',
+          subject_id: 'sub-custom-fil10',
+          subject_name: 'Filipino 10',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 92
+        }
+      ] as unknown as ClassRecord[];
+
+      const standardSubjects: Subject[] = [
+        {
+          id: 'sub-std-fil',
+          subject_name: 'Filipino',
+          grade_level: 'Grade 10'
+        }
+      ] as unknown as Subject[];
+
+      const grade = resolveStudentQuarterGrade(
+        '100000000003',
+        'sub-std-fil',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 10',
+        undefined,
+        standardSubjects,
+        'sec-10'
+      );
+      expect(grade).toBe(92);
     });
   });
 });

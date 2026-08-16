@@ -306,14 +306,14 @@ export function CertificateGeneratorPage() {
                     sectionSubjects.forEach(sub => {
                         if (term === 'EOSY') {
                             const termGrades = [1, 2, 3].map(q => {
-                                return resolveStudentQuarterGrade(s.lrn, sub.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track);
+                                return resolveStudentQuarterGrade(s.lrn, sub.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track, subjects, section?.id || secId);
                             }).filter(g => g > 0);
                             if (termGrades.length === 3) {
                                 const finalSubGrade = Math.round(termGrades.reduce((a, b) => a + b, 0) / 3);
                                 if (finalSubGrade < 80) hasGradeBelow80 = true;
                             }
                         } else {
-                            const grade = resolveStudentQuarterGrade(s.lrn, sub.id, term, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track);
+                            const grade = resolveStudentQuarterGrade(s.lrn, sub.id, term, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, section?.section_grade_level, section?.track, subjects, section?.id || secId);
                             if (grade > 0 && grade < 80) hasGradeBelow80 = true;
                         }
                     });
@@ -356,7 +356,9 @@ export function CertificateGeneratorPage() {
                         gradingSheetRecords, 
                         hpsRecords, 
                         section?.section_grade_level, 
-                        section?.track
+                        section?.track,
+                        subjects,
+                        section?.id || secId
                     );
                     if (grade > topGrade) {
                         topGrade = grade;

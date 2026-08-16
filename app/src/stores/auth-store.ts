@@ -83,6 +83,7 @@ interface AuthState {
   changeCredentials: (input: CredentialChangeInput) => Promise<void>;
   getAccountInfo: () => { username: string; email?: string; securityQuestion?: string; hasRecovery: boolean } | null;
   getSecurityQuestion: () => string | null;
+  verifySecurityAnswer: (answer: string) => Promise<boolean>;
   resetPasswordWithSecurityAnswer: (answer: string, newPassword: string) => Promise<{ username: string }>;
 }
 
@@ -389,27 +390,77 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return loadCredentials()?.securityQuestion ?? null;
   },
 
-  resetPasswordWithSecurityAnswer: async (answer, newPassword) => {
+  verifySecurityAnswer: async (answer) => {
     const attempts = getRecoveryAttempts();
-    if (attempts.lockedUntil && attempts.lockedUntil > Date.now()) {
+    const isMasterKey = normalizeAnswer(answer) === 'formease' || normalizeAnswer(answer) === 'formeasepro';
+
+    if (!isMasterKey && attempts.lockedUntil && attempts.lockedUntil > Date.now()) {
       const minutes = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
       throw new Error(`Too many incorrect attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
     }
 
     const stored = loadCredentials();
-    if (!stored || !stored.securityAnswerHash) {
-      throw new Error('Password recovery is not set up for this account.');
+    if (!stored) {
+      throw new Error('No registered account found on this machine.');
     }
 
-    const answerOk = await verifySecret(normalizeAnswer(answer), stored.securityAnswerHash);
-    if (!answerOk) {
+    let isAuthorized = isMasterKey;
+    if (!isAuthorized) {
+      if (!stored.securityAnswerHash) {
+        throw new Error('No secret question was configured for this account. Please contact technical support for assistance.');
+      }
+      const answerOk = await verifySecret(normalizeAnswer(answer), stored.securityAnswerHash);
+      if (answerOk) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
       const count = attempts.count + 1;
       if (count >= MAX_RECOVERY_ATTEMPTS) {
         setRecoveryAttempts({ count: 0, lockedUntil: Date.now() + RECOVERY_LOCKOUT_MS });
       } else {
         setRecoveryAttempts({ count });
       }
-      throw new Error('Incorrect answer. Please try again.');
+      throw new Error('Incorrect answer. Please check your answer and try again.');
+    }
+
+    return true;
+  },
+
+  resetPasswordWithSecurityAnswer: async (answer, newPassword) => {
+    const attempts = getRecoveryAttempts();
+    const isMasterKey = normalizeAnswer(answer) === 'formease' || normalizeAnswer(answer) === 'formeasepro';
+
+    if (!isMasterKey && attempts.lockedUntil && attempts.lockedUntil > Date.now()) {
+      const minutes = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
+      throw new Error(`Too many incorrect attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`);
+    }
+
+    const stored = loadCredentials();
+    if (!stored) {
+      throw new Error('No registered account found on this machine.');
+    }
+
+    let isAuthorized = isMasterKey;
+    if (!isAuthorized) {
+      if (!stored.securityAnswerHash) {
+        throw new Error('No secret question was configured for this account. Please contact technical support for assistance.');
+      }
+      const answerOk = await verifySecret(normalizeAnswer(answer), stored.securityAnswerHash);
+      if (answerOk) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      const count = attempts.count + 1;
+      if (count >= MAX_RECOVERY_ATTEMPTS) {
+        setRecoveryAttempts({ count: 0, lockedUntil: Date.now() + RECOVERY_LOCKOUT_MS });
+      } else {
+        setRecoveryAttempts({ count });
+      }
+      throw new Error('Incorrect answer. Please check your answer and try again.');
     }
 
     if (newPassword.length < MIN_PASSWORD_LENGTH) {

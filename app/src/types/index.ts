@@ -411,12 +411,14 @@ export interface ObservedValues {
 export interface HPSRecord {
     id: string;
     subject_id: string; // Unique per section in this system
+    subject_name?: string;
     school_year: string;
     quarter: 1 | 2 | 3; // Strictly 3-term system
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;
     section_id?: string;
+    summative_tests?: (number | string)[];
 }
 
 export interface SF2Sheet {

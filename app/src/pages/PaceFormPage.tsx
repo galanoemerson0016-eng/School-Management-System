@@ -33,6 +33,7 @@ export function PaceFormPage() {
   const activeSchoolYear = useAppStore((s) => s.activeSchoolYear);
   const schoolProfile = useAppStore((s) => s.schoolProfile);
   const setCurrentView = useAppStore((s) => s.setCurrentView);
+  const globalSelectedSection = useAppStore((s) => s.selectedSection);
 
   // Form Type Selection: 'reading' | 'language' | 'math' | 'gmrc-makabansa'
   const [formType, setFormType] = useState<'reading' | 'language' | 'math' | 'gmrc-makabansa'>(() => {
@@ -79,13 +80,14 @@ export function PaceFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  // Auto-select first Grade 1 section
+  // Auto-select Grade 1 section (match active global section if available)
   useEffect(() => {
     if (!selectedSectionId && grade1Sections.length > 0) {
-      const firstId = grade1Sections[0].id;
-      setTimeout(() => setSelectedSectionId(firstId), 0);
+      const match = grade1Sections.find(s => s.id === globalSelectedSection || s.section_name === globalSelectedSection);
+      const targetId = match ? match.id : grade1Sections[0].id;
+      setTimeout(() => setSelectedSectionId(targetId), 0);
     }
-  }, [grade1Sections, selectedSectionId]);
+  }, [grade1Sections, selectedSectionId, globalSelectedSection]);
 
   const selectedSection = useMemo(() => {
     return sections.find(s => s.id === selectedSectionId || s.section_name === selectedSectionId);

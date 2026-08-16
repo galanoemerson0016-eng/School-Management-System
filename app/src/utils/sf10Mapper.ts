@@ -366,7 +366,10 @@ export function mapStudentToSpecData({
             classRecords,
             gradingSheetRecords,
             hpsRecords,
-            dbSubject.grade_level
+            dbSubject.grade_level,
+            undefined,
+            dbSubjects,
+            record.section_id
         );
 
         const grade = gradeVal > 0 ? gradeVal : record.final_grade;

@@ -159,7 +159,9 @@ export function SF5Page() {
                                     gradingSheetRecords,
                                     hpsRecords,
                                     currentSectionInfo?.section_grade_level,
-                                    currentSectionInfo?.track
+                                    currentSectionInfo?.track,
+                                    subjects,
+                                    currentSectionInfo?.id
                                 );
                             })
                             .filter((grade) => grade > 0);
@@ -175,7 +177,9 @@ export function SF5Page() {
                                     gradingSheetRecords,
                                     hpsRecords,
                                     currentSectionInfo?.section_grade_level,
-                                    currentSectionInfo?.track
+                                    currentSectionInfo?.track,
+                                    subjects,
+                                    currentSectionInfo?.id
                                 );
                             })
                             .filter((grade) => grade > 0);
@@ -221,7 +225,9 @@ export function SF5Page() {
                         gradingSheetRecords,
                         hpsRecords,
                         currentSectionInfo?.section_grade_level,
-                        currentSectionInfo?.track
+                        currentSectionInfo?.track,
+                        subjects,
+                        currentSectionInfo?.id
                     );
                     if (grade > 0) {
                         subjectQuarterTotal += grade;

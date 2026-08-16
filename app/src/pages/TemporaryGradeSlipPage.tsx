@@ -420,7 +420,9 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                     records,
                     hpsRecords,
                     section?.section_grade_level,
-                    section?.track
+                    section?.track,
+                    subjects,
+                    section?.id
                 );
                 if (g > 0) {
                     if (q === 1) { q1 = g.toString(); termTotals.t1 += g; termCounts.t1++; }

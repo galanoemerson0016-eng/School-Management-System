@@ -212,7 +212,9 @@ export function LIRPage() {
                 gradingSheetRecords,
                 hpsRecords,
                 selectedSectionObj?.section_grade_level,
-                selectedSectionObj?.track
+                selectedSectionObj?.track,
+                subjects,
+                selectedSectionObj?.id
             );
 
             data[term] = {

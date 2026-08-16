@@ -884,6 +884,7 @@ function computeStudentGrades(
                 const results: number[] = [];
                 const classRecords = useAppStore.getState().classRecords;
                 const hpsRecords = useAppStore.getState().hpsRecords;
+                const storeSubjects = useAppStore.getState().subjects;
 
                 matchingSubjects.forEach(subject => {
                     const gradeVal = resolveStudentQuarterGrade(
@@ -895,7 +896,9 @@ function computeStudentGrades(
                         gradingSheetRecords,
                         hpsRecords,
                         sectionObj?.section_grade_level,
-                        sectionObj?.track
+                        sectionObj?.track,
+                        storeSubjects,
+                        sectionObj?.id
                     );
                     if (gradeVal > 0) {
                         results.push(gradeVal);

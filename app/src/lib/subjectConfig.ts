@@ -468,11 +468,22 @@ export function getSF9SubjectsForGrade(gradeLevel: string | number, customCurric
 
 export function normalizeSubjectName(name: string): string {
   if (!name) return '';
-  return name
+  const clean = name
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '')
     .replace(/[^a-z0-9]/g, '');
+
+  // Preserve official numbered SHS subjects (e.g. Biology 1, General Chemistry 2, General Physics 1)
+  if (/^(biology|generalchemistry|generalphysics)[12]$/.test(clean)) {
+    return clean;
+  }
+  if (/^creativeindustries(1|2|i|ii)$/.test(clean)) {
+    return clean;
+  }
+
+  // Strip trailing grade number suffix (e.g., filipino10 -> filipino, math7 -> math, sciencegrade8 -> science)
+  return clean.replace(/(?:grade|gr|g)?(?:1[0-2]|[1-9])$/, '');
 }
 
 /**

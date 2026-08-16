@@ -9,6 +9,7 @@ import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollment
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
+import { normalizeSubjectName } from '../lib/subjectConfig';
 
 const WW_COUNT = 5;
 const PT_COUNT = 3;
@@ -632,17 +633,14 @@ export function ShsEClassRecord() {
 
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
-        if (!effectiveSubjectId) {
-            return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
-        }
-
+        const normSubjName = normalizeSubjectName(subjectName);
         const record = hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             r.section_id === selectedSection
         ) || hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -665,7 +663,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, subjectName]);
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
@@ -740,12 +738,13 @@ export function ShsEClassRecord() {
     const optimalNameColumnWidth = 280;
 
     const isFieldExposure = currentCluster === 'shs_field_exposure';
-    const teHeaderLabel = isFieldExposure ? 'TE' : 'TE (40%)';
+    const teHeaderLabel = 'TE';
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
+        const normSubjName = normalizeSubjectName(subjectName);
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
             Number(r.quarter) === quarter
         );
 
@@ -829,7 +828,7 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, subjectName]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1099,12 +1098,12 @@ export function ShsEClassRecord() {
         const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
 
         const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + Number(b), 0);
-        const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
+        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b || 0), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
         const wwWS = wwPS * currentWeights.written_works;
 
         const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + Number(b), 0);
-        const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
+        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b || 0), 0);
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * currentWeights.performance_tasks;
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
@@ -1815,7 +1814,7 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-slate-200">{hps.ww.some(v => v !== '') ? hps.ww.reduce<number>((a, b) => a + Number(b || 0), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.written_works * 100)}%</td>
                                         {hps.pt.map((val, i) => (
@@ -1831,7 +1830,7 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce<number>((a, b) => a + Number(b || 0), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.performance_tasks * 100)}%</td>
                                         {hps.qa
