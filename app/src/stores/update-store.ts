@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.1';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📋 Added Grade 1 PACE Form Excel export templates & services (Reading & Literacy, GMRC & MAKABANSA, Language, and Mathematics).",
-              "📄 Added dedicated PACE Form interactive rendering page & template configuration.",
-              "🎓 Integrated PACE Form navigation tab in School Forms Page."
+              "📊 Restored Grade 1 E-Class Record with full assessment calculation, transmutation, and export tools.",
+              "🎯 Synchronized E-Class Record and downstream modules (SF9, SF10, SF5, SF6, Grade Management, Reports, LIR, Certificates) with custom weights & multi-section HPS isolation.",
+              "🧹 Added automated subject normalization & deduplication for custom subject names (e.g. Filipino 10 -> Filipino).",
+              "🔑 Implemented 2-step emergency account recovery with master key & username retrieval.",
+              "✨ Cleaned up Senior High E-Class Record header labels."
             ],
             timestamp: Date.now(),
             status: 'success',

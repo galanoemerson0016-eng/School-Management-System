@@ -1,5 +1,28 @@
 # Version History
 
+## v2.11.1 (2026-08-16)
+
+### 🚀 New Features & Enhancements
+
+- Added 2-step emergency account recovery with master key support and username retrieval.
+- Restored Grade 1 E-Class Record with full assessment calculation, transmutation, and export tools.
+- Maintained standalone PACE Form module under School Forms page.
+
+### ⚡ Improvements
+
+- Added automated subject normalization & deduplication for custom subject names (e.g. `Filipino 10` automatically resolves to `Filipino`).
+- Preserved custom learning area weight configurations in grade calculation across all consuming modules.
+- Isolated multi-section HPS records by `section_id` to prevent cross-section grade calculation skew.
+
+### 🐞 Bug Fixes
+
+- Synchronized E-Class Record quarter and final grades with SF9, SF10, SF5, SF6, Temporary Grade Slips, Grade Management / Consolidated Grades, Reports, LIR, and Certificate Generator.
+- Removed floating percentage text from Senior High E-Class Record table header columns.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.0 (2026-08-14)
 
 ### 🚀 New Features & Enhancements
