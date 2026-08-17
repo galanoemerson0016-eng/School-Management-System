@@ -991,15 +991,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const oldName = oldSubject.subject_name;
     const newName = subject.subject_name;
-    const nameChanged = normalizeSubjectName(oldName) !== normalizeSubjectName(newName);
+    const nameChanged = oldName.trim() !== newName.trim();
+    const oldNorm = normalizeSubjectName(oldName);
 
     try {
       // 1. Update subjects
       // If the name changed, we also rename any OTHER subjects in the same grade 
-      // that have the same old name (to clean up duplicates)
+      // that have the same old name or normalized name (to clean up duplicates)
       const newSubjects = get().subjects.map((s) => {
         if (s.id === subject.id) return subject;
-        if (nameChanged && s.grade_level === subject.grade_level && normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName)) {
+        if (nameChanged && s.grade_level === subject.grade_level && (s.subject_name === oldName || (oldNorm && normalizeSubjectName(s.subject_name) === oldNorm))) {
           return { ...s, subject_name: newName };
         }
         return s;
@@ -1011,7 +1012,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         newSections = previousSections.map(sec => ({
           ...sec,
           taught_subjects: sec.taught_subjects?.map(name => 
-            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
+            (name === oldName || (oldNorm && normalizeSubjectName(name) === oldNorm)) ? newName : name
           ) || []
         }));
       }
@@ -1022,7 +1023,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await db.putRecord('subjects', subject);
       if (nameChanged) {
           // Persist other renamed subjects
-          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && s.subject_name === newName && normalizeSubjectName(previousSubjects.find(ps => ps.id === s.id)?.subject_name || '') === normalizeSubjectName(oldName));
+          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && (s.subject_name === newName || (oldNorm && normalizeSubjectName(s.subject_name) === oldNorm)));
           for (const s of renamedOthers) {
               await db.putRecord('subjects', s);
           }
@@ -1035,6 +1036,19 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
             await db.putRecord('sections', sec);
           }
+        }
+
+        // 5. Propagate subject name update to existing classRecords, hpsRecords, and gradingSheetRecords
+        try {
+          const classRecs = get().classRecords || [];
+          for (const cr of classRecs) {
+            if (cr.subject_id === subject.id || cr.subject_name === oldName || (oldNorm && cr.subject_name && normalizeSubjectName(cr.subject_name) === oldNorm)) {
+              const updatedCr = { ...cr, subject_name: newName };
+              await db.putRecord('classRecords', updatedCr);
+            }
+          }
+        } catch (syncErr) {
+          console.warn('Non-fatal error updating class records on subject rename:', syncErr);
         }
       }
 

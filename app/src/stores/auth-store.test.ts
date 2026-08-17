@@ -6,6 +6,7 @@ vi.mock('../services/database', () => ({
     getAllRecords: vi.fn().mockResolvedValue([]),
     putRecordsBulk: vi.fn().mockResolvedValue(undefined),
   },
+  onDatabaseWriteChange: vi.fn(),
 }));
 
 vi.mock('../lib/firebase', () => ({

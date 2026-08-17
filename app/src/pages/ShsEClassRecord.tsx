@@ -1041,18 +1041,24 @@ export function ShsEClassRecord() {
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
 
+        const normSubjName = normalizeSubjectName(subjectName);
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
-            r.student_lrn === lrn &&
-            r.subject_id === effectiveSubjectId &&
+            (r.student_lrn === lrn || String(r.student_lrn).trim() === String(lrn).trim()) &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
             Number(r.quarter) === (quarter as number)
         );
 
-        const record: ClassRecord = existingRecord ? { ...existingRecord } : {
+        const record: ClassRecord = existingRecord ? {
+            ...existingRecord,
+            subject_id: effectiveSubjectId,
+            subject_name: subjectName || existingRecord.subject_name
+        } : {
             id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
             section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
+            subject_name: subjectName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: Array(WW_COUNT).fill(''),
@@ -1862,9 +1868,10 @@ export function ShsEClassRecord() {
                                         <td colSpan={isFieldExposure ? 21 : 26} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
+                                        const normSubjName = normalizeSubjectName(subjectName);
                                         const record = classRecords.find(r =>
-                                            r.student_lrn === student.lrn &&
-                                            r.subject_id === effectiveSubjectId &&
+                                            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
+                                            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (

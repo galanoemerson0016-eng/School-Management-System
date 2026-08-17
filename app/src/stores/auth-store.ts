@@ -19,6 +19,7 @@ import { hashSecret, verifySecret } from '../utils/password-crypto';
 import { deriveDbKey, getDbSalt } from '../utils/db-crypto';
 import { db } from '../services/database';
 import { getMachineId } from '../utils/machine-id';
+import { useAppStore } from './app-store';
 
 const CREDS_KEY = 'formease-credentials-v2';
 const LEGACY_CREDS_KEY = 'formease-credentials';
@@ -479,7 +480,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export async function initializeAuthStore() {
   try {
     // Trial mode bypasses login entirely
-    const { useAppStore } = await import('./app-store');
     const profile = useAppStore.getState().schoolProfile;
     if (profile && profile.is_activated && profile.is_trial) {
       await setupTrialDatabaseEncryption();
