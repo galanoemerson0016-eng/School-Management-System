@@ -402,10 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
+              "🎯 Harmonized grade computation engine: 100% parity across E-Class Record, Grade Management, SF9, and SF10.",
+              "⚡ Automatic score recalculation on HPS changes across active grading sheets.",
               "🛡️ Resilient section subject filtering: exact and normalized name matching with automated fallback.",
-              "🔄 Self-healing E-Class Record and HPS scoring grids across subject IDs and canonical titles.",
               "📑 Startup database reconciliation: auto-backfills legacy records missing subject names.",
-              "📝 Added native Obsidian Knowledge Vault integration & Markdown classroom export."
+              "📝 Native Obsidian Knowledge Vault integration & Markdown classroom export."
             ],
             timestamp: Date.now(),
             status: 'success',

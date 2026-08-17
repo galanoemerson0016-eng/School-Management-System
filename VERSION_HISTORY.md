@@ -9,13 +9,20 @@
 
 ### ⚡ Improvements
 
+- **Harmonized Grade Computation Engine**: Synchronized dynamic grade resolution across E-Class Record, Grade Management, SF9, and SF10 with robust section HPS matching across section UUIDs, plain names, and composite titles.
+- **Automatic Score Recalculation on HPS Changes**: Modifying Highest Possible Scores (HPS) in the E-Class Record now automatically re-computes `final_grade` across all student records in that section and updates official grading sheet stores immediately.
 - **Resilient Section Subject Filtering (`rbac.ts`)**: `filterSubjectsForSection` now handles both exact string matches and normalized subject aliases (`normalizeSubjectName`) with a reliable grade-level fallback to ensure subject dropdowns are never empty.
 - **Startup Database Auto-Reconciler (`app-store.ts`)**: On boot, FormEase Pro scans IndexedDB records (`classRecords`, `hpsRecords`) and automatically backfills any missing `subject_name` attributes from the active subject catalog.
 
 ### 🐞 Bug Fixes
 
+- Fixed grade discrepancies where Grade Management, SF9, and SF10 displayed stale scores due to HPS section ID variations.
 - Fixed an issue where sections with custom subject names (e.g. `Filipino 10`) caused standard curriculum subjects to be filtered out from the E-Class Record and SF9 dropdowns.
 - Fixed summary mode table calculations where legacy class records without explicit subject names failed to resolve for quarterly averages.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
 
 ## v2.11.2 (2026-08-17)
 

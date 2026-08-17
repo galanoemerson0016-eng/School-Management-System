@@ -3482,8 +3482,9 @@ export function SettingsPage() {
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 17, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🎯 <strong>Harmonized Grade Computation Engine</strong>: Synchronized live dynamic grade resolution across E-Class Record, Grade Management, SF9 Report Cards, and SF10 Permanent Records with cross-alias section HPS matching.</li>
+                                        <li>⚡ <strong>Automatic HPS Score Recalculation</strong>: Updating Highest Possible Scores (HPS) now automatically recomputes and syncs student grades across official records immediately.</li>
                                         <li>🛡️ <strong>Resilient Section Subject Filtering</strong>: Upgraded <code>filterSubjectsForSection</code> with exact and normalized alias matching plus automated grade-level fallback, preventing missing subjects in E-Class Record and SF9 dropdowns.</li>
-                                        <li>🔄 <strong>Self-Healing E-Class & Summary Scoring</strong>: Enhanced student grade row and HPS resolution across composite IDs, normalized subject names, and store lookups.</li>
                                         <li>📑 <strong>Startup Database Reconciliation</strong>: Automatically scans IndexedDB records on launch to backfill missing subject names from the active curriculum catalog.</li>
                                         <li>📝 <strong>Native Obsidian Knowledge Vault & Export</strong>: Built-in Obsidian sync service with 1-click note generation (<code>obsidian://new</code>) for classroom rosters and system docs.</li>
                                     </ul>
