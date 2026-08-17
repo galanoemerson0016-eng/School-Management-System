@@ -126,6 +126,23 @@ export function SettingsPage() {
         downloadMarkdownFile(noteTitle, md);
     };
 
+    const handleDownloadAllAnecdotals = () => {
+        const targetSection = sections.find(s => s.id === selectedObsidianSection || s.section_name === selectedObsidianSection) || sections[0];
+        if (!targetSection) {
+            alert('Please create or select a section first.');
+            return;
+        }
+        const sectionStudents = students.filter(s => s.student_section === targetSection.section_name || s.grade_level === targetSection.section_grade_level);
+        if (sectionStudents.length === 0) {
+            alert('No learners found in this section.');
+            return;
+        }
+        sectionStudents.forEach(st => {
+            const md = generateStudentAnecdotalMarkdown(st, targetSection, subjects, classRecords, activeSchoolYear);
+            downloadMarkdownFile(`Learner_${st.lrn}_${st.last_name}`, md);
+        });
+    };
+
     const handleLinkGoogle = async () => {
         try {
             const newState = await CloudSyncService.authorize();
@@ -2775,6 +2792,14 @@ export function SettingsPage() {
                                             >
                                                 <Download className="w-3.5 h-3.5" />
                                                 <span>Download Section Note (.md)</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDownloadAllAnecdotals}
+                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                            >
+                                                <FileText className="w-3.5 h-3.5" />
+                                                <span>Download Learner Anecdotals (.md)</span>
                                             </button>
                                         </div>
 
