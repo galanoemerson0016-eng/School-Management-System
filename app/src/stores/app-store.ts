@@ -1519,6 +1519,55 @@ export async function initializeAppStore() {
     }
 
 
+    // Reconcile and backfill missing subject_name on classRecords, gradingSheetRecords, and hpsRecords
+    let needsClassRecordsUpdate = false;
+    const reconciledClassRecords = classRecords.map(r => {
+      if (!r.subject_name) {
+        const found = finalSubjects.find(s => s.id === r.subject_id);
+        if (found) {
+          needsClassRecordsUpdate = true;
+          return { ...r, subject_name: found.subject_name };
+        }
+        const normId = normalizeSubjectName(r.subject_id || '');
+        if (normId) {
+          const foundByNorm = finalSubjects.find(s => normalizeSubjectName(s.subject_name) === normId);
+          if (foundByNorm) {
+            needsClassRecordsUpdate = true;
+            return { ...r, subject_name: foundByNorm.subject_name };
+          }
+        }
+      }
+      return r;
+    });
+
+    if (needsClassRecordsUpdate) {
+      void db.putRecordsBulk('classRecords', reconciledClassRecords);
+    }
+
+    let needsHpsRecordsUpdate = false;
+    const reconciledHpsRecords = hpsRecords.map(r => {
+      if (!r.subject_name) {
+        const found = finalSubjects.find(s => s.id === r.subject_id);
+        if (found) {
+          needsHpsRecordsUpdate = true;
+          return { ...r, subject_name: found.subject_name };
+        }
+        const normId = normalizeSubjectName(r.subject_id || '');
+        if (normId) {
+          const foundByNorm = finalSubjects.find(s => normalizeSubjectName(s.subject_name) === normId);
+          if (foundByNorm) {
+            needsHpsRecordsUpdate = true;
+            return { ...r, subject_name: foundByNorm.subject_name };
+          }
+        }
+      }
+      return r;
+    });
+
+    if (needsHpsRecordsUpdate) {
+      void db.putRecordsBulk('hpsRecords', reconciledHpsRecords);
+    }
+
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
     const persistedSelectedSection = getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
     const hasPersistedSection = !!persistedSelectedSection && sections.some(
@@ -1533,9 +1582,9 @@ export async function initializeAppStore() {
       studentProfiles: students,
       sections,
       subjects: finalSubjects,
-      classRecords,
+      classRecords: reconciledClassRecords,
       gradingSheetRecords,
-      hpsRecords,
+      hpsRecords: reconciledHpsRecords,
       enrollments,
       announcements,
       attendanceRecords: repaired.attendanceRecords,

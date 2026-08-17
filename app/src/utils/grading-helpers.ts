@@ -42,12 +42,25 @@ export function resolveStudentQuarterGrade(
     const resolvedSubjectName = recWithName?.subject_name || targetSubjectName;
     const normResolvedName = normalizeSubjectName(resolvedSubjectName);
 
-    const isSubjectMatch = (rSubId: string, rSubName?: string) => {
+    const isSubjectMatch = (rSubId: string, rSubName?: string, rRecordId?: string) => {
         if (rSubId === subjectIdOrName) return true;
         const normName = normalizeSubjectName(rSubName || '');
         if (normName && (normName === normTarget || normName === normResolvedName)) return true;
         const normId = normalizeSubjectName(rSubId || '');
         if (normId && (normId === normTarget || normId === normResolvedName)) return true;
+        if (subjects && rSubId) {
+            const sub = subjects.find(s => s.id === rSubId);
+            if (sub) {
+                const sNorm = normalizeSubjectName(sub.subject_name);
+                if (sNorm && (sNorm === normTarget || sNorm === normResolvedName)) return true;
+            }
+        }
+        if (rRecordId) {
+            const rLower = rRecordId.toLowerCase();
+            if (normTarget && rLower.includes(normTarget)) return true;
+            if (normResolvedName && rLower.includes(normResolvedName)) return true;
+            if (subjectIdOrName && rLower.includes(subjectIdOrName.toLowerCase())) return true;
+        }
         return false;
     };
 
@@ -61,7 +74,7 @@ export function resolveStudentQuarterGrade(
     // 1. Check primary classRecords
     const cRecord = classRecords.find(r =>
         (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name) &&
+        isSubjectMatch(r.subject_id, r.subject_name, r.id) &&
         isQuarterMatch(r.quarter, quarter) &&
         (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
@@ -72,14 +85,14 @@ export function resolveStudentQuarterGrade(
         const resolvedSectionId = sectionId || cRecord.section_id;
         const hpsRec = (resolvedSectionId
             ? hpsRecords.find(h =>
-                (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
+                (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
                 (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
                 isQuarterMatch(h.quarter, quarter) &&
                 h.section_id === resolvedSectionId
             )
             : undefined
         ) || hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
+            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
             (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
             isQuarterMatch(h.quarter, quarter)
         );
@@ -151,7 +164,7 @@ export function resolveStudentQuarterGrade(
     // 2. Check gradingSheetRecords
     const gRecord = gradingSheetRecords.find(r =>
         (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name) &&
+        isSubjectMatch(r.subject_id, r.subject_name, r.id) &&
         isQuarterMatch(r.quarter, quarter) &&
         (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );

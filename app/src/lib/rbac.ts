@@ -1,4 +1,5 @@
 import type { Section, Subject, User, UserRole } from '../types';
+import { normalizeSubjectName } from './subjectConfig';
 
 export type AppView =
     | 'dashboard'
@@ -178,11 +179,21 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     if (section.subject_name) {
         section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
     }
+    const normRegisteredNames = new Set(
+        Array.from(registeredNames).map(n => normalizeSubjectName(n))
+    );
+
+    const isRegistered = (subjName: string) => {
+        if (registeredNames.has(subjName)) return true;
+        const norm = normalizeSubjectName(subjName);
+        return normRegisteredNames.has(norm);
+    };
+
     if (section.is_teaching_load || registeredNames.size > 0) {
         // Find subjects (regardless of section_id) that match the grade level and are selected as taught
         const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 
-            registeredNames.has(s.subject_name)
+            isRegistered(s.subject_name)
         );
  
         // Combine and remove duplicates by subject name
@@ -199,7 +210,10 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         }
         
         // Ensure we only return subjects the user actually checked in the Section form
-        return unique.filter(s => registeredNames.has(s.subject_name));
+        const filtered = unique.filter(s => isRegistered(s.subject_name));
+        if (filtered.length > 0) {
+            return filtered;
+        }
     }
     
     // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level

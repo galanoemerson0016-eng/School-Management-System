@@ -698,13 +698,23 @@ export function EClassRecord() {
         }
 
         const normSubjName = normalizeSubjectName(subjectName);
+        const isHpsMatch = (r: HPSRecord) => {
+            if (r.subject_id === effectiveSubjectId) return true;
+            if (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) return true;
+            if (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) return true;
+            const sub = subjects.find(s => s.id === r.subject_id);
+            if (sub && normalizeSubjectName(sub.subject_name) === normSubjName) return true;
+            if (r.id && ((normSubjName && r.id.toLowerCase().includes(normSubjName)) || (effectiveSubjectId && r.id.includes(effectiveSubjectId)))) return true;
+            return false;
+        };
+
         const record = hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
+            isHpsMatch(r) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             r.section_id === selectedSection
         ) || hpsRecords.find(r =>
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
+            isHpsMatch(r) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -821,8 +831,8 @@ export function EClassRecord() {
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const normSubjName = normalizeSubjectName(subjectName);
         const record = classRecords.find(r =>
-            r.student_lrn === student.lrn &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
+            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
             Number(r.quarter) === quarter
         );
 
@@ -941,12 +951,13 @@ export function EClassRecord() {
                 if (!subjId) return '';
                 const subj = subjects.find(s => s.id === subjId);
                 if (!isTermOffered(subj, q)) return '';
+                const normName = subj ? normalizeSubjectName(subj.subject_name) : '';
 
                 const record = classRecords.find(r =>
-                    r.student_lrn === student.lrn &&
-                    r.subject_id === subjId &&
+                    (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
+                    (r.subject_id === subjId || (normName && r.subject_name && normalizeSubjectName(r.subject_name) === normName) || (normName && normalizeSubjectName(r.subject_id) === normName)) &&
                     (r.quarter === q || Number(r.quarter) === q) &&
-                    r.school_year === activeSchoolYear
+                    (!r.school_year || r.school_year === activeSchoolYear)
                 );
 
                 // Only return if final_grade is a valid number > 0
@@ -996,13 +1007,14 @@ export function EClassRecord() {
 
         let total = 0;
         let count = 0;
+        const normTargetSubj = targetSubjectObj?.subject_name ? normalizeSubjectName(targetSubjectObj.subject_name) : '';
         const terms = [1, 2, 3].map(q => {
             if (!isTermOffered(targetSubjectObj, q)) {
                 return '';
             }
             const record = classRecords.find(r =>
-                r.student_lrn === student.lrn &&
-                r.subject_id === selectedSubject &&
+                (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
+                (r.subject_id === selectedSubject || (normTargetSubj && r.subject_name && normalizeSubjectName(r.subject_name) === normTargetSubj) || (normTargetSubj && normalizeSubjectName(r.subject_id) === normTargetSubj) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normTargetSubj)) &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1195,7 +1207,7 @@ export function EClassRecord() {
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
             (r.student_lrn === lrn || String(r.student_lrn).trim() === String(lrn).trim()) &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
             Number(r.quarter) === (quarter as number)
         );
 
@@ -2084,7 +2096,7 @@ export function EClassRecord() {
                                         const normSubjName = normalizeSubjectName(subjectName);
                                         const record = classRecords.find(r =>
                                             (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                                            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName)) &&
+                                            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (
