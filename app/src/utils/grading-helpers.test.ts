@@ -429,5 +429,114 @@ describe('Grading Helpers', () => {
       );
       expect(grade).toBe(92);
     });
+
+    it('matches Grade 8 Science client data: Abiera Angelo (80), Calisa Jade (72), Cubil Hance (84)', () => {
+      const scienceSubj: Subject = {
+        id: 'subj-science-g8',
+        subject_name: 'Science',
+        grade_level: 'Grade 8'
+      } as unknown as Subject;
+
+      const hpsRec: HPSRecord = {
+        id: 'hps_science_emerald_q1',
+        subject_id: 'subj-science-g8',
+        subject_name: 'Science',
+        section_id: 'Emerald', // Note: section name stored on HPS
+        quarter: 1,
+        school_year: '2026-2027',
+        written_works: [50, 20, 129, '', ''],
+        performance_tasks: [50, 10, '', ''],
+        summative_tests: [25, 25, ''],
+        quarterly_exam: ''
+      } as unknown as HPSRecord;
+
+      const classRecords: ClassRecord[] = [
+        // 1. Abiera, Angelo
+        {
+          id: 'cr-abiera',
+          student_lrn: '132866180001',
+          section_id: 'sec-emerald-uuid', // Note: section UUID stored on class record
+          subject_id: 'subj-science-g8',
+          subject_name: 'Science',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [22, 20, 74, '', ''],
+          performance_tasks: [40, 10, '', ''],
+          summative_tests: [15, 23, '']
+        },
+        // 2. Calisa, Jade
+        {
+          id: 'cr-calisa',
+          student_lrn: '132866180002',
+          section_id: 'sec-emerald-uuid',
+          subject_id: 'subj-science-g8',
+          subject_name: 'Science',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [6, '', 36, '', ''],
+          performance_tasks: [40, '', '', ''],
+          summative_tests: [13, 21, '']
+        },
+        // 3. Cubil, Hance Owen
+        {
+          id: 'cr-cubil',
+          student_lrn: '132866180004',
+          section_id: 'sec-emerald-uuid',
+          subject_id: 'subj-science-g8',
+          subject_name: 'Science',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [33, 20, 81, '', ''],
+          performance_tasks: [40, 10, '', ''],
+          summative_tests: [19, 25, '']
+        }
+      ] as unknown as ClassRecord[];
+
+      // Query as SF10 or Consolidated Grades does:
+      const abieraGrade = resolveStudentQuarterGrade(
+        '132866180001',
+        'subj-science-g8',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [hpsRec],
+        'Grade 8',
+        undefined,
+        [scienceSubj],
+        'sec-emerald-uuid'
+      );
+      expect(abieraGrade).toBe(80); // Exact match with E-Class Record 80
+
+      const calisaGrade = resolveStudentQuarterGrade(
+        '132866180002',
+        'subj-science-g8',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [hpsRec],
+        'Grade 8',
+        undefined,
+        [scienceSubj],
+        'sec-emerald-uuid'
+      );
+      expect(calisaGrade).toBe(72); // Exact match with E-Class Record 72
+
+      const cubilGrade = resolveStudentQuarterGrade(
+        '132866180004',
+        'subj-science-g8',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [hpsRec],
+        'Grade 8',
+        undefined,
+        [scienceSubj],
+        'sec-emerald-uuid'
+      );
+      expect(cubilGrade).toBe(84); // Exact match with E-Class Record 84
+    });
   });
 });
