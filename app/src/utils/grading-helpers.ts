@@ -5,6 +5,7 @@ import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
 import { normalizeSubjectName } from '../lib/subjectConfig';
+import { useAppStore } from '../stores';
 
 function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
@@ -81,16 +82,27 @@ export function resolveStudentQuarterGrade(
 
     if (cRecord) {
         // HPS lookup: prefer section-specific record (matching EClassRecord.tsx behavior),
-        // then fall back to records without a section_id
+        // checking both section ID, section name, and composite section name, then fallback to any HPS for this subject/quarter
         const resolvedSectionId = sectionId || cRecord.section_id;
-        const hpsRec = (resolvedSectionId
-            ? hpsRecords.find(h =>
-                (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
-                (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
-                isQuarterMatch(h.quarter, quarter) &&
-                h.section_id === resolvedSectionId
-            )
-            : undefined
+        const allSections = useAppStore.getState?.()?.sections || [];
+        const secObj = allSections.find((s: any) => s.id === resolvedSectionId || s.section_name === resolvedSectionId);
+
+        const isHpsSecMatch = (hSecId?: string) => {
+            if (!hSecId || !resolvedSectionId) return true;
+            if (hSecId === resolvedSectionId) return true;
+            if (secObj) {
+                if (hSecId === secObj.id || hSecId === secObj.section_name) return true;
+                const compositeName = `Grade ${secObj.section_grade_level} - ${secObj.section_name}`;
+                if (hSecId.toLowerCase() === compositeName.toLowerCase() || hSecId.toLowerCase() === secObj.section_name.toLowerCase()) return true;
+            }
+            return false;
+        };
+
+        const hpsRec = hpsRecords.find(h =>
+            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
+            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
+            isQuarterMatch(h.quarter, quarter) &&
+            isHpsSecMatch(h.section_id)
         ) || hpsRecords.find(h =>
             (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
             (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&

@@ -1044,7 +1044,65 @@ export function ShsEClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
+
+        // Auto-recalculate and sync final_grade for all students in this section when HPS changes
+        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
+        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
+        const currentHpsQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT).map((v, i) => {
+            if (i === 2 && (v === undefined || v === '')) return Number(newRecord.quarterly_exam) || 0;
+            return Number(v) || 0;
+        });
+
+        const normSubj = normalizeSubjectName(subjectName);
+        const secStudents = stateHpsRecords ? useAppStore.getState().classRecords.filter(r =>
+            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubj)) &&
+            Number(r.quarter) === (quarter as number) &&
+            r.school_year === activeSchoolYear &&
+            (r.section_id === selectedSection || (selectedSectionObj && r.section_id === selectedSectionObj.id))
+        ) : [];
+
+        secStudents.forEach(r => {
+            const wwScores = normalizeScores(r.written_works, WW_COUNT).map(v => Number(v) || 0);
+            const ptScores = normalizeScores(r.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+            const rawQa = (r as any).summative_tests;
+            const normQa = normalizeScores(rawQa, ST_COUNT);
+            if (!normQa[2] && r.quarterly_exam !== '') normQa[2] = r.quarterly_exam;
+
+            const wwTotal = wwScores.reduce((a, b) => a + b, 0);
+            const wwHpsTotal = currentHpsWw.reduce((a, b) => a + b, 0);
+            const wwWS = wwHpsTotal === 0 ? 0 : (wwTotal / wwHpsTotal) * 100 * currentWeights.written_works;
+
+            const ptTotal = ptScores.reduce((a, b) => a + b, 0);
+            const ptHpsTotal = currentHpsPt.reduce((a, b) => a + b, 0);
+            const ptWS = ptHpsTotal === 0 ? 0 : (ptTotal / ptHpsTotal) * 100 * currentWeights.performance_tasks;
+
+            const st1Score = normQa[0] === '' || normQa[0] === null ? null : Number(normQa[0]);
+            const st2Score = normQa[1] === '' || normQa[1] === null ? null : Number(normQa[1]);
+            const teScore = normQa[2] === '' || normQa[2] === null ? null : Number(normQa[2]);
+
+            const qaPS = computeExamsWeightedScore(st1Score, Number(currentHpsQa[0]) || 0, st2Score, Number(currentHpsQa[1]) || 0, teScore, Number(currentHpsQa[2]) || 0, currentCluster);
+            const qaWS = qaPS * currentWeights.quarterly_exam;
+
+            const initGrade = wwWS + ptWS + qaWS;
+            const fg = transmuteGrade(initGrade, r.school_year);
+            if (r.final_grade !== fg) {
+                updateClassRecord({ ...r, final_grade: fg });
+                const { updateGradingSheetRecord } = useAppStore.getState();
+                updateGradingSheetRecord({
+                    id: `${r.student_lrn}_${r.subject_id}_${r.quarter}_${r.school_year}`,
+                    student_lrn: r.student_lrn,
+                    subject_id: r.subject_id,
+                    section_id: r.section_id,
+                    quarter: r.quarter as 1 | 2 | 3,
+                    school_year: r.school_year,
+                    final_grade: fg,
+                    written_works: [],
+                    performance_tasks: [],
+                    quarterly_exam: 0
+                });
+            }
+        });
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, subjectName, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
