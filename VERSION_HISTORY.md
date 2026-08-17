@@ -1,5 +1,22 @@
 # Version History
 
+## v2.11.3 (2026-08-17)
+
+### 🚀 New Features & Enhancements
+
+- **Obsidian Knowledge Vault & Classroom Sync**: Added native Obsidian markdown synchronization service (`obsidian-service.ts`) with 1-click note generation (`obsidian://new`) for Class Section rosters, student anecdotal logs, and system documentation.
+- **Auto-Healing E-Class Record Engine**: Upgraded E-Class Record, SHS scoring grids, and summary tabs (`summary_t1`, `summary_t2`, `summary_final`) to seamlessly resolve grades across composite IDs, canonical subject names, and normalized identifiers.
+
+### ⚡ Improvements
+
+- **Resilient Section Subject Filtering (`rbac.ts`)**: `filterSubjectsForSection` now handles both exact string matches and normalized subject aliases (`normalizeSubjectName`) with a reliable grade-level fallback to ensure subject dropdowns are never empty.
+- **Startup Database Auto-Reconciler (`app-store.ts`)**: On boot, FormEase Pro scans IndexedDB records (`classRecords`, `hpsRecords`) and automatically backfills any missing `subject_name` attributes from the active subject catalog.
+
+### 🐞 Bug Fixes
+
+- Fixed an issue where sections with custom subject names (e.g. `Filipino 10`) caused standard curriculum subjects to be filtered out from the E-Class Record and SF9 dropdowns.
+- Fixed summary mode table calculations where legacy class records without explicit subject names failed to resolve for quarterly averages.
+
 ## v2.11.2 (2026-08-17)
 
 ### 🚀 New Features & Enhancements
