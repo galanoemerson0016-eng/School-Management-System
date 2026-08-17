@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.2';
       const api = window.electronAPI;
 
       try {
@@ -402,11 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📊 Restored Grade 1 E-Class Record with full assessment calculation, transmutation, and export tools.",
-              "🎯 Synchronized E-Class Record and downstream modules (SF9, SF10, SF5, SF6, Grade Management, Reports, LIR, Certificates) with custom weights & multi-section HPS isolation.",
-              "🧹 Added automated subject normalization & deduplication for custom subject names (e.g. Filipino 10 -> Filipino).",
-              "🔑 Implemented 2-step emergency account recovery with master key & username retrieval.",
-              "✨ Cleaned up Senior High E-Class Record header labels."
+              "🔄 Enhanced subject rename synchronization across Section Taught Subjects, duplicate subjects, and class records.",
+              "🎯 Added normalized subject name fallback in E-Class Record and SHS score input grids to guarantee uninterrupted record access.",
+              "⚡ Optimized production bundle imports to eliminate chunk split warnings and enhance runtime performance."
             ],
             timestamp: Date.now(),
             status: 'success',

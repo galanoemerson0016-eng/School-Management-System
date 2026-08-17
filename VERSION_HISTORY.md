@@ -1,5 +1,25 @@
 # Version History
 
+## v2.11.2 (2026-08-17)
+
+### 🚀 New Features & Enhancements
+
+- Enhanced E-Class Record and Senior High School grading sheet lookup with normalized subject name fallback to ensure past grading records remain accessible across subject recreations and standard auto-loads.
+
+### ⚡ Improvements
+
+- Optimized production bundle packaging by replacing scattered dynamic imports with clean static references, eliminating Vite chunk split warnings.
+- Synchronized Subject Hub renames directly with section configurations and student class records.
+
+### 🐞 Bug Fixes
+
+- Fixed subject rename synchronization where renaming subjects with trailing numbers (e.g. `Filipino 10` to `Filipino`) did not update `section.taught_subjects`, causing subjects to disappear from the E-Class Record and SF9 dropdowns.
+- Fixed score input grid rendering in Junior High and Senior High E-Class Records so re-created standard subjects immediately display previously entered quarter scores.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.1 (2026-08-16)
 
 ### 🚀 New Features & Enhancements
