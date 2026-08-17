@@ -11,15 +11,16 @@ updated: 2026-08-17
 
 # 🏫 FormEase Pro — Master Knowledge Hub
 
-Welcome to the **FormEase Pro Knowledge Vault**! This vault contains official architectural documentation, DepEd grading standard workflows, troubleshooting guides, and release roadmaps.
+Welcome to the **FormEase Pro Knowledge Vault**! This vault contains official architectural documentation, DepEd grading standard workflows, troubleshooting guides, business models, and DevOps release pipelines.
 
 ```mermaid
 graph TD
     Hub["🏠 FormEase Pro Hub"] --> Arch["🏗️ Architecture"]
     Hub --> Features["⚡ Features & Engines"]
-    Hub --> Grading["📊 Grading & DepEd Standards"]
-    Hub --> Guides["🛠️ Troubleshooting & Guides"]
-    Hub --> Releases["📋 Releases & History"]
+    Hub --> Grading["📊 DepEd Standards & Forms"]
+    Hub --> Biz["💼 Business & Marketing"]
+    Hub --> DevOps["🚀 DevOps & QA"]
+    Hub --> Guides["🛠️ Troubleshooting & Support"]
 
     Arch --> DB["[[01 - 🗄️ Database & Offline Storage]]"]
     Arch --> Sec["[[03 - 🔐 Security, Encryption & Auth]]"]
@@ -30,18 +31,25 @@ graph TD
     Features --> IDCard["[[05 - 🪪 Student ID Card Generator & Layouts]]"]
     Features --> SMS["[[06 - 📩 SMS Gateway & Parent Notification System]]"]
     Features --> Awards["[[07 - 🎓 Awards Engine & Certificate Generator]]"]
+    Features --> Games["[[08 - 🎲 Interactive Classroom Games & Teaching Tools]]"]
+    Features --> SF8["[[09 - 🍎 SF8 Nutritional Assessment & BMI Engine]]"]
 
     Grading --> Engine["[[02 - 📊 Grading Engine & DepEd Formulas]]"]
     Grading --> Matatag["[[01 - 📜 MATATAG Curriculum Standards]]"]
     Grading --> Weights["[[02 - ⚖️ Learning Area Weight Clusters]]"]
+    Grading --> SFMaster["[[03 - 📋 DepEd School Forms Master Guide (SF1 to SF10)]]"]
+
+    Biz --> Price["[[01 - 💰 Pricing, Licensing Models & School Tiers]]"]
+    Biz --> Pitch["[[02 - 📢 Marketing Copy, Pitch Decks & Demo Scripts]]"]
+
+    DevOps --> Pipeline["[[01 - 🏗️ Build, Packaging & Release Pipeline]]"]
+    DevOps --> QA["[[02 - 🧪 Pre-Flight QA & Smoke Testing Checklist]]"]
+    DevOps --> Releases["[[01 - 📋 Version History Index]]"]
 
     Guides --> Sync["[[01 - 🐞 Subject & Section Sync Guide]]"]
     Guides --> Recovery["[[02 - 🔑 Emergency Password Recovery]]"]
     Guides --> Forms["[[03 - 📄 School Forms (SF9, SF10, SF5)]]"]
     Guides --> SF10["[[04 - 📑 SF10 Permanent Record & Historical Transcripts]]"]
-
-    Releases --> Index["[[01 - 📋 Version History Index]]"]
-    Releases --> Latest["[[02 - 🚀 v2.11.2 Release Notes]]"]
 ```
 
 ---
@@ -60,20 +68,29 @@ graph TD
 * **[[05 - 🪪 Student ID Card Generator & Layouts]]** — DepEd ID card layouts, 300 DPI vector PDF sheets, Code128 barcodes.
 * **[[06 - 📩 SMS Gateway & Parent Notification System]]** — Automated parent SMS alerts via GSM modem / Android bridge.
 * **[[07 - 🎓 Awards Engine & Certificate Generator]]** — Academic Excellence evaluators, Old English calligraphy diplomas.
+* **[[08 - 🎲 Interactive Classroom Games & Teaching Tools]]** — Wheel of Fortune student picker, class timer, team randomizer.
+* **[[09 - 🍎 SF8 Nutritional Assessment & BMI Engine]]** — Automated Body Mass Index & Height-for-Age health calculations.
 
-### 📜 DepEd Standards & Regulations
+### 📜 DepEd Standards & Forms Encyclopedia
 * **[[01 - 📜 MATATAG Curriculum Standards]]** — DepEd Order 2026 compliance, elementary clusters, junior high subjects.
 * **[[02 - ⚖️ Learning Area Weight Clusters]]** — Written Works, Performance Tasks, and Quarterly Exams weight configurations.
+* **[[03 - 📋 DepEd School Forms Master Guide (SF1 to SF10)]]** — Master overview of all standard DepEd school forms.
+
+### 💼 Business, Pricing & Sales Kit
+* **[[01 - 💰 Pricing, Licensing Models & School Tiers]]** — Solo Teacher, Grade-Level bundle, and School Site licensing models.
+* **[[02 - 📢 Marketing Copy, Pitch Decks & Demo Scripts]]** — High-converting pitch scripts and value propositions for school heads.
+
+### 🚀 DevOps, QA & Releases
+* **[[01 - 🏗️ Build, Packaging & Release Pipeline]]** — Production packaging, Electron obfuscation, and update distribution.
+* **[[02 - 🧪 Pre-Flight QA & Smoke Testing Checklist]]** — Pre-release test checklist to ensure zero data regressions.
+* **[[01 - 📋 Version History Index]]** — Complete release timeline and major architectural milestones.
+* **[[02 - 🚀 v2.11.2 Release Notes]]** — Subject normalization, E-Class score grid fallback, and bundle optimizations.
 
 ### 🛠️ Troubleshooting & Guides
 * **[[01 - 🐞 Subject & Section Sync Guide]]** — Resolving custom subject variants, section normalization, and E-Class dropdowns.
 * **[[02 - 🔑 Emergency Password Recovery]]** — 2-step password reset, master key `formease`, and lockout protection.
 * **[[03 - 📄 School Forms (SF9, SF10, SF5)]]** — SF9 Learner Progress, SF10 Permanent Record, SF5 Promotion, and SF6 Summaries.
 * **[[04 - 📑 SF10 Permanent Record & Historical Transcripts]]** — Multi-year scholastic transcript generation and eligibility clearance.
-
-### 📋 Release & Changelogs
-* **[[01 - 📋 Version History Index]]** — Complete release timeline and major architectural milestones.
-* **[[02 - 🚀 v2.11.2 Release Notes]]** — Subject normalization, E-Class score grid fallback, and bundle optimizations.
 
 ---
 
