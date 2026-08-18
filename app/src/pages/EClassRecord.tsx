@@ -125,7 +125,11 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "inquiries investigations and immersion",
             "inquiries, investigations and immersion",
             "practical research 1",
-            "practical research 2"
+            "practical research 2",
+            "research 1",
+            "research 2",
+            "research i",
+            "research ii"
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -494,9 +498,6 @@ export function EClassRecord() {
     }, [sections, selectedSection]);
 
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
-    const selectedSubjectObj = useMemo(() => {
-        return subjects.find(s => s.id === selectedSubject);
-    }, [subjects, selectedSubject]);
     // Sort Sections: Grade Level (Asc) -> Name (Asc)
     // Filter: If Teacher, only show sections where they are Adviser OR have a Subject assigned
     const sortedSections = useMemo(() => {
@@ -649,10 +650,14 @@ export function EClassRecord() {
         }
     }, [quarter, filteredSubjects, selectedSubject, setGlobalSubject]);
 
+    const selectedSubjectObj = useMemo(() => {
+        return filteredSubjects.find(s => s.id === selectedSubject) || subjects.find(s => s.id === selectedSubject);
+    }, [filteredSubjects, subjects, selectedSubject]);
+
     // Determine the actual subject ID to use for grading/fetching
     const effectiveSubjectId = useMemo(() => {
         const isMapeh = (selectedSubject === 'virtual_mapeh' || 
-                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
+                       (selectedSubjectObj?.subject_name.toUpperCase() === 'MAPEH')) &&
                        mapehComponents.length > 0;
         
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
@@ -660,11 +665,11 @@ export function EClassRecord() {
             return selectedMapehComponentId || mapehComponents[0]?.id || '';
         }
         return selectedSubject;
-    }, [selectedSubject, selectedMapehComponentId, quarter, subjects, mapehComponents]);
+    }, [selectedSubject, selectedSubjectObj, selectedMapehComponentId, quarter, mapehComponents]);
 
     const subjectName = useMemo(() => {
-        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
-    }, [subjects, effectiveSubjectId, selectedSubject]);
+        return filteredSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
+    }, [filteredSubjects, subjects, effectiveSubjectId, selectedSubject]);
 
     useEffect(() => {
         const isMapeh = (selectedSubject === 'virtual_mapeh' || 

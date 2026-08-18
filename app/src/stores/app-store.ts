@@ -1421,7 +1421,7 @@ export async function initializeAppStore() {
 
     const subjects: Subject[] = rawSubjects.map(s => ({
       ...s,
-      term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+      term: (s.term !== undefined && s.term !== null && s.term !== 'none') ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
     }));
 
     // Load the school profile by fetching all records.

@@ -472,34 +472,7 @@ export const SPECIAL_SUBJECTS = {
 
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
-export function getDefaultTermForSubject(subjectName: string, gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
-    const gl = gradeLevel.toLowerCase();
-    
-    // For Grade 12, all subjects default to 'none' (user must choose offering term manually)
-    if (gl.includes('12')) {
-        return 'none';
-    }
-
-    const isSHS = gl.includes('11') || gl.includes('12');
-    if (!isSHS) {
-        return 'all';
-    }
-    
-    // For Grade 11, Core subjects are offered in all terms; electives are per term (default none)
-    const normalized = subjectName.trim().toLowerCase();
-    const g11Cores = [
-        'effective communication',
-        'mabisang komunikasyon',
-        'general mathematics',
-        'general science',
-        'life and career skills',
-        'pag-aaral ng kasaysayan at lipunang pilipino',
-        'kasaysayan at lipunang pilipino'
-    ];
-    
-    if (g11Cores.some(c => normalized.includes(c))) {
-        return 'all';
-    }
-    
-    return 'none';
+export function getDefaultTermForSubject(_subjectName: string, _gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
+    // Default to 'all' across all grade levels so subjects are always available and active by default
+    return 'all';
 }

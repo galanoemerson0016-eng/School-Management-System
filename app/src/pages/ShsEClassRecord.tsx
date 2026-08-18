@@ -120,7 +120,11 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "inquiries investigations and immersion",
             "inquiries, investigations and immersion",
             "practical research 1",
-            "practical research 2"
+            "practical research 2",
+            "research 1",
+            "research 2",
+            "research i",
+            "research ii"
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -615,8 +619,8 @@ export function ShsEClassRecord() {
     const effectiveSubjectId = selectedSubject;
 
     const subjectName = useMemo(() => {
-        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
-    }, [subjects, effectiveSubjectId]);
+        return filteredSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || subjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
+    }, [filteredSubjects, subjects, effectiveSubjectId]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];

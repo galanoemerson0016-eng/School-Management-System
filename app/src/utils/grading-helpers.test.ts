@@ -18,7 +18,9 @@ import {
   getStudentAbsences,
   resolveStudentQuarterGrade,
 } from './grading-helpers';
-import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
+import { filterSubjectsForSection } from '../lib/rbac';
+import { normalizeSubjectName } from '../lib/subjectConfig';
+import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord, User } from '../types';
 
 describe('Grading Helpers', () => {
   // Mock data helpers
@@ -537,6 +539,86 @@ describe('Grading Helpers', () => {
         'sec-emerald-uuid'
       );
       expect(cubilGrade).toBe(84); // Exact match with E-Class Record 84
+    });
+
+    it('preserves and aliases Research 1 and Research 2 in normalizeSubjectName without collision', () => {
+      expect(normalizeSubjectName('Research 1')).toBe('practicalresearch1');
+      expect(normalizeSubjectName('Research 2')).toBe('practicalresearch2');
+      expect(normalizeSubjectName('Research I')).toBe('practicalresearch1');
+      expect(normalizeSubjectName('Research II')).toBe('practicalresearch2');
+      expect(normalizeSubjectName('Practical Research 1')).toBe('practicalresearch1');
+      expect(normalizeSubjectName('Practical Research 2')).toBe('practicalresearch2');
+      expect(normalizeSubjectName('General Biology 1')).toBe('generalbiology1');
+      expect(normalizeSubjectName('General Biology 2')).toBe('generalbiology2');
+      expect(normalizeSubjectName('Filipino 10')).toBe('filipino');
+    });
+
+    it('filterSubjectsForSection synthesizes and includes custom typed subjects like "Research 2"', () => {
+      const mockUser: User = { uid: 'teacher-1', email: 'teacher@school.ph', role: 'teacher' } as User;
+      const g12Section: Section = {
+        id: 'sec-g12-louis-pasteur',
+        section_name: 'LOUIS PASTEUR',
+        section_grade_level: 'Grade 12',
+        adviser_id: 'teacher-1',
+        is_teaching_load: true,
+        taught_subjects: ['Research 2']
+      };
+
+      const result = filterSubjectsForSection(mockUser, g12Section, []);
+      expect(result.length).toBe(1);
+      expect(result[0].subject_name).toBe('Research 2');
+      expect(result[0].term).toBe('all');
+      expect(result[0].grade_level).toBe('Grade 12');
+    });
+
+    it('resolveStudentQuarterGrade computes grades for custom typed "Research 2" subject', () => {
+      const researchRecord: ClassRecord = {
+        id: 'cr-research-1',
+        student_lrn: '123456789012',
+        subject_id: 'custom_sec_research2',
+        subject_name: 'Research 2',
+        quarter: 1,
+        school_year: '2026-2027',
+        section_id: 'sec-g12-pasteur',
+        written_works: [20, 20],
+        performance_tasks: [40, 40],
+        quarterly_exam: 50
+      };
+
+      const researchHps: HPSRecord = {
+        id: 'hps-research-1',
+        subject_id: 'custom_sec_research2',
+        subject_name: 'Research 2',
+        quarter: 1,
+        school_year: '2026-2027',
+        section_id: 'sec-g12-pasteur',
+        written_works: [20, 20],
+        performance_tasks: [40, 40],
+        quarterly_exam: 50
+      };
+
+      const customSubj: Subject = {
+        id: 'custom_sec_research2',
+        subject_name: 'Research 2',
+        grade_level: 'Grade 12',
+        term: 'all'
+      };
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'custom_sec_research2',
+        1,
+        '2026-2027',
+        [researchRecord],
+        [],
+        [researchHps],
+        'Grade 12',
+        'TVL',
+        [customSubj],
+        'sec-g12-pasteur'
+      );
+
+      expect(grade).toBe(100);
     });
   });
 });

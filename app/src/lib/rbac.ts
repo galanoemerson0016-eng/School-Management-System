@@ -168,16 +168,16 @@ export function filterSectionsForUser(user: User | null | undefined, sections: S
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
     if (!user || !section) return [];
     
-    // Exclude subjects marked as 'none' (Not Offered)
-    const activeSubjects = subjects.filter(s => s.term !== 'none');
-    
     // First, find subjects directly linked to this section
-    const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
+    const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none');
     
-    // Only show subjects that are registered in the section configuration
+    // Collect all registered names from taught_subjects and subject_name
     const registeredNames = new Set(section.taught_subjects || []);
     if (section.subject_name) {
-        section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
+        section.subject_name.split(',').forEach(s => {
+            const trimmed = s.trim();
+            if (trimmed) registeredNames.add(trimmed);
+        });
     }
     const normRegisteredNames = new Set(
         Array.from(registeredNames).map(n => normalizeSubjectName(n))
@@ -190,42 +190,72 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     };
 
     if (section.is_teaching_load || registeredNames.size > 0) {
-        // Find subjects (regardless of section_id) that match the grade level and are selected as taught
-        const gradeMatches = activeSubjects.filter(s => 
-            s.grade_level === section.section_grade_level && 
+        // Find existing catalog subjects that match the grade level and are selected as taught
+        const gradeMatches = subjects.filter(s => 
+            (s.grade_level === section.section_grade_level || !s.grade_level) && 
             isRegistered(s.subject_name)
         );
- 
-        // Combine and remove duplicates by subject name
-        const combined = [...directlyLinked, ...gradeMatches];
-        const unique: Subject[] = [];
-        const seen = new Set<string>();
+
+        // Combine directly linked and catalog matches
+        const combined: Subject[] = [...directlyLinked, ...gradeMatches];
+        const seenNorms = new Set<string>();
+        const result: Subject[] = [];
         
         for (const s of combined) {
-            const key = s.subject_name.trim().toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(s);
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && !seenNorms.has(norm)) {
+                seenNorms.add(norm);
+                result.push({
+                    ...s,
+                    // If explicitly registered in this section, ensure term is active
+                    term: s.term === 'none' ? 'all' : s.term
+                });
             }
         }
-        
-        // Ensure we only return subjects the user actually checked in the Section form
-        const filtered = unique.filter(s => isRegistered(s.subject_name));
-        if (filtered.length > 0) {
-            return filtered;
+
+        // For any registered subject name that did NOT match an existing catalog subject,
+        // dynamically synthesize a Subject object for this section so custom subjects (e.g. "Research 2") are never lost
+        for (const regName of Array.from(registeredNames)) {
+            const norm = normalizeSubjectName(regName);
+            if (norm && !seenNorms.has(norm)) {
+                seenNorms.add(norm);
+                result.push({
+                    id: `custom_${section.id}_${norm}`,
+                    subject_name: regName,
+                    grade_level: section.section_grade_level,
+                    section_id: section.id,
+                    teacher_id: user?.uid,
+                    term: 'all'
+                } as Subject);
+            }
+        }
+
+        if (result.length > 0) {
+            return result;
         }
     }
     
     // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
-    const gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
-    if (gradeLevelSubjects.length > 0) {
+    const gradeLevelSubjects = subjects.filter(s => 
+        s.grade_level === section.section_grade_level && 
+        s.term !== 'none'
+    );
+    
+    const fallbackList = gradeLevelSubjects.length > 0
+        ? gradeLevelSubjects
+        : subjects.filter(s => s.grade_level === section.section_grade_level);
+
+    if (fallbackList.length > 0) {
         const unique: Subject[] = [];
         const seen = new Set<string>();
-        for (const s of gradeLevelSubjects) {
-            const key = s.subject_name.trim().toLowerCase();
+        for (const s of fallbackList) {
+            const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
             if (!seen.has(key)) {
                 seen.add(key);
-                unique.push(s);
+                unique.push({
+                    ...s,
+                    term: s.term === 'none' ? 'all' : s.term
+                });
             }
         }
         return unique;
@@ -234,7 +264,7 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     const uniqueDirect: Subject[] = [];
     const seenDirect = new Set<string>();
     for (const s of directlyLinked) {
-        const key = s.subject_name.trim().toLowerCase();
+        const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
         if (!seenDirect.has(key)) {
             seenDirect.add(key);
             uniqueDirect.push(s);
