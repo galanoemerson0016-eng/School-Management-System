@@ -472,7 +472,72 @@ export const SPECIAL_SUBJECTS = {
 
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
-export function getDefaultTermForSubject(_subjectName: string, _gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
-    // Default to 'all' across all grade levels so subjects are always available and active by default
-    return 'all';
+export function getDefaultTermForSubject(subjectName: string, gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
+    const gl = (gradeLevel || '').toLowerCase();
+    const isSHS = gl.includes('11') || gl.includes('12');
+    if (!isSHS) {
+        return 'all';
+    }
+
+    const norm = (subjectName || '').toLowerCase().trim().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    if (!norm) return 'none';
+
+    // Core & Applied Subjects for SHS (Grade 11 & Grade 12)
+    const shsCoreAndApplied = [
+        'oralcommunication',
+        'readingandwritingskills',
+        'readingandwriting',
+        'komunikasyonatpananaliksik',
+        'komunikasyonatpananaliksiksawikaatkulturangpilipino',
+        'pagbasaatpagsusuri',
+        'pagbasaatpagsusuringibatibangtekstotungosapananaliksik',
+        '21stcenturyliterature',
+        '21stcenturyliteraturefromthephilippinesandtheworld',
+        'contemporaryphilippinearts',
+        'contemporaryphilippineartsfromtheregions',
+        'mediaandinformationliteracy',
+        'generalmathematics',
+        'statisticsandprobability',
+        'earthandlifescience',
+        'physicalscience',
+        'earthscience',
+        'disasterreadinessandriskreduction',
+        'disasterreadiness',
+        'personaldevelopment',
+        'understandingculturesocietyandpolitics',
+        'introductiontophilosophy',
+        'introductiontophilosophyofthehumanperson',
+        'physicaleducationandhealth',
+        'physicaleducationandhealth1',
+        'physicaleducationandhealth2',
+        'physicaleducationandhealth3',
+        'physicaleducationandhealth4',
+        'peandhealth1',
+        'peandhealth2',
+        'peandhealth3',
+        'peandhealth4',
+        'peandhealth',
+        'effectivecommunication',
+        'mabisangkomunikasyon',
+        'lifeandcareerskills',
+        'practicalresearch1',
+        'practicalresearch2',
+        'research1',
+        'research2',
+        'inquiriesinvestigationsandimmersion',
+        'empowermenttechnologies',
+        'englishforacademicandprofessionalpurposes',
+        'filipinosapilinglarang',
+        'filipinosapilinglarangakademik',
+        'filipinosapilinglarangakademiko',
+        'entrepreneurship'
+    ];
+
+    if (shsCoreAndApplied.some(c => norm === c || norm.includes(c) || c.includes(norm))) {
+        return 'all';
+    }
+
+    // Specialized and niche track electives default to 'none' (Not Offered by default)
+    // Schools can enable them in the Subjects Page as needed.
+    return 'none';
 }

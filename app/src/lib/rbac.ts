@@ -235,27 +235,20 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         }
     }
     
-    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
+    // Fallback: if not a teaching load and no subjects checked, return only active subjects for that grade level
     const gradeLevelSubjects = subjects.filter(s => 
         s.grade_level === section.section_grade_level && 
         s.term !== 'none'
     );
-    
-    const fallbackList = gradeLevelSubjects.length > 0
-        ? gradeLevelSubjects
-        : subjects.filter(s => s.grade_level === section.section_grade_level);
 
-    if (fallbackList.length > 0) {
+    if (gradeLevelSubjects.length > 0) {
         const unique: Subject[] = [];
         const seen = new Set<string>();
-        for (const s of fallbackList) {
+        for (const s of gradeLevelSubjects) {
             const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
             if (!seen.has(key)) {
                 seen.add(key);
-                unique.push({
-                    ...s,
-                    term: s.term === 'none' ? 'all' : s.term
-                });
+                unique.push(s);
             }
         }
         return unique;

@@ -1421,7 +1421,7 @@ export async function initializeAppStore() {
 
     const subjects: Subject[] = rawSubjects.map(s => ({
       ...s,
-      term: (s.term !== undefined && s.term !== null && s.term !== 'none') ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
+      term: s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level)
     }));
 
     // Load the school profile by fetching all records.
@@ -1568,6 +1568,28 @@ export async function initializeAppStore() {
       void db.putRecordsBulk('hpsRecords', reconciledHpsRecords);
     }
 
+    // Reconcile subjects that were mistakenly set to 'all' for unoffered specialized electives without records
+    const isSHSSpecialized = (s: Subject) => {
+      const gl = (s.grade_level || '').toLowerCase();
+      return (gl.includes('11') || gl.includes('12')) && getDefaultTermForSubject(s.subject_name, s.grade_level) === 'none';
+    };
+
+    let needsSubjectCleanup = false;
+    const finalSubjectsList = finalSubjects.map(s => {
+      if (s.term === 'all' && isSHSSpecialized(s) && !s.section_id) {
+        const hasRecords = reconciledClassRecords.some(r => r.subject_id === s.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(s.subject_name)));
+        if (!hasRecords) {
+          needsSubjectCleanup = true;
+          return { ...s, term: 'none' as const };
+        }
+      }
+      return s;
+    });
+
+    if (needsSubjectCleanup) {
+      void db.putRecordsBulk('subjects', finalSubjectsList);
+    }
+
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
     const persistedSelectedSection = getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
     const hasPersistedSection = !!persistedSelectedSection && sections.some(
@@ -1581,7 +1603,7 @@ export async function initializeAppStore() {
       students,
       studentProfiles: students,
       sections,
-      subjects: finalSubjects,
+      subjects: finalSubjectsList,
       classRecords: reconciledClassRecords,
       gradingSheetRecords,
       hpsRecords: reconciledHpsRecords,

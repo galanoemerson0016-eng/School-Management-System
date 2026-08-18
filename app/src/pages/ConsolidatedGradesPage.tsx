@@ -3,7 +3,7 @@ import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } fro
 import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { filterSF9Sections } from '../lib/rbac';
+import { filterSF9Sections, filterSubjectsForSection } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject } from '../lib/curriculum';
@@ -1018,22 +1018,18 @@ const groupedSections = useMemo(() => {
             return getDefaultTermForSubject(s.subject_name, s.grade_level);
         };
 
-        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && getEffectiveTerm(s) !== 'none');
-        
-        // If no section-specific subjects exist, look for grade-level templates
-        if (sectionDbSubjects.length === 0) {
-            sectionDbSubjects = subjects.filter(s => {
-                const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum && getEffectiveTerm(s) !== 'none';
-            });
-        }
+        // Use filterSubjectsForSection so section taught_subjects and active subjects are strictly adhered to
+        let sectionDbSubjects = filterSubjectsForSection(user, sectionObj, subjects).filter(s => {
+            const effTerm = s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level);
+            return effTerm !== 'none';
+        });
 
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
         if (selectedTerm !== 'all') {
             const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
             if (termNum !== null) {
                 sectionDbSubjects = sectionDbSubjects.filter(s => {
-                    const effTerm = getEffectiveTerm(s);
+                    const effTerm = s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level);
                     return effTerm === 'all' || Number(effTerm) === termNum;
                 });
             }
