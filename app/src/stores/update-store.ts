@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.3';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.4';
       const api = window.electronAPI;
 
       try {
@@ -402,11 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🎯 Harmonized grade computation engine: 100% parity across E-Class Record, Grade Management, SF9, and SF10.",
-              "⚡ Automatic score recalculation on HPS changes across active grading sheets.",
-              "🛡️ Resilient section subject filtering: exact and normalized name matching with automated fallback.",
-              "📑 Startup database reconciliation: auto-backfills legacy records missing subject names.",
-              "📝 Native Obsidian Knowledge Vault integration & Markdown classroom export."
+              "🎯 Consolidated Grades & E-Class Record hook dependency alignment for real-time reactivity.",
+              "🧹 Cleaned legacy score normalizers and unused grading imports in Consolidated Grades.",
+              "⚡ Automated build pipeline and repository markdownlint rule configuration."
             ],
             timestamp: Date.now(),
             status: 'success',

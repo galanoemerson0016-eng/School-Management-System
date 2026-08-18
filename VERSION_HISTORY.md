@@ -1,5 +1,24 @@
 # Version History
 
+## v2.11.4 (2026-08-18)
+
+### 🚀 New Features & Enhancements
+
+- **Repository Linter Architecture**: Configured `.markdownlint.json` and `.markdownlintignore` across workspace documentation to ensure pristine validation standards.
+
+### ⚡ Improvements
+
+- **React Hook Synchronization**: Aligned dependency arrays across `ConsolidatedGradesPage.tsx` and `EClassRecord.tsx` (`subjects`, `subjectName`) to guarantee real-time reactivity without unnecessary renders.
+- **Codebase Optimization**: Purged unused legacy scoring normalizers and grading helpers in `ConsolidatedGradesPage.tsx`.
+
+### 🐞 Bug Fixes
+
+- Fixed React Hook dependency warnings in `EClassRecord.tsx` and `ConsolidatedGradesPage.tsx` to prevent stale subject catalog lookups in score input grids and grade summary calculations.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.3 (2026-08-17)
 
 ### 🚀 New Features & Enhancements
