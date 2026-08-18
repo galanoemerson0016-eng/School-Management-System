@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.4';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.5';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🎯 Consolidated Grades & E-Class Record hook dependency alignment for real-time reactivity.",
-              "🧹 Cleaned legacy score normalizers and unused grading imports in Consolidated Grades.",
-              "⚡ Automated build pipeline and repository markdownlint rule configuration."
+              "🛡️ Restored missing SHS Grade 12 subjects in E-Class Record by setting default term to active.",
+              "🧩 Automated dynamic synthesis for custom typed subjects (like Research 2) in section subject load.",
+              "🔢 Fixed subject name normalization to preserve numbered SHS subjects (Research 1/2, Bio/Chem/Phys 1/2) without collision."
             ],
             timestamp: Date.now(),
             status: 'success',

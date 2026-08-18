@@ -1,5 +1,27 @@
 # Version History
 
+## v2.11.5 (2026-08-18)
+
+### 🚀 New Features & Enhancements
+
+- **Dynamic Custom Subject Synthesis**: `filterSubjectsForSection` now automatically generates active subject objects for custom-typed subjects (such as `"Research 2"`, `"TVL - SMAW"`, or specialized track loads) registered in section configurations, ensuring they are immediately accessible in E-Class Record and SF9 dropdowns.
+
+### ⚡ Improvements
+
+- **SHS & Grade 12 Active Term Defaulting**: Updated curriculum subject defaults (`getDefaultTermForSubject`) to return `'all'` for Grade 12 and Senior High subjects so they are active and selectable across terms without manual re-configuration.
+- **Subject Name Normalization & Numbered Preservation**: Upgraded `normalizeSubjectName` to preserve numbered SHS subject designations (`Research 1/2`, `Practical Research 1/2`, `General Biology 1/2`, `General Chemistry 1/2`, `General Physics 1/2`, `PE and Health 1–4`, `Creative Industries 1/2`) without number-stripping collisions.
+- **Colloquial Research Subject Aliasing**: Added automatic bidirectional aliasing between colloquial `"Research 1/2"` and official `"Practical Research 1/2"` for accurate DepEd weightings and Applied track categorization.
+
+### 🐞 Bug Fixes
+
+- Fixed an issue where Grade 12 subjects defaulted to `term: 'none'` and became invisible in E-Class Record subject dropdowns.
+- Fixed an issue where manually entered custom subjects (e.g. `Research 2`) were missing from the subject selector after updating.
+- Fixed subject lookup in `EClassRecord.tsx` and `ShsEClassRecord.tsx` so custom section subjects immediately link to previously recorded student scores in IndexedDB.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.4 (2026-08-18)
 
 ### 🚀 New Features & Enhancements
