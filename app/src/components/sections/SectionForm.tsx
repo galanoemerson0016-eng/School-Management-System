@@ -467,6 +467,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         }
 
         try {
+            const validSubjectNames = new Set(availableSubjects.map(s => s.name));
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
                 section_name: formData.section_name!,
@@ -474,7 +475,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 adviser_id: formData.adviser_id || '',
                 adviser_name: formData.is_advisory ? (formData.adviser_name || '') : '',
                 subject_name: formData.subject_name,
-                taught_subjects: formData.taught_subjects || [],
+                taught_subjects: formData.is_teaching_load 
+                    ? (formData.taught_subjects || []).filter(s => validSubjectNames.has(s))
+                    : [],
                 is_teaching_load: !!formData.is_teaching_load,
                 is_advisory: !!formData.is_advisory,
                 track: (formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12'))

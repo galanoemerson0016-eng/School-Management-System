@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, BookOpen, FileText, ExternalLink } from 'lucide-react';
-import { openInObsidian, downloadMarkdownFile, generateSectionMarkdown, generateStudentAnecdotalMarkdown } from '../services/obsidian-service';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
@@ -98,50 +97,6 @@ export function SettingsPage() {
     const [isRestoringCloudBackup, setIsRestoringCloudBackup] = useState(false);
     const [showEmergencyRollbacks, setShowEmergencyRollbacks] = useState(false);
     const [selectedSectionToCascadePurge, setSelectedSectionToCascadePurge] = useState<string>('');
-    const [obsidianVault, setObsidianVault] = useState(() => localStorage.getItem('formease_obsidian_vault') || 'FormEase Pro Vault');
-    const [selectedObsidianSection, setSelectedObsidianSection] = useState<string>('');
-
-    const handleOpenSectionInObsidian = () => {
-        const targetSection = sections.find(s => s.id === selectedObsidianSection || s.section_name === selectedObsidianSection) || sections[0];
-        if (!targetSection) {
-            alert('Please create or select a section first.');
-            return;
-        }
-        const noteTitle = `Section ${targetSection.section_name} - Grade ${targetSection.section_grade_level}`;
-        const md = generateSectionMarkdown(targetSection, students, subjects, classRecords, activeSchoolYear);
-        const success = openInObsidian(obsidianVault, noteTitle, md);
-        if (!success) {
-            alert('Could not launch Obsidian URI protocol. You can download the .md note directly instead.');
-        }
-    };
-
-    const handleDownloadSectionMarkdown = () => {
-        const targetSection = sections.find(s => s.id === selectedObsidianSection || s.section_name === selectedObsidianSection) || sections[0];
-        if (!targetSection) {
-            alert('Please create or select a section first.');
-            return;
-        }
-        const noteTitle = `Section_${targetSection.section_name}_Grade_${targetSection.section_grade_level}`;
-        const md = generateSectionMarkdown(targetSection, students, subjects, classRecords, activeSchoolYear);
-        downloadMarkdownFile(noteTitle, md);
-    };
-
-    const handleDownloadAllAnecdotals = () => {
-        const targetSection = sections.find(s => s.id === selectedObsidianSection || s.section_name === selectedObsidianSection) || sections[0];
-        if (!targetSection) {
-            alert('Please create or select a section first.');
-            return;
-        }
-        const sectionStudents = students.filter(s => s.student_section === targetSection.section_name || s.grade_level === targetSection.section_grade_level);
-        if (sectionStudents.length === 0) {
-            alert('No learners found in this section.');
-            return;
-        }
-        sectionStudents.forEach(st => {
-            const md = generateStudentAnecdotalMarkdown(st, targetSection, subjects, classRecords, activeSchoolYear);
-            downloadMarkdownFile(`Learner_${st.lrn}_${st.last_name}`, md);
-        });
-    };
 
     const handleLinkGoogle = async () => {
         try {
@@ -2718,95 +2673,6 @@ export function SettingsPage() {
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* Obsidian & Markdown Knowledge Hub */}
-                                    <div className="rounded-2xl border border-purple-500/20 bg-linear-to-br from-purple-500/5 via-white to-indigo-500/5 dark:from-purple-950/20 dark:via-[#0d1225] dark:to-indigo-950/20 p-6 shadow-xs space-y-4">
-                                        <div className="flex items-center justify-between pb-3 border-b border-purple-100 dark:border-white/5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400">
-                                                    <BookOpen className="h-5 w-5" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-wider">Obsidian & Markdown Knowledge Hub</h3>
-                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Export structured notes, section rosters, and records directly into Obsidian.</p>
-                                                </div>
-                                            </div>
-                                            <span className="rounded-full bg-purple-600 text-white text-[9px] font-black px-2.5 py-0.5 uppercase tracking-wider shrink-0 shadow-xs">
-                                                Obsidian Integration
-                                            </span>
-                                        </div>
-
-                                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                                            Obsidian is a local-first markdown note-taking tool. You can open section logs, student anecdotal profiles, and system documentation directly into your Obsidian Vault with a single click.
-                                        </p>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-                                                    Target Obsidian Vault Name
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={obsidianVault}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setObsidianVault(val);
-                                                        localStorage.setItem('formease_obsidian_vault', val);
-                                                    }}
-                                                    placeholder="FormEase Pro Vault"
-                                                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 outline-hidden focus:border-purple-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-                                                    Select Section to Export
-                                                </label>
-                                                <select
-                                                    value={selectedObsidianSection}
-                                                    onChange={(e) => setSelectedObsidianSection(e.target.value)}
-                                                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 outline-hidden focus:border-purple-500"
-                                                >
-                                                    <option value="">-- Choose Section --</option>
-                                                    {sections.map((s) => (
-                                                        <option key={s.id} value={s.id}>
-                                                            Grade {s.section_grade_level} - {s.section_name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2.5 pt-2">
-                                            <button
-                                                type="button"
-                                                onClick={handleOpenSectionInObsidian}
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
-                                            >
-                                                <ExternalLink className="w-3.5 h-3.5" />
-                                                <span>1-Click Open in Obsidian</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleDownloadSectionMarkdown}
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-                                            >
-                                                <Download className="w-3.5 h-3.5" />
-                                                <span>Download Section Note (.md)</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleDownloadAllAnecdotals}
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-gray-200 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-                                            >
-                                                <FileText className="w-3.5 h-3.5" />
-                                                <span>Download Learner Anecdotals (.md)</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-900/30 rounded-xl text-[11px] font-medium text-purple-900 dark:text-purple-300">
-                                            💡 <strong>Project Knowledge Vault Ready</strong>: Open the <code>docs/obsidian-vault</code> folder directly in Obsidian to view the complete system architecture, grading formulas, and release guides.
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3473,100 +3339,12 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 2.11.6 */}
+                                {/* Version 2.11.0 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.6</span>
-                                        <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 18, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎯 <strong>Strict Section-Scoped Grade Management</strong>: Aligned Consolidated Grades with section-level subject assignments (<code>filterSubjectsForSection</code>) to strictly render only the active subjects taught in each section.</li>
-                                        <li>⚡ <strong>Intelligent SHS Term Defaults</strong>: Core and applied SHS subjects default to active (<code>all</code>) while specialized niche track electives (Sports, Arts, Maritime) default to <code>Not Offered (none)</code>.</li>
-                                        <li>🧹 <strong>Automated Database Cleanup on Boot</strong>: Automatically scans and cleans unoffered specialized electives that have no student records in IndexedDB on application launch.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.5 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.5</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 18, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🛡️ <strong>Dynamic Custom Subject Synthesis</strong>: <code>filterSubjectsForSection</code> automatically synthesizes active subject entries for custom typed section subjects (e.g. <code>Research 2</code>, <code>TVL - SMAW</code>), restoring full dropdown access in E-Class Record and SF9.</li>
-                                        <li>⚡ <strong>SHS & Grade 12 Term Active Defaulting</strong>: Updated curriculum term defaults so Grade 12 subjects are always active and selectable across terms without manual re-configuration.</li>
-                                        <li>🔢 <strong>Numbered Subject Normalization & Aliasing</strong>: Upgraded <code>normalizeSubjectName</code> to preserve numbered subjects (<code>Research 1/2</code>, <code>Biology 1/2</code>, <code>PE 1-4</code>) and alias colloquial research names to official DepEd standards.</li>
-                                        <li>📊 <strong>Immediate Student Score Linking</strong>: Enhanced subject lookups in E-Class Record to immediately retrieve and display saved student class records in IndexedDB upon selecting custom subjects.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.4 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.4</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 18, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎯 <strong>React Hook Synchronization</strong>: Aligned dependency arrays in <code>ConsolidatedGradesPage.tsx</code> and <code>EClassRecord.tsx</code> (<code>subjects</code>, <code>subjectName</code>) to guarantee instant reactivity without stale references.</li>
-                                        <li>🧹 <strong>Codebase Optimization</strong>: Removed redundant scoring normalizers and unused grading imports in Consolidated Grades.</li>
-                                        <li>🛡️ <strong>Repository Linter Standards</strong>: Configured workspace markdownlint rules and ignore patterns for seamless documentation validation.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.3 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.3</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 17, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🎯 <strong>Harmonized Grade Computation Engine</strong>: Synchronized live dynamic grade resolution across E-Class Record, Grade Management, SF9 Report Cards, and SF10 Permanent Records with cross-alias section HPS matching.</li>
-                                        <li>⚡ <strong>Automatic HPS Score Recalculation</strong>: Updating Highest Possible Scores (HPS) now automatically recomputes and syncs student grades across official records immediately.</li>
-                                        <li>🛡️ <strong>Resilient Section Subject Filtering</strong>: Upgraded <code>filterSubjectsForSection</code> with exact and normalized alias matching plus automated grade-level fallback, preventing missing subjects in E-Class Record and SF9 dropdowns.</li>
-                                        <li>📑 <strong>Startup Database Reconciliation</strong>: Automatically scans IndexedDB records on launch to backfill missing subject names from the active curriculum catalog.</li>
-                                        <li>📝 <strong>Native Obsidian Knowledge Vault & Export</strong>: Built-in Obsidian sync service with 1-click note generation (<code>obsidian://new</code>) for classroom rosters and system docs.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.2 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.2</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 17, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>🔄 <strong>Subject Rename & Section Synchronization</strong>: Renaming a subject in the Subject Hub now cascades automatically to section taught subjects, duplicate subjects, and existing student class records.</li>
-                                        <li>🎯 <strong>Resilient Score Lookup</strong>: Added normalized subject name fallback in Junior High and Senior High E-Class Record input grids to guarantee uninterrupted record access across subject re-creations.</li>
-                                        <li>⚡ <strong>Production Bundle Optimization</strong>: Cleaned up dynamic imports to eliminate chunk split warnings and optimize application launch performance.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.1 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.1</span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 16, 2026</p>
-                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
-                                        <li>📊 <strong>Restored Grade 1 E-Class Record</strong>: Unlocked full Grade 1 E-Class Record assessment calculations, transmutation, and export tools as a standalone module alongside the PACE Form.</li>
-                                        <li>🎯 <strong>Unified Grade Synchronization</strong>: Synchronized quarter and final grades across E-Class Record, SF9, SF10, SF5, SF6, Temporary Grade Slips, Grade Management, Reports, LIR, and Certificate Generator with custom weight and section HPS isolation.</li>
-                                        <li>🧹 <strong>Subject Auto-Normalization & Deduplication</strong>: Automatically resolves custom subject variants (e.g. <code>Filipino 10</code>) directly into official curriculum subjects.</li>
-                                        <li>🔑 <strong>Emergency Account Recovery</strong>: Added 2-step password recovery with master emergency key support and instant username retrieval.</li>
-                                    </ul>
-                                </div>
-
-                                {/* Version 2.11.0 */}
-                                <div className="relative pl-6">
-                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
-                                    <div className="flex items-center gap-2">
                                         <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 2.11.0</span>
+                                        <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 14, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

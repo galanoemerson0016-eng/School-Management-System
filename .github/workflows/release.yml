@@ -165,38 +165,25 @@ jobs:
 
       # 3. Deploy update-server metadata to Firebase
       - name: Install Firebase CLI
-        if: ${{ env.FIREBASE_TOKEN != '' }}
         run: npm install -g firebase-tools
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Deploy Update Server to Firebase Hosting
-        if: ${{ env.FIREBASE_TOKEN != '' }}
         working-directory: update-server
         run: firebase deploy --only hosting --project formease-app-a3e68
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        continue-on-error: true
 
       # 4. Build and Deploy license-portal to Firebase
       - name: Install Licensing Portal dependencies
-        if: ${{ env.FIREBASE_TOKEN != '' }}
         working-directory: license-portal
         run: npm ci
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Build Licensing Portal website
-        if: ${{ env.FIREBASE_TOKEN != '' }}
         working-directory: license-portal
         run: npm run build
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Deploy Licensing Portal to Firebase Hosting
-        if: ${{ env.FIREBASE_TOKEN != '' }}
         working-directory: license-portal
         run: firebase deploy --only hosting --project formease-licensing
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        continue-on-error: true

@@ -1,5 +1,4 @@
 import type { Section, Subject, User, UserRole } from '../types';
-import { normalizeSubjectName } from './subjectConfig';
 
 export type AppView =
     | 'dashboard'
@@ -168,91 +167,66 @@ export function filterSectionsForUser(user: User | null | undefined, sections: S
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
     if (!user || !section) return [];
     
-    // Collect all registered names from taught_subjects and subject_name
+    // Exclude subjects marked as 'none' (Not Offered)
+    const activeSubjects = subjects.filter(s => s.term !== 'none');
+    
+    // First, find subjects directly linked to this section
+    const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
+    
+    // Only show subjects that are registered in the section configuration
     const registeredNames = new Set(section.taught_subjects || []);
     if (section.subject_name) {
-        section.subject_name.split(',').forEach(s => {
-            const trimmed = s.trim();
-            if (trimmed) registeredNames.add(trimmed);
-        });
+        section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
     }
-    const normRegisteredNames = new Set(
-        Array.from(registeredNames).map(n => normalizeSubjectName(n)).filter(Boolean)
-    );
-
-    const isRegistered = (subjName: string) => {
-        if (registeredNames.has(subjName)) return true;
-        const norm = normalizeSubjectName(subjName);
-        return norm ? normRegisteredNames.has(norm) : false;
-    };
-
-    if (registeredNames.size > 0) {
-        // Find subjects directly linked or catalog matching that are checked in this section
-        const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none' && isRegistered(subject.subject_name));
-        const gradeMatches = subjects.filter(s => 
-            (s.grade_level === section.section_grade_level || !s.grade_level) && 
-            isRegistered(s.subject_name)
+    if (section.is_teaching_load || registeredNames.size > 0) {
+        // Find subjects (regardless of section_id) that match the grade level and are selected as taught
+        const gradeMatches = activeSubjects.filter(s => 
+            s.grade_level === section.section_grade_level && 
+            registeredNames.has(s.subject_name)
         );
-
-        const combined: Subject[] = [...directlyLinked, ...gradeMatches];
-        const seenNorms = new Set<string>();
-        const result: Subject[] = [];
+ 
+        // Combine and remove duplicates by subject name
+        const combined = [...directlyLinked, ...gradeMatches];
+        const unique: Subject[] = [];
+        const seen = new Set<string>();
         
         for (const s of combined) {
-            const norm = normalizeSubjectName(s.subject_name);
-            if (norm && !seenNorms.has(norm)) {
-                seenNorms.add(norm);
-                result.push({
-                    ...s,
-                    // If explicitly registered in this section, ensure term is active
-                    term: s.term === 'none' ? 'all' : s.term
-                });
+            const key = s.subject_name.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(s);
             }
         }
-
-        // For any registered subject name that did NOT match an existing catalog subject,
-        // dynamically synthesize a Subject object for this section so custom subjects (e.g. "Research 2") are never lost
-        for (const regName of Array.from(registeredNames)) {
-            const norm = normalizeSubjectName(regName);
-            if (norm && !seenNorms.has(norm)) {
-                seenNorms.add(norm);
-                result.push({
-                    id: `custom_${section.id}_${norm}`,
-                    subject_name: regName,
-                    grade_level: section.section_grade_level,
-                    section_id: section.id,
-                    teacher_id: user?.uid,
-                    term: 'all'
-                } as Subject);
-            }
-        }
-
-        return result;
-    }
-
-    // If it is explicitly marked as a teaching load and 0 subjects were checked, return empty
-    if (section.is_teaching_load) {
-        return [];
+        
+        // Ensure we only return subjects the user actually checked in the Section form
+        return unique.filter(s => registeredNames.has(s.subject_name));
     }
     
-    // Fallback: for advisory sections with no explicit subject checklist, return active subjects for that grade level
-    const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none');
-    const gradeLevelSubjects = subjects.filter(s => 
-        s.grade_level === section.section_grade_level && 
-        s.term !== 'none'
-    );
-
-    const baseList = gradeLevelSubjects.length > 0 ? gradeLevelSubjects : directlyLinked;
-    const unique: Subject[] = [];
-    const seen = new Set<string>();
-    for (const s of baseList) {
-        const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
-        if (!seen.has(key)) {
-            seen.add(key);
-            unique.push(s);
+    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
+    const gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    if (gradeLevelSubjects.length > 0) {
+        const unique: Subject[] = [];
+        const seen = new Set<string>();
+        for (const s of gradeLevelSubjects) {
+            const key = s.subject_name.trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(s);
+            }
+        }
+        return unique;
+    }
+    
+    const uniqueDirect: Subject[] = [];
+    const seenDirect = new Set<string>();
+    for (const s of directlyLinked) {
+        const key = s.subject_name.trim().toLowerCase();
+        if (!seenDirect.has(key)) {
+            seenDirect.add(key);
+            uniqueDirect.push(s);
         }
     }
-    return unique;
+    return uniqueDirect;
 }
 
 export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {

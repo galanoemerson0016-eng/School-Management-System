@@ -212,9 +212,7 @@ export function LIRPage() {
                 gradingSheetRecords,
                 hpsRecords,
                 selectedSectionObj?.section_grade_level,
-                selectedSectionObj?.track,
-                subjects,
-                selectedSectionObj?.id
+                selectedSectionObj?.track
             );
 
             data[term] = {
@@ -234,7 +232,7 @@ export function LIRPage() {
             };
         });
         return data;
-    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSectionObj?.id, selectedSubject, subjects]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSubject]);
 
     const attendanceData = useMemo(() => {
         return getAttendanceDataForStudent(selectedStudent);

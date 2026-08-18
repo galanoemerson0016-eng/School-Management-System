@@ -117,9 +117,7 @@ export function calculateStudentAverage(
                     records,
                     hpsRecords,
                     sectionGradeLevel,
-                    sectionTrack,
-                    subjects,
-                    sectionId
+                    sectionTrack
                 );
             }).filter(g => g > 0);
 
@@ -139,9 +137,7 @@ export function calculateStudentAverage(
                 records,
                 hpsRecords,
                 sectionGradeLevel,
-                sectionTrack,
-                subjects,
-                sectionId
+                sectionTrack
             );
             if (grade > 0) {
                 totalPoints += grade;

@@ -1,5 +1,4 @@
 import { db } from './database';
-import { CloudSyncService } from './cloud-sync';
 
 export interface AutomatedBackupEntry {
   id: string;
@@ -65,6 +64,7 @@ export const AutoBackupManager = {
         if ((now - parseInt(lastCloudSync, 10)) >= intervalMs) {
           try {
             console.log('🔄 Triggering scheduled cloud auto-backup...');
+            const { CloudSyncService } = await import('./cloud-sync');
             const state = CloudSyncService.getState();
             if (state.linked) {
               await CloudSyncService.syncNow();

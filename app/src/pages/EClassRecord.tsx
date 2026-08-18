@@ -2,14 +2,14 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
+import { isGrade1 } from '../services/sf9-g1-excel-export';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
-import { normalizeSubjectName } from '../lib/subjectConfig';
 
 const WW_COUNT = 5;
 const PT_COUNT = 3;
@@ -125,11 +125,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "inquiries investigations and immersion",
             "inquiries, investigations and immersion",
             "practical research 1",
-            "practical research 2",
-            "research 1",
-            "research 2",
-            "research i",
-            "research ii"
+            "practical research 2"
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -497,7 +493,12 @@ export function EClassRecord() {
         return sections.find(s => s.id === selectedSection || s.section_name === selectedSection);
     }, [sections, selectedSection]);
 
+    const setCurrentView = useAppStore((s) => s.setCurrentView);
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
+    const isGrade1Section = isGrade1(sectionGradeLevel);
+    const selectedSubjectObj = useMemo(() => {
+        return subjects.find(s => s.id === selectedSubject);
+    }, [subjects, selectedSubject]);
     // Sort Sections: Grade Level (Asc) -> Name (Asc)
     // Filter: If Teacher, only show sections where they are Adviser OR have a Subject assigned
     const sortedSections = useMemo(() => {
@@ -650,14 +651,10 @@ export function EClassRecord() {
         }
     }, [quarter, filteredSubjects, selectedSubject, setGlobalSubject]);
 
-    const selectedSubjectObj = useMemo(() => {
-        return filteredSubjects.find(s => s.id === selectedSubject) || subjects.find(s => s.id === selectedSubject);
-    }, [filteredSubjects, subjects, selectedSubject]);
-
     // Determine the actual subject ID to use for grading/fetching
     const effectiveSubjectId = useMemo(() => {
         const isMapeh = (selectedSubject === 'virtual_mapeh' || 
-                       (selectedSubjectObj?.subject_name.toUpperCase() === 'MAPEH')) &&
+                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
                        mapehComponents.length > 0;
         
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
@@ -665,11 +662,11 @@ export function EClassRecord() {
             return selectedMapehComponentId || mapehComponents[0]?.id || '';
         }
         return selectedSubject;
-    }, [selectedSubject, selectedSubjectObj, selectedMapehComponentId, quarter, mapehComponents]);
+    }, [selectedSubject, selectedMapehComponentId, quarter, subjects, mapehComponents]);
 
     const subjectName = useMemo(() => {
-        return filteredSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
-    }, [filteredSubjects, subjects, effectiveSubjectId, selectedSubject]);
+        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
+    }, [subjects, effectiveSubjectId, selectedSubject]);
 
     useEffect(() => {
         const isMapeh = (selectedSubject === 'virtual_mapeh' || 
@@ -702,24 +699,13 @@ export function EClassRecord() {
             return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
-        const normSubjName = normalizeSubjectName(subjectName);
-        const isHpsMatch = (r: HPSRecord) => {
-            if (r.subject_id === effectiveSubjectId) return true;
-            if (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) return true;
-            if (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) return true;
-            const sub = subjects.find(s => s.id === r.subject_id);
-            if (sub && normalizeSubjectName(sub.subject_name) === normSubjName) return true;
-            if (r.id && ((normSubjName && r.id.toLowerCase().includes(normSubjName)) || (effectiveSubjectId && r.id.includes(effectiveSubjectId)))) return true;
-            return false;
-        };
-
         const record = hpsRecords.find(r =>
-            isHpsMatch(r) &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             r.section_id === selectedSection
         ) || hpsRecords.find(r =>
-            isHpsMatch(r) &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -742,7 +728,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, subjectName, subjects]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
 
 
     // Get current subject and its weight cluster
@@ -834,10 +820,9 @@ export function EClassRecord() {
     const optimalNameColumnWidth = 280;
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
-        const normSubjName = normalizeSubjectName(subjectName);
         const record = classRecords.find(r =>
-            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+            r.student_lrn === student.lrn &&
+            r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === quarter
         );
 
@@ -922,7 +907,7 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, subjectName, subjects]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -956,13 +941,12 @@ export function EClassRecord() {
                 if (!subjId) return '';
                 const subj = subjects.find(s => s.id === subjId);
                 if (!isTermOffered(subj, q)) return '';
-                const normName = subj ? normalizeSubjectName(subj.subject_name) : '';
 
                 const record = classRecords.find(r =>
-                    (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                    (r.subject_id === subjId || (normName && r.subject_name && normalizeSubjectName(r.subject_name) === normName) || (normName && normalizeSubjectName(r.subject_id) === normName)) &&
+                    r.student_lrn === student.lrn &&
+                    r.subject_id === subjId &&
                     (r.quarter === q || Number(r.quarter) === q) &&
-                    (!r.school_year || r.school_year === activeSchoolYear)
+                    r.school_year === activeSchoolYear
                 );
 
                 // Only return if final_grade is a valid number > 0
@@ -1012,14 +996,13 @@ export function EClassRecord() {
 
         let total = 0;
         let count = 0;
-        const normTargetSubj = targetSubjectObj?.subject_name ? normalizeSubjectName(targetSubjectObj.subject_name) : '';
         const terms = [1, 2, 3].map(q => {
             if (!isTermOffered(targetSubjectObj, q)) {
                 return '';
             }
             const record = classRecords.find(r =>
-                (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                (r.subject_id === selectedSubject || (normTargetSubj && r.subject_name && normalizeSubjectName(r.subject_name) === normTargetSubj) || (normTargetSubj && normalizeSubjectName(r.subject_id) === normTargetSubj) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normTargetSubj)) &&
+                r.student_lrn === student.lrn &&
+                r.subject_id === selectedSubject &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1200,65 +1183,7 @@ export function EClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-
-        // Auto-recalculate and sync final_grade for all students in this section when HPS changes
-        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-        const currentHpsQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT).map((v, i) => {
-            if (i === 2 && (v === undefined || v === '')) return Number(newRecord.quarterly_exam) || 0;
-            return Number(v) || 0;
-        });
-
-        const normSubj = normalizeSubjectName(subjectName);
-        const secStudents = stateHpsRecords ? useAppStore.getState().classRecords.filter(r =>
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubj)) &&
-            Number(r.quarter) === (quarter as number) &&
-            r.school_year === activeSchoolYear &&
-            (r.section_id === selectedSection || (selectedSectionObj && r.section_id === selectedSectionObj.id))
-        ) : [];
-
-        secStudents.forEach(r => {
-            const wwScores = normalizeScores(r.written_works, WW_COUNT).map(v => Number(v) || 0);
-            const ptScores = normalizeScores(r.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-            const rawQa = (r as any).summative_tests;
-            const normQa = normalizeScores(rawQa, ST_COUNT);
-            if (!normQa[2] && r.quarterly_exam !== '') normQa[2] = r.quarterly_exam;
-
-            const wwTotal = wwScores.reduce((a, b) => a + b, 0);
-            const wwHpsTotal = currentHpsWw.reduce((a, b) => a + b, 0);
-            const wwWS = wwHpsTotal === 0 ? 0 : (wwTotal / wwHpsTotal) * 100 * currentWeights.written_works;
-
-            const ptTotal = ptScores.reduce((a, b) => a + b, 0);
-            const ptHpsTotal = currentHpsPt.reduce((a, b) => a + b, 0);
-            const ptWS = ptHpsTotal === 0 ? 0 : (ptTotal / ptHpsTotal) * 100 * currentWeights.performance_tasks;
-
-            const st1Score = normQa[0] === '' || normQa[0] === null ? null : Number(normQa[0]);
-            const st2Score = normQa[1] === '' || normQa[1] === null ? null : Number(normQa[1]);
-            const teScore = normQa[2] === '' || normQa[2] === null ? null : Number(normQa[2]);
-
-            const qaPS = computeExamsWeightedScore(st1Score, Number(currentHpsQa[0]) || 0, st2Score, Number(currentHpsQa[1]) || 0, teScore, Number(currentHpsQa[2]) || 0, currentCluster);
-            const qaWS = qaPS * currentWeights.quarterly_exam;
-
-            const initGrade = wwWS + ptWS + qaWS;
-            const fg = transmuteGrade(initGrade, r.school_year);
-            if (r.final_grade !== fg) {
-                updateClassRecord({ ...r, final_grade: fg });
-                const { updateGradingSheetRecord } = useAppStore.getState();
-                updateGradingSheetRecord({
-                    id: `${r.student_lrn}_${r.subject_id}_${r.quarter}_${r.school_year}`,
-                    student_lrn: r.student_lrn,
-                    subject_id: r.subject_id,
-                    section_id: r.section_id,
-                    quarter: r.quarter as 1 | 2 | 3,
-                    school_year: r.school_year,
-                    final_grade: fg,
-                    written_works: [],
-                    performance_tasks: [],
-                    quarterly_exam: 0
-                });
-            }
-        });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, subjectName, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1266,24 +1191,18 @@ export function EClassRecord() {
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
 
-        const normSubjName = normalizeSubjectName(subjectName);
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
-            (r.student_lrn === lrn || String(r.student_lrn).trim() === String(lrn).trim()) &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+            r.student_lrn === lrn &&
+            r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === (quarter as number)
         );
 
-        const record: ClassRecord = existingRecord ? {
-            ...existingRecord,
-            subject_id: effectiveSubjectId,
-            subject_name: subjectName || existingRecord.subject_name
-        } : {
+        const record: ClassRecord = existingRecord ? { ...existingRecord } : {
             id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
             section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
-            subject_name: subjectName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: Array(WW_COUNT).fill(''),
@@ -1382,7 +1301,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, subjectName, subjects]);
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1597,7 +1516,7 @@ export function EClassRecord() {
                             value={selectedSubject}
                             onChange={(e) => onSubjectChange(e.target.value)}
                             className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
-                            disabled={!selectedSection}
+                            disabled={isGrade1Section || !selectedSection}
                         >
                             <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
                             {groupedSubjects ? (
@@ -1626,7 +1545,8 @@ export function EClassRecord() {
                             <select
                                 value={selectedMapehComponentId}
                                 onChange={(e) => setSelectedMapehComponentId(e.target.value)}
-                                className="form-input border-amber-400 bg-amber-50 h-8 py-1 px-2 text-[11px] rounded-xl"
+                                className="form-input border-amber-400 bg-amber-50 h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
+                                disabled={isGrade1Section}
                             >
                                 {mapehComponents.map((c) => (
                                     <option key={c.id} value={c.id}>{c.subject_name}</option>
@@ -1639,6 +1559,7 @@ export function EClassRecord() {
                         <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">Term</label>
                         <select 
                             value={quarter} 
+                            disabled={isGrade1Section}
                             onChange={(e) => {
                                 const val = e.target.value;
                                 if (val.startsWith('summary')) {
@@ -1670,8 +1591,9 @@ export function EClassRecord() {
                         </label>
                         <select
                             value={paperSize}
+                            disabled={isGrade1Section}
                             onChange={(e) => setPaperSize(e.target.value as PaperSize)}
-                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
+                            className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             {Object.entries(PAPER_SIZES).map(([key, { label }]) => (
                                 <option key={key} value={key}>{label}</option>
@@ -1679,10 +1601,11 @@ export function EClassRecord() {
                         </select>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <div className="flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200">
+                        <div className={`flex items-center gap-1.5 h-8 px-1 rounded-xl bg-slate-100 border border-slate-200 ${isGrade1Section ? 'opacity-40 cursor-not-allowed' : ''}`}>
                             <button
                                 onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                disabled={isGrade1Section}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
                                 title="Zoom Out"
                             >
                                 <Minus className="w-3 h-3" />
@@ -1692,7 +1615,8 @@ export function EClassRecord() {
                             </span>
                             <button
                                 onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                                disabled={isGrade1Section}
+                                className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all disabled:pointer-events-none"
                                 title="Zoom In"
                             >
                                 <Plus className="w-3 h-3" />
@@ -1701,7 +1625,8 @@ export function EClassRecord() {
                         {selectedSubject && selectedSubject !== 'virtual_mapeh' && (
                             <button 
                                 onClick={() => setIsEnrollmentModalOpen(true)}
-                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                disabled={isGrade1Section}
+                                className="h-8 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 hover:scale-[1.02] transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale disabled:scale-100"
                                 title="Manage Enrolled Students"
                             >
                                 <Users className="w-3.5 h-3.5" /> Enrolled Learners
@@ -1709,13 +1634,14 @@ export function EClassRecord() {
                         )}
                         <button 
                             onClick={handlePrint} 
-                            className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap"
+                            disabled={isGrade1Section}
+                            className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             <Printer className="w-3.5 h-3.5" /> Print Record
                         </button>
                         <button 
                             onClick={handleDownload}
-                            disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
+                            disabled={isGrade1Section || isDownloading || !selectedSubject || sectionStudents.length === 0}
                             className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
                         >
                             {isDownloading ? (
@@ -1765,7 +1691,7 @@ export function EClassRecord() {
                                     showNotification("Failed to publish grades.", "error");
                                 }
                             }}
-                            disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
+                            disabled={isGrade1Section || !selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
                             className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
                         >
                             <CloudUpload className="w-3.5 h-3.5" /> Publish
@@ -1781,7 +1707,66 @@ export function EClassRecord() {
                         className="eclass-zoom-shell origin-top transition-all duration-300"
                         style={{ transform: `scale(${zoom})` }}
                     >
-                    {typeof quarter === 'string' && quarter.startsWith('summary') ? (
+                    {isGrade1Section ? (
+                        <div className="w-full h-full min-h-100 flex items-center justify-center p-4 md:p-6">
+                            <div className="max-w-3xl w-full bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] border border-blue-100/80 dark:border-slate-800 shadow-[0_20px_60px_rgba(37,99,235,0.08)] p-6 md:p-8 text-center relative overflow-hidden animate-fade-in flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                                {/* Ambient Blue Soft Gradient Orbs */}
+                                <div className="absolute -top-28 -left-28 w-56 h-56 bg-blue-400/15 rounded-full blur-3xl pointer-events-none" />
+                                <div className="absolute -bottom-28 -right-28 w-56 h-56 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Left/Top Column: Centered 3D Floating Icon Stack */}
+                                <div className="shrink-0 flex justify-center mx-auto md:mx-0">
+                                    <div className="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-slate-800 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_15px_35px_rgba(0,0,0,0.3)] flex items-center justify-center relative border border-slate-100 dark:border-slate-700/60 transition-transform duration-500 hover:scale-105">
+                                        <FileText className="w-14 h-14 md:w-18 md:h-18 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                                        
+                                        {/* Overlapping Badge */}
+                                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-linear-to-br from-blue-600 to-indigo-600 text-white font-black text-xs md:text-sm tracking-wider flex items-center justify-center shadow-lg shadow-blue-600/30 absolute -bottom-3 -right-3 border-2 border-white dark:border-slate-900">
+                                            PACE
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Fully Center-Aligned Information & Actions */}
+                                <div className="flex-1 space-y-3.5 text-center flex flex-col items-center justify-center">
+                                    {/* Status Pill Header */}
+                                    <div className="flex justify-center w-full">
+                                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200/80 dark:border-blue-800/80 text-blue-600 dark:text-blue-400 text-[10.5px] font-black uppercase tracking-widest shadow-xs">
+                                            <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                            <span>OFFICIAL DEPED MATATAG ASSESSMENT STANDARD</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Title & Main Explanation */}
+                                    <div className="space-y-2 text-center w-full">
+                                        <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white leading-tight text-center">
+                                            GRADE 1 PACE FORM MODULE ACTIVE
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium text-center max-w-xl mx-auto">
+                                            Under the DepEd MATATAG Curriculum, Grade 1 learners do not use traditional numerical percentages or numerical E-Class Records.
+                                        </p>
+                                        <p className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal text-center max-w-lg mx-auto">
+                                            All Grade 1 assessment logic and student competency evaluations are managed qualitatively via the official Performance & Competency Evaluation (PACE) Form module.
+                                        </p>
+                                    </div>
+
+                                    {/* Sub-label & Primary Action Pill Button */}
+                                    <div className="pt-1 flex flex-col items-center justify-center text-center w-full gap-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 block text-center">
+                                            MATATAG CURRICULUM ROUTE QUEUE
+                                        </span>
+                                        <button
+                                            onClick={() => setCurrentView('pace-form')}
+                                            className="inline-flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-blue-600/30 hover:shadow-blue-600/40 cursor-pointer"
+                                        >
+                                            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                            <span>OPEN GRADE 1 PACE FORM MODULE</span>
+                                            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : typeof quarter === 'string' && quarter.startsWith('summary') ? (
                         <div id="printable-summary-record" className="bg-white text-black px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
                             {/* Header Section matching image */}
                              <div className="flex justify-between items-start mb-6 text-black">
@@ -2156,10 +2141,9 @@ export function EClassRecord() {
                                         <td colSpan={26} className="border border-black text-left px-2 py-1">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
-                                        const normSubjName = normalizeSubjectName(subjectName);
                                         const record = classRecords.find(r =>
-                                            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                                            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+                                            r.student_lrn === student.lrn &&
+                                            r.subject_id === effectiveSubjectId &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (

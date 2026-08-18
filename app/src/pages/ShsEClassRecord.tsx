@@ -9,7 +9,6 @@ import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollment
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
-import { normalizeSubjectName } from '../lib/subjectConfig';
 
 const WW_COUNT = 5;
 const PT_COUNT = 3;
@@ -120,11 +119,7 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "inquiries investigations and immersion",
             "inquiries, investigations and immersion",
             "practical research 1",
-            "practical research 2",
-            "research 1",
-            "research 2",
-            "research i",
-            "research ii"
+            "practical research 2"
         ];
         if (applied.some(a => {
             const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -619,8 +614,8 @@ export function ShsEClassRecord() {
     const effectiveSubjectId = selectedSubject;
 
     const subjectName = useMemo(() => {
-        return filteredSubjects.find(s => s.id === effectiveSubjectId)?.subject_name || subjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
-    }, [filteredSubjects, subjects, effectiveSubjectId]);
+        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || '';
+    }, [subjects, effectiveSubjectId]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -637,24 +632,17 @@ export function ShsEClassRecord() {
 
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
-        const normSubjName = normalizeSubjectName(subjectName);
-        const isHpsMatch = (r: HPSRecord) => {
-            if (r.subject_id === effectiveSubjectId) return true;
-            if (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) return true;
-            if (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) return true;
-            const sub = subjects.find(s => s.id === r.subject_id);
-            if (sub && normalizeSubjectName(sub.subject_name) === normSubjName) return true;
-            if (r.id && ((normSubjName && r.id.toLowerCase().includes(normSubjName)) || (effectiveSubjectId && r.id.includes(effectiveSubjectId)))) return true;
-            return false;
-        };
+        if (!effectiveSubjectId) {
+            return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
+        }
 
         const record = hpsRecords.find(r =>
-            isHpsMatch(r) &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             r.section_id === selectedSection
         ) || hpsRecords.find(r =>
-            isHpsMatch(r) &&
+            r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -677,7 +665,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, subjectName, subjects]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
@@ -752,13 +740,12 @@ export function ShsEClassRecord() {
     const optimalNameColumnWidth = 280;
 
     const isFieldExposure = currentCluster === 'shs_field_exposure';
-    const teHeaderLabel = 'TE';
+    const teHeaderLabel = isFieldExposure ? 'TE' : 'TE (40%)';
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
-        const normSubjName = normalizeSubjectName(subjectName);
         const record = classRecords.find(r =>
-            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+            r.student_lrn === student.lrn &&
+            r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === quarter
         );
 
@@ -842,7 +829,7 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, subjectName, subjects]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -861,14 +848,13 @@ export function ShsEClassRecord() {
 
         let total = 0;
         let count = 0;
-        const normTargetSubj = targetSubjectObj?.subject_name ? normalizeSubjectName(targetSubjectObj.subject_name) : '';
         const terms = [1, 2, 3].map(q => {
             if (!isTermOffered(targetSubjectObj, q)) {
                 return '';
             }
             const record = classRecords.find(r =>
-                (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                (r.subject_id === selectedSubject || (normTargetSubj && r.subject_name && normalizeSubjectName(r.subject_name) === normTargetSubj) || (normTargetSubj && normalizeSubjectName(r.subject_id) === normTargetSubj) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normTargetSubj)) &&
+                r.student_lrn === student.lrn &&
+                r.subject_id === selectedSubject &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1048,65 +1034,7 @@ export function ShsEClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-
-        // Auto-recalculate and sync final_grade for all students in this section when HPS changes
-        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-        const currentHpsQa = normalizeScores(hpsWithSummative.summative_tests, ST_COUNT).map((v, i) => {
-            if (i === 2 && (v === undefined || v === '')) return Number(newRecord.quarterly_exam) || 0;
-            return Number(v) || 0;
-        });
-
-        const normSubj = normalizeSubjectName(subjectName);
-        const secStudents = stateHpsRecords ? useAppStore.getState().classRecords.filter(r =>
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubj)) &&
-            Number(r.quarter) === (quarter as number) &&
-            r.school_year === activeSchoolYear &&
-            (r.section_id === selectedSection || (selectedSectionObj && r.section_id === selectedSectionObj.id))
-        ) : [];
-
-        secStudents.forEach(r => {
-            const wwScores = normalizeScores(r.written_works, WW_COUNT).map(v => Number(v) || 0);
-            const ptScores = normalizeScores(r.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-            const rawQa = (r as any).summative_tests;
-            const normQa = normalizeScores(rawQa, ST_COUNT);
-            if (!normQa[2] && r.quarterly_exam !== '') normQa[2] = r.quarterly_exam;
-
-            const wwTotal = wwScores.reduce((a, b) => a + b, 0);
-            const wwHpsTotal = currentHpsWw.reduce((a, b) => a + b, 0);
-            const wwWS = wwHpsTotal === 0 ? 0 : (wwTotal / wwHpsTotal) * 100 * currentWeights.written_works;
-
-            const ptTotal = ptScores.reduce((a, b) => a + b, 0);
-            const ptHpsTotal = currentHpsPt.reduce((a, b) => a + b, 0);
-            const ptWS = ptHpsTotal === 0 ? 0 : (ptTotal / ptHpsTotal) * 100 * currentWeights.performance_tasks;
-
-            const st1Score = normQa[0] === '' || normQa[0] === null ? null : Number(normQa[0]);
-            const st2Score = normQa[1] === '' || normQa[1] === null ? null : Number(normQa[1]);
-            const teScore = normQa[2] === '' || normQa[2] === null ? null : Number(normQa[2]);
-
-            const qaPS = computeExamsWeightedScore(st1Score, Number(currentHpsQa[0]) || 0, st2Score, Number(currentHpsQa[1]) || 0, teScore, Number(currentHpsQa[2]) || 0, currentCluster);
-            const qaWS = qaPS * currentWeights.quarterly_exam;
-
-            const initGrade = wwWS + ptWS + qaWS;
-            const fg = transmuteGrade(initGrade, r.school_year);
-            if (r.final_grade !== fg) {
-                updateClassRecord({ ...r, final_grade: fg });
-                const { updateGradingSheetRecord } = useAppStore.getState();
-                updateGradingSheetRecord({
-                    id: `${r.student_lrn}_${r.subject_id}_${r.quarter}_${r.school_year}`,
-                    student_lrn: r.student_lrn,
-                    subject_id: r.subject_id,
-                    section_id: r.section_id,
-                    quarter: r.quarter as 1 | 2 | 3,
-                    school_year: r.school_year,
-                    final_grade: fg,
-                    written_works: [],
-                    performance_tasks: [],
-                    quarterly_exam: 0
-                });
-            }
-        });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, subjectName, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1114,24 +1042,18 @@ export function ShsEClassRecord() {
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
 
-        const normSubjName = normalizeSubjectName(subjectName);
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
-            (r.student_lrn === lrn || String(r.student_lrn).trim() === String(lrn).trim()) &&
-            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+            r.student_lrn === lrn &&
+            r.subject_id === effectiveSubjectId &&
             Number(r.quarter) === (quarter as number)
         );
 
-        const record: ClassRecord = existingRecord ? {
-            ...existingRecord,
-            subject_id: effectiveSubjectId,
-            subject_name: subjectName || existingRecord.subject_name
-        } : {
+        const record: ClassRecord = existingRecord ? { ...existingRecord } : {
             id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
             section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
-            subject_name: subjectName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: Array(WW_COUNT).fill(''),
@@ -1177,12 +1099,12 @@ export function ShsEClassRecord() {
         const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
 
         const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + Number(b), 0);
-        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b || 0), 0);
+        const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
         const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
         const wwWS = wwPS * currentWeights.written_works;
 
         const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + Number(b), 0);
-        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b || 0), 0);
+        const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
         const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
         const ptWS = ptPS * currentWeights.performance_tasks;
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
@@ -1225,7 +1147,7 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, subjectName, subjects]);
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1893,7 +1815,7 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.ww.some(v => v !== '') ? hps.ww.reduce<number>((a, b) => a + Number(b || 0), 0) : ''}</td>
+                                        <td className="border border-black bg-slate-200">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.written_works * 100)}%</td>
                                         {hps.pt.map((val, i) => (
@@ -1909,7 +1831,7 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce<number>((a, b) => a + Number(b || 0), 0) : ''}</td>
+                                        <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
                                         <td className="border border-black bg-slate-200">100.00</td>
                                         <td className="border border-black bg-slate-200">{Math.round(currentWeights.performance_tasks * 100)}%</td>
                                         {hps.qa
@@ -1941,10 +1863,9 @@ export function ShsEClassRecord() {
                                         <td colSpan={isFieldExposure ? 21 : 26} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
-                                        const normSubjName = normalizeSubjectName(subjectName);
                                         const record = classRecords.find(r =>
-                                            (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
-                                            (r.subject_id === effectiveSubjectId || (r.subject_name && normalizeSubjectName(r.subject_name) === normSubjName) || (r.subject_id && normalizeSubjectName(r.subject_id) === normSubjName) || (subjects.find(s => s.id === r.subject_id) && normalizeSubjectName(subjects.find(s => s.id === r.subject_id)!.subject_name) === normSubjName)) &&
+                                            r.student_lrn === student.lrn &&
+                                            r.subject_id === effectiveSubjectId &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (

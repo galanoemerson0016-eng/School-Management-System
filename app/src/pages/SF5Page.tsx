@@ -159,9 +159,7 @@ export function SF5Page() {
                                     gradingSheetRecords,
                                     hpsRecords,
                                     currentSectionInfo?.section_grade_level,
-                                    currentSectionInfo?.track,
-                                    subjects,
-                                    currentSectionInfo?.id
+                                    currentSectionInfo?.track
                                 );
                             })
                             .filter((grade) => grade > 0);
@@ -177,9 +175,7 @@ export function SF5Page() {
                                     gradingSheetRecords,
                                     hpsRecords,
                                     currentSectionInfo?.section_grade_level,
-                                    currentSectionInfo?.track,
-                                    subjects,
-                                    currentSectionInfo?.id
+                                    currentSectionInfo?.track
                                 );
                             })
                             .filter((grade) => grade > 0);
@@ -225,9 +221,7 @@ export function SF5Page() {
                         gradingSheetRecords,
                         hpsRecords,
                         currentSectionInfo?.section_grade_level,
-                        currentSectionInfo?.track,
-                        subjects,
-                        currentSectionInfo?.id
+                        currentSectionInfo?.track
                     );
                     if (grade > 0) {
                         subjectQuarterTotal += grade;
@@ -264,7 +258,7 @@ export function SF5Page() {
                 failedSubjects: uniqueFailedSubjects.join(', '),
             };
         }).sort((a, b) => a.last_name.localeCompare(b.last_name));
-    }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo, subjects]);
+    }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo]);
 
     const males = studentData.filter(s => (s.gender || '').toLowerCase() === 'male');
     const females = studentData.filter(s => (s.gender || '').toLowerCase() === 'female');

@@ -288,9 +288,7 @@ export function SF6Page() {
                         gradingSheetRecords,
                         hpsRecords,
                         sectionMatch?.section_grade_level,
-                        sectionMatch?.track,
-                        subjects,
-                        sectionMatch?.id
+                        sectionMatch?.track
                     );
                     if (gradeVal > 0) {
                         quarterGrades.push(gradeVal);

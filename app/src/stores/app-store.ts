@@ -991,16 +991,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const oldName = oldSubject.subject_name;
     const newName = subject.subject_name;
-    const nameChanged = oldName.trim() !== newName.trim();
-    const oldNorm = normalizeSubjectName(oldName);
+    const nameChanged = normalizeSubjectName(oldName) !== normalizeSubjectName(newName);
 
     try {
       // 1. Update subjects
       // If the name changed, we also rename any OTHER subjects in the same grade 
-      // that have the same old name or normalized name (to clean up duplicates)
+      // that have the same old name (to clean up duplicates)
       const newSubjects = get().subjects.map((s) => {
         if (s.id === subject.id) return subject;
-        if (nameChanged && s.grade_level === subject.grade_level && (s.subject_name === oldName || (oldNorm && normalizeSubjectName(s.subject_name) === oldNorm))) {
+        if (nameChanged && s.grade_level === subject.grade_level && normalizeSubjectName(s.subject_name) === normalizeSubjectName(oldName)) {
           return { ...s, subject_name: newName };
         }
         return s;
@@ -1012,7 +1011,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         newSections = previousSections.map(sec => ({
           ...sec,
           taught_subjects: sec.taught_subjects?.map(name => 
-            (name === oldName || (oldNorm && normalizeSubjectName(name) === oldNorm)) ? newName : name
+            normalizeSubjectName(name) === normalizeSubjectName(oldName) ? newName : name
           ) || []
         }));
       }
@@ -1023,7 +1022,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await db.putRecord('subjects', subject);
       if (nameChanged) {
           // Persist other renamed subjects
-          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && (s.subject_name === newName || (oldNorm && normalizeSubjectName(s.subject_name) === oldNorm)));
+          const renamedOthers = newSubjects.filter(s => s.id !== subject.id && s.subject_name === newName && normalizeSubjectName(previousSubjects.find(ps => ps.id === s.id)?.subject_name || '') === normalizeSubjectName(oldName));
           for (const s of renamedOthers) {
               await db.putRecord('subjects', s);
           }
@@ -1036,19 +1035,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (JSON.stringify(prevSec?.taught_subjects) !== JSON.stringify(sec.taught_subjects)) {
             await db.putRecord('sections', sec);
           }
-        }
-
-        // 5. Propagate subject name update to existing classRecords, hpsRecords, and gradingSheetRecords
-        try {
-          const classRecs = get().classRecords || [];
-          for (const cr of classRecs) {
-            if (cr.subject_id === subject.id || cr.subject_name === oldName || (oldNorm && cr.subject_name && normalizeSubjectName(cr.subject_name) === oldNorm)) {
-              const updatedCr = { ...cr, subject_name: newName };
-              await db.putRecord('classRecords', updatedCr);
-            }
-          }
-        } catch (syncErr) {
-          console.warn('Non-fatal error updating class records on subject rename:', syncErr);
         }
       }
 
@@ -1519,77 +1505,6 @@ export async function initializeAppStore() {
     }
 
 
-    // Reconcile and backfill missing subject_name on classRecords, gradingSheetRecords, and hpsRecords
-    let needsClassRecordsUpdate = false;
-    const reconciledClassRecords = classRecords.map(r => {
-      if (!r.subject_name) {
-        const found = finalSubjects.find(s => s.id === r.subject_id);
-        if (found) {
-          needsClassRecordsUpdate = true;
-          return { ...r, subject_name: found.subject_name };
-        }
-        const normId = normalizeSubjectName(r.subject_id || '');
-        if (normId) {
-          const foundByNorm = finalSubjects.find(s => normalizeSubjectName(s.subject_name) === normId);
-          if (foundByNorm) {
-            needsClassRecordsUpdate = true;
-            return { ...r, subject_name: foundByNorm.subject_name };
-          }
-        }
-      }
-      return r;
-    });
-
-    if (needsClassRecordsUpdate) {
-      void db.putRecordsBulk('classRecords', reconciledClassRecords);
-    }
-
-    let needsHpsRecordsUpdate = false;
-    const reconciledHpsRecords = hpsRecords.map(r => {
-      if (!r.subject_name) {
-        const found = finalSubjects.find(s => s.id === r.subject_id);
-        if (found) {
-          needsHpsRecordsUpdate = true;
-          return { ...r, subject_name: found.subject_name };
-        }
-        const normId = normalizeSubjectName(r.subject_id || '');
-        if (normId) {
-          const foundByNorm = finalSubjects.find(s => normalizeSubjectName(s.subject_name) === normId);
-          if (foundByNorm) {
-            needsHpsRecordsUpdate = true;
-            return { ...r, subject_name: foundByNorm.subject_name };
-          }
-        }
-      }
-      return r;
-    });
-
-    if (needsHpsRecordsUpdate) {
-      void db.putRecordsBulk('hpsRecords', reconciledHpsRecords);
-    }
-
-    // Reconcile subjects that were mistakenly set to 'all' for unoffered specialized electives without records
-    const isSHSSpecialized = (s: Subject) => {
-      const gl = (s.grade_level || '').toLowerCase();
-      return (gl.includes('11') || gl.includes('12')) && getDefaultTermForSubject(s.subject_name, s.grade_level) === 'none';
-    };
-
-    let needsSubjectCleanup = false;
-    const finalSubjectsList = finalSubjects.map(s => {
-      if (s.term === 'all' && isSHSSpecialized(s) && !s.section_id) {
-        const hasRecords = reconciledClassRecords.some(r => r.subject_id === s.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(s.subject_name)));
-        if (!hasRecords) {
-          needsSubjectCleanup = true;
-          return { ...s, term: 'none' as const };
-        }
-      }
-      return s;
-    });
-
-    if (needsSubjectCleanup) {
-      void db.putRecordsBulk('subjects', finalSubjectsList);
-    }
-
     const advisorySection = sections.find(s => s.is_advisory || (s as Section & { is_advisory_class?: boolean }).is_advisory_class);
     const persistedSelectedSection = getLocalStorageValue(SELECTED_SECTION_STORAGE_KEY);
     const hasPersistedSection = !!persistedSelectedSection && sections.some(
@@ -1603,10 +1518,10 @@ export async function initializeAppStore() {
       students,
       studentProfiles: students,
       sections,
-      subjects: finalSubjectsList,
-      classRecords: reconciledClassRecords,
+      subjects: finalSubjects,
+      classRecords,
       gradingSheetRecords,
-      hpsRecords: reconciledHpsRecords,
+      hpsRecords,
       enrollments,
       announcements,
       attendanceRecords: repaired.attendanceRecords,

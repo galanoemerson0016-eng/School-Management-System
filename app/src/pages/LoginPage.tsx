@@ -99,14 +99,13 @@ export const LoginPage = () => {
     const [isCardHovered, setIsCardHovered] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
-    const { login, isLoading, error, getSecurityQuestion, verifySecurityAnswer, resetPasswordWithSecurityAnswer } = useAuthStore();
+    const { login, isLoading, error, getSecurityQuestion, resetPasswordWithSecurityAnswer } = useAuthStore();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
     const { schoolProfile } = useAppStore();
     const [shake, setShake] = useState(false);
 
-    // Recovery Modal State (2-step password reset: step 1 verify answer, step 2 create new password)
+    // Recovery Modal State (password reset — the old password is never revealed)
     const [showRecoveryModal, setShowRecoveryModal] = useState(false);
-    const [recoveryStep, setRecoveryStep] = useState<1 | 2 | 3>(1);
     const [recoveryAnswer, setRecoveryAnswer] = useState('');
     const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
     const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
@@ -179,7 +178,6 @@ export const LoginPage = () => {
 
     const handleForgotPassword = (e: React.MouseEvent) => {
         e.preventDefault();
-        setRecoveryStep(1);
         setRecoveryAnswer('');
         setRecoveryNewPassword('');
         setRecoveryConfirmPassword('');
@@ -188,25 +186,12 @@ export const LoginPage = () => {
         setShowRecoveryModal(true);
     };
 
-    const handleVerifyAnswer = async () => {
-        setRecoveryError('');
-        if (!recoveryAnswer.trim()) {
-            setRecoveryError('Please enter your answer to continue.');
-            return;
-        }
-        setRecoveryBusy(true);
-        try {
-            await verifySecurityAnswer(recoveryAnswer);
-            setRecoveryStep(2);
-        } catch (err) {
-            setRecoveryError(err instanceof Error ? err.message : 'Incorrect answer.');
-        } finally {
-            setRecoveryBusy(false);
-        }
-    };
-
     const handleResetPassword = async () => {
         setRecoveryError('');
+        if (!recoveryAnswer.trim()) {
+            setRecoveryError('Please answer the security question.');
+            return;
+        }
         if (recoveryNewPassword.length < 8) {
             setRecoveryError('New password must be at least 8 characters.');
             return;
@@ -219,7 +204,6 @@ export const LoginPage = () => {
         try {
             const { username } = await resetPasswordWithSecurityAnswer(recoveryAnswer, recoveryNewPassword);
             setRecoveryDoneUsername(username);
-            setRecoveryStep(3);
         } catch (err) {
             setRecoveryError(err instanceof Error ? err.message : 'Password reset failed.');
         } finally {
@@ -741,14 +725,30 @@ export const LoginPage = () => {
                                     </button>
                                 </div>
 
-                                {recoveryStep === 1 && (
+                                {!getSecurityQuestion() ? (
+                                    <div className="space-y-6">
+                                        <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-amber-50 border-amber-100'}`}>
+                                            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-amber-800'}`}>
+                                                Password recovery was not set up for this account. To regain access, reinstall and reactivate the application with your license key, then create a new account.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowRecoveryModal(false)}
+                                            className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
+                                        >
+                                            CLOSE
+                                        </button>
+                                    </div>
+                                ) : !recoveryDoneUsername ? (
                                     <div className="space-y-5">
                                         <div className={`p-4 rounded-2xl ${darkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
-                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                                                {getSecurityQuestion() ? 'Security Question' : 'Security Verification'}
-                                            </p>
-                                            <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                {getSecurityQuestion() || 'Please enter your secret answer or recovery key to verify your identity.'}
+                                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>Security Question</p>
+                                            <p className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{getSecurityQuestion()}</p>
+                                        </div>
+
+                                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                            <p className="text-xs font-bold leading-relaxed">
+                                                ⚠️ Warning: Resetting your password will render all your locally stored school data (students, grades, attendance) unreadable/inaccessible, as the database is encrypted using your password. You will need to restore from a backup JSON file afterward.
                                             </p>
                                         </div>
 
@@ -758,35 +758,14 @@ export const LoginPage = () => {
                                                 type="text"
                                                 value={recoveryAnswer}
                                                 onChange={(e) => setRecoveryAnswer(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && void handleVerifyAnswer()}
                                                 autoFocus
-                                                placeholder="Enter your answer here..."
+                                                placeholder="Type your answer here..."
                                                 className={`w-full p-4 rounded-2xl outline-none border transition-all ${
                                                     darkMode
                                                     ? 'bg-white/5 border-white/10 text-white focus:border-blue-500/50'
                                                     : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500'
                                                 }`}
                                             />
-                                            {recoveryError && <p className="text-xs font-bold text-red-500 ml-1">{recoveryError}</p>}
-                                        </div>
-
-                                        <button
-                                            onClick={() => void handleVerifyAnswer()}
-                                            disabled={recoveryBusy}
-                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
-                                        >
-                                            {recoveryBusy ? 'VERIFYING…' : 'VERIFY & CONTINUE'}
-                                        </button>
-                                    </div>
-                                )}
-
-                                {recoveryStep === 2 && (
-                                    <div className="space-y-5">
-                                        <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-3">
-                                            <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-                                            <p className="text-xs font-bold text-green-600 dark:text-green-400">
-                                                Identity verified! Please set your new password.
-                                            </p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -795,7 +774,6 @@ export const LoginPage = () => {
                                                 type="password"
                                                 value={recoveryNewPassword}
                                                 onChange={(e) => setRecoveryNewPassword(e.target.value)}
-                                                autoFocus
                                                 autoComplete="new-password"
                                                 placeholder="At least 8 characters"
                                                 className={`w-full p-4 rounded-2xl outline-none border transition-all ${
@@ -827,35 +805,29 @@ export const LoginPage = () => {
                                         <button
                                             onClick={() => void handleResetPassword()}
                                             disabled={recoveryBusy}
-                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-black rounded-2xl shadow-lg shadow-blue-600/20 transition-all"
                                         >
-                                            {recoveryBusy ? 'SAVING PASSWORD…' : 'SAVE NEW PASSWORD'}
+                                            {recoveryBusy ? 'RESETTING…' : 'RESET PASSWORD'}
                                         </button>
                                     </div>
-                                )}
-
-                                {recoveryStep === 3 && (
+                                ) : (
                                     <div className="space-y-6">
                                         <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-3xl text-center">
                                             <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                                            <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Account Successfully Recovered</h4>
-                                            <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl inline-block">
-                                                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Your Username</p>
-                                                <p className="text-lg font-mono font-black text-blue-500">{recoveryDoneUsername}</p>
-                                            </div>
-                                            <p className={`text-sm mt-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                Your password has been updated. You can now sign in with your username and new password.
+                                            <h4 className="text-green-500 font-black uppercase tracking-widest text-sm">Password Reset Successful</h4>
+                                            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                Sign in as <span className="font-mono font-bold">{recoveryDoneUsername}</span> with your new password.
                                             </p>
                                         </div>
 
                                         <button
                                             onClick={() => {
-                                                setCredentials({ id: recoveryDoneUsername || '', password: recoveryNewPassword });
+                                                setCredentials({ id: recoveryDoneUsername, password: '' });
                                                 setShowRecoveryModal(false);
                                             }}
-                                            className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg transition-all cursor-pointer"
+                                            className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
                                         >
-                                            SIGN IN AS {recoveryDoneUsername?.toUpperCase()}
+                                            BACK TO SIGN IN
                                         </button>
                                     </div>
                                 )}

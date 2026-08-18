@@ -404,7 +404,7 @@ export function transmuteGrade(initialGrade: number, schoolYear?: string): numbe
 
 
     // Parse the school year start year
-    const syStart = parseInt(sy.replace(/\D/g, '').substring(0, 4)) || 2026;
+    const syStart = parseInt(sy.split('-')[0]) || 2026;
 
     // Beginning SY 2027-2028, a zero-based grading system is implemented: no transmutation.
     if (syStart >= 2027) {
@@ -412,8 +412,7 @@ export function transmuteGrade(initialGrade: number, schoolYear?: string): numbe
     }
 
     // Check if it's SY 2026-2027 for the adjusted transmutation table
-    const cleanSy = sy.replace(/\s+/g, '');
-    const isTransitionSY = syStart === 2026 || cleanSy.includes('2026-2027');
+    const isTransitionSY = sy === '2026-2027';
 
     if (isTransitionSY) {
         // Table 4: Adjusted Transmutation Table (only for SY 2026-2027)

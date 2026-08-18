@@ -166,8 +166,6 @@ export function ReportsPage() {
             const hasValidRefs = validLrns.has(r.student_lrn) && validSubjectIds.has(r.subject_id);
             if (!hasValidRefs) return false;
 
-            const rStudent = validStudents.find(s => s.lrn === r.student_lrn);
-            const rSection = rStudent ? sections.find(sec => sec.id === rStudent.student_section || sec.section_name === rStudent.student_section) : undefined;
             const liveGrade = resolveStudentQuarterGrade(
                 r.student_lrn,
                 r.subject_id,
@@ -175,18 +173,12 @@ export function ReportsPage() {
                 r.school_year || activeSchoolYear,
                 classRecords,
                 gradingSheetRecords,
-                hpsRecords,
-                rSection?.section_grade_level,
-                rSection?.track,
-                subjects,
-                rSection?.id
+                hpsRecords
             );
 
             const fg = liveGrade > 0 ? liveGrade : (Number(r.final_grade) || 0);
             return fg > 0;
         }).map(r => {
-            const rStudent2 = validStudents.find(s => s.lrn === r.student_lrn);
-            const rSection2 = rStudent2 ? sections.find(sec => sec.id === rStudent2.student_section || sec.section_name === rStudent2.student_section) : undefined;
             const liveGrade = resolveStudentQuarterGrade(
                 r.student_lrn,
                 r.subject_id,
@@ -194,11 +186,7 @@ export function ReportsPage() {
                 r.school_year || activeSchoolYear,
                 classRecords,
                 gradingSheetRecords,
-                hpsRecords,
-                rSection2?.section_grade_level,
-                rSection2?.track,
-                subjects,
-                rSection2?.id
+                hpsRecords
             );
             return liveGrade > 0 ? { ...r, final_grade: liveGrade } : r;
         });
@@ -233,7 +221,7 @@ export function ReportsPage() {
         });
 
         return Array.from(consolidatedMap.values());
-    }, [gradingSheetRecords, classRecords, hpsRecords, validStudents, officialSubjects, activeSchoolYear, sections, subjects]);
+    }, [gradingSheetRecords, classRecords, hpsRecords, validStudents, officialSubjects, activeSchoolYear]);
 
     const filteredRecords = useMemo(() => {
         if (selectedSectionFilter === 'all') return consolidatedOfficialRecords;

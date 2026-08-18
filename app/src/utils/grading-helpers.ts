@@ -4,10 +4,8 @@
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
-import { normalizeSubjectName } from '../lib/subjectConfig';
-import { useAppStore } from '../stores';
 
-function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
+function isQuarterMatch(recQuarter: any, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
     const num = Number(recQuarter);
     if (!isNaN(num) && num === targetQuarter) return true;
@@ -29,82 +27,36 @@ export function resolveStudentQuarterGrade(
     gradingSheetRecords: ClassRecord[] = [],
     hpsRecords: HPSRecord[] = [],
     sectionGradeLevel?: string,
-    sectionTrack?: string,
-    subjects?: Subject[],
-    sectionId?: string
+    sectionTrack?: string
 ): number {
-    // 1. Determine canonical subject name and normalized targets
-    const foundSubject = subjects?.find(s => s.id === subjectIdOrName);
-    const targetSubjectName = foundSubject?.subject_name || '';
-    const normTarget = normalizeSubjectName(targetSubjectName || subjectIdOrName || '');
+    const normTarget = (subjectIdOrName || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const allRecords = [...classRecords, ...gradingSheetRecords];
-    const recWithName = allRecords.find(r => (r.subject_id === subjectIdOrName || (r.subject_name && normalizeSubjectName(r.subject_name) === normTarget)) && r.subject_name);
-    const resolvedSubjectName = recWithName?.subject_name || targetSubjectName;
-    const normResolvedName = normalizeSubjectName(resolvedSubjectName);
+    const recWithName = allRecords.find(r => (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) && r.subject_name);
+    const resolvedSubjectName = recWithName?.subject_name || '';
+    const normResolvedName = resolvedSubjectName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    const isSubjectMatch = (rSubId: string, rSubName?: string, rRecordId?: string) => {
+    const isSubjectMatch = (rSubId: string, rSubName?: string) => {
         if (rSubId === subjectIdOrName) return true;
-        const normName = normalizeSubjectName(rSubName || '');
-        if (normName && (normName === normTarget || normName === normResolvedName)) return true;
-        const normId = normalizeSubjectName(rSubId || '');
+        const normName = (rSubName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normName && normName === normTarget) return true;
+        if (normName && normResolvedName && normName === normResolvedName) return true;
+        const normId = (rSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         if (normId && (normId === normTarget || normId === normResolvedName)) return true;
-        if (subjects && rSubId) {
-            const sub = subjects.find(s => s.id === rSubId);
-            if (sub) {
-                const sNorm = normalizeSubjectName(sub.subject_name);
-                if (sNorm && (sNorm === normTarget || sNorm === normResolvedName)) return true;
-            }
-        }
-        if (rRecordId) {
-            const rLower = rRecordId.toLowerCase();
-            if (normTarget && rLower.includes(normTarget)) return true;
-            if (normResolvedName && rLower.includes(normResolvedName)) return true;
-            if (subjectIdOrName && rLower.includes(subjectIdOrName.toLowerCase())) return true;
-        }
         return false;
     };
-
-    // Resolve the actual Subject object (with custom weights) from the subjects array
-    const resolvedSubject: Subject | undefined = foundSubject || subjects?.find(s =>
-        s.id === subjectIdOrName ||
-        normalizeSubjectName(s.subject_name) === normTarget ||
-        (normResolvedName && normalizeSubjectName(s.subject_name) === normResolvedName)
-    );
 
     // 1. Check primary classRecords
     const cRecord = classRecords.find(r =>
         (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name, r.id) &&
+        isSubjectMatch(r.subject_id, r.subject_name) &&
         isQuarterMatch(r.quarter, quarter) &&
         (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
 
     if (cRecord) {
-        // HPS lookup: prefer section-specific record (matching EClassRecord.tsx behavior),
-        // checking both section ID, section name, and composite section name, then fallback to any HPS for this subject/quarter
-        const resolvedSectionId = sectionId || cRecord.section_id;
-        const allSections = useAppStore.getState?.()?.sections || [];
-        const secObj = allSections.find(s => s.id === resolvedSectionId || s.section_name === resolvedSectionId);
-
-        const isHpsSecMatch = (hSecId?: string) => {
-            if (!hSecId || !resolvedSectionId) return true;
-            if (hSecId === resolvedSectionId) return true;
-            if (secObj) {
-                if (hSecId === secObj.id || hSecId === secObj.section_name) return true;
-                const compositeName = `Grade ${secObj.section_grade_level} - ${secObj.section_name}`;
-                if (hSecId.toLowerCase() === compositeName.toLowerCase() || hSecId.toLowerCase() === secObj.section_name.toLowerCase()) return true;
-            }
-            return false;
-        };
-
         const hpsRec = hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
-            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
-            isQuarterMatch(h.quarter, quarter) &&
-            isHpsSecMatch(h.section_id)
-        ) || hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name, h.id) || h.subject_id === cRecord.subject_id) &&
+            (isSubjectMatch(h.subject_id, (h as any).subject_name) || h.subject_id === cRecord.subject_id) &&
             (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
             isQuarterMatch(h.quarter, quarter)
         );
@@ -133,8 +85,7 @@ export function resolveStudentQuarterGrade(
 
             const subjectName = cRecord.subject_name || resolvedSubjectName || subjectIdOrName;
             const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
-            // Use the actual Subject object (with custom weights) if available, otherwise fall back to cluster defaults
-            const weights = getWeights(cluster, resolvedSubject);
+            const weights = getWeights(cluster, { subject_name: subjectName } as Subject);
 
             const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * (weights.written_works || 0);
             const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * (weights.performance_tasks || 0);
@@ -176,7 +127,7 @@ export function resolveStudentQuarterGrade(
     // 2. Check gradingSheetRecords
     const gRecord = gradingSheetRecords.find(r =>
         (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name, r.id) &&
+        isSubjectMatch(r.subject_id, r.subject_name) &&
         isQuarterMatch(r.quarter, quarter) &&
         (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
