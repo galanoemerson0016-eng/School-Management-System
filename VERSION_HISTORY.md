@@ -1,5 +1,16 @@
 # Version History
 
+## v2.11.7 (2026-08-18)
+
+### 🚀 New Features & Enhancements
+
+- **Stable Core Baseline Rollout**: Restored and standardized the entire application architecture on the proven, stable 2.11.0 baseline.
+- **Enhanced Update & Deployment Resiliency**: Multi-platform release packaging for Windows and macOS with automated health verification.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.0 (2026-08-14)
 
 ### 🚀 New Features & Enhancements
