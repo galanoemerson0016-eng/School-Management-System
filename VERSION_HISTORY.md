@@ -1,5 +1,25 @@
 # Version History
 
+## v2.11.6 (2026-08-18)
+
+### 🚀 New Features & Enhancements
+
+- **Strict Section-Scoped Consolidated Grades Table**: Aligned `ConsolidatedGradesPage.tsx` with `filterSubjectsForSection` so that each class section strictly displays only the subjects assigned to it and active for the selected term, eliminating the overflow of unoffered specialized electives.
+
+### ⚡ Improvements
+
+- **Intelligent SHS Term Defaults**: Configured `getDefaultTermForSubject` so core and applied SHS subjects default to active (`all`) while specialized niche track electives (Sports, Arts, Maritime) default to `Not Offered (none)` unless explicitly enabled in the Subjects Page.
+- **Automated Startup Subject Reconciler**: Automatically scans and resets unoffered specialized electives that have no student class records back to `none` in IndexedDB on application launch.
+
+### 🐞 Bug Fixes
+
+- Fixed an issue where Grade Management / Consolidated Grades displayed all 70+ Senior High School curriculum subjects across all tracks simultaneously.
+- Fixed subject filtering fallback in `filterSubjectsForSection` (`rbac.ts`) to prevent unoffered subjects from being rendered.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v2.11.5 (2026-08-18)
 
 ### 🚀 New Features & Enhancements

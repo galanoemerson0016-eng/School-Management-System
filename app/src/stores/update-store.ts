@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.5';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.11.6';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🛡️ Restored missing SHS Grade 12 subjects in E-Class Record by setting default term to active.",
-              "🧩 Automated dynamic synthesis for custom typed subjects (like Research 2) in section subject load.",
-              "🔢 Fixed subject name normalization to preserve numbered SHS subjects (Research 1/2, Bio/Chem/Phys 1/2) without collision."
+              "🎯 Constrained Consolidated Grades table to strictly display only subjects taught in each section.",
+              "🧹 Auto-cleaned unoffered specialized SHS electives without student records in IndexedDB.",
+              "⚡ Restored unoffered term filtering for specialized track electives across Sports, Arts, and Maritime."
             ],
             timestamp: Date.now(),
             status: 'success',
