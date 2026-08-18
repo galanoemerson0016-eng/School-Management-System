@@ -737,7 +737,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, subjectName]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, subjectName, subjects]);
 
 
     // Get current subject and its weight cluster
@@ -917,7 +917,7 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, subjectName]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, subjectName, subjects]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1377,7 +1377,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, subjectName, subjects]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {

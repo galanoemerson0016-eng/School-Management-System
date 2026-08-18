@@ -4,7 +4,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
-import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
+import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject } from '../lib/curriculum';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
@@ -388,15 +388,6 @@ const GradeInput = ({
             )}
         </div>
     );
-};
-
-const WW_COUNT = 5;
-const PT_COUNT = 3;
-const ST_COUNT = 3;
-
-const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
-    const src = Array.isArray(scores) ? scores : [];
-    return Array.from({ length: count }, (_, i) => src[i] ?? '');
 };
 
 const formatLearnerName = (student: any) => {
@@ -1582,7 +1573,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, selectedSection, sectionObj, selectedTerm]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, subjects]);
 
     const promotionStats = useMemo(() => {
         const stats = {
