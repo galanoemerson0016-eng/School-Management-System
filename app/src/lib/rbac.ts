@@ -168,9 +168,6 @@ export function filterSectionsForUser(user: User | null | undefined, sections: S
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
     if (!user || !section) return [];
     
-    // First, find subjects directly linked to this section
-    const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none');
-    
     // Collect all registered names from taught_subjects and subject_name
     const registeredNames = new Set(section.taught_subjects || []);
     if (section.subject_name) {
@@ -180,23 +177,23 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         });
     }
     const normRegisteredNames = new Set(
-        Array.from(registeredNames).map(n => normalizeSubjectName(n))
+        Array.from(registeredNames).map(n => normalizeSubjectName(n)).filter(Boolean)
     );
 
     const isRegistered = (subjName: string) => {
         if (registeredNames.has(subjName)) return true;
         const norm = normalizeSubjectName(subjName);
-        return normRegisteredNames.has(norm);
+        return norm ? normRegisteredNames.has(norm) : false;
     };
 
-    if (section.is_teaching_load || registeredNames.size > 0) {
-        // Find existing catalog subjects that match the grade level and are selected as taught
+    if (registeredNames.size > 0) {
+        // Find subjects directly linked or catalog matching that are checked in this section
+        const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none' && isRegistered(subject.subject_name));
         const gradeMatches = subjects.filter(s => 
             (s.grade_level === section.section_grade_level || !s.grade_level) && 
             isRegistered(s.subject_name)
         );
 
-        // Combine directly linked and catalog matches
         const combined: Subject[] = [...directlyLinked, ...gradeMatches];
         const seenNorms = new Set<string>();
         const result: Subject[] = [];
@@ -230,40 +227,32 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
             }
         }
 
-        if (result.length > 0) {
-            return result;
-        }
+        return result;
+    }
+
+    // If it is explicitly marked as a teaching load and 0 subjects were checked, return empty
+    if (section.is_teaching_load) {
+        return [];
     }
     
-    // Fallback: if not a teaching load and no subjects checked, return only active subjects for that grade level
+    // Fallback: for advisory sections with no explicit subject checklist, return active subjects for that grade level
+    const directlyLinked = subjects.filter((subject) => subject.section_id === section.id && subject.term !== 'none');
     const gradeLevelSubjects = subjects.filter(s => 
         s.grade_level === section.section_grade_level && 
         s.term !== 'none'
     );
 
-    if (gradeLevelSubjects.length > 0) {
-        const unique: Subject[] = [];
-        const seen = new Set<string>();
-        for (const s of gradeLevelSubjects) {
-            const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(s);
-            }
-        }
-        return unique;
-    }
-    
-    const uniqueDirect: Subject[] = [];
-    const seenDirect = new Set<string>();
-    for (const s of directlyLinked) {
+    const baseList = gradeLevelSubjects.length > 0 ? gradeLevelSubjects : directlyLinked;
+    const unique: Subject[] = [];
+    const seen = new Set<string>();
+    for (const s of baseList) {
         const key = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
-        if (!seenDirect.has(key)) {
-            seenDirect.add(key);
-            uniqueDirect.push(s);
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(s);
         }
     }
-    return uniqueDirect;
+    return unique;
 }
 
 export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {
