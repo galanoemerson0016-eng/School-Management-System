@@ -233,7 +233,7 @@ export function ReportsPage() {
         });
 
         return Array.from(consolidatedMap.values());
-    }, [gradingSheetRecords, classRecords, hpsRecords, validStudents, officialSubjects, activeSchoolYear]);
+    }, [gradingSheetRecords, classRecords, hpsRecords, validStudents, officialSubjects, activeSchoolYear, sections, subjects]);
 
     const filteredRecords = useMemo(() => {
         if (selectedSectionFilter === 'all') return consolidatedOfficialRecords;

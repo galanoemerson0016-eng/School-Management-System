@@ -455,7 +455,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const genT3 = termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
+    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track, section?.id]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     

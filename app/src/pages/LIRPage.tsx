@@ -234,7 +234,7 @@ export function LIRPage() {
             };
         });
         return data;
-    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSubject]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSectionObj?.id, selectedSubject, subjects]);
 
     const attendanceData = useMemo(() => {
         return getAttendanceDataForStudent(selectedStudent);

@@ -1013,11 +1013,6 @@ const groupedSections = useMemo(() => {
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
         
-        const getEffectiveTerm = (s: Subject) => {
-            if (s.term !== undefined && s.term !== null) return s.term;
-            return getDefaultTermForSubject(s.subject_name, s.grade_level);
-        };
-
         // Use filterSubjectsForSection so section taught_subjects and active subjects are strictly adhered to
         let sectionDbSubjects = filterSubjectsForSection(user, sectionObj, subjects).filter(s => {
             const effTerm = s.term !== undefined && s.term !== null ? s.term : getDefaultTermForSubject(s.subject_name, s.grade_level);
@@ -1169,7 +1164,7 @@ const groupedSections = useMemo(() => {
 
             return (!isMapehComponent || norm === 'mapeh') && !isEcOrMkComponent;
         });
-    }, [subjects, sectionObj, schoolProfile.curriculum, selectedTerm]);
+    }, [subjects, sectionObj, schoolProfile.curriculum, selectedTerm, user]);
 
 
 

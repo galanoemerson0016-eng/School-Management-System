@@ -467,7 +467,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         }
 
         try {
-            const validSubjectNames = new Set(availableSubjects.map(s => s.name));
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
                 section_name: formData.section_name!,

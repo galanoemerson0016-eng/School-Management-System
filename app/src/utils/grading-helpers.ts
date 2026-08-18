@@ -85,7 +85,7 @@ export function resolveStudentQuarterGrade(
         // checking both section ID, section name, and composite section name, then fallback to any HPS for this subject/quarter
         const resolvedSectionId = sectionId || cRecord.section_id;
         const allSections = useAppStore.getState?.()?.sections || [];
-        const secObj = allSections.find((s: any) => s.id === resolvedSectionId || s.section_name === resolvedSectionId);
+        const secObj = allSections.find(s => s.id === resolvedSectionId || s.section_name === resolvedSectionId);
 
         const isHpsSecMatch = (hSecId?: string) => {
             if (!hSecId || !resolvedSectionId) return true;

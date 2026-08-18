@@ -264,7 +264,7 @@ export function SF5Page() {
                 failedSubjects: uniqueFailedSubjects.join(', '),
             };
         }).sort((a, b) => a.last_name.localeCompare(b.last_name));
-    }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo]);
+    }, [sectionStudents, sectionSubjects, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, currentSectionInfo, subjects]);
 
     const males = studentData.filter(s => (s.gender || '').toLowerCase() === 'male');
     const females = studentData.filter(s => (s.gender || '').toLowerCase() === 'female');

@@ -1676,7 +1676,7 @@ export function AttendancePage() {
         return renderCombinedTotalRow(key, ref);
     };
 
-    const renderFooterBlock = (hasTable = true) => (
+    const renderFooterBlock = (_hasTable = true) => (
         <>
                     {/* Bottom Section: Guidelines, Codes, Summary */}
                     <div className="flex border-2 border-black" style={{ fontSize: layoutConfig.guidelinesTextSize }}>
