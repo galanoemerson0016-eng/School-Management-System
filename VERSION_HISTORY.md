@@ -1,5 +1,27 @@
 # Version History
 
+## v3.0.2 (2026-08-23)
+
+### 🚀 New Features & Enhancements
+
+- **Automated Google Drive Cloud Backup Onboarding**: Integrated automated cloud onboarding wizard with OAuth/Service Account verification, hourly background synchronization schedule, exit protection, and full database collection restore.
+- **E-Class Record Dynamic Grade Management Sync**: Automated live grade synchronization pulling verified transmuted grades directly into Grade Management for all standalone subjects and composite MAPEH (Music & Arts, PE & Health) / EC&MK components.
+
+### ⚡ Improvements
+
+- **Curriculum & Virtual Subject Matching**: Enhanced subject alias resolution across DepEd learning areas (Filipino, English, Mathematics, Science, Araling Panlipunan, GMRC/Values Education/Makabansa, EPP/TLE, MAPEH, SHS) enabling seamless grade flow.
+- **Robust Excel Template Import & Cell Input**: Fully supported manual cell editing and Excel template importing for non-advisory learning areas with automated subject ID and name mapping.
+- **Safe & Scoped Grade Management Clear All**: Re-engineered "Clear All" to strictly target manual/imported summary sheet overrides for the selected section and term with zero impact on teacher E-Class Records.
+
+### 🐞 Bug Fixes
+
+- **Virtual Subject Input Dropping**: Resolved an issue where manual grade input and template imports on curriculum/virtual subjects were rejected.
+- **Grade Management React Hook Optimization**: Fixed dependency tracking in grade computation hooks to eliminate unnecessary recalculations.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.0.1 (2026-08-23)
 
 ### 🚀 New Features & Enhancements

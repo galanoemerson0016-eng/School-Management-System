@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.2';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🎓 Strengthened Senior High School Curriculum (DepEd Order No. 017, s. 2026) integration.",
-              "📊 DO 017 Annex E Unit-Weighted Grading System across SF9, SF10-SHS, SF5, and Summary of Grades.",
-              "🛡️ Strict advisory section subject scoping: unassigned electives strictly excluded from report cards."
+              "☁️ Automated Google Drive Cloud Backup Onboarding with hourly sync, exit protection, and full restore.",
+              "📊 Enhanced Grade Management live E-Class Sync and robust subject matching for curriculum learning areas.",
+              "🛡️ Safe, section-scoped Grade Management Clear All preserving all teacher E-Class Record data."
             ],
             timestamp: Date.now(),
             status: 'success',

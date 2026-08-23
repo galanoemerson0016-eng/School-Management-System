@@ -3351,12 +3351,27 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.0.1 */}
+                                {/* Version 3.0.2 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.1</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.2</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 23, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>☁️ <strong>Automated Google Drive Cloud Backup Onboarding</strong>: Integrated step-by-step connection wizard with hourly sync, exit protection, and full database restore.</li>
+                                        <li>📊 <strong>E-Class Dynamic Grade Sync</strong>: Live transmuted grade synchronization for all standalone subjects and composite MAPEH (Music & Arts, PE & Health) / EC&MK components.</li>
+                                        <li>🛡️ <strong>Safe & Scoped Grade Management Clear All</strong>: Scoped to manual/imported sheet overrides with zero risk to teacher E-Class Records.</li>
+                                        <li>📋 <strong>Curriculum & Virtual Subject Matching</strong>: Full DepEd learning area alias resolution supporting manual cell input and Excel template imports.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.0.1 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.1</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 23, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
