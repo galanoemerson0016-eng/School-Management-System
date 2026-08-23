@@ -740,7 +740,6 @@ export function ShsEClassRecord() {
     const optimalNameColumnWidth = 280;
 
     const isFieldExposure = currentCluster === 'shs_field_exposure';
-    const teHeaderLabel = isFieldExposure ? 'TE' : 'TE (40%)';
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
@@ -1793,7 +1792,7 @@ export function ShsEClassRecord() {
                                         <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
                                         {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST1</th>}
                                         {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST2</th>}
-                                        <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">{teHeaderLabel}</th>
+                                        <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">TE</th>
                                         {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
                                         {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
                                         {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>}

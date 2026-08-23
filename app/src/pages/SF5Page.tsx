@@ -5,6 +5,7 @@ import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLo
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 
 export function SF5Page() {
     const students = useAppStore(s => s.students);
@@ -77,7 +78,47 @@ export function SF5Page() {
 
     const sectionSubjects = useMemo(() => {
         if (!currentSectionInfo) return [];
-        return subjects.filter((subject) => subject.section_id === currentSectionInfo.id && subject.term !== 'none');
+        const sectionGradeNum = parseInt(currentSectionInfo.section_grade_level.replace(/\D/g, '')) || 0;
+        const isSHS = currentSectionInfo.section_grade_level.includes('11') || currentSectionInfo.section_grade_level.includes('12');
+        const sectionTrack = (currentSectionInfo.track || '').toLowerCase();
+        const taughtRaw = currentSectionInfo.taught_subjects || [];
+        const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+        const taughtSet = new Set(taughtNorms);
+
+        let candidates = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            return (s.section_id === currentSectionInfo.id || (!s.section_id && subjectGradeNum === sectionGradeNum)) && s.term !== 'none';
+        });
+
+        const sectionSpecific = candidates.filter(s => s.section_id === currentSectionInfo.id);
+        if (sectionSpecific.length > 0) {
+            candidates = sectionSpecific;
+        }
+
+        if (taughtSet.size > 0) {
+            candidates = candidates.filter(s => {
+                const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (taughtSet.has(sNorm)) return true;
+                for (const t of taughtSet) {
+                    if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+                }
+                return false;
+            });
+        } else if (isSHS && sectionTrack) {
+            candidates = candidates.filter(s => {
+                const unitInfo = getShsSubjectUnitInfo(s.subject_name, currentSectionInfo.section_grade_level);
+                if (unitInfo.category === 'core') return true;
+                if (sectionTrack.includes('acad')) {
+                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                }
+                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                }
+                return true;
+            });
+        }
+
+        return candidates;
     }, [subjects, currentSectionInfo]);
 
     const isMusicArtsSubject = (name: string) => {

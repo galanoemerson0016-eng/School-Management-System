@@ -125,6 +125,7 @@ export interface Student {
     student_section?: string;
     track?: string;
     strand?: string;
+    cluster?: string; // SSHS DO 017 Curriculum Cluster (Grade 11)
     weight?: number | string;
     height?: number | string;
     heightSquared?: number | string;
@@ -297,6 +298,7 @@ export interface Section {
     is_advisory?: boolean; // Flag for advisory class
     track?: string; // Track for SHS (Academic or TechPro)
     strand?: string; // Strand for SHS (STEM, ABM, HUMSS, GAS, etc.)
+    cluster?: string; // SSHS Curriculum Cluster under DepEd Order No. 017, s. 2026 (Grade 11)
     section_metadata?: {
         sf9SubjectSelections?: Record<number, string>;
         sf9SignatureSettings?: SF9SignatureSettings;

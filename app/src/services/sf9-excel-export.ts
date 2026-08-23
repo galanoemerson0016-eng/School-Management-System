@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import type { Student, SchoolProfile } from '../types';
 import { formatLearnerName } from '../utils/student-name';
 import { formatGradeForDisplay } from '../lib/grading';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1Template } from './sf9-g1-excel-export';
 // ---------------------------------------------------------------------------
 // Types
@@ -253,6 +254,7 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   }
   
   let totalAverageSum = 0;
+  let totalUnits = 0;
   let validSubjectCount = 0;
 
   const HEADER_FILL: ExcelJS.Fill = {
@@ -350,8 +352,15 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
 
             // Only count parent subjects towards General Average (avoid double-counting MAPEH components)
             if (!isComp) {
-              totalAverageSum += avg;
-              validSubjectCount++;
+              if (isSHS) {
+                const unitInfo = getShsSubjectUnitInfo(subject.name, gradeLevel);
+                const yearUnits = unitInfo.yearUnits;
+                totalAverageSum += avg * yearUnits;
+                totalUnits += yearUnits;
+              } else {
+                totalAverageSum += avg;
+                validSubjectCount++;
+              }
             }
         }
       }
@@ -360,8 +369,9 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   });
 
   // General Average
-  if (validSubjectCount > 0) {
-      const generalAvg = Math.round(totalAverageSum / validSubjectCount);
+  const hasValidAverage = (isSHS && totalUnits > 0) || (!isSHS && validSubjectCount > 0);
+  if (hasValidAverage) {
+      const generalAvg = isSHS ? Math.round(totalAverageSum / totalUnits) : Math.round(totalAverageSum / validSubjectCount);
       
       let genAvgRemarks = generalAvg >= 75 ? 'Promoted' : 'Retained';
       if (generalAvg >= 90) {

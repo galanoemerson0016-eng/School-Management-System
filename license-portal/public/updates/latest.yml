@@ -1,8 +1,8 @@
-﻿version: 1.0.55
+version: 2.11.7
 files:
-  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v1.0.55/FormEase.Pro.Setup.1.0.55.exe
-    sha512: Lfo12tZEnyvA3mMZNsGq6vISjqkbt8bm8mikjIQNqbF3wlv5Z+KE1ZBFhP9upWhSF9BUowQzk+I6Sr+ZPJ6LhQ==
-    size: 313116577
-path: FormEase.Pro.Setup.1.0.55.exe
-sha512: Lfo12tZEnyvA3mMZNsGq6vISjqkbt8bm8mikjIQNqbF3wlv5Z+KE1ZBFhP9upWhSF9BUowQzk+I6Sr+ZPJ6LhQ==
-releaseDate: '2026-06-02T06:32:27.178Z'
+  - url: https://github.com/galanoemerson0016-eng/FormEase-Releases/releases/download/v2.11.7/FormEase.Pro.Setup.2.11.7.exe
+    sha512: 4PU/mLPcj226KocH/C3Ous9vBXJ+8P6ckCv/tjVKCqVtNu/ErDoS7Ax89+xSBdJG8oHaI/YakmJZjSV+28XV+g==
+    size: 340891372
+path: FormEase.Pro.Setup.2.11.7.exe
+sha512: 4PU/mLPcj226KocH/C3Ous9vBXJ+8P6ckCv/tjVKCqVtNu/ErDoS7Ax89+xSBdJG8oHaI/YakmJZjSV+28XV+g==
+releaseDate: '2026-08-19T00:41:20.987Z'

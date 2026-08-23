@@ -1,5 +1,22 @@
 # Version History
 
+## v3.0.1 (2026-08-23)
+
+### 🚀 New Features & Enhancements
+
+- **Strengthened Senior High School Curriculum (DepEd Order No. 017, s. 2026)**: Integrated full compliance for Grade 11 Core Subjects (*Effective Communication*, *Mabisang Komunikasyon*, *General Mathematics*, *General Science*, *Life and Career Skills*, *Pag-aaral ng Kasaysayan at Lipunang Pilipino*).
+- **SSHS Curriculum Clusters**: Official support for the 5 Academic Track clusters and 10 Tech-Pro Track clusters with automatic track scoping.
+- **Annex E Unit-Weighted Grading System**: Automated unit-weighted grading calculations across SF9 (Learner Progress Report Card), SF10-SHS (Learner Permanent Academic Record), SF5 (Report on Promotion), and Summary of Grades.
+- **DepEd Class Size Limit Monitoring**: Real-time class size compliance indicators adhering to Table 7 maximum limits (40 Core, 30 Academic Electives, 25 Tech-Pro Electives).
+
+### 🐞 Bug Fixes
+
+- **Strict Advisory Subject Scoping**: Fixed report cards and school forms to strictly exclude unassigned database catalog electives (e.g. *Biology 1*, *Business 1*) when not explicitly assigned to the section's advisory load.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.0.0 (2026-08-22)
 
 ### 🚀 New Features & Enhancements

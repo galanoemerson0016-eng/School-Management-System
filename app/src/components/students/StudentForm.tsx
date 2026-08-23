@@ -4,6 +4,7 @@ import type { Student } from '../../types';
 import { db } from '../../services/database';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { PhotoUploadCrop } from '../id-card/PhotoUploadCrop';
+import { getClustersForGrade11Track } from '../../lib/curriculum';
 
 interface StudentFormProps {
     student: Student | null;
@@ -332,7 +333,7 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
             return;
         }
 
-        // Auto-sync Grade Level, Track and Strand when Section changes
+        // Auto-sync Grade Level, Track, Strand, and Cluster when Section changes
         if (name === 'student_section' && value) {
             const sectionObj = sections.find(s => s.section_name === value || s.id === value);
             if (sectionObj) {
@@ -341,7 +342,8 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                     student_section: value, 
                     grade_level: sectionObj.section_grade_level,
                     track: sectionObj.track || '',
-                    strand: sectionObj.strand || ''
+                    strand: sectionObj.strand || sectionObj.cluster || '',
+                    cluster: sectionObj.cluster || sectionObj.strand || ''
                 }));
                 return;
             }
@@ -905,6 +907,27 @@ export function StudentForm({ student, onClose, initialData, isSimplified = fals
                                                     ))}
                                                 </select>
                                             </div>
+                                            {isGrade11 && formData.track && (
+                                                <div>
+                                                    <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">SSHS Curriculum Cluster *</label>
+                                                    <select 
+                                                        name="cluster" 
+                                                        value={formData.cluster || formData.strand || ''} 
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setFormData(prev => ({ ...prev, cluster: val, strand: val }));
+                                                        }} 
+                                                        required 
+                                                        disabled={isStrandLocked}
+                                                        className={`form-input ${isStrandLocked ? 'bg-gray-100 dark:bg-white/10 dark:text-slate-200 cursor-not-allowed' : 'bg-white dark:bg-white/5 dark:text-white'}`}
+                                                    >
+                                                        <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Curriculum Cluster</option>
+                                                        {getClustersForGrade11Track(formData.track).map((cluster) => (
+                                                            <option key={cluster} value={cluster} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{cluster}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
                                             {isGrade12 && (
                                                 <div>
                                                     <label className="block text-sm font-semibold mb-2 text-deped-blue dark:text-blue-300">Strand *</label>

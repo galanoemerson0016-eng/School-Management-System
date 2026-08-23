@@ -5,7 +5,7 @@ import {
     BookOpen, Binary, Beaker, Globe, Compass, GraduationCap, 
     ChevronRight, ArrowLeft, Plus, Settings,
     CheckCircle2, BookText, X, Trash2, ArrowRight, ChevronLeft,
-    Search, Eye, EyeOff, Users
+    Search, Eye, EyeOff, Users, Shield, ShieldCheck, ShieldAlert, Layers, Sparkles
 } from 'lucide-react';
 import type { Subject } from '../types';
 import type { LucideIcon } from 'lucide-react';
@@ -258,16 +258,18 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
     return 'Other Subjects';
 };
 
-import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
+import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, getDefaultTermForSubject, GRADE_11_CORE_SUBJECTS, isGrade11CoreSubject } from '../lib/curriculum';
 
 export function SubjectsPage() {
-    const { schoolProfile, subjects, sections, students, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, setCurrentView, showNotification } = useAppStore(); 
+    const { schoolProfile, subjects, sections, students, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, updateSection, setCurrentView, showNotification } = useAppStore(); 
     const { user } = useAuthStore();
     const canEdit = canEditClassesAndSubjects(user);
 
     const [viewMode, setViewMode] = useState<'grades' | 'subjects'>('grades');
     const [selectedGrade, setSelectedGrade] = useState<string | null>(null);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+    const [selectedAdvisorySectionId, setSelectedAdvisorySectionId] = useState<string | null>(null);
+    const [sectionAssignmentSubject, setSectionAssignmentSubject] = useState<Subject | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [enrollmentSubject, setEnrollmentSubject] = useState<Subject | null>(null);
     const [formData, setFormData] = useState({
@@ -771,23 +773,201 @@ export function SubjectsPage() {
         return filteredGroups;
     }, [filteredSubjects, selectedGrade]);
 
+    // All sections matching the currently selected grade
+    const gradeSections = useMemo(() => {
+        if (!selectedGrade) return [];
+        return sections.filter((section) => sectionMatchesGrade(section, selectedGrade));
+    }, [sections, selectedGrade]);
+
+    // Advisory sections matching the currently selected grade
+    const advisorySections = useMemo(() => {
+        return gradeSections.filter((section) => section.is_advisory);
+    }, [gradeSections]);
+
+    // Currently active advisory section for curriculum assignment
+    const activeAdvisorySection = useMemo(() => {
+        if (!selectedGrade || advisorySections.length === 0) return null;
+        if (selectedAdvisorySectionId) {
+            const match = advisorySections.find((s) => s.id === selectedAdvisorySectionId);
+            if (match) return match;
+        }
+        // Match by user uid or adviser name if possible
+        const userMatch = advisorySections.find((s) => s.adviser_id === user?.uid || (s.adviser_name && s.adviser_name === user?.displayName));
+        return userMatch || advisorySections[0];
+    }, [advisorySections, selectedAdvisorySectionId, selectedGrade, user]);
+
+    // Automatically initialize Grade 11 advisory section with Core Subjects if empty
+    useEffect(() => {
+        if (viewMode === 'subjects' && selectedGrade?.includes('11') && activeAdvisorySection && activeAdvisorySection.is_advisory) {
+            if (!activeAdvisorySection.taught_subjects || activeAdvisorySection.taught_subjects.length === 0) {
+                void updateSection({
+                    ...activeAdvisorySection,
+                    taught_subjects: [...GRADE_11_CORE_SUBJECTS]
+                });
+            }
+        }
+    }, [viewMode, selectedGrade, activeAdvisorySection, updateSection]);
+
+    const handleToggleAdvisorySubject = async (subject: Subject) => {
+        if (!activeAdvisorySection) {
+            showNotification('No advisory section found for this grade level. Please create one in Classes & Sections.', 'info');
+            return;
+        }
+
+        let currentTaught = activeAdvisorySection.taught_subjects || [];
+        if (currentTaught.length === 0 && selectedGrade?.includes('11')) {
+            currentTaught = [...GRADE_11_CORE_SUBJECTS];
+        }
+
+        const norm = subject.subject_name.trim().toLowerCase();
+        const isAlreadyAssigned = currentTaught.some(s => s.trim().toLowerCase() === norm);
+
+        let updatedTaught: string[];
+        if (isAlreadyAssigned) {
+            updatedTaught = currentTaught.filter(s => s.trim().toLowerCase() !== norm);
+        } else {
+            updatedTaught = [...currentTaught, subject.subject_name];
+        }
+
+        try {
+            await updateSection({
+                ...activeAdvisorySection,
+                taught_subjects: updatedTaught
+            });
+
+            if (isAlreadyAssigned) {
+                showNotification(
+                    `Removed ${subject.subject_name} from ${activeAdvisorySection.section_name} Advisory Curriculum.`,
+                    'info'
+                );
+            } else {
+                showNotification(
+                    `Assigned ${subject.subject_name} to ${activeAdvisorySection.section_name} (Basis for SF9, SF10, & Summary of Grades).`,
+                    'success'
+                );
+            }
+        } catch (err) {
+            console.error('Failed to update advisory curriculum:', err);
+            showNotification('Failed to update advisory curriculum.', 'error');
+        }
+    };
+
+    const handleAssignAllCoreToAdvisory = async () => {
+        if (!activeAdvisorySection || !selectedGrade) return;
+        const isG11 = selectedGrade.includes('11');
+        const g11Cores = [
+            'Effective Communication',
+            'Mabisang Komunikasyon',
+            'General Mathematics',
+            'General Science',
+            'Life and Career Skills',
+            'Pag-aaral ng Kasaysayan at Lipunang Pilipino'
+        ];
+
+        const currentTaughtSet = new Set((activeAdvisorySection.taught_subjects || []).map(s => s.trim().toLowerCase()));
+        const newTaught = [...(activeAdvisorySection.taught_subjects || [])];
+
+        filteredSubjects.forEach(s => {
+            const norm = s.subject_name.trim().toLowerCase();
+            const isCore = isG11 
+                ? g11Cores.some(c => norm.includes(c.toLowerCase()))
+                : getCategoryForSubject(s.subject_name, selectedGrade) === 'Core Academic Subjects';
+            
+            if (isCore && !currentTaughtSet.has(norm)) {
+                newTaught.push(s.subject_name);
+                currentTaughtSet.add(norm);
+            }
+        });
+
+        try {
+            await updateSection({
+                ...activeAdvisorySection,
+                taught_subjects: newTaught
+            });
+            showNotification(`Assigned Core subjects to ${activeAdvisorySection.section_name} advisory curriculum.`, 'success');
+        } catch (err) {
+            console.error('Failed to assign core subjects:', err);
+            showNotification('Failed to assign core subjects.', 'error');
+        }
+    };
+
+    const handleAssignAllOfferedToAdvisory = async () => {
+        if (!activeAdvisorySection) return;
+        const offered = filteredSubjects.filter(s => s.term !== 'none').map(s => s.subject_name);
+        
+        try {
+            await updateSection({
+                ...activeAdvisorySection,
+                taught_subjects: offered
+            });
+            showNotification(`Assigned all ${offered.length} offered subjects to ${activeAdvisorySection.section_name}.`, 'success');
+        } catch (err) {
+            console.error('Failed to assign all offered subjects:', err);
+            showNotification('Failed to assign all subjects.', 'error');
+        }
+    };
+
+    const handleClearAdvisoryCurriculum = async () => {
+        if (!activeAdvisorySection) return;
+        try {
+            await updateSection({
+                ...activeAdvisorySection,
+                taught_subjects: []
+            });
+            showNotification(`Cleared advisory curriculum for ${activeAdvisorySection.section_name}.`, 'info');
+        } catch (err) {
+            console.error('Failed to clear advisory curriculum:', err);
+            showNotification('Failed to clear advisory curriculum.', 'error');
+        }
+    };
+
+    const handleToggleSectionSubjectAssignment = async (targetSection: typeof sections[0], subjectName: string) => {
+        const currentTaught = targetSection.taught_subjects || [];
+        const norm = subjectName.trim().toLowerCase();
+        const isAssigned = currentTaught.some(s => s.trim().toLowerCase() === norm);
+
+        const updatedTaught = isAssigned
+            ? currentTaught.filter(s => s.trim().toLowerCase() !== norm)
+            : [...currentTaught, subjectName];
+
+        try {
+            await updateSection({
+                ...targetSection,
+                taught_subjects: updatedTaught
+            });
+            showNotification(
+                `${isAssigned ? 'Removed' : 'Assigned'} ${subjectName} ${isAssigned ? 'from' : 'to'} ${targetSection.section_name}`,
+                'success'
+            );
+        } catch (err) {
+            console.error('Failed to update section assignment:', err);
+            showNotification('Failed to update section assignment.', 'error');
+        }
+    };
+
     const handleGradeClick = (grade: string) => {
         setSelectedGrade(grade);
-        const firstSection = sections
-            .filter((section) => sectionMatchesGrade(section, grade))
-            .sort((a, b) => a.section_name.localeCompare(b.section_name))[0];
+        const matchingSecs = sections.filter((section) => sectionMatchesGrade(section, grade));
+        const firstSection = matchingSecs.sort((a, b) => a.section_name.localeCompare(b.section_name))[0];
         setSelectedSectionId(firstSection?.id || null);
+
+        const matchingAdvisories = matchingSecs.filter(s => s.is_advisory);
+        const userAdvisory = matchingAdvisories.find(s => s.adviser_id === user?.uid || (s.adviser_name && s.adviser_name === user?.displayName));
+        setSelectedAdvisorySectionId(userAdvisory?.id || matchingAdvisories[0]?.id || null);
+
         setViewMode('subjects');
     };
 
     const handleBackToGrades = () => {
         setSelectedGrade(null);
+        setSelectedAdvisorySectionId(null);
         setViewMode('grades');
     };
 
     const handleBackToCategories = () => {
         setSelectedCategory(null);
         setSelectedGrade(null);
+        setSelectedAdvisorySectionId(null);
         setViewMode('grades');
     };
 
@@ -1026,13 +1206,14 @@ export function SubjectsPage() {
             const standardList = STANDARD_SUBJECTS[grade] || [];
             const specialList = SPECIAL_SUBJECTS[grade] || [];
             
-            // Merge Academic and TechPro subjects into a unified list
+            // Merge Academic and TechPro subjects into a complete unified list
             const merged: { name: string; code: string }[] = [...standardList];
             specialList.forEach((item) => {
                 if (!merged.some(s => s.name.toLowerCase().trim() === item.name.toLowerCase().trim())) {
                     merged.push(item);
                 }
             });
+            const templatesToUse = merged;
 
             try {
                 const existingSectionSubjects = subjects.filter((subject) => {
@@ -1041,7 +1222,7 @@ export function SubjectsPage() {
                 });
                 const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
                 
-                const missingTemplates = merged.filter((template) => !existingNames.has(normalizeSubjectLabel(template.name)));
+                const missingTemplates = templatesToUse.filter((template) => !existingNames.has(normalizeSubjectLabel(template.name)));
 
                 if (missingTemplates.length === 0) {
                     showNotification(`All standard subjects are already loaded for ${targetSection?.section_name || gradeLevel}.`, 'info');
@@ -1463,213 +1644,395 @@ export function SubjectsPage() {
                         key="subjects"
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-xs overflow-hidden"
+                        className="space-y-4"
                     >
-                        {!selectedSection && filteredSubjects.length === 0 ? (
-                            <div className="p-24 text-center">
-                                <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
+                        {/* Advisory Curriculum Management Toolbar Banner */}
+                        <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 border border-indigo-500/20 shadow-md relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
+                                        <Shield className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                                                Advisory Class Curriculum Scope
+                                            </h3>
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                                                Basis for SF9 • SF10 • Summary of Grades
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
+                                            Subjects toggled as <span className="text-emerald-300 font-bold">In Advisory List</span> form the official grading summary, SF9 report card, SF10, and temporary grade slips for your advisory section. Electives opened for other classes will stay excluded unless assigned.
+                                        </p>
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
-                                <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
-                                {canEdit && (
-                                    <button 
-                                        onClick={handleLoadStandardSubjects} 
-                                        disabled={isLoadingTemplate}
-                                        className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
-                                    >
-                                        {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
-                                    </button>
-                                )}
-                                {!selectedSection && (
-                                    <button onClick={() => setCurrentView('institute')} className="mt-4 block mx-auto text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-tighter hover:underline">Go to Institute Profile</button>
-                                )}
-                            </div>
-                        ) : filteredSubjects.length === 0 ? (
-                            <div className="p-24 text-center">
-                                <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
-                                </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
-                                <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
-                                {canEdit && (
-                                    <button 
-                                        onClick={handleLoadStandardSubjects} 
-                                        disabled={isLoadingTemplate}
-                                        className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
-                                    >
-                                        {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto p-4">
-                                <table className="w-full text-left border-separate border-spacing-y-3">
-                                    <thead>
-                                        <tr className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em]">
-                                            {canEdit && <th className="px-6 py-4 w-16 text-center">Pos</th>}
-                                            <th className="px-6 py-4">Subject Info</th>
-                                            <th className="px-6 py-4">Term Offered</th>
-                                            {canEdit && <th className="px-6 py-4 text-right">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {Object.entries(groupedSubjects).map(([category, categorySubjects]) => {
-                                            const isSHS = selectedGrade?.includes('11') || selectedGrade?.includes('12');
-                                            const isCollapsed = collapsedCategories[category] ?? isSHS;
-                                            return (
-                                                <Fragment key={category}>
-                                                    {category && (
-                                                        <tr 
-                                                            onClick={() => toggleCategory(category)}
-                                                            className="bg-slate-50/50 dark:bg-white/5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10 transition-colors select-none"
-                                                        >
-                                                            <td colSpan={canEdit ? 4 : 3} className="px-6 py-4 border-y border-slate-100 dark:border-white/10">
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                                                                        <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest">
-                                                                            {category}
-                                                                        </span>
-                                                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10">
-                                                                            {categorySubjects.length} {categorySubjects.length === 1 ? 'subject' : 'subjects'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
-                                                                        <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
-                                                                        <ChevronRight className={`w-4 h-4 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
+
+                                {/* Section Selector & Quick Batch Actions */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {advisorySections.length > 0 ? (
+                                        <>
+                                            {advisorySections.length > 1 ? (
+                                                <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
+                                                    <span className="text-[10px] font-bold text-slate-300 uppercase">Advisory:</span>
+                                                    <select
+                                                        value={activeAdvisorySection?.id || ''}
+                                                        onChange={(e) => setSelectedAdvisorySectionId(e.target.value)}
+                                                        className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
+                                                    >
+                                                        {advisorySections.map(sec => (
+                                                            <option key={sec.id} value={sec.id} className="bg-slate-900 text-white">
+                                                                {sec.section_name} {sec.adviser_name ? `(${sec.adviser_name})` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            ) : activeAdvisorySection ? (
+                                                <div className="px-3 py-1.5 bg-white/10 rounded-xl border border-white/10 text-xs font-bold text-white flex items-center gap-1.5">
+                                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>{activeAdvisorySection.section_name}</span>
+                                                    {activeAdvisorySection.adviser_name && (
+                                                        <span className="text-[10px] text-slate-300">({activeAdvisorySection.adviser_name})</span>
                                                     )}
-                                                    {!isCollapsed && categorySubjects.map((subject, idx) => (
-                                                        <motion.tr
-                                                            key={subject.id}
-                                                            layout
-                                                            draggable={canEdit}
-                                                            onDragStart={() => handleDragStart(subject.id)}
-                                                            onDragOver={handleDragOver}
-                                                            onDrop={() => handleDrop(subject.id)}
-                                                            onDragEnd={() => setDraggedSubjectId(null)}
-                                                            className={`group rounded-3xl bg-white dark:bg-[#0f172a]/60 border border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/10 hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-all ${
-                                                                draggedSubjectId === subject.id ? 'opacity-40 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' : ''
-                                                            } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                                </div>
+                                            ) : null}
+                                            
+                                            {canEdit && activeAdvisorySection && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAssignAllCoreToAdvisory}
+                                                        title="Assign all standard Core subjects to this advisory section"
+                                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-400/40 active:scale-95 cursor-pointer shadow-xs"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                                        <span>Assign Core</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAssignAllOfferedToAdvisory}
+                                                        title="Assign all currently offered subjects in this grade to advisory"
+                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-white/10"
+                                                    >
+                                                        <span>Assign All</span>
+                                                    </button>
+                                                    {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleClearAdvisoryCurriculum}
+                                                            title="Clear all assigned advisory subjects"
+                                                            className="p-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-rose-500/30"
                                                         >
-                                                            {canEdit && (
-                                                                <td className="px-6 py-6 text-center">
-                                                                    <div className="flex flex-col items-center gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
-                                                                        <button
-                                                                            onClick={() => moveSubject(subject.id, 'up')}
-                                                                            disabled={idx === 0}
-                                                                            className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors"
-                                                                        >
-                                                                            <ChevronRight className="w-4 h-4 -rotate-90" />
-                                                                        </button>
-                                                                        <div className="text-[10px] font-black text-slate-300 dark:text-slate-600">{(idx + 1).toString().padStart(2, '0')}</div>
-                                                                        <button
-                                                                            onClick={() => moveSubject(subject.id, 'down')}
-                                                                            disabled={idx === categorySubjects.length - 1}
-                                                                            className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors"
-                                                                        >
-                                                                            <ChevronRight className="w-4 h-4 rotate-90" />
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            )}
-                                                            <td className="px-6 py-6">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/10 border border-slate-100 dark:border-white/10 flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
-                                                                        {subject.subject_name.charAt(0)}
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="font-black text-slate-900 dark:text-white text-lg tracking-tight uppercase">{subject.subject_name}</div>
-                                                                        {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 dark:text-indigo-300 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
-                                                                        {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
-                                                                            <div className="text-[10px] font-medium text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
-                                                                                Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
-                                                                            </div>
-                                                                        )}
-                                                                        {(() => {
-                                                                            if (!subject.section_id) return null;
-                                                                            const sect = sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id);
-                                                                            const sectName = sect ? sect.section_name : subject.section_id;
-                                                                            const sectStudents = students.filter(s => s.student_section === sectName || s.student_section === subject.section_id);
-                                                                            const sectCount = sectStudents.length;
-                                                                            const enrolledCount = subject.enrolled_student_lrns && subject.enrolled_student_lrns.length > 0 
-                                                                                ? subject.enrolled_student_lrns.length 
-                                                                                : sectCount;
-                                                                            return (
-                                                                                <div className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
-                                                                                    Enrolled: {enrolledCount} / {sectCount} Learners
-                                                                                </div>
-                                                                            );
-                                                                        })()}
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-6 py-6">
-                                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${
-                                                                    subject.term === 1 ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border-blue-100 dark:border-blue-800/40' :
-                                                                    subject.term === 2 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800/40' :
-                                                                    subject.term === 3 ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300 border-amber-100 dark:border-amber-800/40' :
-                                                                    subject.term === 'none' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border-rose-100 dark:border-rose-800/40' :
-                                                                    'bg-slate-50 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-white/10'
-                                                                }`}>
-                                                                    {subject.term === 1 ? 'Term 1 Only' :
-                                                                     subject.term === 2 ? 'Term 2 Only' :
-                                                                     subject.term === 3 ? 'Term 3 Only' :
-                                                                     subject.term === 'none' ? 'Not Offered' :
-                                                                     'All Terms'}
-                                                                </span>
-                                                            </td>
-                                                            {canEdit && (
-                                                                <td className="px-6 py-6 text-right">
-                                                                    <div className="flex items-center justify-end gap-2">
-                                                                        <button
-                                                                            onClick={() => handleToggleOffered(subject)}
-                                                                            title={subject.term === 'none' ? "Mark as Offered" : "Mark as Not Offered"}
-                                                                            className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center ${
-                                                                                subject.term === 'none'
-                                                                                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
-                                                                                    : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
-                                                                            }`}
-                                                                        >
-                                                                            {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                                        </button>
-                                                                        {subject.section_id && (
-                                                                            <button
-                                                                                onClick={() => setEnrollmentSubject(subject)}
-                                                                                title="Manage Enrolled Students"
-                                                                                className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
-                                                                            >
-                                                                                <Users className="w-4 h-4" />
-                                                                            </button>
-                                                                        )}
-                                                                        <button
-                                                                            onClick={() => handleEdit(subject)}
-                                                                            className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center shadow-xs"
-                                                                        >
-                                                                            <Settings className="w-4 h-4" />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDeleteClick(subject)}
-                                                                            className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/10 text-slate-400 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition-all flex items-center justify-center"
-                                                                        >
-                                                                            <X className="w-4 h-4" />
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            )}
-                                                        </motion.tr>
-                                                    ))}
-                                                </Fragment>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-xs text-amber-300 flex items-center gap-1.5 bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-500/30">
+                                            <ShieldAlert className="w-4 h-4" />
+                                            <span>No advisory class found for {selectedGrade}.</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        )}
+
+                            {activeAdvisorySection && (
+                                <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-400">Advisory Status:</span>
+                                        {(activeAdvisorySection.taught_subjects?.length || 0) > 0 ? (
+                                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
+                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                {activeAdvisorySection.taught_subjects?.length} subjects explicitly assigned to {activeAdvisorySection.section_name}
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 text-amber-300 font-medium">
+                                                <ShieldAlert className="w-3.5 h-3.5" />
+                                                No explicit subjects assigned yet. Click "Assign to Advisory" on subjects below.
+                                            </span>
+                                        )}
+                                    </div>
+                                    {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
+                                        <span className="text-[11px] text-slate-400">
+                                            Only these {activeAdvisorySection.taught_subjects?.length} subjects will appear in SF9, SF10, & Summary of Grades.
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Subjects Table Container */}
+                        <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-xs overflow-hidden">
+                            {!selectedSection && filteredSubjects.length === 0 ? (
+                                <div className="p-24 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
+                                    {canEdit && (
+                                        <button 
+                                            onClick={handleLoadStandardSubjects} 
+                                            disabled={isLoadingTemplate}
+                                            className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
+                                        >
+                                            {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
+                                        </button>
+                                    )}
+                                    {!selectedSection && (
+                                        <button onClick={() => setCurrentView('institute')} className="mt-4 block mx-auto text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-tighter hover:underline">Go to Institute Profile</button>
+                                    )}
+                                </div>
+                            ) : filteredSubjects.length === 0 ? (
+                                <div className="p-24 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
+                                    {canEdit && (
+                                        <button 
+                                            onClick={handleLoadStandardSubjects} 
+                                            disabled={isLoadingTemplate}
+                                            className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
+                                        >
+                                            {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto p-4">
+                                    <table className="w-full text-left border-separate border-spacing-y-3">
+                                        <thead>
+                                            <tr className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {canEdit && <th className="px-6 py-4 w-16 text-center">Pos</th>}
+                                                <th className="px-6 py-4">Subject Info</th>
+                                                <th className="px-6 py-4">Term Offered</th>
+                                                <th className="px-6 py-4">Advisory Class (SF9/SF10)</th>
+                                                {canEdit && <th className="px-6 py-4 text-right">Actions</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Object.entries(groupedSubjects).map(([category, categorySubjects]) => {
+                                                const isSHS = selectedGrade?.includes('11') || selectedGrade?.includes('12');
+                                                const isCollapsed = collapsedCategories[category] ?? isSHS;
+                                                return (
+                                                    <Fragment key={category}>
+                                                        {category && (
+                                                            <tr 
+                                                                onClick={() => toggleCategory(category)}
+                                                                className="bg-slate-50/50 dark:bg-white/5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10 transition-colors select-none"
+                                                            >
+                                                                <td colSpan={canEdit ? 5 : 4} className="px-6 py-4 border-y border-slate-100 dark:border-white/10">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                                            <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest">
+                                                                                {category}
+                                                                            </span>
+                                                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10">
+                                                                                {categorySubjects.length} {categorySubjects.length === 1 ? 'subject' : 'subjects'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                                                                            <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
+                                                                            <ChevronRight className={`w-4 h-4 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                        {!isCollapsed && categorySubjects.map((subject, idx) => {
+                                                            const norm = subject.subject_name.trim().toLowerCase();
+                                                            const isG11 = selectedGrade?.includes('11');
+                                                            const isG11Core = isG11 && isGrade11CoreSubject(subject.subject_name);
+                                                            const hasExplicitTaught = (activeAdvisorySection?.taught_subjects?.length || 0) > 0;
+
+                                                            const isInAdvisory = Boolean(
+                                                                activeAdvisorySection?.taught_subjects?.some(
+                                                                    s => s.trim().toLowerCase() === norm
+                                                                ) || (!hasExplicitTaught && isG11Core)
+                                                            );
+
+                                                            return (
+                                                                <motion.tr
+                                                                    key={subject.id}
+                                                                    layout
+                                                                    draggable={canEdit}
+                                                                    onDragStart={() => handleDragStart(subject.id)}
+                                                                    onDragOver={handleDragOver}
+                                                                    onDrop={() => handleDrop(subject.id)}
+                                                                    onDragEnd={() => setDraggedSubjectId(null)}
+                                                                    className={`group rounded-3xl bg-white dark:bg-[#0f172a]/60 border border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/10 hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-all ${
+                                                                        draggedSubjectId === subject.id ? 'opacity-40 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' : ''
+                                                                    } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                                                >
+                                                                    {canEdit && (
+                                                                        <td className="px-6 py-6 text-center">
+                                                                            <div className="flex flex-col items-center gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                                                                                <button
+                                                                                    onClick={() => moveSubject(subject.id, 'up')}
+                                                                                    disabled={idx === 0}
+                                                                                    className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors cursor-pointer"
+                                                                                >
+                                                                                    <ChevronRight className="w-4 h-4 -rotate-90" />
+                                                                                </button>
+                                                                                <div className="text-[10px] font-black text-slate-300 dark:text-slate-600">{(idx + 1).toString().padStart(2, '0')}</div>
+                                                                                <button
+                                                                                    onClick={() => moveSubject(subject.id, 'down')}
+                                                                                    disabled={idx === categorySubjects.length - 1}
+                                                                                    className="text-slate-400 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-0 transition-colors cursor-pointer"
+                                                                                >
+                                                                                    <ChevronRight className="w-4 h-4 rotate-90" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    )}
+                                                                    <td className="px-6 py-6">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/10 border border-slate-100 dark:border-white/10 flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                                                                                {subject.subject_name.charAt(0)}
+                                                                            </div>
+                                                                            <div>
+                                                                                <div className="font-black text-slate-900 dark:text-white text-lg tracking-tight uppercase">{subject.subject_name}</div>
+                                                                                {subject.subject_code && <div className="text-[10px] font-black text-indigo-400 dark:text-indigo-300 uppercase tracking-widest mt-0.5">{subject.subject_code}</div>}
+                                                                                {subject.written_weight !== undefined && subject.performance_weight !== undefined && subject.exam_weight !== undefined && (
+                                                                                    <div className="text-[10px] font-medium text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide mr-2">
+                                                                                        Custom Weights: WW: {Math.round(subject.written_weight * 100)}% | PT: {Math.round(subject.performance_weight * 100)}% | QA: {Math.round(subject.exam_weight * 100)}%
+                                                                                    </div>
+                                                                                )}
+                                                                                {(() => {
+                                                                                    if (!subject.section_id) return null;
+                                                                                    const sect = sections.find(s => s.id === subject.section_id || s.section_name === subject.section_id);
+                                                                                    const sectName = sect ? sect.section_name : subject.section_id;
+                                                                                    const sectStudents = students.filter(s => s.student_section === sectName || s.student_section === subject.section_id);
+                                                                                    const sectCount = sectStudents.length;
+                                                                                    const enrolledCount = subject.enrolled_student_lrns && subject.enrolled_student_lrns.length > 0 
+                                                                                        ? subject.enrolled_student_lrns.length 
+                                                                                        : sectCount;
+                                                                                    return (
+                                                                                        <div className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/40 rounded px-1.5 py-0.5 inline-block mt-1 uppercase tracking-wide">
+                                                                                            Enrolled: {enrolledCount} / {sectCount} Learners
+                                                                                        </div>
+                                                                                    );
+                                                                                })()}
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-6">
+                                                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${
+                                                                            subject.term === 1 ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border-blue-100 dark:border-blue-800/40' :
+                                                                            subject.term === 2 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800/40' :
+                                                                            subject.term === 3 ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300 border-amber-100 dark:border-amber-800/40' :
+                                                                            subject.term === 'none' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border-rose-100 dark:border-rose-800/40' :
+                                                                            'bg-slate-50 dark:bg-white/10 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-white/10'
+                                                                        }`}>
+                                                                            {subject.term === 1 ? 'Term 1 Only' :
+                                                                             subject.term === 2 ? 'Term 2 Only' :
+                                                                             subject.term === 3 ? 'Term 3 Only' :
+                                                                             subject.term === 'none' ? 'Not Offered' :
+                                                                             'All Terms'}
+                                                                        </span>
+                                                                    </td>
+
+                                                                    {/* Advisory Curriculum Assignment Column */}
+                                                                    <td className="px-6 py-6">
+                                                                        {activeAdvisorySection ? (
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleToggleAdvisorySubject(subject)}
+                                                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                                                                        isInAdvisory
+                                                                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                                                                                            : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                                                                    }`}
+                                                                                    title={
+                                                                                        isInAdvisory
+                                                                                            ? `Assigned to ${activeAdvisorySection.section_name}. Basis for SF9, SF10, Summary of Grades, & Grade Slip. Click to remove.`
+                                                                                            : `Not in ${activeAdvisorySection.section_name}. Click to assign to Advisory Class for SF9, SF10, & Summary of Grades.`
+                                                                                    }
+                                                                                >
+                                                                                    {isInAdvisory ? (
+                                                                                        <>
+                                                                                            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                                                            <span>In Advisory List</span>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <Shield className="w-4 h-4 text-slate-400" />
+                                                                                            <span>+ Assign to Advisory</span>
+                                                                                        </>
+                                                                                    )}
+                                                                                </button>
+                                                                                {gradeSections.length > 1 && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setSectionAssignmentSubject(subject)}
+                                                                                        title={`Manage section assignments for ${subject.subject_name}`}
+                                                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                                                                    >
+                                                                                        <Layers className="w-4 h-4" />
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-[11px] text-slate-400 italic">No advisory section</span>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {canEdit && (
+                                                                        <td className="px-6 py-6 text-right">
+                                                                            <div className="flex items-center justify-end gap-2">
+                                                                                <button
+                                                                                    onClick={() => handleToggleOffered(subject)}
+                                                                                    title={subject.term === 'none' ? "Mark as Offered" : "Mark as Not Offered"}
+                                                                                    className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                                                                                        subject.term === 'none'
+                                                                                            ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
+                                                                                            : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
+                                                                                    }`}
+                                                                                >
+                                                                                    {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                                </button>
+                                                                                {subject.section_id && (
+                                                                                    <button
+                                                                                        onClick={() => setEnrollmentSubject(subject)}
+                                                                                        title="Manage Enrolled Students"
+                                                                                        className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                                                                                    >
+                                                                                        <Users className="w-4 h-4" />
+                                                                                    </button>
+                                                                                )}
+                                                                                <button
+                                                                                    onClick={() => handleEdit(subject)}
+                                                                                    className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                                                                                >
+                                                                                    <Settings className="w-4 h-4" />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteClick(subject)}
+                                                                                    className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/10 text-slate-400 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition-all flex items-center justify-center cursor-pointer"
+                                                                                >
+                                                                                    <X className="w-4 h-4" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    )}
+                                                                </motion.tr>
+                                                            );
+                                                        })}
+                                                    </Fragment>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -2210,6 +2573,96 @@ export function SubjectsPage() {
                 subject={enrollmentSubject}
                 onClose={() => setEnrollmentSubject(null)}
             />
+
+            {/* Multi-Section Subject Assignment Modal */}
+            {sectionAssignmentSubject && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={() => setSectionAssignmentSubject(null)}>
+                    <div 
+                        className="bg-white dark:bg-[#0d1225] text-slate-900 dark:text-white rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 max-w-lg w-full p-6 space-y-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight">
+                                    Assign to Sections
+                                </h3>
+                                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
+                                    {sectionAssignmentSubject.subject_name}
+                                </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                    Select which sections in {selectedGrade} include this subject in their curriculum (Summary of Grades, SF9, SF10, & Grade Slip).
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSectionAssignmentSubject(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                            {gradeSections.map((sec) => {
+                                const norm = sectionAssignmentSubject.subject_name.trim().toLowerCase();
+                                const isAssigned = (sec.taught_subjects || []).some(s => s.trim().toLowerCase() === norm);
+                                return (
+                                    <div
+                                        key={sec.id}
+                                        onClick={() => handleToggleSectionSubjectAssignment(sec, sectionAssignmentSubject.subject_name)}
+                                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                            isAssigned
+                                                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/60'
+                                                : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                                                isAssigned
+                                                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                                                    : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                                            }`}>
+                                                {isAssigned && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold flex items-center gap-2">
+                                                    <span>{sec.section_name}</span>
+                                                    {sec.is_advisory ? (
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 flex items-center gap-1">
+                                                            <Shield className="w-2.5 h-2.5" />
+                                                            Advisory
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                                                            Teaching Load
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {sec.adviser_name && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                        Adviser: {sec.adviser_name}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className={`text-xs font-bold ${isAssigned ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                                            {isAssigned ? 'Included' : 'Excluded'}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                            <button
+                                onClick={() => setSectionAssignmentSubject(null)}
+                                className="px-5 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-600 transition-all cursor-pointer shadow-md"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

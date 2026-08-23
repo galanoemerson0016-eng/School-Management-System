@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.1';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🚀 Major v3.0 architecture release with enhanced performance & security.",
-              "🛡️ Standardized offline-first database encryption, atomic transactions, and backup reconciliation.",
-              "📋 Multi-platform automated installer deployment across Windows and macOS."
+              "🎓 Strengthened Senior High School Curriculum (DepEd Order No. 017, s. 2026) integration.",
+              "📊 DO 017 Annex E Unit-Weighted Grading System across SF9, SF10-SHS, SF5, and Summary of Grades.",
+              "🛡️ Strict advisory section subject scoping: unassigned electives strictly excluded from report cards."
             ],
             timestamp: Date.now(),
             status: 'success',

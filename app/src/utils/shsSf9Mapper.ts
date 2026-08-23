@@ -1,5 +1,6 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject } from '../types';
 import { formatLearnerName } from './student-name';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 
 interface ShsSf9MapperParams {
   student: Student;
@@ -12,7 +13,7 @@ interface ShsSf9MapperParams {
 
 /**
  * Maps Senior High School student details and term grades to the SF9 Report Card structure.
- * Separated from elementary and JHS to avoid regression/changes.
+ * Implements DepEd Order No. 017, s. 2026 Annex E Unit-Weighted Grading.
  */
 export function mapStudentToShsSf9Data({
   student,
@@ -25,11 +26,46 @@ export function mapStudentToShsSf9Data({
   
   // Resolve core details
   const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-  
+  const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
+  const sectionTrack = (sectionObj.track || student.track || '').toLowerCase();
+  const taughtRaw = sectionObj.taught_subjects || [];
+  const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+  const taughtSet = new Set(taughtNorms);
+
   // Filter subjects taught in this Grade 11 or 12 section
-  const sectionSubjects = subjects.filter(
+  let candidateSubjects = subjects.filter(
     s => (s.section_id === sectionObj.id || (!s.section_id && parseInt(s.grade_level.replace(/\D/g, '')) === gradeLevelNum)) && s.term !== 'none'
   );
+
+  const sectionSpecific = candidateSubjects.filter(s => s.section_id === sectionObj.id);
+  if (sectionSpecific.length > 0) {
+    candidateSubjects = sectionSpecific;
+  }
+
+  if (taughtSet.size > 0) {
+    candidateSubjects = candidateSubjects.filter(s => {
+      const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (taughtSet.has(sNorm)) return true;
+      for (const t of taughtSet) {
+        if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+      }
+      return false;
+    });
+  } else if (isSHS && sectionTrack) {
+    candidateSubjects = candidateSubjects.filter(s => {
+      const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+      if (unitInfo.category === 'core') return true;
+      if (sectionTrack.includes('acad')) {
+        return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+      }
+      if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+        return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+      }
+      return true;
+    });
+  }
+
+  const sectionSubjects = candidateSubjects;
 
   // Compute grades per Term
   const computeGradesForSubject = (subjId: string, subjectName: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none') => {
@@ -73,9 +109,12 @@ export function mapStudentToShsSf9Data({
         final = t3;
       } else {
         // Core subject (all terms) - average of all 3 terms
-        if (t1 > 0 && t2 > 0 && t3 > 0) {
-          final = Math.round((t1 + t2 + t3) / 3);
-        }
+        let sum = 0;
+        let count = 0;
+        if (t1 > 0) { sum += t1; count++; }
+        if (t2 > 0) { sum += t2; count++; }
+        if (t3 > 0) { sum += t3; count++; }
+        final = count > 0 ? Math.round(sum / count) : 0;
       }
     }
 
@@ -90,6 +129,47 @@ export function mapStudentToShsSf9Data({
     grades: computeGradesForSubject(s.id, s.subject_name, s.term),
   }));
 
+  // Compute General Average using DO 017 Annex E Unit System
+  let genT1Total = 0, genT1Units = 0;
+  let genT2Total = 0, genT2Units = 0;
+  let genT3Total = 0, genT3Units = 0;
+  let genFinalTotal = 0, genFinalUnits = 0;
+
+  subjectGrades.forEach(sg => {
+    const isExcluded = sg.subjectName.startsWith('*') || 
+                      sg.subjectName.toLowerCase().includes('arabic language') || 
+                      sg.subjectName.toLowerCase().includes('islamic values');
+    if (isExcluded) return;
+
+    const unitInfo = getShsSubjectUnitInfo(sg.subjectName, sectionObj.section_grade_level);
+    const termUnits = unitInfo.unitsPerTerm;
+    const yearUnits = unitInfo.yearUnits;
+
+    if (sg.grades.t1 > 0) {
+      genT1Total += sg.grades.t1 * termUnits;
+      genT1Units += termUnits;
+    }
+    if (sg.grades.t2 > 0) {
+      genT2Total += sg.grades.t2 * termUnits;
+      genT2Units += termUnits;
+    }
+    if (sg.grades.t3 > 0) {
+      genT3Total += sg.grades.t3 * termUnits;
+      genT3Units += termUnits;
+    }
+    if (sg.grades.final > 0) {
+      genFinalTotal += sg.grades.final * yearUnits;
+      genFinalUnits += yearUnits;
+    }
+  });
+
+  const generalAverage = {
+    t1: genT1Units > 0 ? Math.round(genT1Total / genT1Units) : 0,
+    t2: genT2Units > 0 ? Math.round(genT2Total / genT2Units) : 0,
+    t3: genT3Units > 0 ? Math.round(genT3Total / genT3Units) : 0,
+    final: genFinalUnits > 0 ? Math.round(genFinalTotal / genFinalUnits) : 0,
+  };
+
   const STRAND_MAPPING: Record<string, string> = {
     'STEM': 'Science, Technology, Engineering, and Mathematics',
     'ABM': 'Accountancy, Business, and Management',
@@ -98,7 +178,7 @@ export function mapStudentToShsSf9Data({
     'ICT': 'Information and Communications Technology'
   };
 
-  const rawStrand = student.strand || '';
+  const rawStrand = student.strand || sectionObj.strand || '';
   const displayStrand = STRAND_MAPPING[rawStrand] || rawStrand;
 
   return {
@@ -107,8 +187,8 @@ export function mapStudentToShsSf9Data({
       fullName: formatLearnerName(student).toUpperCase(),
       gender: student.gender,
       age: student.age,
-      track: student.track || '',
-      strand: displayStrand,
+      track: student.track || sectionObj.track || '',
+      strand: displayStrand || 'SSHS',
       shsAdmissionDate: student.shs_admission_date || '',
     },
     schoolProfile: {
@@ -122,5 +202,6 @@ export function mapStudentToShsSf9Data({
       principal: profile.head_name || '',
     },
     subjectGrades,
+    generalAverage,
   };
 }

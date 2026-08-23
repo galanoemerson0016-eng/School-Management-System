@@ -97,9 +97,13 @@ export function SectionsPage() {
     const [activeCategory, setActiveCategory] = useState<string>('ELEMENTARY');
 
     const filteredSections = useMemo(() => {
+        const term = searchTerm.toLowerCase().trim();
         return sections.filter(s =>
-            s.section_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.section_grade_level.toLowerCase().includes(searchTerm.toLowerCase())
+            s.section_name.toLowerCase().includes(term) ||
+            s.section_grade_level.toLowerCase().includes(term) ||
+            (s.track && s.track.toLowerCase().includes(term)) ||
+            (s.strand && s.strand.toLowerCase().includes(term)) ||
+            (s.cluster && s.cluster.toLowerCase().includes(term))
         ).sort((a, b) => {
             const gradeA = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
             const gradeB = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
@@ -281,11 +285,18 @@ export function SectionsPage() {
                                                                     ? section.adviser_name
                                                                     : <span className="italic text-slate-400 dark:text-slate-500">No adviser</span>}
                                                             </p>
-                                                            {isGrade11 && section.track && (
+                                                            {isGrade11 && (section.track || section.cluster || section.strand) && (
                                                                 <div className="mt-1.5 flex flex-wrap gap-1">
-                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-100/80 dark:border-purple-500/20 uppercase tracking-wider">
-                                                                        {section.track} Track
-                                                                    </span>
+                                                                    {section.track && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-100/80 dark:border-purple-500/20 uppercase tracking-wider">
+                                                                            {section.track} Track
+                                                                        </span>
+                                                                    )}
+                                                                    {(section.cluster || section.strand) && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-100/80 dark:border-emerald-500/20 tracking-tight" title={`SSHS Cluster: ${section.cluster || section.strand}`}>
+                                                                            Cluster: {section.cluster || section.strand}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                             {isGrade12 && section.track && (

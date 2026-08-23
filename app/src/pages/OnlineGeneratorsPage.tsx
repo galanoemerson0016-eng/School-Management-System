@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  BookOpen, ExternalLink, Search, Bot, Monitor, Copy, Check
+  BookOpen, ExternalLink, Search, Bot, Monitor, Copy, Check, Presentation, Sparkles
 } from 'lucide-react';
 import { LessonPlannerTemplates } from '../components/games-tools/LessonPlannerTemplates';
 
@@ -11,7 +11,7 @@ export interface GeneratorCard {
   badgeColor: 'amber' | 'teal' | 'fuchsia' | 'blue' | 'green' | 'purple' | 'rose' | 'yellow' | 'slate' | 'red';
   description: string;
   url?: string;
-  category: 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed' | 'exemplars';
+  category: 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed' | 'exemplars' | 'presentation';
 }
 
 const ALL_GENERATORS: GeneratorCard[] = [
@@ -24,6 +24,16 @@ const ALL_GENERATORS: GeneratorCard[] = [
     description: 'Access the interactive Looker Studio reporting dashboard to browse, filter, and utilize compiled K-12 lesson exemplars.',
     url: 'https://datastudio.google.com/u/0/reporting/810a7b7f-c378-4926-8b89-11f58f67ca67/page/RlaxF',
     category: 'exemplars'
+  },
+  // PRESENTATION GENERATOR (SEPARATED FROM DLL / LESSON PLAN MAKERS)
+  {
+    id: 'presentation_generator',
+    title: 'AI Presentation & Slide Deck Generator',
+    badge: 'Presentation AI',
+    badgeColor: 'purple',
+    description: 'Generate structured classroom presentations, slide-by-slide lesson flow, visual prompts, and interactive slide deck content powered by Gemini AI.',
+    url: 'https://gemini.google.com/share/5ebf6e9c0514',
+    category: 'presentation'
   },
   // DAILY (ILAW)
   {
@@ -340,7 +350,7 @@ const ALL_GENERATORS: GeneratorCard[] = [
   }
 ];
 
-type PlannerType = 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed';
+type PlannerType = 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed' | 'presentation';
 
 export function OnlineGeneratorsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -350,6 +360,7 @@ export function OnlineGeneratorsPage() {
 
   const categories = [
     { id: 'all', label: 'All Generators', count: ALL_GENERATORS.length },
+    { id: 'presentation', label: 'Presentation Generator', count: ALL_GENERATORS.filter(g => g.category === 'presentation').length },
     { id: 'daily-ilaw', label: 'Daily ILAW', count: ALL_GENERATORS.filter(g => g.category === 'daily-ilaw').length },
     { id: 'weekly-ilaw', label: 'Weekly ILAW', count: ALL_GENERATORS.filter(g => g.category === 'weekly-ilaw').length },
     { id: 'semi-ilaw', label: 'Semi-Detailed ILAW', count: ALL_GENERATORS.filter(g => g.category === 'semi-ilaw').length },
@@ -376,6 +387,7 @@ export function OnlineGeneratorsPage() {
     } else {
       // Map to interactive subview
       let pType: PlannerType = 'daily-ilaw';
+      if (gen.category === 'presentation') pType = 'presentation';
       if (gen.category === 'weekly-ilaw') pType = 'weekly-ilaw';
       if (gen.category === 'semi-ilaw') pType = 'semi-ilaw';
       if (gen.category === 'weekly-matatag') pType = 'weekly-matatag';
@@ -441,45 +453,89 @@ export function OnlineGeneratorsPage() {
         </div>
       </div>
 
-      {/* Featured Banner: Looker Studio K12 Lesson Exemplars */}
-      <div className="bg-linear-to-r from-emerald-900 via-teal-900 to-slate-900 rounded-3xl p-6 lg:p-8 text-white shadow-xl relative overflow-hidden border border-emerald-500/20 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
-            <Monitor className="w-8 h-8" />
+      {/* Featured Portals & Suites */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Featured Banner 1: Looker Studio K12 Lesson Exemplars */}
+        <div className="bg-linear-to-r from-emerald-900 via-teal-900 to-slate-900 rounded-3xl p-6 lg:p-7 text-white shadow-xl relative overflow-hidden border border-emerald-500/20 flex flex-col justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-inner mt-0.5">
+              <Monitor className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <span className="px-2.5 py-0.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider inline-block">
+                Looker Studio Portal
+              </span>
+              <h3 className="text-lg lg:text-xl font-black text-white">
+                K-12 Lesson Exemplars & Directory
+              </h3>
+              <p className="text-xs text-emerald-100/80 font-medium leading-relaxed">
+                Browse, filter, and utilize compiled DepEd K-12 lesson exemplars on Looker Studio.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <span className="px-2.5 py-0.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider">
-              Looker Studio Portal
-            </span>
-            <h3 className="text-xl lg:text-2xl font-black text-white">
-              K-12 Lesson Exemplars & Directory
-            </h3>
-            <p className="text-xs text-emerald-100/80 font-medium max-w-xl">
-              Access the interactive Looker Studio reporting dashboard to browse, filter, and utilize compiled DepEd K-12 lesson exemplars.
-            </p>
+
+          <div className="flex items-center justify-end pt-2 border-t border-emerald-500/20">
+            <a
+              href="https://datastudio.google.com/u/0/reporting/810a7b7f-c378-4926-8b89-11f58f67ca67/page/RlaxF"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Open Dashboard</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
           </div>
         </div>
 
-        <a
-          href="https://datastudio.google.com/u/0/reporting/810a7b7f-c378-4926-8b89-11f58f67ca67/page/RlaxF"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all shrink-0 cursor-pointer"
-        >
-          <span>Open Dashboard</span>
-          <ExternalLink className="w-4 h-4" />
-        </a>
+        {/* Featured Banner 2: AI Presentation & Slide Deck Generator (Gemini AI) */}
+        <div className="bg-linear-to-r from-purple-950 via-indigo-950 to-slate-900 rounded-3xl p-6 lg:p-7 text-white shadow-xl relative overflow-hidden border border-purple-500/30 flex flex-col justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0 shadow-inner mt-0.5">
+              <Presentation className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-purple-500/20 border border-purple-400/30 text-purple-300 rounded-full text-[10px] font-black uppercase tracking-wider inline-block">
+                  Gemini AI Suite
+                </span>
+                <span className="px-2 py-0.5 bg-amber-400/20 text-amber-300 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5" /> Presentation
+                </span>
+              </div>
+              <h3 className="text-lg lg:text-xl font-black text-white">
+                AI Presentation & Slide Deck Generator
+              </h3>
+              <p className="text-xs text-purple-100/80 font-medium leading-relaxed">
+                Generate structured classroom slide presentations, lesson flow decks, and interactive visuals instantly.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end pt-2 border-t border-purple-500/20">
+            <a
+              href="https://gemini.google.com/share/5ebf6e9c0514"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Launch Presentation Maker</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
       </div>
 
-      {/* Filter Tabs - Balanced 4x2 Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl">
+      {/* Filter Tabs - Responsive Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 p-2 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold tracking-wide flex items-center justify-between transition-all cursor-pointer ${
               activeCategory === cat.id
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                ? cat.id === 'presentation'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-500/25'
+                  : 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                 : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-slate-700/80'
             }`}
           >
@@ -495,65 +551,92 @@ export function OnlineGeneratorsPage() {
 
       {/* Generators Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-        {filteredGenerators.map((gen) => (
-          <div
-            key={gen.id}
-            onClick={() => handleLaunch(gen)}
-            className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:shadow-lg hover:border-indigo-500/30 transition-all flex flex-col justify-between group hover:-translate-y-0.5 cursor-pointer"
-          >
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
-                  <Bot className="w-4.5 h-4.5" />
+        {filteredGenerators.map((gen) => {
+          const isPresentation = gen.category === 'presentation';
+
+          return (
+            <div
+              key={gen.id}
+              onClick={() => handleLaunch(gen)}
+              className={`bg-white dark:bg-[#0f172a] rounded-2xl border p-4 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group hover:-translate-y-0.5 cursor-pointer ${
+                isPresentation 
+                  ? 'border-purple-200/80 dark:border-purple-900/40 hover:border-purple-500/40 bg-linear-to-b from-purple-50/20 dark:from-purple-950/10 to-transparent' 
+                  : 'border-slate-200/80 dark:border-slate-800 hover:border-indigo-500/30'
+              }`}
+            >
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                    isPresentation
+                      ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white'
+                      : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white'
+                  }`}>
+                    {isPresentation ? <Presentation className="w-4.5 h-4.5" /> : <Bot className="w-4.5 h-4.5" />}
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider whitespace-nowrap border ${
+                    isPresentation
+                      ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 border-purple-200/50 dark:border-purple-800/50'
+                      : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 dark:border-indigo-800/50'
+                  }`}>
+                    {gen.badge}
+                  </span>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
-                  {gen.badge}
-                </span>
+
+                <div>
+                  <h4 className={`font-bold text-xs sm:text-sm leading-snug transition-colors line-clamp-2 ${
+                    isPresentation
+                      ? 'text-slate-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400'
+                      : 'text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
+                  }`}>
+                    {gen.title}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 font-medium leading-relaxed">
+                    {gen.description}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <h4 className="font-bold text-slate-800 dark:text-white text-xs sm:text-sm leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
-                  {gen.title}
-                </h4>
-              </div>
-            </div>
-
-            <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
-              {gen.url ? (
-                <>
+              <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                {gen.url ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyOutline(gen, e)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-[11px] transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+                      title="Copy Template Outline"
+                    >
+                      {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(gen.url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                        isPresentation
+                          ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-500/20'
+                          : 'bg-indigo-600 hover:bg-indigo-500'
+                      }`}
+                    >
+                      <span>{isPresentation ? 'Open Presentation' : 'Use Template'}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     onClick={(e) => handleCopyOutline(gen, e)}
-                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-bold text-[11px] transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
-                    title="Copy Template Outline"
+                    className="w-full py-1.5 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                   >
-                    {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedId === gen.id ? 'Copied!' : 'Copy Outline'}</span>
+                    {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(gen.url, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <span>Use Template</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => handleCopyOutline(gen, e)}
-                  className="w-full py-1.5 rounded-lg bg-slate-900 dark:bg-indigo-600 hover:bg-indigo-600 text-white font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                >
-                  <span>{copiedId === gen.id ? 'Copied!' : 'Copy Outline'}</span>
-                  {copiedId === gen.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

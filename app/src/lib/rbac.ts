@@ -1,4 +1,5 @@
 import type { Section, Subject, User, UserRole } from '../types';
+import { getShsSubjectUnitInfo } from './curriculum';
 
 export type AppView =
     | 'dashboard'
@@ -202,8 +203,25 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return unique.filter(s => registeredNames.has(s.subject_name));
     }
     
-    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level
-    const gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level (with SHS track scoping if applicable)
+    let gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    const isSHS = (section.section_grade_level || '').includes('11') || (section.section_grade_level || '').includes('12');
+    const sectionTrack = (section.track || '').toLowerCase();
+
+    if (isSHS && sectionTrack) {
+        gradeLevelSubjects = gradeLevelSubjects.filter(s => {
+            const unitInfo = getShsSubjectUnitInfo(s.subject_name, section.section_grade_level);
+            if (unitInfo.category === 'core') return true;
+            if (sectionTrack.includes('acad')) {
+                return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+            }
+            if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+            }
+            return true;
+        });
+    }
+
     if (gradeLevelSubjects.length > 0) {
         const unique: Subject[] = [];
         const seen = new Set<string>();

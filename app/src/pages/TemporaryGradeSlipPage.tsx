@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../stores';
 import { ArrowLeft, Printer, Layout, Plus, Minus } from 'lucide-react';
 import { sortSubjects, normalizeSubjectName } from '../lib/subjectConfig';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 
@@ -41,35 +42,61 @@ export function TemporaryGradeSlipPage() {
         }
     }, [sortedSections, selectedSection]);
 
+    const selectedSectionObj = useMemo(() => {
+        return sections.find(s => s.section_name === selectedSection || s.id === selectedSection);
+    }, [sections, selectedSection]);
+
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
-        return students.filter(s => s.student_section === selectedSection)
+        return students
+            .filter(s => s.student_section === selectedSection || (selectedSectionObj?.id && s.student_section === selectedSectionObj.id))
             .sort((a, b) => {
                 if (a.gender !== b.gender) {
                     return a.gender === 'Male' ? -1 : 1;
                 }
                 return a.last_name.localeCompare(b.last_name);
             });
-    }, [students, selectedSection]);
-
-    const selectedSectionObj = useMemo(() => {
-        return sections.find(s => s.section_name === selectedSection || s.id === selectedSection);
-    }, [sections, selectedSection]);
+    }, [students, selectedSection, selectedSectionObj]);
 
     // Gather subjects for this section
     const sectionSubjects = useMemo(() => {
         if (!selectedSectionObj) return [];
         const sectionGradeNum = parseInt(selectedSectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-        let dbSubjects = subjects.filter(s => s.section_id === selectedSectionObj.id && s.term !== 'none');
-        
-        if (dbSubjects.length === 0) {
-            dbSubjects = subjects.filter(s => {
-                const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum && s.term !== 'none';
+        const isSHS = selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12');
+        const sectionTrack = (selectedSectionObj.track || '').toLowerCase();
+        const taughtSet = new Set((selectedSectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
+
+        // All subjects for this grade level
+        let candidates = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            return subjectGradeNum === sectionGradeNum && s.term !== 'none';
+        });
+
+        // If section has section-specific subjects, prioritize them
+        const sectionSpecific = candidates.filter(s => s.section_id === selectedSectionObj.id);
+        if (sectionSpecific.length > 0) {
+            candidates = sectionSpecific;
+        }
+
+        // If adviser configured taught_subjects, filter by taught_subjects
+        if (taughtSet.size > 0) {
+            candidates = candidates.filter(s => taughtSet.has(s.subject_name.toLowerCase().trim()));
+        } else if (isSHS && sectionTrack) {
+            // Track-based filtering for SSHS
+            candidates = candidates.filter(s => {
+                const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
+                if (unitInfo.category === 'core') return true;
+                if (sectionTrack.includes('acad')) {
+                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                }
+                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                }
+                return true;
             });
         }
-        
-        return sortSubjects(dbSubjects, s => s.subject_name);
+
+        return sortSubjects(candidates, s => s.subject_name);
     }, [subjects, selectedSectionObj]);
 
     const handlePrint = () => {
@@ -406,9 +433,23 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const classRecords = useAppStore.getState().classRecords || [];
         const hpsRecords = useAppStore.getState().hpsRecords || [];
 
+        const hasParentMapeh = subjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+
         subjects.forEach((subj: Subject) => {
             let q1 = '', q2 = '', q3 = '';
             let sTotal = 0, sCount = 0;
+
+            const normName = normalizeSubjectName(subj.subject_name);
+            const isComponent = hasParentMapeh && (
+                normName.includes('musicandarts') || normName.includes('musicarts') ||
+                normName.includes('physicaleducationandhealth') || normName.includes('peandhealth') || normName.includes('pehealth') ||
+                normName === 'music' || normName === 'arts' || normName === 'physicaleducation' || normName === 'health'
+            );
+
+            const isExcludedFromAverage = isComponent || 
+                subj.subject_name.startsWith('*') || 
+                subj.subject_name.toLowerCase().includes('arabic language') || 
+                subj.subject_name.toLowerCase().includes('islamic values');
 
             for (let q = 1; q <= 3; q++) {
                 const g = resolveStudentQuarterGrade(
@@ -423,9 +464,9 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                     section?.track
                 );
                 if (g > 0) {
-                    if (q === 1) { q1 = g.toString(); termTotals.t1 += g; termCounts.t1++; }
-                    if (q === 2) { q2 = g.toString(); termTotals.t2 += g; termCounts.t2++; }
-                    if (q === 3) { q3 = g.toString(); termTotals.t3 += g; termCounts.t3++; }
+                    if (q === 1) { q1 = g.toString(); if (!isExcludedFromAverage) { termTotals.t1 += g; termCounts.t1++; } }
+                    if (q === 2) { q2 = g.toString(); if (!isExcludedFromAverage) { termTotals.t2 += g; termCounts.t2++; } }
+                    if (q === 3) { q3 = g.toString(); if (!isExcludedFromAverage) { termTotals.t3 += g; termCounts.t3++; } }
                     sTotal += g;
                     sCount++;
                 }
@@ -437,8 +478,10 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
             if (sCount > 0) {
                 const avg = Math.round(sTotal / sCount);
                 finalGrade = avg.toString();
-                finalTotal += avg;
-                finalCount++;
+                if (!isExcludedFromAverage) {
+                    finalTotal += avg;
+                    finalCount++;
+                }
                 remarks = avg >= 75 ? 'Passed' : 'Failed';
             }
 
@@ -779,10 +822,10 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             };
         });
 
-        let genAvgQ1Total = 0, genAvgQ1Count = 0;
-        let genAvgQ2Total = 0, genAvgQ2Count = 0;
-        let genAvgQ3Total = 0, genAvgQ3Count = 0;
-        let genAvgFinalTotal = 0, genAvgFinalCount = 0;
+        let genAvgQ1Total = 0, genAvgQ1Units = 0;
+        let genAvgQ2Total = 0, genAvgQ2Units = 0;
+        let genAvgQ3Total = 0, genAvgQ3Units = 0;
+        let genAvgFinalTotal = 0, genAvgFinalUnits = 0;
 
         const isComponentId = (id: string) => {
             const subj = subjects.find(s => s.id === id);
@@ -791,56 +834,65 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             return norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon';
         };
 
+        const gradeLevel = section?.section_grade_level || 'Grade 11';
+
         subjects.forEach((subj) => {
             if (isComponentId(subj.id)) return;
 
             const rg = rawGrades[subj.id];
+            const unitInfo = getShsSubjectUnitInfo(subj.subject_name, gradeLevel);
+            const termUnits = unitInfo.unitsPerTerm;
+            const yearUnits = unitInfo.yearUnits;
             
             if (rg.q1 > 0 && !isOffTerm(rg.term, 1)) {
-                genAvgQ1Total += rg.q1;
-                genAvgQ1Count++;
+                genAvgQ1Total += rg.q1 * termUnits;
+                genAvgQ1Units += termUnits;
             }
             if (rg.q2 > 0 && !isOffTerm(rg.term, 2)) {
-                genAvgQ2Total += rg.q2;
-                genAvgQ2Count++;
+                genAvgQ2Total += rg.q2 * termUnits;
+                genAvgQ2Units += termUnits;
             }
             if (rg.q3 > 0 && !isOffTerm(rg.term, 3)) {
-                genAvgQ3Total += rg.q3;
-                genAvgQ3Count++;
+                genAvgQ3Total += rg.q3 * termUnits;
+                genAvgQ3Units += termUnits;
             }
             if (rg.final > 0) {
-                genAvgFinalTotal += rg.final;
-                genAvgFinalCount++;
+                genAvgFinalTotal += rg.final * yearUnits;
+                genAvgFinalUnits += yearUnits;
             }
         });
 
         if (commSubjs.length > 0) {
+            const ecUnitInfo = getShsSubjectUnitInfo('Effective Communication', gradeLevel);
+            const ecTermUnits = ecUnitInfo.unitsPerTerm;
+            const ecYearUnits = ecUnitInfo.yearUnits;
+
             if (parentQ1 > 0 && !isOffTerm(parentTerm, 1)) {
-                genAvgQ1Total += parentQ1;
-                genAvgQ1Count++;
+                genAvgQ1Total += parentQ1 * ecTermUnits;
+                genAvgQ1Units += ecTermUnits;
             }
             if (parentQ2 > 0 && !isOffTerm(parentTerm, 2)) {
-                genAvgQ2Total += parentQ2;
-                genAvgQ2Count++;
+                genAvgQ2Total += parentQ2 * ecTermUnits;
+                genAvgQ2Units += ecTermUnits;
             }
             if (parentQ3 > 0 && !isOffTerm(parentTerm, 3)) {
-                genAvgQ3Total += parentQ3;
-                genAvgQ3Count++;
+                genAvgQ3Total += parentQ3 * ecTermUnits;
+                genAvgQ3Units += ecTermUnits;
             }
             if (parentFinal > 0) {
-                genAvgFinalTotal += parentFinal;
-                genAvgFinalCount++;
+                genAvgFinalTotal += parentFinal * ecYearUnits;
+                genAvgFinalUnits += ecYearUnits;
             }
         }
 
-        const genT1 = genAvgQ1Count > 0 ? Math.round(genAvgQ1Total / genAvgQ1Count).toString() : '';
-        const genT2 = genAvgQ2Count > 0 ? Math.round(genAvgQ2Total / genAvgQ2Count).toString() : '';
-        const genT3 = genAvgQ3Count > 0 ? Math.round(genAvgQ3Total / genAvgQ3Count).toString() : '';
-        const genAvg = genAvgFinalCount > 0 ? Math.round(genAvgFinalTotal / genAvgFinalCount).toString() : '';
+        const genT1 = genAvgQ1Units > 0 ? Math.round(genAvgQ1Total / genAvgQ1Units).toString() : '';
+        const genT2 = genAvgQ2Units > 0 ? Math.round(genAvgQ2Total / genAvgQ2Units).toString() : '';
+        const genT3 = genAvgQ3Units > 0 ? Math.round(genAvgQ3Total / genAvgQ3Units).toString() : '';
+        const genAvg = genAvgFinalUnits > 0 ? Math.round(genAvgFinalTotal / genAvgFinalUnits).toString() : '';
         const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
         return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [subjects, records, student.lrn, activeSchoolYear]);
+    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     
@@ -1016,7 +1068,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                     <div className="flex flex-[1.2]">
                         <span className="w-10 shrink-0">Track:</span>
                         <span className="flex-1 border-b border-black font-bold leading-none pb-0.5 uppercase text-center">
-                            {student.track || ''}
+                            {student.track || section?.track || ''}
                         </span>
                     </div>
                 </div>

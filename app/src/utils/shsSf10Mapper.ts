@@ -1,4 +1,5 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User } from '../types';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 
 interface ShsMapperParams {
   student: Student;
@@ -12,7 +13,7 @@ interface ShsMapperParams {
 
 /**
  * Maps Senior High School student details and academic records to the SF10-SHS structure.
- * This is completely separated from Elementary and JHS to avoid any regressions or changes.
+ * Implements DepEd Order No. 017, s. 2026 track inheritance and subject scoping.
  */
 export function mapStudentToShsSf10Data({
   student,
@@ -36,6 +37,9 @@ export function mapStudentToShsSf10Data({
     const teacher = teachers.find(t => t.uid === studentSection.adviser_id);
     adviserName = teacher?.displayName || '';
   }
+
+  const effectiveTrack = student.track || studentSection?.track || '';
+  const effectiveStrand = student.strand || studentSection?.strand || 'SSHS';
 
   // 2. Map Learner's Basic Info
   const learnerInfo = {
@@ -73,29 +77,75 @@ export function mapStudentToShsSf10Data({
     otherCredentials: student.shs_other_credentials || student.other_credentials || '',
   };
 
-  // 4. Map Academic Semester Records (SHS uses Semesters instead of Quarters)
-  // Grade 11: 1st Sem & 2nd Sem, Grade 12: 1st Sem & 2nd Sem
+  // 4. Map Academic Semester Records
   const buildSemesterAcademicRecord = (gradeLevelNum: number) => {
-    // Collect records matching grade level (Grade 11/12) and semester
-    const semRecords = gradingSheetRecords.filter(r => {
-      if (r.student_lrn !== student.lrn) return false;
-      const dbSubject = subjects.find(s => s.id === r.subject_id);
-      if (!dbSubject || dbSubject.term === 'none') return false;
-      const subjectGradeNum = parseInt(dbSubject.grade_level.replace(/\D/g, '')) || 0;
+    const taughtRaw = studentSection?.taught_subjects || [];
+    const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+    const taughtSet = new Set(taughtNorms);
+    const sectionTrack = (effectiveTrack || '').toLowerCase();
+
+    // Filter candidate subjects
+    let candidateSubjects = subjects.filter(s => {
+      if (s.term === 'none') return false;
+      const subjectGradeNum = parseInt(s.grade_level?.replace(/\D/g, '') || '0');
       return subjectGradeNum === gradeLevelNum;
     });
 
-    // Translate database records to SHS subject row items
-    // (SHS has fields for Subject Name, 1st Quarter, 2nd Quarter, Sem Final Grade, and Action taken)
-    return semRecords.map(r => {
-      const dbSubject = subjects.find(s => s.id === r.subject_id);
+    const sectionSpecific = candidateSubjects.filter(s => s.section_id === studentSection?.id);
+    if (sectionSpecific.length > 0) {
+      candidateSubjects = sectionSpecific;
+    }
+
+    if (taughtSet.size > 0) {
+      candidateSubjects = candidateSubjects.filter(s => {
+        const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (taughtSet.has(sNorm)) return true;
+        for (const t of taughtSet) {
+          if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+        }
+        return false;
+      });
+    } else if (sectionTrack) {
+      candidateSubjects = candidateSubjects.filter(s => {
+        const unitInfo = getShsSubjectUnitInfo(s.subject_name, `Grade ${gradeLevelNum}`);
+        if (unitInfo.category === 'core') return true;
+        if (sectionTrack.includes('acad')) {
+          return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+        }
+        if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+          return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+        }
+        return true;
+      });
+    }
+
+    return candidateSubjects.map(dbSubject => {
+      const getGrade = (q: number) => {
+        const rec = gradingSheetRecords.find(
+          r => r.student_lrn === student.lrn && r.subject_id === dbSubject.id && r.quarter === q
+        );
+        return rec && rec.final_grade ? Math.round(Number(rec.final_grade)) : 0;
+      };
+
+      const q1 = getGrade(1);
+      const q2 = getGrade(2);
+      const q3 = getGrade(3);
+
+      let final = 0;
+      let count = 0;
+      if (q1 > 0) { final += q1; count++; }
+      if (q2 > 0) { final += q2; count++; }
+      if (q3 > 0) { final += q3; count++; }
+      const finalRating = count > 0 ? Math.round(final / count) : 0;
+
       return {
-        subjectName: dbSubject?.subject_name || '',
-        subjectCode: dbSubject?.subject_code || '',
-        quarter1Grade: r.quarter === 1 ? r.final_grade : '',
-        quarter2Grade: r.quarter === 2 ? r.final_grade : '',
-        finalGrade: r.quarter === 3 ? r.final_grade : r.final_grade, // Custom semester logic
-        remarks: Number(r.final_grade) >= 75 ? 'PASSED' : 'FAILED',
+        subjectName: dbSubject.subject_name,
+        subjectCode: dbSubject.subject_code || '',
+        quarter1Grade: q1 > 0 ? String(q1) : '',
+        quarter2Grade: q2 > 0 ? String(q2) : '',
+        quarter3Grade: q3 > 0 ? String(q3) : '',
+        finalGrade: finalRating > 0 ? String(finalRating) : '',
+        remarks: finalRating >= 75 ? 'PASSED' : finalRating > 0 ? 'FAILED' : '',
       };
     });
   };
@@ -106,8 +156,9 @@ export function mapStudentToShsSf10Data({
       semester: 1,
       schoolName: profile.name || '',
       schoolId: profile.school_id || '',
-      track: student.track || '',
-      strand: student.strand || '',
+      track: effectiveTrack,
+      strand: effectiveStrand,
+      section: studentSection?.section_name || '',
       schoolYear: schoolYear,
       adviser: adviserName,
       subjects: buildSemesterAcademicRecord(11),
@@ -117,8 +168,9 @@ export function mapStudentToShsSf10Data({
       semester: 2,
       schoolName: profile.name || '',
       schoolId: profile.school_id || '',
-      track: student.track || '',
-      strand: student.strand || '',
+      track: effectiveTrack,
+      strand: effectiveStrand,
+      section: studentSection?.section_name || '',
       schoolYear: schoolYear,
       adviser: adviserName,
       subjects: buildSemesterAcademicRecord(11),
@@ -128,8 +180,9 @@ export function mapStudentToShsSf10Data({
       semester: 1,
       schoolName: profile.name || '',
       schoolId: profile.school_id || '',
-      track: student.track || '',
-      strand: student.strand || '',
+      track: effectiveTrack,
+      strand: effectiveStrand,
+      section: studentSection?.section_name || '',
       schoolYear: schoolYear,
       adviser: adviserName,
       subjects: buildSemesterAcademicRecord(12),
@@ -139,8 +192,9 @@ export function mapStudentToShsSf10Data({
       semester: 2,
       schoolName: profile.name || '',
       schoolId: profile.school_id || '',
-      track: student.track || '',
-      strand: student.strand || '',
+      track: effectiveTrack,
+      strand: effectiveStrand,
+      section: studentSection?.section_name || '',
       schoolYear: schoolYear,
       adviser: adviserName,
       subjects: buildSemesterAcademicRecord(12),
@@ -152,7 +206,7 @@ export function mapStudentToShsSf10Data({
     learner: learnerInfo,
     eligibility: eligibilityInfo,
     scholasticRecords,
-    track: student.track || '',
-    strand: student.strand || '',
+    track: effectiveTrack,
+    strand: effectiveStrand,
   };
 }

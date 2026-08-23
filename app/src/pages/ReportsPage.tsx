@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3, ClipboardList } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, ArrowRight, ArrowLeft, Award, AlertTriangle, Download, Users, AlertCircle, ChevronDown, Trophy, Medal, Sparkles, Target, ArrowUp, ArrowDown, Minus, Heart, Clock3, ClipboardList, Layers, GraduationCap, FileSpreadsheet } from 'lucide-react';
 import { getMPSPerSubject, generateHonorRoll, getAtRiskStudents, getSubjectAwardees, getStudentAbsences, resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { isKeyStage1 } from '../lib/grading';
 import { exportToCSV } from '../utils/csv-export';
@@ -3142,188 +3142,299 @@ export function ReportsPage() {
 
     // ==== LANDING PAGE (Report Cards) ====
     return (
-        <div className="h-[calc(100vh-120px)] max-w-7xl mx-auto w-full flex flex-col justify-between overflow-hidden select-none relative gap-2.5">
+        <div className="max-w-7xl mx-auto w-full space-y-2.5 select-none animate-fade-in">
             {/* Header section */}
-            <div className="flex items-center justify-between shrink-0">
-                <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white tracking-tight">Reports & Analytics</h2>
-                    <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-400">Generate insights and view consolidated performance data.</p>
+            <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200/80 dark:border-white/5 px-4 py-2.5 shadow-2xs">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-sm sm:text-base font-black text-slate-800 dark:text-white tracking-tight leading-none">
+                                Reports & Analytics
+                            </h2>
+                            <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/40 rounded-full text-[8.5px] font-black uppercase tracking-wider">
+                                DepEd Assessment Hub
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-400 mt-0.5 leading-tight">
+                            Consolidated performance intelligence, Mean Percentage Scores (MPS), DepEd academic awards, and advisory compliance.
+                        </p>
+                    </div>
                 </div>
+
+                {activeSchoolYear && (
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-xl shadow-2xs shrink-0">
+                        <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-300">
+                            {activeSchoolYear}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Quick Stats Row */}
-            <div className="grid grid-cols-3 gap-3 shrink-0">
+            {/* Quick Stats Ribbon */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                    { label: 'Honor Students', value: honorRoll.length, icon: Award, color: 'emerald', action: () => openReport('quarterly') },
-                    { label: 'At-Risk Learners', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, icon: AlertTriangle, color: 'red', action: () => openReport('at-risk') },
-                    { label: 'Total Enrollees', value: validStudents.length, icon: Users, color: 'purple', action: null },
+                    { label: 'Honor Roll Awardees', value: honorRoll.length, icon: Trophy, color: 'emerald', action: () => openReport('honor-roll') },
+                    { label: 'At-Risk Learners', value: new Set(atRiskStudents.map(a => a.student.lrn)).size, icon: AlertTriangle, color: 'rose', action: () => openReport('at-risk') },
+                    { label: 'Total Enrollees', value: validStudents.length, icon: Users, color: 'blue', action: null },
+                    { label: 'Monitored Classes', value: officialSections.length, icon: Layers, color: 'purple', action: null },
                 ].map((stat) => (
                     <div 
                         key={stat.label} 
                         onClick={stat.action ? stat.action : undefined}
-                        className={`bg-white dark:bg-[#0f172a] p-3 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex items-center gap-3 transition-all ${stat.action ? 'cursor-pointer hover:border-indigo-500/30' : ''}`}
+                        className={`bg-white dark:bg-[#0f172a] px-3.5 py-2.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-white/5 flex items-center justify-between gap-3 transition-all ${stat.action ? 'cursor-pointer hover:border-indigo-500/40 hover:shadow-xs group' : ''}`}
                     >
-                        <div className={`p-2 rounded-lg shrink-0 ${stat.color === 'emerald' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : stat.color === 'red' ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
-                            <stat.icon className="w-4 h-4" />
+                        <div className="space-y-0.5">
+                            <p className="text-[8.5px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider leading-none">{stat.label}</p>
+                            <p className="text-lg font-black text-slate-900 dark:text-white leading-none mt-1">{stat.value}</p>
                         </div>
-                        <div>
-                            <p className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">{stat.label}</p>
-                            <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{stat.value}</p>
+                        <div className={`p-2 rounded-lg shrink-0 ${
+                            stat.color === 'emerald' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 
+                            stat.color === 'rose' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 
+                            stat.color === 'blue' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 
+                            'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                        }`}>
+                            <stat.icon className="w-4 h-4" />
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Main Cards Grid — 4 Columns Compact Viewport Fit */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 overflow-y-auto custom-scrollbar pr-0.5">
+            {/* Main Cards Grid — Clean 4x2 Centered Minimalist Card Deck */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {/* 1. Certificate Generator Card */}
                 {canViewReport(user, 'certificate-generator') && (
-                <div className="bg-linear-to-br from-indigo-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-indigo-100 dark:border-slate-800 flex flex-col justify-between hover:border-indigo-400/50 transition-all duration-200 group cursor-pointer" onClick={() => setCurrentView('certificates')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-indigo-100 dark:bg-indigo-950/80 rounded-lg group-hover:bg-indigo-600 transition-colors duration-300">
-                                <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400 group-hover:text-white" />
+                    <div 
+                        onClick={() => setCurrentView('certificates')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-indigo-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <Award className="w-5 h-5" />
                             </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <span className="bg-indigo-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-2xs">NEW TOOL</span>
-                                <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 text-[8px] font-bold px-1.5 py-0.5 rounded">DepEd Format</span>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+                                    Certificate Generator
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Create pixel-perfect DepEd Certificates of Recognition, Merit, and Academic Honors with custom signees.
+                                </p>
                             </div>
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Certificate Generator</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            Create pixel-perfect DepEd Certificates of Recognition for awardees and honor students.
-                        </p>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-indigo-200 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                         Open Generator <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-                )}
 
-                {/* 2. Term Summaries */}
-                {canViewReport(user, 'quarterly-summaries') && (
-                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('quarterly')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg group-hover:bg-emerald-600 transition-colors duration-300">
-                                <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 group-hover:text-white" />
-                            </div>
-                            <span className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Open Generator <ArrowRight className="w-3 h-3" />
+                            </span>
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Term Summaries</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            View Mean Percentage Scores (MPS), Grade Distribution, and Pass/Fail rates.
-                        </p>
                     </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-600 hover:text-emerald-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        Generate Report <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
                 )}
 
-                {/* 3. Subject Performance */}
-                {canViewReport(user, 'subject-performance') && (
-                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-purple-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('subject')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-purple-50 dark:bg-purple-950/60 rounded-lg group-hover:bg-purple-600 transition-colors duration-300">
-                                <PieChartIcon className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:text-white" />
-                            </div>
-                            <span className="bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
-                        </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Subject Performance</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            Compare performance statistics across different learning areas.
-                        </p>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-purple-600 hover:text-purple-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        View Comparison <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-                )}
-
-                {/* 4. Learner Progress */}
-                {canViewReport(user, 'learner-progress') && (
-                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-amber-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('progress')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-amber-50 dark:bg-amber-950/60 rounded-lg group-hover:bg-amber-600 transition-colors duration-300">
-                                <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400 group-hover:text-white" />
-                            </div>
-                            <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
-                        </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Learner Progress</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            Track academic growth and milestones over time across all terms.
-                        </p>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-600 hover:text-amber-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        Track Progress <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-                )}
-
-                {/* 5. At-Risk Students */}
-                {canViewReport(user, 'at-risk-students') && (
-                <div className="bg-white dark:bg-[#0f172a] p-3.5 rounded-xl shadow-2xs border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between hover:border-rose-500/30 transition-all duration-200 group cursor-pointer" onClick={() => openReport('at-risk')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-rose-50 dark:bg-rose-950/60 rounded-lg group-hover:bg-rose-600 transition-colors duration-300">
-                                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 group-hover:text-white" />
-                            </div>
-                            <span className="bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
-                        </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">At-Risk Students</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            Identify and export students with grades below 75 for intervention tracking.
-                        </p>
-                    </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-rose-600 hover:text-rose-600 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        View Report <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-                )}
-
-                {/* 6. Honor Roll / Academic Excellence */}
+                {/* 2. Academic Excellence Awards */}
                 {canViewReport(user, 'honor-roll') && (
-                <div className="bg-linear-to-br from-emerald-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-emerald-100 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-500/50 transition-all duration-200 group cursor-pointer" onClick={() => openReport('honor-roll')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/80 rounded-lg group-hover:bg-emerald-600 transition-colors duration-300">
-                                <Award className="w-5 h-5 text-emerald-700 dark:text-emerald-400 group-hover:text-white" />
+                    <div 
+                        onClick={() => openReport('honor-roll')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-emerald-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <Trophy className="w-5 h-5" />
                             </div>
-                            <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded">Working</span>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
+                                    Academic Excellence Awards
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Certified qualifiers for With Honors (90–94), High Honors (95–97), and Highest Honors (98–100) per Term.
+                                </p>
+                            </div>
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Academic Excellence Awards</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            View detailed list of students qualifying for the Academic Excellence Award per Term and EOSY calculations.
-                        </p>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                View Awardees <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
                     </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-emerald-200 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        View Awardees <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
                 )}
 
-                {/* 7. Checklist of Requirements */}
-                {canViewReport(user, 'requirements-checklist') && (
-                <div className="bg-linear-to-br from-blue-50/80 to-white dark:from-slate-800/60 dark:to-slate-900 p-3.5 rounded-xl shadow-2xs border border-blue-100 dark:border-slate-800 flex flex-col justify-between hover:border-blue-500/50 transition-all duration-200 group cursor-pointer" onClick={() => openReport('requirements')}>
-                    <div>
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-950/80 rounded-lg group-hover:bg-blue-600 transition-colors duration-300">
-                                <ClipboardList className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:text-white" />
+                {/* 3. Consolidated Master Sheet */}
+                {canViewReport(user, 'consolidated-grade-sheet') && (
+                    <div 
+                        onClick={() => setCurrentView('consolidated-grades')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-sky-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                                <FileSpreadsheet className="w-5 h-5" />
                             </div>
-                            <span className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[8px] font-bold px-2 py-0.5 rounded">Advisory Class</span>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors line-clamp-1">
+                                    Consolidated Master Sheet
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Consolidated quarterly grade records, summary of reports, and automated school form sync.
+                                </p>
+                            </div>
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 dark:text-white mb-1">Checklist of Requirements</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-snug line-clamp-2">
-                            Track submissions of Learner's Report Card (SF9), Birth Certificate (PSA), and other essential DepEd requirements.
-                        </p>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Open Master Sheet <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
                     </div>
-                    <button className="w-full py-1.5 mt-2 rounded-lg border border-blue-200 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                        Open Tracker <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                )}
+
+                {/* 4. Term Summaries */}
+                {canViewReport(user, 'quarterly-summaries') && (
+                    <div 
+                        onClick={() => openReport('quarterly')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-teal-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                                <BarChart3 className="w-5 h-5" />
+                            </div>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors line-clamp-1">
+                                    Term Summaries & MPS
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Mean Percentage Scores (MPS), grade distribution curves, standard deviations, and class passing rates.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-teal-600 dark:text-teal-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Generate MPS <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 5. Subject Performance */}
+                {canViewReport(user, 'subject-performance') && (
+                    <div 
+                        onClick={() => openReport('subject')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-purple-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                <PieChartIcon className="w-5 h-5" />
+                            </div>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-1">
+                                    Subject Performance Matrix
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Compare learning area statistics, identify high/low performing subjects across curriculum tracks.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                View Comparison <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 6. Learner Progress */}
+                {canViewReport(user, 'learner-progress') && (
+                    <div 
+                        onClick={() => openReport('progress')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-amber-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                <TrendingUp className="w-5 h-5" />
+                            </div>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
+                                    Learner Progress & Growth
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Track multi-quarter academic milestones, growth trajectory curves, and improvement ratings.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Track Progress <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 7. At-Risk Students */}
+                {canViewReport(user, 'at-risk-students') && (
+                    <div 
+                        onClick={() => openReport('at-risk')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-rose-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                <AlertTriangle className="w-5 h-5" />
+                            </div>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors line-clamp-1">
+                                    At-Risk & Interventions
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Identify students with marks below 75, diagnose failing indicators, and log remedial interventions.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                View Report <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* 8. Checklist of Requirements */}
+                {canViewReport(user, 'requirements-checklist') && (
+                    <div 
+                        onClick={() => openReport('requirements')}
+                        className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-white/5 shadow-2xs hover:shadow-md hover:border-blue-500/40 transition-all flex flex-col items-center text-center justify-between group cursor-pointer"
+                    >
+                        <div className="w-full flex flex-col items-center text-center space-y-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <ClipboardList className="w-5 h-5" />
+                            </div>
+
+                            <div className="w-full text-center space-y-1">
+                                <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                                    Requirements Checklist
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 font-medium leading-relaxed">
+                                    Track submissions of Learner's Report Card (SF9), PSA Birth Certificate, and Form 137 / SF10.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="w-full pt-3 mt-2.5 border-t border-slate-100 dark:border-white/5 flex items-center justify-center">
+                            <span className="text-[10.5px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                Open Tracker <ArrowRight className="w-3 h-3" />
+                            </span>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

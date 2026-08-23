@@ -13,7 +13,7 @@ export interface WebTemplateItem {
 }
 
 interface LessonPlannerTemplatesProps {
-  plannerType: 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed';
+  plannerType: 'daily-ilaw' | 'weekly-ilaw' | 'semi-ilaw' | 'weekly-matatag' | 'semi-detailed' | 'trimester' | 'detailed' | 'presentation';
   title: string;
   badge: string;
   description: string;
@@ -31,6 +31,18 @@ export function LessonPlannerTemplates({
 
   const getTemplates = (): WebTemplateItem[] => {
     switch (plannerType) {
+      case 'presentation':
+        return [
+          {
+            id: 'presentation_generator',
+            title: 'AI Presentation & Slide Deck Generator',
+            badge: 'Presentation AI',
+            badgeColor: 'purple',
+            description: 'Generate structured classroom presentations, slide-by-slide lesson flow, visual prompts, and interactive slide deck content powered by Gemini AI.',
+            url: 'https://gemini.google.com/share/5ebf6e9c0514'
+          }
+        ];
+
       case 'daily-ilaw':
         return [
           {

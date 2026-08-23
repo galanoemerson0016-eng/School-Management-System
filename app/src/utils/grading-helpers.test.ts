@@ -16,8 +16,9 @@ import {
   getMPSPerSubject,
   getSubjectAwardees,
   getStudentAbsences,
+  resolveStudentQuarterGrade,
 } from './grading-helpers';
-import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet } from '../types';
+import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
 describe('Grading Helpers', () => {
   // Mock data helpers
@@ -270,6 +271,159 @@ describe('Grading Helpers', () => {
 
       const count = getStudentAbsences('123456789012', 'sec-einstein', '2026-2027', 1, attendanceRecords, []);
       expect(count).toBe(0);
+    });
+  });
+
+  describe('resolveStudentQuarterGrade', () => {
+    it('returns 0 when student record has completely empty scores (never false 60)', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: ['', '', '', '', ''],
+          performance_tasks: ['', '', '', '', ''],
+          summative_tests: ['', '', ''],
+          quarterly_exam: '',
+          final_grade: 0,
+        } as unknown as ClassRecord,
+      ];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'h1',
+          subject_id: 'sub-math',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20],
+          performance_tasks: [50, 50, 50, 50, 50],
+          summative_tests: [25, 25, 50],
+          quarterly_exam: 50,
+        } as unknown as HPSRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-math',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7'
+      );
+
+      expect(grade).toBe(0);
+    });
+
+    it('calculates live transmuted grade correctly from raw scores and HPS', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-math',
+          subject_name: 'Mathematics',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20], // 40/40 = 100% * 30% = 30
+          performance_tasks: [50, 50], // 100/100 = 100% * 50% = 50
+          summative_tests: [25, 25, 50], // 100% * 20% = 20
+          quarterly_exam: 50,
+        } as unknown as ClassRecord,
+      ];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          id: 'h1',
+          subject_id: 'sub-math',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20],
+          performance_tasks: [50, 50],
+          summative_tests: [25, 25, 50],
+          quarterly_exam: 50,
+        } as unknown as HPSRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-math',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7'
+      );
+
+      // Initial grade = 100, transmuted = 100
+      expect(grade).toBe(100);
+    });
+
+    it('falls back to pre-stored final_grade if no raw scores exist', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c1',
+          student_lrn: '123456789012',
+          subject_id: 'sub-math',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 88,
+        } as unknown as ClassRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '123456789012',
+        'sub-math',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 7'
+      );
+
+      expect(grade).toBe(88);
+    });
+
+    it('resolves composite MAPEH grade from Music & Arts and PE & Health', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c-ma',
+          student_lrn: '123456789012',
+          subject_id: 'sub-ma',
+          subject_name: 'Music and Arts',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 90,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-pe',
+          student_lrn: '123456789012',
+          subject_id: 'sub-pe',
+          subject_name: 'Physical Education and Health',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 86,
+        } as unknown as ClassRecord,
+      ];
+
+      const mapehGrade = resolveStudentQuarterGrade(
+        '123456789012',
+        'MAPEH',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 7'
+      );
+
+      // (90 + 86) / 2 = 88
+      expect(mapehGrade).toBe(88);
     });
   });
 });

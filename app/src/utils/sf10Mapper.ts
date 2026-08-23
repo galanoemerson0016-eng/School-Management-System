@@ -161,11 +161,26 @@ export function mapStudentToSpecData({
 
       const seen = new Set<string>();
       if (grade === currentGradeNum && studentSection) {
-        dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
-          const isGeneric = !s.section_id;
-          const isDirect = s.section_id === studentSection.id;
-          return isGeneric || isDirect;
-        });
+        const taughtRaw = studentSection.taught_subjects || [];
+        const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+        const taughtSet = new Set(taughtNorms);
+
+        if (taughtSet.size > 0) {
+          dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+            const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (taughtSet.has(sNorm)) return true;
+            for (const t of taughtSet) {
+              if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+            }
+            return false;
+          });
+        } else {
+          dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+            const isGeneric = !s.section_id;
+            const isDirect = s.section_id === studentSection.id;
+            return isGeneric || isDirect;
+          });
+        }
 
         // Prioritize direct section subjects over generic ones
         dbSubjectsForGrade.sort((a, b) => {
@@ -339,14 +354,15 @@ export function mapStudentToSpecData({
       // Group records by subject for each term
       for (const record of studentRecords) {
         const dbSubject = dbSubjects.find(s => s.id === record.subject_id);
-        if (!dbSubject) continue;
+        const subjectName = dbSubject?.subject_name || record.subject_name || '';
+        if (!subjectName) continue;
 
-        let sf10Key = matchSubjectKey(dbSubject.subject_name, subjectsData);
+        let sf10Key = matchSubjectKey(subjectName, subjectsData);
 
         // Fallback for dynamic/custom curriculum keys (e.g. subject_0, subject_10)
         if ((!sf10Key || !subjectsData[sf10Key]) && effectiveCurriculum) {
           const matchedCustomSubject = standardSubjectsForGrade.find(
-            s => normalizeSubjectName(s.label) === normalizeSubjectName(dbSubject.subject_name)
+            s => normalizeSubjectName(s.label) === normalizeSubjectName(subjectName)
           );
           if (matchedCustomSubject?.key) {
             sf10Key = matchedCustomSubject.key;
@@ -360,13 +376,14 @@ export function mapStudentToSpecData({
         const quarter = record.quarter;
         const gradeVal = resolveStudentQuarterGrade(
             student.lrn,
-            record.subject_id,
+            record.subject_id || subjectName,
             Number(quarter),
             record.school_year || schoolYear,
             classRecords,
             gradingSheetRecords,
             hpsRecords,
-            dbSubject.grade_level
+            dbSubject?.grade_level || studentSection?.section_grade_level,
+            studentSection?.track
         );
 
         const grade = gradeVal > 0 ? gradeVal : record.final_grade;

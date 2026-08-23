@@ -131,22 +131,12 @@ const STANDARD_SUBJECTS = {
     { name: 'Specialization', code: '' }
   ] as CurriculumSubject[],
   Grade11: [
-    { name: 'Effective Communication / Mabisang Komunikasyon', code: '' },
+    { name: 'Effective Communication', code: '' },
+    { name: 'Mabisang Komunikasyon', code: '' },
     { name: 'General Mathematics', code: '' },
     { name: 'General Science', code: '' },
     { name: 'Life and Career Skills', code: '' },
-    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' },
-    { name: 'Elective: Biology 1', code: '' },
-    { name: 'Elective: Chemistry 1', code: '' },
-    { name: 'Elective: Physics 1', code: '' },
-    { name: 'Elective: Business 1 (Basic Accounting)', code: '' },
-    { name: 'Elective: Introduction to Philosophy', code: '' },
-    { name: 'Elective: Human Movement 1 (Basic Anatomy)', code: '' },
-    { name: 'Elective: Physical Education 1 (Fitness and Recreation)', code: '' },
-    { name: 'Elective: Caregiving (Child Care)', code: '' },
-    { name: 'Elective: Food Processing', code: '' },
-    { name: 'Elective: Computer Programming (Java)', code: '' },
-    { name: 'Elective: Technical Drafting', code: '' }
+    { name: 'Pag-aaral ng Kasaysayan at Lipunang Pilipino', code: '' }
   ] as CurriculumSubject[],
   Grade12: [
     // Core Subjects

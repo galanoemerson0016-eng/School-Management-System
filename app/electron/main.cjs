@@ -792,7 +792,7 @@ const refreshAccessToken = async (refreshToken, clientId, clientSecret) => {
   params.append('refresh_token', refreshToken);
   params.append('grant_type', 'refresh_token');
 
-  const res = await fetch('https://www.googleapis.com/token', {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString()
@@ -855,7 +855,10 @@ const findFolderId = async (token, folderName) => {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) throw new Error('Failed to search Google Drive folders.');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `Failed to search Google Drive folders (${res.status})`);
+  }
   const data = await res.json();
   return data.files && data.files.length > 0 ? data.files[0].id : null;
 };
@@ -873,7 +876,10 @@ const createFolder = async (token, folderName) => {
     },
     body: JSON.stringify(metadata)
   });
-  if (!res.ok) throw new Error('Failed to create folder on Google Drive.');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `Failed to create folder on Google Drive (${res.status})`);
+  }
   const data = await res.json();
   return data.id;
 };
@@ -906,7 +912,10 @@ const uploadFileToFolder = async (token, parentFolderId, filename, content) => {
     body: multipartRequestBody
   });
 
-  if (!res.ok) throw new Error('Failed to upload backup JSON file to Google Drive.');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `Failed to upload backup JSON file to Google Drive (${res.status})`);
+  }
   const data = await res.json();
   return data.id;
 };
@@ -1062,7 +1071,10 @@ ipcMain.handle('gdrive:list-backups', async () => {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&fields=files(id,name,size,createdTime)`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
-    if (!res.ok) throw new Error('Failed to list backups from Google Drive.');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `Failed to list backups from Google Drive (${res.status})`);
+    }
     const data = await res.json();
     return data.files || [];
   } catch (error) {
@@ -1079,7 +1091,10 @@ ipcMain.handle('gdrive:download-backup', async (event, fileId) => {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
-    if (!res.ok) throw new Error('Failed to download file from Google Drive.');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error?.message || `Failed to download file from Google Drive (${res.status})`);
+    }
     return await res.text();
   } catch (error) {
     console.error('[GDrive] download-backup failed:', error);

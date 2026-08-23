@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { X, Search, Users, HelpCircle, CheckSquare, Square } from 'lucide-react';
+import { X, Search, Users, HelpCircle, CheckSquare, Square, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../../stores';
 import type { Subject } from '../../types';
+import { getClassSizeLimit } from '../../lib/curriculum';
 
 interface SubjectEnrollmentModalProps {
     open: boolean;
@@ -34,6 +35,14 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
     }, [sections, subject]);
 
     const sectionName = parentSection ? parentSection.section_name : (subject?.section_id || 'Unknown Section');
+
+    // DO 017 Table 7 Class Size Compliance info
+    const classSizeInfo = useMemo(() => {
+        if (!subject) return { maxStudents: 40, category: 'core' as const, categoryLabel: 'Standard Class Size' };
+        return getClassSizeLimit(subject.subject_name, subject.grade_level);
+    }, [subject]);
+
+    const isExceedingClassSize = selectedLrns.length > classSizeInfo.maxStudents;
 
     // Filter students based on selection (either this section or the entire grade level)
     const eligibleStudents = useMemo(() => {
@@ -170,8 +179,11 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
 
                     {/* Quick Selection Actions */}
                     <div className="flex items-center justify-between text-xs">
-                        <div className="text-slate-500 font-bold">
-                            Selected: <span className="text-deped-blue dark:text-indigo-400 font-black">{selectedLrns.length}</span> learners
+                        <div className="text-slate-500 font-medium">
+                            Enrolled: <span className={`font-black ${isExceedingClassSize ? 'text-amber-600 dark:text-amber-400' : 'text-deped-blue dark:text-indigo-400'}`}>{selectedLrns.length}</span> / {classSizeInfo.maxStudents} learners
+                            <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-slate-600 dark:text-slate-350 font-bold">
+                                {classSizeInfo.categoryLabel}
+                            </span>
                         </div>
                         <div className="flex gap-3">
                             <button
@@ -189,6 +201,16 @@ export function SubjectEnrollmentModal({ open, subject, onClose }: SubjectEnroll
                             </button>
                         </div>
                     </div>
+
+                    {/* Table 7 Advisory Banner */}
+                    {isExceedingClassSize && (
+                        <div className="flex items-center gap-2.5 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-800 dark:text-amber-300 animate-in fade-in duration-150">
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span>
+                                <strong>Class Size Advisory (DO 017 Table 7):</strong> Enrolled learners ({selectedLrns.length}) exceed the prescribed maximum of {classSizeInfo.maxStudents} learners per class.
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Student Checkbox List */}

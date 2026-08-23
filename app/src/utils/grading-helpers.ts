@@ -5,7 +5,7 @@ import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
 
-function isQuarterMatch(recQuarter: any, targetQuarter: number): boolean {
+function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
     const num = Number(recQuarter);
     if (!isNaN(num) && num === targetQuarter) return true;
@@ -27,8 +27,10 @@ export function resolveStudentQuarterGrade(
     gradingSheetRecords: ClassRecord[] = [],
     hpsRecords: HPSRecord[] = [],
     sectionGradeLevel?: string,
-    sectionTrack?: string
+    sectionTrack?: string,
+    depth: number = 0
 ): number {
+    if (!studentLrn || !subjectIdOrName) return 0;
     const normTarget = (subjectIdOrName || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const allRecords = [...classRecords, ...gradingSheetRecords];
@@ -43,6 +45,24 @@ export function resolveStudentQuarterGrade(
         if (normName && normResolvedName && normName === normResolvedName) return true;
         const normId = (rSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         if (normId && (normId === normTarget || normId === normResolvedName)) return true;
+
+        // Alias matching for standard DepEd subjects
+        if (normTarget.includes('valueseducation') || normTarget.includes('values') || normTarget === 'esp' || normTarget.includes('edukasyonsapagpapakatao')) {
+            if (normName.includes('values') || normName.includes('esp') || normName.includes('edukasyonsapagpapakatao')) return true;
+        }
+        if (normTarget === 'ap' || normTarget.includes('aralingpanlipunan')) {
+            if (normName === 'ap' || normName.includes('aralingpanlipunan')) return true;
+        }
+        if (normTarget === 'tle' || normTarget.includes('technologyandlivelihood') || normTarget.includes('epp')) {
+            if (normName === 'tle' || normName.includes('technologyandlivelihood') || normName.includes('epp')) return true;
+        }
+        if (normTarget.includes('musicandarts') || normTarget.includes('musicarts')) {
+            if (normName.includes('musicandarts') || normName.includes('musicarts')) return true;
+        }
+        if (normTarget.includes('physicaleducationandhealth') || normTarget.includes('peandhealth') || normTarget.includes('pehealth')) {
+            if (normName.includes('physicaleducation') || normName.includes('peandhealth') || normName.includes('pehealth')) return true;
+        }
+
         return false;
     };
 
@@ -55,8 +75,14 @@ export function resolveStudentQuarterGrade(
     );
 
     if (cRecord) {
+        // Find HPS matching this section first, then fallback to global HPS
         const hpsRec = hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as any).subject_name) || h.subject_id === cRecord.subject_id) &&
+            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
+            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
+            isQuarterMatch(h.quarter, quarter) &&
+            (cRecord.section_id && h.section_id === cRecord.section_id)
+        ) || hpsRecords.find(h =>
+            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
             (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
             isQuarterMatch(h.quarter, quarter)
         );
@@ -66,22 +92,31 @@ export function resolveStudentQuarterGrade(
             const hps_pt = normalizeScores(hpsRec.performance_tasks, 10).map((v: number | string) => v === '' ? 0 : Number(v));
             const rawHpsQa = (hpsRec as HPSRecord & { summative_tests?: (number | string)[] }).summative_tests;
             const hps_qa = normalizeScores(rawHpsQa, 3).map((v: number | string, i: number) => {
-                if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
+                if (i === 2 && (v === undefined || v === '' || v === 0) && Number(hpsRec.quarterly_exam) > 0) {
+                    return Number(hpsRec.quarterly_exam);
+                }
                 return Number(v) || 0;
             });
 
-            const wwScores = normalizeScores(cRecord.written_works, 10).map((v: number | string) => Number(v) || 0);
-            const ptScores = normalizeScores(cRecord.performance_tasks, 10).map((v: number | string) => Number(v) || 0);
+            // Keep raw strings to accurately check if teacher entered any scores
+            const rawWw = normalizeScores(cRecord.written_works, 10);
+            const rawPt = normalizeScores(cRecord.performance_tasks, 10);
             const rawQa = (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
             const normQaScores = normalizeScores(rawQa, 3);
-            if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null) {
+            if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null && cRecord.quarterly_exam !== 0 && cRecord.quarterly_exam !== '0') {
                 normQaScores[2] = cRecord.quarterly_exam;
             }
 
-            const wwTotalScore = wwScores.reduce((a: number, b: number) => a + b, 0);
-            const wwTotalHPS = hps_ww.reduce((a: number, b: number) => a + b, 0);
-            const ptTotalScore = ptScores.reduce((a: number, b: number) => a + b, 0);
-            const ptTotalHPS = hps_pt.reduce((a: number, b: number) => a + b, 0);
+            const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
+            const hasScores =
+                rawWw.some(isValidScore) ||
+                rawPt.some(isValidScore) ||
+                normQaScores.some(isValidScore);
+
+            const wwTotalScore = rawWw.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+            const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
+            const ptTotalScore = rawPt.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+            const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
 
             const subjectName = cRecord.subject_name || resolvedSubjectName || subjectIdOrName;
             const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
@@ -107,15 +142,11 @@ export function resolveStudentQuarterGrade(
             const qaWS = qaPS * (weights.quarterly_exam || 0);
 
             const initialGrade = wwWS + ptWS + qaWS;
+            const hasHps = wwTotalHPS > 0 || ptTotalHPS > 0 || st1HPS > 0 || st2HPS > 0 || teHPS > 0;
 
-            const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
-            const hasScores =
-                wwScores.some(isValidScore) ||
-                ptScores.some(isValidScore) ||
-                normQaScores.some(isValidScore);
-
-            if (hasScores) {
-                return transmuteGrade(initialGrade, schoolYear || cRecord.school_year);
+            if (hasScores && hasHps) {
+                const transmuted = transmuteGrade(initialGrade, schoolYear || cRecord.school_year);
+                if (transmuted > 0) return transmuted;
             }
         }
 
@@ -134,6 +165,55 @@ export function resolveStudentQuarterGrade(
 
     if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
         return Number(gRecord.final_grade);
+    }
+
+    // 3. Composite / Parent Subject Fallback (e.g. MAPEH, Music & Arts, PE & Health, EC/MK)
+    if (depth === 0) {
+        // MAPEH
+        if (normTarget === 'mapeh') {
+            const ma = resolveStudentQuarterGrade(studentLrn, 'Music and Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const pe = resolveStudentQuarterGrade(studentLrn, 'Physical Education and Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            if (ma > 0 && pe > 0) return Math.round((ma + pe) / 2);
+            if (ma > 0) return ma;
+            if (pe > 0) return pe;
+
+            // Fallback for 4 separate MAPEH components (old curriculum)
+            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const components = [m, a, p, h].filter(v => v > 0);
+            if (components.length > 0) {
+                return Math.round(components.reduce((x, y) => x + y, 0) / components.length);
+            }
+        }
+
+        // Music and Arts composite from individual Music and Arts
+        if (normTarget.includes('musicandarts') || normTarget === 'musicarts') {
+            const m = resolveStudentQuarterGrade(studentLrn, 'Music', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const a = resolveStudentQuarterGrade(studentLrn, 'Arts', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            if (m > 0 && a > 0) return Math.round((m + a) / 2);
+            if (m > 0) return m;
+            if (a > 0) return a;
+        }
+
+        // Physical Education and Health composite from individual PE and Health
+        if (normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth') {
+            const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            if (p > 0 && h > 0) return Math.round((p + h) / 2);
+            if (p > 0) return p;
+            if (h > 0) return h;
+        }
+
+        // Effective Communication & Mabisang Komunikasyon
+        if (normTarget.includes('effectivecommunication') && normTarget.includes('mabisangkomunikasyon')) {
+            const ec = resolveStudentQuarterGrade(studentLrn, 'Effective Communication', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            const mk = resolveStudentQuarterGrade(studentLrn, 'Mabisang Komunikasyon', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
+            if (ec > 0 && mk > 0) return Math.round((ec + mk) / 2);
+            if (ec > 0) return ec;
+            if (mk > 0) return mk;
+        }
     }
 
     return 0;

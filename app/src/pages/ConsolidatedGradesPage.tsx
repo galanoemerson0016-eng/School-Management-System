@@ -4,9 +4,10 @@ import { useAppStore, useAuthStore } from '../stores';
 import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
-import { getSubjectCluster, getWeights, transmuteGrade, computeExamsWeightedScore, formatGradeForDisplay } from '../lib/grading';
+import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
-import { getDefaultTermForSubject } from '../lib/curriculum';
+import { getDefaultTermForSubject, getShsSubjectUnitInfo } from '../lib/curriculum';
+import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import type { Subject } from '../types';
 
 type QuarterGrades = {
@@ -389,15 +390,6 @@ const GradeInput = ({
     );
 };
 
-const WW_COUNT = 5;
-const PT_COUNT = 3;
-const ST_COUNT = 3;
-
-const normalizeScores = (scores: (number | string)[] | undefined, count: number): (number | string)[] => {
-    const src = Array.isArray(scores) ? scores : [];
-    return Array.from({ length: count }, (_, i) => src[i] ?? '');
-};
-
 const formatLearnerName = (student: any) => {
     const middleInitial = typeof student.middle_name === 'string' && student.middle_name ? `${student.middle_name.charAt(0)}.` : '';
     return `${student.last_name || ''}, ${student.first_name || ''} ${middleInitial}`.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -736,69 +728,17 @@ export function ConsolidatedGradesPage() {
                 for (const subject of sectionSubjects) {
                     if (subject.is_virtual && ((subject as any)._mapehGroups || isEcmkParent(subject.subject_name))) continue;
 
-                    // 1. Find HPS for this subject/quarter
-                    const hpsRec = hpsRecords.find(r => 
-                        r.subject_id === subject.id && 
-                        r.school_year === activeSchoolYear && 
-                        Number(r.quarter) === quarter
+                    const finalGrade = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subject.id,
+                        quarter,
+                        activeSchoolYear,
+                        classRecords,
+                        gradingSheetRecords,
+                        hpsRecords,
+                        sectionGradeLevel,
+                        sectionTrack
                     );
-
-                    if (!hpsRec) continue; // No E-Class setup for this subject yet
-
-                    // 2. Find Student Record
-                    const record = classRecords.find(r => 
-                        r.student_lrn === student.lrn && 
-                        r.subject_id === subject.id && 
-                        Number(r.quarter) === quarter
-                    );
-
-                    if (!record) continue;
-
-                    // 3. Calculation Logic (Matching EClassRecord.tsx)
-                    const hps_ww = normalizeScores(hpsRec.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-                    const hps_pt = normalizeScores(hpsRec.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-                    const rawHpsQa = (hpsRec as any).summative_tests;
-                    const hps_qa = normalizeScores(rawHpsQa, ST_COUNT).map((v, i) => {
-                        if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
-                        return Number(v) || 0;
-                    });
-
-                    const wwScores = normalizeScores(record.written_works, WW_COUNT).map(v => Number(v) || 0);
-                    const ptScores = normalizeScores(record.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-                    const rawQa = (record as any).summative_tests;
-                    const normQaScores = normalizeScores(rawQa, ST_COUNT);
-                    if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && record.quarterly_exam !== '' && record.quarterly_exam !== undefined && record.quarterly_exam !== null) {
-                        normQaScores[2] = record.quarterly_exam;
-                    }
-
-                    const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
-                    const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
-                    const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
-                    const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
-
-                    const cluster = getSubjectCluster(subject.subject_name, sectionGradeLevel, sectionTrack);
-                    const weights = getWeights(cluster, subject);
-                    const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * weights.written_works;
-                    const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * weights.performance_tasks;
-
-                    const parseNumOrNull = (val: number | string | null | undefined): number | null => {
-                        if (val === '' || val === null || val === undefined) return null;
-                        const n = Number(val);
-                        return isNaN(n) ? null : n;
-                    };
-
-                    const st1Score = parseNumOrNull(normQaScores[0]);
-                    const st1HPS = Number(hps_qa[0]) || 0;
-                    const st2Score = parseNumOrNull(normQaScores[1]);
-                    const st2HPS = Number(hps_qa[1]) || 0;
-                    const teScore = parseNumOrNull(normQaScores[2]);
-                    const teHPS = Number(hps_qa[2]) || 0;
-
-                    const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
-                    const qaWS = qaPS * weights.quarterly_exam;
-
-                    const initialGrade = wwWS + ptWS + qaWS;
-                    const finalGrade = transmuteGrade(initialGrade, activeSchoolYear);
 
                     if (finalGrade > 0) {
                         await updateGradingSheetRecord({
@@ -1076,15 +1016,36 @@ const groupedSections = useMemo(() => {
             return getDefaultTermForSubject(s.subject_name, s.grade_level);
         };
 
-        let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && getEffectiveTerm(s) !== 'none');
-        
-        // If no section-specific subjects exist, look for grade-level templates
-        if (sectionDbSubjects.length === 0) {
-            sectionDbSubjects = subjects.filter(s => {
-                const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-                return !s.section_id && subjectGradeNum === sectionGradeNum && getEffectiveTerm(s) !== 'none';
+        const sectionTrack = (sectionObj.track || '').toLowerCase();
+        const taughtSet = new Set((sectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
+
+        let candidates = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            return subjectGradeNum === sectionGradeNum && getEffectiveTerm(s) !== 'none';
+        });
+
+        const sectionSpecific = candidates.filter(s => s.section_id === sectionObj.id);
+        if (sectionSpecific.length > 0) {
+            candidates = sectionSpecific;
+        }
+
+        if (taughtSet.size > 0) {
+            candidates = candidates.filter(s => taughtSet.has(s.subject_name.toLowerCase().trim()));
+        } else if (isSHS && sectionTrack) {
+            candidates = candidates.filter(s => {
+                const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+                if (unitInfo.category === 'core') return true;
+                if (sectionTrack.includes('acad')) {
+                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                }
+                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                }
+                return true;
             });
         }
+
+        let sectionDbSubjects = candidates;
 
         // Filter based on the selected term (quarter) if it's a specific term (1, 2, 3)
         if (selectedTerm !== 'all') {
@@ -1346,9 +1307,10 @@ const groupedSections = useMemo(() => {
     const gradesData = useMemo(() => {
         const data: GradesData = {};
 
-        sectionStudents.forEach(student => {
+            sectionStudents.forEach(student => {
             const studentData: StudentGradeRow = {};
             let totalFinal = 0;
+            let totalUnits = 0;
             let subjectCount = 0;
 
             sectionSubjects.forEach(subject => {
@@ -1363,19 +1325,13 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                musicArtsResults.push(Number(r.final_grade));
-                            }
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            if (val > 0) musicArtsResults.push(val);
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                peHealthResults.push(Number(r.final_grade));
-                            }
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            if (val > 0) peHealthResults.push(val);
                         });
 
                         if (musicArtsResults.length > 0 || peHealthResults.length > 0) {
@@ -1412,8 +1368,15 @@ const groupedSections = useMemo(() => {
                                           subject.subject_name.toLowerCase().includes('islamic values');
 
                         if (!isExcluded) {
-                            totalFinal += finalRating;
-                            subjectCount++;
+                            if (isSHSSection) {
+                                const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
+                                const yearUnits = unitInfo.yearUnits;
+                                totalFinal += finalRating * yearUnits;
+                                totalUnits += yearUnits;
+                            } else {
+                                totalFinal += finalRating;
+                                subjectCount++;
+                            }
                         }
                     } else {
                         studentData[subject.id] = {};
@@ -1430,19 +1393,13 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                ecResults.push(Number(r.final_grade));
-                            }
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            if (val > 0) ecResults.push(val);
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const r = classRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q) ||
-                                      gradingSheetRecords.find(rec => rec.student_lrn === student.lrn && rec.subject_id === comp.id && Number(rec.quarter) === q);
-                            if (r && r.final_grade && Number(r.final_grade) > 0) {
-                                mkResults.push(Number(r.final_grade));
-                            }
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            if (val > 0) mkResults.push(val);
                         });
 
                         if (ecResults.length > 0 || mkResults.length > 0) {
@@ -1474,8 +1431,15 @@ const groupedSections = useMemo(() => {
                         subjectGrades.final = finalRating;
                         studentData[subject.id] = subjectGrades;
                         
-                        totalFinal += finalRating;
-                        subjectCount++;
+                        if (isSHSSection) {
+                            const ecUnitInfo = getShsSubjectUnitInfo('Effective Communication', sectionObj?.section_grade_level || 'Grade 11');
+                            const yearUnits = ecUnitInfo.yearUnits;
+                            totalFinal += finalRating * yearUnits;
+                            totalUnits += yearUnits;
+                        } else {
+                            totalFinal += finalRating;
+                            subjectCount++;
+                        }
                     } else {
                         studentData[subject.id] = {};
                     }
@@ -1485,96 +1449,19 @@ const groupedSections = useMemo(() => {
                     let qCount = 0;
 
                     for (let q = 1; q <= 4; q++) {
-                        // 1. Look in classRecords first
-                        const cRecord = classRecords.find(r =>
-                            r.student_lrn === student.lrn &&
-                            (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(subject.subject_name))) &&
-                            Number(r.quarter) === q
+                        const gradeVal = resolveStudentQuarterGrade(
+                            student.lrn,
+                            subject.id,
+                            q,
+                            activeSchoolYear,
+                            classRecords,
+                            gradingSheetRecords,
+                            hpsRecords,
+                            sectionObj?.section_grade_level,
+                            sectionObj?.track
                         );
 
-                        // 2. Look in gradingSheetRecords
-                        const gRecord = gradingSheetRecords.find(r =>
-                            r.student_lrn === student.lrn &&
-                            (r.subject_id === subject.id || (r.subject_name && normalizeSubjectName(r.subject_name) === normalizeSubjectName(subject.subject_name))) &&
-                            Number(r.quarter) === q
-                        );
-
-                        let gradeVal: number | null = null;
-
-                        if (cRecord) {
-                            const hpsRec = hpsRecords.find(h =>
-                                (h.subject_id === subject.id || h.subject_id === cRecord.subject_id) &&
-                                h.school_year === activeSchoolYear &&
-                                Number(h.quarter) === q &&
-                                (h.section_id === selectedSection || (sectionObj?.id && h.section_id === sectionObj.id) || !h.section_id)
-                            );
-
-                            if (hpsRec) {
-                                const hps_ww = normalizeScores(hpsRec.written_works, WW_COUNT).map(v => v === '' ? 0 : Number(v));
-                                const hps_pt = normalizeScores(hpsRec.performance_tasks, PT_COUNT).map(v => v === '' ? 0 : Number(v));
-                                const rawHpsQa = (hpsRec as any).summative_tests;
-                                const hps_qa = normalizeScores(rawHpsQa, ST_COUNT).map((v, i) => {
-                                    if (i === 2 && (v === undefined || v === '')) return Number(hpsRec.quarterly_exam) || 0;
-                                    return Number(v) || 0;
-                                });
-
-                                const wwScores = normalizeScores(cRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
-                                const ptScores = normalizeScores(cRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
-                                const rawQa = (cRecord as any).summative_tests;
-                                const normQaScores = normalizeScores(rawQa, ST_COUNT);
-                                if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null) {
-                                    normQaScores[2] = cRecord.quarterly_exam;
-                                }
-
-                                const wwTotalScore = wwScores.reduce((a, b) => a + b, 0);
-                                const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
-                                const ptTotalScore = ptScores.reduce((a, b) => a + b, 0);
-                                const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
-
-                                const cluster = getSubjectCluster(subject.subject_name, sectionObj?.section_grade_level, sectionObj?.track);
-                                const weights = getWeights(cluster, subject);
-                                const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * (weights.written_works || 0);
-                                const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * (weights.performance_tasks || 0);
-
-                                const parseNumOrNull = (val: number | string | null | undefined): number | null => {
-                                    if (val === '' || val === null || val === undefined) return null;
-                                    const n = Number(val);
-                                    return isNaN(n) ? null : n;
-                                };
-
-                                const st1Score = parseNumOrNull(normQaScores[0]);
-                                const st1HPS = Number(hps_qa[0]) || 0;
-                                const st2Score = parseNumOrNull(normQaScores[1]);
-                                const st2HPS = Number(hps_qa[1]) || 0;
-                                const teScore = parseNumOrNull(normQaScores[2]);
-                                const teHPS = Number(hps_qa[2]) || 0;
-
-                                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
-                                const qaWS = qaPS * (weights.quarterly_exam || 0);
-
-                                const initialGrade = wwWS + ptWS + qaWS;
-
-                                const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
-                                const hasScores =
-                                    wwScores.some(isValidScore) ||
-                                    ptScores.some(isValidScore) ||
-                                    normQaScores.some(isValidScore);
-
-                                if (hasScores) {
-                                    gradeVal = transmuteGrade(initialGrade, activeSchoolYear);
-                                }
-                            }
-
-                            if (gradeVal === null && cRecord.final_grade && Number(cRecord.final_grade) > 0) {
-                                gradeVal = Number(cRecord.final_grade);
-                            }
-                        }
-
-                        if (gradeVal === null && gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
-                            gradeVal = Number(gRecord.final_grade);
-                        }
-
-                        if (gradeVal !== null && gradeVal > 0) {
+                        if (gradeVal > 0) {
                             const qKey = `q${q}` as QuarterKey;
                             subjectGrades[qKey] = gradeVal;
                             if (q <= 3) {
@@ -1594,8 +1481,15 @@ const groupedSections = useMemo(() => {
                                           subject.subject_name.toLowerCase().includes('islamic values');
 
                         if (!isExcluded) {
-                            totalFinal += finalRating;
-                            subjectCount++;
+                            if (isSHSSection) {
+                                const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
+                                const yearUnits = unitInfo.yearUnits;
+                                totalFinal += finalRating * yearUnits;
+                                totalUnits += yearUnits;
+                            } else {
+                                totalFinal += finalRating;
+                                subjectCount++;
+                            }
                         }
                     } else {
                         studentData[subject.id] = {};
@@ -1611,7 +1505,11 @@ const groupedSections = useMemo(() => {
             };
 
             let genAvg = 0;
-            if (subjectCount > 0) {
+            if (isSHSSection && totalUnits > 0) {
+                genAvg = totalFinal / totalUnits;
+                studentData.generalAverage = String(Math.round(genAvg));
+                studentData.termAverage = genAvg.toFixed(2);
+            } else if (subjectCount > 0) {
                 genAvg = totalFinal / subjectCount;
                 studentData.generalAverage = String(Math.round(genAvg));
                 studentData.termAverage = genAvg.toFixed(2);
@@ -1626,6 +1524,7 @@ const groupedSections = useMemo(() => {
                 const seenSubjectIds = new Set<string>();
                 let termTotal = 0;
                 let termSubjectCount = 0;
+                let termUnitsTotal = 0;
                 subjectColumns.forEach(({ subject }) => {
                     // Avoid double-counting if the same subject is selected for multiple columns
                     if (seenSubjectIds.has(subject.id)) return;
@@ -1639,18 +1538,26 @@ const groupedSections = useMemo(() => {
                                           subject.subject_name.toLowerCase().includes('islamic values');
 
                         if (val !== null && val > 0 && !isExcluded) {
-                            termTotal += val;
-                            termSubjectCount++;
+                            if (isSHSSection) {
+                                const unitInfo = getShsSubjectUnitInfo(subject.subject_name, sectionObj?.section_grade_level || 'Grade 11');
+                                const termUnits = unitInfo.unitsPerTerm;
+                                termTotal += val * termUnits;
+                                termUnitsTotal += termUnits;
+                            } else {
+                                termTotal += val;
+                                termSubjectCount++;
+                            }
                         }
                     }
                 });
 
-                if (termSubjectCount > 0) {
+                if (isSHSSection && termUnitsTotal > 0) {
+                    const avg = termTotal / termUnitsTotal;
+                    studentData.termAverage = avg.toFixed(2);
+                    studentData.generalAverage = String(Math.round(avg));
+                } else if (termSubjectCount > 0) {
                     const avg = termTotal / termSubjectCount;
-                    // Term Average uses 2 decimal places for precision
-                    const computedTermAverage = avg.toFixed(2);
-                    studentData.termAverage = computedTermAverage;
-                    // General Average for the active term report is the rounded average of the active term grades
+                    studentData.termAverage = avg.toFixed(2);
                     studentData.generalAverage = String(Math.round(avg));
                 } else {
                     studentData.termAverage = '';
@@ -1662,7 +1569,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, selectedSection, sectionObj, selectedTerm]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm]);
 
     const promotionStats = useMemo(() => {
         const stats = {

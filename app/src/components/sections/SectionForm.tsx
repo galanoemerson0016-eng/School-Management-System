@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
-import { STANDARD_SUBJECTS, type GradeLevel } from '../../lib/curriculum';
+import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, findElectiveInCatalog, GRADE_11_CORE_SUBJECTS, getClustersForGrade11Track, type GradeLevel } from '../../lib/curriculum';
 import { motion } from 'framer-motion';
 import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check } from 'lucide-react';
 
@@ -25,10 +25,16 @@ const STRANDS: Record<string, string[]> = {
         'Agri-Fishery Arts (AFA)'
     ],
     TechPro: [
-        'Home Economics (HE)',
-        'Information and Communications Technology (ICT)',
-        'Industrial Arts (IA)',
-        'Agri-Fishery Arts (AFA)'
+        'Hospitality and Tourism',
+        'ICT Support and Computer Programming',
+        'Aesthetic, Wellness, and Human Care',
+        'Agri-Fishery Business and Food Innovation',
+        'Artisanry and Creative Enterprise',
+        'Automotive and Small Engine Technologies',
+        'Construction and Building Technologies',
+        'Creative Arts and Design Technologies',
+        'Industrial Technologies',
+        'Maritime'
     ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],
@@ -41,10 +47,10 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | 
 
     if (isG11) {
         if (normalizedTrack === 'academic') {
-            return ['SSHS'];
+            return ['SSHS', 'Arts, Social Sciences, and Humanities', 'Business and Entrepreneurship', 'STEM', 'Sports, Health, and Wellness', 'Field Experience'];
         }
         if (normalizedTrack === 'techpro' || normalizedTrack === 'tvl') {
-            return STRANDS.TVL;
+            return STRANDS.TechPro;
         }
     } else {
         if (normalizedTrack === 'academic') {
@@ -62,6 +68,7 @@ const getStrandsForTrack = (trackName: string | undefined, gradeLevel: string | 
     }
     return [];
 };
+
 
 const normalizeSubjectLabel = (value: string) =>
     value.toLowerCase().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)/g, '').trim();
@@ -255,7 +262,8 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         is_teaching_load: false,
         is_advisory: false, // Default to false, will be set in useEffect
         track: '',
-        strand: ''
+        strand: '',
+        cluster: ''
     });
 
     // Handle initial role defaults for NEW sections
@@ -264,10 +272,26 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             setFormData(prev => ({
                 ...prev,
                 is_advisory: true,
-                is_teaching_load: false
+                is_teaching_load: false,
+                taught_subjects: prev.section_grade_level === 'Grade 11' ? [...GRADE_11_CORE_SUBJECTS] : []
             }));
         }
     }, [section]);
+
+    // Automatically auto-assign Grade 11 Core subjects for advisory classes if none assigned
+    useEffect(() => {
+        if (formData.is_advisory && formData.section_grade_level === 'Grade 11') {
+            setFormData(prev => {
+                if (!prev.taught_subjects || prev.taught_subjects.length === 0) {
+                    return {
+                        ...prev,
+                        taught_subjects: [...GRADE_11_CORE_SUBJECTS]
+                    };
+                }
+                return prev;
+            });
+        }
+    }, [formData.section_grade_level, formData.is_advisory]);
 
     // Update adviser_name automatically if it's generic/empty and profile details appear
     useEffect(() => {
@@ -285,32 +309,11 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     const availableSubjects = useMemo(() => {
         const grade = formData.section_grade_level as GradeLevel;
 
-        // The Subjects Hub is the Source of Truth.
-        // We resolve subjects in order of specificity:
-        // 1. Section-specific subjects (if configured)
-        // 2. Grade-level template subjects (if configured)
-        // 3. Fallback to standard curriculum templates
-        let hubSubjects = formData.id
-            ? subjects.filter(s => 
-                s.grade_level === grade && 
-                !s.is_teaching_load &&
-                s.section_id === formData.id
-              )
-            : [];
-
-        if (hubSubjects.length === 0) {
-            hubSubjects = subjects.filter(s => 
-                s.grade_level === grade && 
-                !s.is_teaching_load &&
-                !s.section_id
-            );
-        }
-
-        // Map to the format expected by the UI and ensure uniqueness by name
         const uniqueList: { name: string; code: string }[] = [];
         const seenNames = new Set<string>();
 
         const addToList = (name: string, code: string) => {
+            if (!name) return;
             const key = name.trim().toLowerCase();
             if (!seenNames.has(key)) {
                 seenNames.add(key);
@@ -318,13 +321,31 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             }
         };
 
-        hubSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
-
-        // FALLBACK: If the Subject Hub is empty for this grade, pull from the standard curriculum templates
-        if (uniqueList.length === 0) {
-            const standard = STANDARD_SUBJECTS[grade] || [];
-            standard.forEach(s => addToList(s.name, s.code || ''));
+        // 1. Section-specific subjects (if configured in database)
+        if (formData.id) {
+            const sectionSubjects = subjects.filter(s => 
+                s.grade_level === grade && 
+                !s.is_teaching_load &&
+                s.section_id === formData.id
+            );
+            sectionSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
         }
+
+        // 2. Grade-level generic subjects in database
+        const genericSubjects = subjects.filter(s => 
+            s.grade_level === grade && 
+            !s.is_teaching_load &&
+            !s.section_id
+        );
+        genericSubjects.forEach(s => addToList(s.subject_name, s.subject_code || ''));
+
+        // 3. Standard curriculum templates (Core & Academic Electives)
+        const standard = STANDARD_SUBJECTS[grade] || [];
+        standard.forEach(s => addToList(s.name, s.code || ''));
+
+        // 4. Special curriculum templates (TechPro Electives, Specializations, etc.)
+        const special = SPECIAL_SUBJECTS[grade as keyof typeof SPECIAL_SUBJECTS] || [];
+        special.forEach(s => addToList(s.name, s.code || ''));
 
         // Sort them according to standard DepEd order if possible, otherwise alphabetical
         const standardOrder = [
@@ -385,14 +406,17 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         }
         
         let catOrder: string[] = [];
-        if (isSHS) {
-            const gradeNum = parseInt(grade.replace(/\D/g, '')) || 0;
-            catOrder = gradeNum === 11 ? [
+        const gradeNum = parseInt(grade.replace(/\D/g, '')) || 0;
+        
+        if (gradeNum === 11) {
+            catOrder = [
                 'Core Subject (All Tracks)',
                 'Academic Elective (All Other Electives)',
                 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
                 'TechPro Elective (All Other Elective)'
-            ] : [
+            ];
+        } else {
+            catOrder = [
                 'Core Subjects',
                 'Applied Subjects',
                 'Specialized Subjects'
@@ -454,7 +478,8 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 is_advisory: isAdvisory,
                 taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : []),
                 track: section.track || '',
-                strand: section.strand || ''
+                strand: section.strand || '',
+                cluster: section.cluster || (section.section_grade_level?.includes('Grade 11') ? section.strand || '' : '')
             });
         }
     }, [section, schoolProfile?.adviser_name]);
@@ -466,6 +491,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             return;
         }
 
+        const isG11 = formData.section_grade_level?.includes('Grade 11');
+        const isG12 = formData.section_grade_level?.includes('Grade 12');
+
         try {
             const validSubjectNames = new Set(availableSubjects.map(s => s.name));
             const sectionData: Section = {
@@ -475,16 +503,17 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 adviser_id: formData.adviser_id || '',
                 adviser_name: formData.is_advisory ? (formData.adviser_name || '') : '',
                 subject_name: formData.subject_name,
-                taught_subjects: formData.is_teaching_load 
-                    ? (formData.taught_subjects || []).filter(s => validSubjectNames.has(s))
-                    : [],
+                taught_subjects: (formData.taught_subjects || []).filter(s => validSubjectNames.has(s)),
                 is_teaching_load: !!formData.is_teaching_load,
                 is_advisory: !!formData.is_advisory,
-                track: (formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12'))
+                track: (isG11 || isG12)
                     ? formData.track || ''
                     : undefined,
-                strand: formData.section_grade_level?.includes('Grade 12')
-                    ? formData.strand || ''
+                strand: (isG11 || isG12)
+                    ? (isG11 ? formData.cluster || formData.strand || '' : formData.strand || '')
+                    : undefined,
+                cluster: isG11
+                    ? formData.cluster || formData.strand || ''
                     : undefined
             };
 
@@ -589,7 +618,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                     required
                                     className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                     value={formData.track || ''}
-                                    onChange={(e) => setFormData({ ...formData, track: e.target.value, strand: '' })}
+                                    onChange={(e) => setFormData({ ...formData, track: e.target.value, strand: '', cluster: '' })}
                                 >
                                     <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select SHS Track</option>
                                     {formData.section_grade_level?.includes('Grade 11') ? (
@@ -605,6 +634,28 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                             <option value="Arts and Design" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Arts and Design</option>
                                         </>
                                     )}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* SSHS Curriculum Cluster Selection for Grade 11 */}
+                        {formData.section_grade_level?.includes('Grade 11') && formData.track && (
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">
+                                    SSHS Curriculum Cluster *
+                                </label>
+                                <select 
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    value={formData.cluster || formData.strand || ''}
+                                    onChange={(e) => setFormData({ ...formData, cluster: e.target.value, strand: e.target.value })}
+                                >
+                                    <option value="" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Select Curriculum Cluster</option>
+                                    {getClustersForGrade11Track(formData.track).map((cluster) => (
+                                        <option key={cluster} value={cluster} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">
+                                            {cluster}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         )}
@@ -668,15 +719,19 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                             </div>
 
                             {/* SUBJECT SELECTION GRID */}
-                            {formData.is_teaching_load && (
-                                <motion.div 
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
-                                >
-                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest mb-4 ml-1">
-                                        Subjects Taught ({formData.taught_subjects?.length || 0})
+                            <motion.div 
+                                initial={{ opacity: 0, height: 'auto' }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
+                            >
+                                <div className="flex items-center justify-between mb-4 ml-1">
+                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
+                                        {formData.is_teaching_load ? 'Subjects Taught' : 'Active Section Subjects / Curriculum'} ({formData.taught_subjects?.length || 0})
                                     </label>
+                                    <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                        {formData.is_teaching_load ? 'Select subjects you teach' : 'Select subjects included in this section'}
+                                    </span>
+                                </div>
                                     
                                     {availableSubjects.length > 0 ? (
                                         <div className="space-y-4">
@@ -725,22 +780,49 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                         {/* Category Grid */}
                                                         {!isCollapsed && (
                                                             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white dark:bg-[#0f172a]">
-                                                                {list.map((subj) => (
-                                                                    <div 
-                                                                        key={subj.name}
-                                                                        onClick={() => toggleSubject(subj.name)}
-                                                                        className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-2.5 ${formData.taught_subjects?.includes(subj.name) ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
-                                                                    >
-                                                                        <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${formData.taught_subjects?.includes(subj.name) ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
-                                                                            {formData.taught_subjects?.includes(subj.name) && (
-                                                                                <Check className="w-3 h-3 stroke-[3.5]" />
+                                                                {list.map((subj) => {
+                                                                    const electiveInfo = findElectiveInCatalog(subj.name);
+                                                                    const isSelected = formData.taught_subjects?.includes(subj.name);
+                                                                    return (
+                                                                        <div 
+                                                                            key={subj.name}
+                                                                            onClick={() => toggleSubject(subj.name)}
+                                                                            className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
+                                                                        >
+                                                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                                <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
+                                                                                    {isSelected && (
+                                                                                        <Check className="w-3 h-3 stroke-[3.5]" />
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <span className={`text-[9px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-600 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                                                        {subj.name}
+                                                                                    </span>
+                                                                                    {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
+                                                                                        <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
+                                                                                            Prereq: {electiveInfo.prerequisites.join(', ')}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Badges for Hours and NC level */}
+                                                                            {electiveInfo && (
+                                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
+                                                                                        {electiveInfo.hours}h
+                                                                                    </span>
+                                                                                    {electiveInfo.ncLevel && (
+                                                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40">
+                                                                                            {electiveInfo.ncLevel}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
                                                                             )}
                                                                         </div>
-                                                                        <span className={`text-[9px] font-black uppercase tracking-tight truncate ${formData.taught_subjects?.includes(subj.name) ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`}>
-                                                                            {subj.name}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
+                                                                    );
+                                                                })}
                                                             </div>
                                                         )}
                                                     </div>
@@ -763,7 +845,6 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                         />
                                     </div>
                                 </motion.div>
-                            )}
                         </div>
 
                         {/* Adviser / Teacher (LOCKED) */}

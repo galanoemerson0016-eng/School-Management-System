@@ -26,6 +26,7 @@ import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
     if (gl.includes('grade')) {
@@ -558,28 +559,56 @@ function computeStudentGrades(
 ) {
     const grades: Record<string, number[]> = {};
     const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
-    // Determine the base list of subjects for SF9
-    // 1. Get DB subjects for this section
-    let sectionDbSubjects = subjects.filter(s => s.section_id === sectionObj.id && s.term !== 'none');
-    
-    // 2. If none, get DB subjects for this grade level
-    if (sectionDbSubjects.length === 0) {
-        sectionDbSubjects = subjects.filter(s => {
-            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-            return !s.section_id && subjectGradeNum === gradeLevelNum && s.term !== 'none';
+    const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
+    const taughtRaw = sectionObj.taught_subjects || [];
+    const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
+    const taughtSet = new Set(taughtNorms);
+    const sectionTrack = (sectionObj.track || student.track || '').toLowerCase();
+
+    // Determine candidate subjects for this section/grade
+    let candidates = subjects.filter(s => {
+        const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+        return (s.section_id === sectionObj.id || (!s.section_id && subjectGradeNum === gradeLevelNum)) && s.term !== 'none';
+    });
+
+    const sectionSpecific = candidates.filter(s => s.section_id === sectionObj.id);
+    if (sectionSpecific.length > 0) {
+        candidates = sectionSpecific;
+    }
+
+    if (taughtSet.size > 0) {
+        candidates = candidates.filter(s => {
+            const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (taughtSet.has(sNorm)) return true;
+            for (const t of taughtSet) {
+                if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+            }
+            return false;
+        });
+    } else if (isSHS && sectionTrack) {
+        candidates = candidates.filter(s => {
+            const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+            if (unitInfo.category === 'core') return true;
+            if (sectionTrack.includes('acad')) {
+                return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+            }
+            if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+            }
+            return true;
         });
     }
 
     // Deduplicate DB subjects by normalized subject name
     const seenSubjectNames = new Set<string>();
     const uniqueDbSubjects: Subject[] = [];
-    for (const sub of sectionDbSubjects) {
+    for (const sub of candidates) {
         const norm = normalizeSubjectName(sub.subject_name);
         if (norm && seenSubjectNames.has(norm)) continue;
         if (norm) seenSubjectNames.add(norm);
         uniqueDbSubjects.push(sub);
     }
-    sectionDbSubjects = uniqueDbSubjects;
+    const sectionDbSubjects = uniqueDbSubjects;
 
     let baseSubjects: SF9SubjectItem[] = [];
 
@@ -605,8 +634,6 @@ function computeStudentGrades(
 
     // Build the final order for SF9 display
     const currentSubjects: SF9SubjectItem[] = [];
-    
-    const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
     const hasNumericKeys = !!(subjectSelections && Object.keys(subjectSelections).some(k => /^\d+$/.test(k)));
 
     if (isSHS) {
@@ -905,7 +932,24 @@ function computeStudentGrades(
             };
             return [getQuarterAverage(1), getQuarterAverage(2), getQuarterAverage(3)];
         }
-        return [0, 0, 0];
+
+        // Direct subject name fallback if not in sectionDbSubjects
+        const getDirectQuarterGrade = (q: 1 | 2 | 3) => {
+            const classRecords = useAppStore.getState().classRecords;
+            const hpsRecords = useAppStore.getState().hpsRecords;
+            return resolveStudentQuarterGrade(
+                student.lrn,
+                subjectName,
+                q,
+                schoolYear,
+                classRecords,
+                gradingSheetRecords,
+                hpsRecords,
+                sectionObj?.section_grade_level,
+                sectionObj?.track
+            );
+        };
+        return [getDirectQuarterGrade(1), getDirectQuarterGrade(2), getDirectQuarterGrade(3)];
     };
 
     // Pre-calculate MAPEH components for the Final Average row
@@ -946,10 +990,13 @@ function computeStudentGrades(
     return { subjects: currentSubjects, grades };
 }
 
-function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[] = []) {
+function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjectsList: SF9SubjectItem[] = [], gradeLevel?: string) {
     let total = 0;
     let count = 0;
+    let totalWeighted = 0;
+    let totalUnits = 0;
     const dbSubjects = useAppStore.getState().subjects;
+    const isSHS = (gradeLevel || '').includes('11') || (gradeLevel || '').includes('12');
 
     Object.keys(grades).forEach(key => {
         const norm = normalizeSubjectName(key);
@@ -986,11 +1033,22 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
 
             const finalGrade = calculateFinalGrade(gradeRow, term, key);
             if (finalGrade > 0) {
-                total += finalGrade;
-                count++;
+                if (isSHS) {
+                    const unitInfo = getShsSubjectUnitInfo(key, gradeLevel || 'Grade 11');
+                    const yearUnits = unitInfo.yearUnits;
+                    totalWeighted += finalGrade * yearUnits;
+                    totalUnits += yearUnits;
+                } else {
+                    total += finalGrade;
+                    count++;
+                }
             }
         }
     });
+
+    if (isSHS) {
+        return totalUnits > 0 ? Math.round(totalWeighted / totalUnits) : 0;
+    }
     return count > 0 ? Math.round(total / count) : 0;
 }
 
@@ -1664,7 +1722,7 @@ function SF9Pages({
         return hasAnyData ? sum : '';
     };
 
-    const generalAverage = calculateGeneralAverage(grades, currentSubjects);
+    const generalAverage = calculateGeneralAverage(grades, currentSubjects, student.grade_level);
 
     const cleanDivision = (division || '')
         .replace(/schools division office of/i, '')

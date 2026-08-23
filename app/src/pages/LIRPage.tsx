@@ -175,20 +175,31 @@ export function LIRPage() {
 
         const data: Record<number, TermData> = {};
         [1, 2, 3].forEach(term => {
+            const isMatch = (rSubId: string, rSubName?: string) => {
+                if (rSubId === subjectObj?.id || rSubId === subjectId) return true;
+                if (rSubName && subjectObj?.subject_name && normalizeSubjectName(rSubName) === normalizeSubjectName(subjectObj.subject_name)) return true;
+                return false;
+            };
+
             const record = classRecords.find(r => 
                 r.student_lrn === student.lrn && 
                 r.school_year === activeSchoolYear &&
                 Number(r.quarter) === term &&
-                (r.subject_id === subjectObj?.id || r.subject_id === subjectId)
+                isMatch(r.subject_id, r.subject_name)
             ) || gradingSheetRecords.find(r => 
                 r.student_lrn === student.lrn && 
-                r.school_year === activeSchoolYear &&
+                r.school_year === activeSchoolYear && 
                 Number(r.quarter) === term &&
-                (r.subject_id === subjectObj?.id || r.subject_id === subjectId)
+                isMatch(r.subject_id, r.subject_name)
             );
 
             const hpsRec = hpsRecords.find(r => 
-                (r.subject_id === subjectObj?.id || r.subject_id === subjectId) && 
+                isMatch(r.subject_id, (r as any).subject_name) && 
+                r.school_year === activeSchoolYear && 
+                Number(r.quarter) === term &&
+                (r.section_id === student.student_section || (selectedSectionObj?.id && r.section_id === selectedSectionObj.id))
+            ) || hpsRecords.find(r => 
+                isMatch(r.subject_id, (r as any).subject_name) && 
                 r.school_year === activeSchoolYear && 
                 Number(r.quarter) === term
             );
