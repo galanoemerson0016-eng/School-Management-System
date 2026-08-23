@@ -15,11 +15,17 @@ export interface AutomatedBackupEntry {
     attendanceRecords: number;
     gradingSheetRecords: number;
     observedValues: number;
+    sf2Sheets?: number;
+    hpsRecords?: number;
+    users?: number;
+    activityLog?: number;
   };
   data: Awaited<ReturnType<typeof db.exportAllData>>;
 }
 
 export const AutoBackupManager = {
+  _hourlyIntervalId: null as ReturnType<typeof setInterval> | null,
+
   /**
    * Initializes the scheduler by checking if a backup is due and runs it.
    */
@@ -56,27 +62,72 @@ export const AutoBackupManager = {
         }
       }
 
-      // --- Scheduled Cloud Auto-Backup ---
-      const cloudSchedule = localStorage.getItem('formease_cloud_backup_schedule') || 'off';
-      if (cloudSchedule !== 'off') {
-        const lastCloudSync = localStorage.getItem('formease_gdrive_last_sync') || '0';
-        const intervalMs = cloudSchedule === 'daily' ? oneDayMs : 7 * oneDayMs;
-        if ((now - parseInt(lastCloudSync, 10)) >= intervalMs) {
-          try {
-            console.log('🔄 Triggering scheduled cloud auto-backup...');
-            const { CloudSyncService } = await import('./cloud-sync');
-            const state = CloudSyncService.getState();
-            if (state.linked) {
-              await CloudSyncService.syncNow();
-              console.log('✅ Scheduled cloud auto-backup completed.');
-            }
-          } catch (syncErr) {
-            console.error('Scheduled cloud sync failed:', syncErr);
-          }
-        }
-      }
+      // Start the active background hourly sync scheduler
+      this.startHourlyScheduler();
     } catch (error) {
       console.error('Failed to initialize AutoBackupManager:', error);
+    }
+  },
+
+  /**
+   * Starts background hourly cloud sync scheduler and network reconnect listener.
+   */
+  startHourlyScheduler(): void {
+    if (this._hourlyIntervalId) return;
+
+    const runHourlyCheck = async () => {
+      try {
+        const { CloudSyncService } = await import('./cloud-sync');
+        const state = await CloudSyncService.getStateAsync();
+        if (!state.linked || !navigator.onLine) return;
+
+        const lastSync = state.lastSync || 0;
+        const oneHourMs = 60 * 60 * 1000;
+        if (Date.now() - lastSync >= oneHourMs) {
+          console.log('🔄 Running hourly automated Google Drive cloud sync...');
+          await CloudSyncService.syncNow();
+          console.log('✅ Hourly Google Drive cloud sync finished.');
+        }
+      } catch (err) {
+        console.warn('Hourly cloud sync check notice:', err);
+      }
+    };
+
+    // Initial check after 10 seconds of app load
+    setTimeout(runHourlyCheck, 10000);
+
+    // Periodic check every 5 minutes
+    this._hourlyIntervalId = setInterval(runHourlyCheck, 5 * 60 * 1000);
+
+    // Listen for network reconnect
+    window.addEventListener('online', () => {
+      console.log('🌐 Internet connection restored: checking if cloud sync is due...');
+      runHourlyCheck();
+    });
+  },
+
+  /**
+   * Executes database export and Google Drive sync before app closing.
+   */
+  async syncBeforeExit(): Promise<void> {
+    try {
+      console.log('🔄 Application closing: saving snapshot and syncing to Google Drive...');
+      // 1. Save local snapshot
+      await this.triggerBackup().catch(e => console.warn('Pre-exit snapshot notice:', e));
+
+      // 2. Cloud sync if linked
+      const { CloudSyncService } = await import('./cloud-sync');
+      const state = await CloudSyncService.getStateAsync();
+      if (state.linked && navigator.onLine) {
+        // Race with 4-second safety timeout so close never hangs
+        await Promise.race([
+          CloudSyncService.syncNow(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Cloud sync timeout before exit')), 4000))
+        ]);
+        console.log('✅ Pre-exit cloud sync complete');
+      }
+    } catch (err) {
+      console.warn('Pre-exit sync notice:', err);
     }
   },
 
@@ -106,6 +157,10 @@ export const AutoBackupManager = {
           attendanceRecords: data.attendanceRecords?.length || 0,
           gradingSheetRecords: data.gradingSheetRecords?.length || 0,
           observedValues: data.observedValues?.length || 0,
+          sf2Sheets: data.sf2Sheets?.length || 0,
+          hpsRecords: data.hpsRecords?.length || 0,
+          users: data.users?.length || 0,
+          activityLog: data.activityLog?.length || 0,
         },
         data,
       };

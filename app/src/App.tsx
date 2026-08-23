@@ -12,6 +12,8 @@ import { AnimatePresence } from 'framer-motion';
 import { UpdateCenterModal } from './components/updates/UpdateCenterModal';
 import { ReconciliationReportModal } from './components/updates/ReconciliationReportModal';
 import { ProfileDiffModal } from './components/ProfileDiffModal';
+import { GoogleDriveOnboardingModal } from './components/modals/GoogleDriveOnboardingModal';
+import { ClosingSyncOverlay } from './components/modals/ClosingSyncOverlay';
 import { useUpdateStore } from './stores/update-store';
 import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
 import { triggerParentAttendanceSms } from './services/sms-gateway';
@@ -134,6 +136,8 @@ function App() {
   const resolveMergeConflict = useAppStore(state => state.resolveMergeConflict);
   const currentConflict = pendingConflicts[0];
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showGDriveOnboarding, setShowGDriveOnboarding] = useState(false);
+  const [isClosingApp, setIsClosingApp] = useState(false);
   const [licenseVerdict, setLicenseVerdict] = useState<LicenseVerdict>(
     window.electronAPI?.licenseStatus ? 'pending' : 'legacy'
   );
@@ -249,6 +253,42 @@ function App() {
       }
     }
   }, [isAuthenticated, isSyncReady]);
+
+  // Show Google Drive cloud backup onboarding prompt if unlinked and due
+  useEffect(() => {
+    if (isAuthenticated && isSyncReady) {
+      const timer = setTimeout(async () => {
+        try {
+          const { CloudSyncService } = await import('./services/cloud-sync');
+          const state = await CloudSyncService.getStateAsync();
+          if (!state.linked && CloudSyncService.shouldShowOnboarding()) {
+            setShowGDriveOnboarding(true);
+          }
+        } catch (e) {
+          console.warn('Google Drive onboarding check notice:', e);
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isSyncReady]);
+
+  // Intercept Electron window close to save database snapshot and sync to Google Drive
+  useEffect(() => {
+    if (window.electronAPI?.onCloseRequested) {
+      window.electronAPI.onCloseRequested(async () => {
+        setIsClosingApp(true);
+        try {
+          await AutoBackupService.syncBeforeExit();
+        } catch (err) {
+          console.warn('App close sync notice:', err);
+        } finally {
+          if (window.electronAPI?.closeApp) {
+            window.electronAPI.closeApp(true);
+          }
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const handleTrigger = () => setShowOnboarding(true);
@@ -611,6 +651,16 @@ function App() {
       {/* Global Update Modals */}
       <UpdateCenterModal />
       <ReconciliationReportModal />
+
+      {/* Google Drive Automated Cloud Backup Modals */}
+      <GoogleDriveOnboardingModal
+        isOpen={showGDriveOnboarding}
+        onClose={() => setShowGDriveOnboarding(false)}
+        onConnected={() => {
+          useAppStore.getState().showNotification('Google Drive linked successfully! Automated cloud backup is now active.', 'success');
+        }}
+      />
+      <ClosingSyncOverlay isVisible={isClosingApp} />
       
       {currentConflict && (
         <ProfileDiffModal

@@ -29,6 +29,7 @@ import type {
   HPSRecord,
 } from '../types';
 import { encryptPayload, decryptPayload } from '../utils/db-crypto';
+import { collectBackupLocalStorage, restoreBackupLocalStorage } from '../utils/backup-restore';
 
 let dbKey: CryptoKey | null = null;
 
@@ -432,7 +433,9 @@ async function exportAllData() {
     sf2Sheets,
     hpsRecords,
     gradingSheetRecords,
-    observedValues
+    observedValues,
+    users,
+    activityLog
   ] = await Promise.all([
     getAllRecords<SchoolProfile>('schoolProfile'),
     getAllRecords<Student>('students'),
@@ -446,26 +449,11 @@ async function exportAllData() {
     getAllRecords<HPSRecord>('hpsRecords'),
     getAllRecords<ClassRecord>('gradingSheetRecords'),
     getAllRecords<ObservedValues>('observedValues'),
+    getAllRecords<unknown>('users').catch(() => []),
+    getAllRecords<unknown>('activityLog').catch(() => []),
   ]);
 
-  const localStorageData: Record<string, string> = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key.startsWith('formease_sf8_signatories_') ||
-        key === 'school_calendar_events' ||
-        key === 'system_login_announcement'
-      )) {
-        const value = localStorage.getItem(key);
-        if (value) {
-          localStorageData[key] = value;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to export localStorage for backup:', e);
-  }
+  const localStorageData = collectBackupLocalStorage();
 
   return {
     schoolProfile,
@@ -480,6 +468,8 @@ async function exportAllData() {
     hpsRecords,
     gradingSheetRecords,
     observedValues,
+    users,
+    activityLog,
     localStorageData,
   };
 }
@@ -500,6 +490,8 @@ async function importFromBackup(backupData: {
   hpsRecords: HPSRecord[];
   gradingSheetRecords?: ClassRecord[];
   observedValues?: ObservedValues[];
+  users?: unknown[];
+  activityLog?: unknown[];
   localStorageData?: Record<string, string>;
 }) {
   // Clear existing data
@@ -516,10 +508,16 @@ async function importFromBackup(backupData: {
     'hpsRecords',
     'gradingSheetRecords',
     'observedValues',
+    'users',
+    'activityLog'
   ];
 
   for (const store of stores) {
-    await clearStore(store);
+    try {
+      await clearStore(store);
+    } catch (_e) {
+      // Store might not exist in older schema versions
+    }
   }
 
   // Import new data
@@ -559,17 +557,16 @@ async function importFromBackup(backupData: {
   if (backupData.observedValues) {
     await putRecordsBulk('observedValues', backupData.observedValues);
   }
+  if (backupData.users && backupData.users.length > 0) {
+    await putRecordsBulk('users', backupData.users);
+  }
+  if (backupData.activityLog && backupData.activityLog.length > 0) {
+    await putRecordsBulk('activityLog', backupData.activityLog);
+  }
 
   // Restore localStorage items if present
   if (backupData.localStorageData) {
-    try {
-      Object.entries(backupData.localStorageData).forEach(([key, value]) => {
-        localStorage.setItem(key, value);
-      });
-      console.log('✅ LocalStorage data restored');
-    } catch (e) {
-      console.warn('⚠️ Failed to restore localStorage data:', e);
-    }
+    restoreBackupLocalStorage(backupData.localStorageData);
   }
 }
 

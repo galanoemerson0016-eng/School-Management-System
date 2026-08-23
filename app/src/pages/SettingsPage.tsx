@@ -98,6 +98,18 @@ export function SettingsPage() {
     const [showEmergencyRollbacks, setShowEmergencyRollbacks] = useState(false);
     const [selectedSectionToCascadePurge, setSelectedSectionToCascadePurge] = useState<string>('');
 
+    useEffect(() => {
+        CloudSyncService.getStateAsync().then(state => {
+            setCloudSyncState(state);
+            setIsCloudSyncing(state.isSyncing);
+        });
+        const unsubscribe = CloudSyncService.subscribe(state => {
+            setCloudSyncState(state);
+            setIsCloudSyncing(state.isSyncing);
+        });
+        return () => unsubscribe();
+    }, []);
+
     const handleLinkGoogle = async () => {
         try {
             const newState = await CloudSyncService.authorize();

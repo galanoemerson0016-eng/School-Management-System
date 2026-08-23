@@ -19,6 +19,7 @@ const CLIENT_SECRET_KEY = 'formease_gdrive_client_secret';
 const TOKEN_KEY = 'formease_gdrive_token';
 const EMAIL_KEY = 'formease_gdrive_email';
 const LAST_SYNC_KEY = 'formease_gdrive_last_sync';
+const ONBOARDING_DISMISSED_KEY = 'formease_gdrive_onboarding_dismissed';
 
 // Default Client ID and Secret for FormEase Pro native backups
 const DEFAULT_CLIENT_ID = '516385983931-jp8ga7v9v9t1oub9fgmu7d07b1r4crmu.apps.googleusercontent.com';
@@ -55,6 +56,45 @@ export const CloudSyncService = {
 
   resetClientSecret(): void {
     localStorage.removeItem(CLIENT_SECRET_KEY);
+  },
+
+  emitStatusChange(state?: CloudSyncState): void {
+    const s = state || this.getState();
+    window.dispatchEvent(new CustomEvent('formease-cloud-sync-status', { detail: s }));
+  },
+
+  subscribe(callback: (state: CloudSyncState) => void): () => void {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<CloudSyncState>;
+      if (customEvent.detail) callback(customEvent.detail);
+    };
+    window.addEventListener('formease-cloud-sync-status', handler);
+    return () => window.removeEventListener('formease-cloud-sync-status', handler);
+  },
+
+  shouldShowOnboarding(): boolean {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) return false;
+    const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY);
+    if (dismissed === 'never') return false;
+    if (dismissed) {
+      const snoozeUntil = Number(dismissed);
+      if (!isNaN(snoozeUntil) && Date.now() < snoozeUntil) return false;
+    }
+    return true;
+  },
+
+  dismissOnboarding(remindLater: boolean): void {
+    if (remindLater) {
+      const snoozeUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours snooze
+      localStorage.setItem(ONBOARDING_DISMISSED_KEY, String(snoozeUntil));
+    } else {
+      localStorage.setItem(ONBOARDING_DISMISSED_KEY, 'never');
+    }
+  },
+
+  resetOnboardingPrompt(): void {
+    localStorage.removeItem(ONBOARDING_DISMISSED_KEY);
   },
 
   getState(): CloudSyncState {
@@ -112,7 +152,9 @@ export const CloudSyncService = {
     }
     
     console.log('🔌 Disconnected Google Drive Cloud Sync');
-    return this.getState();
+    const newState = this.getState();
+    this.emitStatusChange(newState);
+    return newState;
   },
 
   async authorize(): Promise<CloudSyncState> {
@@ -126,7 +168,9 @@ export const CloudSyncService = {
       } else {
         throw new Error('Google Drive authorization failed.');
       }
-      return this.getStateAsync();
+      const state = await this.getStateAsync();
+      this.emitStatusChange(state);
+      return state;
     }
 
     return new Promise((resolve, reject) => {
@@ -183,13 +227,17 @@ export const CloudSyncService = {
               .then(data => {
                 localStorage.setItem(EMAIL_KEY, data.email || 'school-admin@gmail.com');
                 popup.close();
-                resolve(this.getState());
+                const state = this.getState();
+                this.emitStatusChange(state);
+                resolve(state);
               })
               .catch(err => {
                 console.error('[GDrive] Failed to fetch email in web flow:', err);
                 localStorage.setItem(EMAIL_KEY, 'school-admin@gmail.com');
                 popup.close();
-                resolve(this.getState());
+                const state = this.getState();
+                this.emitStatusChange(state);
+                resolve(state);
               });
           }
         }
@@ -213,7 +261,9 @@ export const CloudSyncService = {
               localStorage.setItem(TOKEN_KEY, mockToken);
               localStorage.setItem(EMAIL_KEY, 'sandbox-user@formease.com');
               console.log('💡 Using sandbox token (offline/local development fallback)');
-              resolve(this.getState());
+              const state = this.getState();
+              this.emitStatusChange(state);
+              resolve(state);
             }
           }
         }
@@ -228,6 +278,7 @@ export const CloudSyncService = {
     }
 
     try {
+      this.emitStatusChange({ ...state, isSyncing: true });
       console.log('🔄 Exporting fresh school data backup for cloud sync...');
       const backupData = await db.exportAllData();
       const backupJsonStr = JSON.stringify(backupData, null, 2);
@@ -236,8 +287,10 @@ export const CloudSyncService = {
 
       if (window.electronAPI?.gdriveUploadBackup) {
         await window.electronAPI.gdriveUploadBackup({ backupJsonStr, filename });
-        localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+        const now = Date.now();
+        localStorage.setItem(LAST_SYNC_KEY, String(now));
         console.log(`✅ Cloud backup saved successfully as "${filename}"`);
+        this.emitStatusChange({ ...state, lastSync: now, isSyncing: false });
         return true;
       }
 
@@ -246,9 +299,11 @@ export const CloudSyncService = {
       // If we are using a mock/sandbox token, simulate the network upload gracefully
       if (token && token.startsWith('mock_')) {
         console.log('⚡ Uploading backup file to Google Drive (Sandbox simulation)...');
-        await new Promise(r => setTimeout(r, 2000));
-        localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+        await new Promise(r => setTimeout(r, 1500));
+        const now = Date.now();
+        localStorage.setItem(LAST_SYNC_KEY, String(now));
         console.log(`✅ Upload complete. Saved as "${filename}" in FormEase_Backups folder.`);
+        this.emitStatusChange({ ...state, lastSync: now, isSyncing: false });
         return true;
       }
 
@@ -260,15 +315,43 @@ export const CloudSyncService = {
 
       // Upload file to the folder
       await this.uploadFile(token!, folderId, filename, backupJsonStr);
-      localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+      const now = Date.now();
+      localStorage.setItem(LAST_SYNC_KEY, String(now));
       console.log(`✅ Cloud backup saved successfully as "${filename}"`);
+
+      // Prune old backups beyond 10
+      try {
+        const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+        const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&fields=files(id,name,createdTime)`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const files = listData.files || [];
+          if (files.length > 10) {
+            const oldFiles = files.slice(10);
+            for (const old of oldFiles) {
+              await fetch(`https://www.googleapis.com/drive/v3/files/${old.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (pruneErr) {
+        console.warn('[GDrive Web] Prune old cloud backups notice:', pruneErr);
+      }
+
+      this.emitStatusChange({ ...state, lastSync: now, isSyncing: false });
       return true;
     } catch (err) {
       console.error('❌ Cloud sync failed:', err);
+      this.emitStatusChange({ ...state, isSyncing: false });
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes('Not connected') || errMsg.includes('expired') || errMsg.includes('invalid')) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(EMAIL_KEY);
+        this.emitStatusChange(this.getState());
       }
       throw err;
     }

@@ -100,6 +100,74 @@ export interface ComprehensiveBackup {
     };
 }
 
+export function collectBackupLocalStorage(): Record<string, string> {
+    const localStorageData: Record<string, string> = {};
+    if (typeof localStorage === 'undefined') return localStorageData;
+
+    const EXCLUDED_KEYS = new Set([
+        'formease-auth-token',
+        'formease-auth-user',
+        'formease-remember-password',
+        'formease-remember-id',
+        'formease_gdrive_token',
+        'formease_gdrive_onboarding_dismissed',
+        'formease-license-offline-limit',
+        'formease-license-reset-detected',
+        'formease-browser-id'
+    ]);
+
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || EXCLUDED_KEYS.has(key) || key.startsWith('formease-license-')) continue;
+
+            const isWhitelisted =
+                key.startsWith('formease_sf') ||
+                key.startsWith('formease_pace_') ||
+                key.startsWith('g1_remarks_') ||
+                key.startsWith('formease_sms_') ||
+                key.startsWith('formease_certificate_') ||
+                key.startsWith('formease_id_card_') ||
+                key === 'school_calendar_events' ||
+                key === 'system_login_announcement' ||
+                key === 'announcement_cloud_sync' ||
+                key === 'sms_config' ||
+                key === 'sms_broadcast_history' ||
+                key === 'formease_auto_cleanup_enabled' ||
+                key === 'formease_cloud_backup_schedule' ||
+                key === 'formease_maintenance_log' ||
+                key === 'formease_backup_history' ||
+                key === 'formease_db_salt' ||
+                key === 'formease-db-salt-key' ||
+                key === 'disable-animations';
+
+            if (isWhitelisted) {
+                const value = localStorage.getItem(key);
+                if (value !== null) {
+                    localStorageData[key] = value;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to collect localStorage for backup:', e);
+    }
+    return localStorageData;
+}
+
+export function restoreBackupLocalStorage(data?: Record<string, string>): void {
+    if (!data || typeof localStorage === 'undefined') return;
+    try {
+        Object.entries(data).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                localStorage.setItem(key, value);
+            }
+        });
+        console.log(`✅ Restored ${Object.keys(data).length} configuration and assessment settings to localStorage.`);
+    } catch (e) {
+        console.warn('⚠️ Failed to restore localStorage data:', e);
+    }
+}
+
 export async function createComprehensiveBackup(
     schoolProfile: SchoolProfile,
     schoolYears: SchoolYear[],
@@ -120,32 +188,7 @@ export async function createComprehensiveBackup(
 ): Promise<ComprehensiveBackup> {
     const users = await db.getAllRecords<BackupUser>('users').catch(() => []);
     const activityLog = await db.getAllRecords<unknown>('activityLog').catch(() => []);
-
-    const localStorageData: Record<string, string> = {};
-    try {
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (
-                key.startsWith('formease_sf8_signatories_') ||
-                key === 'school_calendar_events' ||
-                key === 'system_login_announcement' ||
-                key === 'formease_sf2_include_saturdays' ||
-                key === 'formease_sf2_show_adviser_sig' ||
-                key === 'formease_sf2_show_head_sig' ||
-                key === 'formease_sf5_show_adviser_sig' ||
-                key === 'formease_sf5_show_head_sig' ||
-                key === 'formease_sf6_show_head_sig' ||
-                key === 'announcement_cloud_sync'
-            )) {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    localStorageData[key] = value;
-                }
-            }
-        }
-    } catch (e) {
-        console.warn('Failed to read localStorage for comprehensive backup:', e);
-    }
+    const localStorageData = collectBackupLocalStorage();
 
     const backup: ComprehensiveBackup = {
         metadata: {

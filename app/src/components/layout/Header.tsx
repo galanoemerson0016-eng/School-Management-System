@@ -53,14 +53,34 @@ export function Header() {
     const [showBackupMenu, setShowBackupMenu] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
-    // Check Google Drive link status on mount
+    // Check Google Drive link status on mount and subscribe to live sync state
     useEffect(() => {
         CloudSyncService.getStateAsync().then((state) => {
             setIsGDriveLinked(state.linked);
             setGdriveEmail(state.email);
             setLastSyncTime(state.lastSync);
+            setIsCloudSyncing(state.isSyncing);
         });
+
+        const unsubscribe = CloudSyncService.subscribe((state) => {
+            setIsGDriveLinked(state.linked);
+            setGdriveEmail(state.email);
+            setLastSyncTime(state.lastSync);
+            setIsCloudSyncing(state.isSyncing);
+        });
+
+        return () => unsubscribe();
     }, []);
+
+    const getSyncTimeString = useCallback(() => {
+        if (!lastSyncTime) return 'Not synced yet';
+        const diffMins = Math.floor((Date.now() - lastSyncTime) / (60 * 1000));
+        if (diffMins < 1) return 'Synced just now';
+        if (diffMins < 60) return `Synced ${diffMins}m ago`;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `Synced ${diffHours}h ago`;
+        return `Synced ${new Date(lastSyncTime).toLocaleDateString()}`;
+    }, [lastSyncTime]);
 
     const handleCloudBackup = useCallback(async () => {
         if (isCloudSyncing) return;
@@ -147,7 +167,7 @@ export function Header() {
     const unreadCount = recentNotifications.length;
 
     const backupTitle = isGDriveLinked
-        ? `Google Drive: ${gdriveEmail || 'Connected'}${lastSyncTime ? `\nLast sync: ${new Date(lastSyncTime).toLocaleString()}` : '\nNot yet synced'}`
+        ? `Google Drive: ${gdriveEmail || 'Connected'}\n${getSyncTimeString()}`
         : 'Click to link Google Drive & backup online';
 
     return (

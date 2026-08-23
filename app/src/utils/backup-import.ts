@@ -1,5 +1,5 @@
 import { db } from '../services/database';
-import type { ComprehensiveBackup } from './backup-restore';
+import { type ComprehensiveBackup, restoreBackupLocalStorage } from './backup-restore';
 import type { RestoreStrategy } from './restore-options';
 import type { Student, Section, Subject, Enrollment, ClassRecord, ObservedValues, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
@@ -228,14 +228,7 @@ export async function restoreBackupToFirestore(
 
         // Restore localStorage items if present in comprehensive payload
         if (backup.payload.localStorageData) {
-            try {
-                Object.entries(backup.payload.localStorageData).forEach(([key, value]) => {
-                    localStorage.setItem(key, value);
-                });
-                console.log('✅ LocalStorage data restored from comprehensive payload');
-            } catch (e) {
-                console.warn('⚠️ Failed to restore localStorage data from comprehensive payload:', e);
-            }
+            restoreBackupLocalStorage(backup.payload.localStorageData);
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -1041,6 +1041,17 @@ ipcMain.handle('gdrive:disconnect', async () => {
   return { success: true };
 });
 
+const deleteGoogleDriveFile = async (token, fileId) => {
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  } catch (err) {
+    console.warn('[GDrive] Failed to prune old backup file:', fileId, err);
+  }
+};
+
 ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }) => {
   try {
     const accessToken = await getGoogleAccessToken();
@@ -1052,6 +1063,27 @@ ipcMain.handle('gdrive:upload-backup', async (event, { backupJsonStr, filename }
     }
 
     const fileId = await uploadFileToFolder(accessToken, folderId, filename, backupJsonStr);
+
+    // Rolling retention: Keep 10 most recent backups in FormEase_Backups
+    try {
+      const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+      const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&fields=files(id,name,createdTime)`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const files = listData.files || [];
+        if (files.length > 10) {
+          const oldFiles = files.slice(10);
+          for (const oldFile of oldFiles) {
+            await deleteGoogleDriveFile(accessToken, oldFile.id);
+          }
+        }
+      }
+    } catch (pruneErr) {
+      console.warn('[GDrive] Auto-pruning notice:', pruneErr);
+    }
+
     return { success: true, fileId };
   } catch (error) {
     console.error('[GDrive] Upload failed:', error);
