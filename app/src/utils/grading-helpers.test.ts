@@ -425,5 +425,74 @@ describe('Grading Helpers', () => {
       // (90 + 86) / 2 = 88
       expect(mapehGrade).toBe(88);
     });
+
+    it('correctly matches and resolves grades for virtual subject IDs (e.g. virtual-filipino-section123)', () => {
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'c-fil',
+          student_lrn: '109876543210',
+          subject_id: 'real-db-filipino-id-123',
+          subject_name: 'Filipino',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 89,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-ap',
+          student_lrn: '109876543210',
+          subject_id: 'real-db-ap-id-456',
+          subject_name: 'Araling Panlipunan (AP)',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 91,
+        } as unknown as ClassRecord,
+        {
+          id: 'c-gmrc',
+          student_lrn: '109876543210',
+          subject_id: 'real-db-gmrc-id-789',
+          subject_name: 'GMRC',
+          quarter: 1,
+          school_year: '2026-2027',
+          final_grade: 95,
+        } as unknown as ClassRecord,
+      ];
+
+      // Lookup using virtual subject IDs
+      const filGrade = resolveStudentQuarterGrade(
+        '109876543210',
+        'virtual-filipino-section_abc',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 4'
+      );
+      expect(filGrade).toBe(89);
+
+      const apGrade = resolveStudentQuarterGrade(
+        '109876543210',
+        'virtual-aralingpanlipunanap-section_abc',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 4'
+      );
+      expect(apGrade).toBe(91);
+
+      const gmrcGrade = resolveStudentQuarterGrade(
+        '109876543210',
+        'virtual-edukasyonsapagpapakataogmrc-section_abc',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        [],
+        'Grade 4'
+      );
+      expect(gmrcGrade).toBe(95);
+    });
   });
 });

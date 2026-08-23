@@ -1,4 +1,4 @@
-# Release FormEase Pro (Enhanced Workflow v2.1)
+# Release FormEase Pro (Enhanced Workflow v2.2)
 
 Prepare, verify, and publish a new official release for FormEase Pro by strictly following this workflow.
 
@@ -125,31 +125,53 @@ Verify release asset automation integrity:
 ---
 
 ## 9. Publish Release & Trigger Pipeline
-Push the branch ref and tag to GitHub (using full refspecs to avoid name collisions):
-`git push origin refs/heads/main`
-`git push origin v<new-version>`
+1. **Set Repository Visibility to Public (for Build & GitHub Actions Quota / Page / Release Execution)**:
+   ```bash
+   gh repo edit galanoemerson0016-eng/School-Management-System --visibility public --accept-visibility-change-consequences
+   ```
+2. **Push Branch Ref and Tag to GitHub**:
+   ```bash
+   git push origin refs/heads/main
+   git push origin v<new-version>
+   ```
 
 ---
 
-## 10. Verification & Summary Report
+## 10. Post-Release: Monitor Pipeline & Restore Private Visibility
+1. Monitor GitHub Actions release build until all artifacts are successfully compiled and deployed:
+   `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
+2. Once the release pipeline completes and the installers/GitHub release are live, **switch repository visibility back to Private**:
+   ```bash
+   gh repo edit galanoemerson0016-eng/School-Management-System --visibility private --accept-visibility-change-consequences
+   ```
+3. Verify repository visibility status:
+   ```bash
+   gh repo view galanoemerson0016-eng/School-Management-System --json isPrivate,name
+   ```
+
+---
+
+## 11. Verification & Summary Report
 Verify:
 - [x] Working directory is clean (`git status`).
 - [x] Commit and Tag exist on GitHub remote (`origin/main` & `v<new-version>`).
 - [x] `app/package.json`, `update-store.ts`, and `VERSION_HISTORY.md` match `v<new-version>`.
+- [x] Repository visibility successfully restored to `private`.
 - [x] Provide direct link to monitor GitHub Actions pipeline: `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
-- [x] Inform user that GitHub Actions takes 3–5 minutes to compile installers (`.exe` and `.dmg`) and publish release metadata on GitHub Releases.
 
 Output final summary:
 ```
+=============================================================
 ✅ FormEase Pro Release Complete
+=============================================================
+Released Version      : v<new-version>
+Git Tag               : v<new-version>
+Release Type          : Patch / Minor / Major
+GitHub Status         : Pushed to refs/heads/main & v<new-version>
+Repo Visibility       : Private (Secured)
+Pipeline Monitor      : https://github.com/galanoemerson0016-eng/School-Management-System/actions
 
-Released Version : v<new-version>
-Git Tag          : v<new-version>
-Release Type     : Patch / Minor / Major
-GitHub Status    : Pushed to refs/heads/main & v<new-version>
-Pipeline Monitor : https://github.com/galanoemerson0016-eng/School-Management-System/actions
-
-Modified Files   :
+Modified Files        :
   ✓ app/package.json
   ✓ app/src/stores/update-store.ts
   ✓ VERSION_HISTORY.md
@@ -157,6 +179,7 @@ Modified Files   :
   ✓ app/dist-electron/main.cjs
   ✓ app/dist-electron/preload.cjs
   ✓ app/dist-electron/license.cjs
+=============================================================
 ```
 
 ---
@@ -168,3 +191,5 @@ Modified Files   :
 - **Tag Formatting**: Always prefix version tags with `v` (e.g., `v2.10.3`).
 - **Refspec Precision**: Always use `refs/heads/main` when pushing to avoid refspec ambiguity.
 - **Dynamic Checksum Protection**: Always write patched `latest.yml` and `latest-mac.yml` with re-calculated SHA-512 hashes back to release metadata before uploading assets.
+- **Safety & Confidentiality**: Never mention repository visibility toggling (public/private switching) in user-facing release notes (`VERSION_HISTORY.md` or `SettingsPage.tsx`).
+- **Private Repository Restoration**: Always ensure repository is switched back to `private` after release pipeline completes.

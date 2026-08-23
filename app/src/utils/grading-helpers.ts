@@ -13,6 +13,99 @@ function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     return str === `q${targetQuarter}` || str === `t${targetQuarter}` || str === `quarter${targetQuarter}` || str === `term${targetQuarter}`;
 }
 
+export function cleanSubjectQuery(input: string): string {
+    if (!input) return '';
+    let str = input.trim();
+    if (str.startsWith('virtual-')) {
+        str = str.substring(8);
+        const lastHyphen = str.lastIndexOf('-');
+        if (lastHyphen > 0) {
+            str = str.substring(0, lastHyphen);
+        }
+    }
+    return str;
+}
+
+export function isMatchingSubject(
+    targetQuery: string,
+    recordSubId?: string,
+    recordSubName?: string,
+    resolvedSubjectName?: string
+): boolean {
+    if (!targetQuery) return false;
+    if (recordSubId && recordSubId === targetQuery) return true;
+
+    const cleanedTarget = cleanSubjectQuery(targetQuery);
+    const normTarget = cleanedTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!normTarget) return false;
+
+    const normName = (recordSubName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normId = (recordSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanedId = cleanSubjectQuery(recordSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normResolved = (resolvedSubjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    if (normName && (normName === normTarget || normName === normResolved)) return true;
+    if (normId && (normId === normTarget || normId === normResolved)) return true;
+    if (cleanedId && (cleanedId === normTarget || cleanedId === normResolved)) return true;
+
+    // Substring containment check
+    if (normName && normTarget && (normName.includes(normTarget) || normTarget.includes(normName))) return true;
+    if (cleanedId && normTarget && (cleanedId.includes(normTarget) || normTarget.includes(cleanedId))) return true;
+
+    // 1. Filipino
+    const isFilipino = (s: string) => s.includes('filipino') || s.includes('wikangfilipino') || s === 'fil' || s.includes('panitikan');
+    if (isFilipino(normTarget) && (isFilipino(normName) || isFilipino(cleanedId))) return true;
+
+    // 2. English / Language / Reading & Literacy
+    const isEnglish = (s: string) => s.includes('english') || s === 'eng' || s.includes('readingandliteracy') || s.includes('readingliteracy') || s === 'language';
+    if (isEnglish(normTarget) && (isEnglish(normName) || isEnglish(cleanedId))) return true;
+
+    // 3. Mathematics / Gen Math
+    const isMath = (s: string) => s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath');
+    if (isMath(normTarget) && (isMath(normName) || isMath(cleanedId))) return true;
+
+    // 4. Science / General Science
+    const isScience = (s: string) => s.includes('science') || s.includes('gensci') || s.includes('generalscience') || s.includes('earthandlife') || s.includes('physicalscience');
+    if (isScience(normTarget) && (isScience(normName) || isScience(cleanedId))) return true;
+
+    // 5. Araling Panlipunan (AP) / Makabansa / Kasaysayan / Social Studies
+    const isAP = (s: string) => s === 'ap' || s.includes('aralingpanlipunan') || s.includes('kasaysayan') || s.includes('socialstudies');
+    if (isAP(normTarget) && (isAP(normName) || isAP(cleanedId))) return true;
+
+    // 6. Values Education / ESP / GMRC / Makabansa / Character Education
+    const isValues = (s: string) => s.includes('values') || s === 'esp' || s.includes('edukasyonsapagpapakatao') || s.includes('gmrc') || s.includes('goodmanner') || s.includes('goodmoral') || s.includes('makabansa') || s.includes('charactereducation');
+    if (isValues(normTarget) && (isValues(normName) || isValues(cleanedId))) return true;
+
+    // 7. EPP / TLE / TVL / Technology & Livelihood Education
+    const isTLE = (s: string) => s === 'tle' || s.includes('technologyandlivelihood') || s.includes('epp') || s.includes('edukasyongpantahanan') || s === 'tvl';
+    if (isTLE(normTarget) && (isTLE(normName) || isTLE(cleanedId))) return true;
+
+    // 8. MAPEH / Music / Arts / PE / Health
+    const isMA = (s: string) => s.includes('musicandarts') || s.includes('musicarts');
+    if (isMA(normTarget) && (isMA(normName) || isMA(cleanedId))) return true;
+
+    const isPEH = (s: string) => s.includes('physicaleducationandhealth') || s.includes('peandhealth') || s.includes('pehealth') || (s.includes('physicaleducation') && s.includes('health'));
+    if (isPEH(normTarget) && (isPEH(normName) || isPEH(cleanedId))) return true;
+
+    const isMAPEH = (s: string) => s === 'mapeh' || s.includes('musicartsphysicaleducation');
+    if (isMAPEH(normTarget) && (isMAPEH(normName) || isMAPEH(cleanedId))) return true;
+
+    // 9. SHS Core / Applied
+    const shsKeys = [
+        'contemporaryphilippinearts', 'practicalresearch1', 'practicalresearch2', 'practicalresearch',
+        'oralcommunication', 'readingandwriting', 'komunikasyon', 'pagbasaatpagsusuri',
+        'personaldevelopment', 'understandingculture', 'empowermenttechnologies',
+        'introductiontothephilosophy', 'disasterreadiness', 'generalbiology', 'generalchemistry',
+        'generalphysics', 'basiccalculus', 'precalculus', 'appliedeconomics', 'businessethics',
+        'businessmath', 'businessenterprise', 'accountancy'
+    ];
+    for (const k of shsKeys) {
+        if (normTarget.includes(k) && (normName.includes(k) || cleanedId.includes(k))) return true;
+    }
+
+    return false;
+}
+
 /**
  * Resolves the final transmuted grade for a student, subject, quarter, and school year.
  * Performs live dynamic calculation from classRecords + hpsRecords matching EClassRecord.tsx / ConsolidatedGradesPage.tsx,
@@ -31,39 +124,17 @@ export function resolveStudentQuarterGrade(
     depth: number = 0
 ): number {
     if (!studentLrn || !subjectIdOrName) return 0;
-    const normTarget = (subjectIdOrName || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanedTarget = cleanSubjectQuery(subjectIdOrName);
+    const normTarget = cleanedTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const allRecords = [...classRecords, ...gradingSheetRecords];
-    const recWithName = allRecords.find(r => (r.subject_id === subjectIdOrName || (r.subject_name && r.subject_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normTarget)) && r.subject_name);
+    const recWithName = allRecords.find(r =>
+        (r.subject_id === subjectIdOrName || isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name)) && r.subject_name
+    );
     const resolvedSubjectName = recWithName?.subject_name || '';
-    const normResolvedName = resolvedSubjectName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const isSubjectMatch = (rSubId: string, rSubName?: string) => {
-        if (rSubId === subjectIdOrName) return true;
-        const normName = (rSubName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (normName && normName === normTarget) return true;
-        if (normName && normResolvedName && normName === normResolvedName) return true;
-        const normId = (rSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (normId && (normId === normTarget || normId === normResolvedName)) return true;
-
-        // Alias matching for standard DepEd subjects
-        if (normTarget.includes('valueseducation') || normTarget.includes('values') || normTarget === 'esp' || normTarget.includes('edukasyonsapagpapakatao')) {
-            if (normName.includes('values') || normName.includes('esp') || normName.includes('edukasyonsapagpapakatao')) return true;
-        }
-        if (normTarget === 'ap' || normTarget.includes('aralingpanlipunan')) {
-            if (normName === 'ap' || normName.includes('aralingpanlipunan')) return true;
-        }
-        if (normTarget === 'tle' || normTarget.includes('technologyandlivelihood') || normTarget.includes('epp')) {
-            if (normName === 'tle' || normName.includes('technologyandlivelihood') || normName.includes('epp')) return true;
-        }
-        if (normTarget.includes('musicandarts') || normTarget.includes('musicarts')) {
-            if (normName.includes('musicandarts') || normName.includes('musicarts')) return true;
-        }
-        if (normTarget.includes('physicaleducationandhealth') || normTarget.includes('peandhealth') || normTarget.includes('pehealth')) {
-            if (normName.includes('physicaleducation') || normName.includes('peandhealth') || normName.includes('pehealth')) return true;
-        }
-
-        return false;
+        return isMatchingSubject(subjectIdOrName, rSubId, rSubName, resolvedSubjectName);
     };
 
     // 1. Check primary classRecords

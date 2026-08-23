@@ -7,7 +7,7 @@ import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject, getShsSubjectUnitInfo } from '../lib/curriculum';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject } from '../utils/grading-helpers';
 import type { Subject } from '../types';
 
 type QuarterGrades = {
@@ -292,11 +292,11 @@ const GradeInput = ({
         setIsSaving(true);
         try {
             const recordId = `${studentLrn}_${subjectId}_${quarter}_${activeSchoolYear}`;
-            const subject = subjects.find((s: any) => s.id === subjectId);
+            const subject = (subjects || []).find((s: any) => s.id === subjectId);
             const section = sectionObj;
 
-            if (!subject || !section) {
-                console.error("Subject or Section not found for grading record");
+            if (!section) {
+                console.error("Section not found for grading record");
                 return;
             }
 
@@ -304,10 +304,11 @@ const GradeInput = ({
                 id: recordId,
                 student_lrn: studentLrn,
                 subject_id: subjectId,
+                subject_name: subject?.subject_name || '',
                 section_id: section.id,
                 quarter: quarter as 1 | 2 | 3,
                 school_year: activeSchoolYear,
-                final_grade: targetVal || 0,
+                final_grade: targetVal === '' ? 0 : valNum,
                 written_works: [],
                 performance_tasks: [],
                 quarterly_exam: 0
@@ -726,7 +727,75 @@ export function ConsolidatedGradesPage() {
             for (const student of sectionStudents) {
                 // Process each subject in the section
                 for (const subject of sectionSubjects) {
-                    if (subject.is_virtual && ((subject as any)._mapehGroups || isEcmkParent(subject.subject_name))) continue;
+                    if (subject._mapehGroups) {
+                        const maComps = subject._mapehGroups.musicArts || [];
+                        const peComps = subject._mapehGroups.peHealth || [];
+                        for (const comp of [...maComps, ...peComps]) {
+                            const compGrade = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                quarter,
+                                activeSchoolYear,
+                                classRecords,
+                                [],
+                                hpsRecords,
+                                sectionGradeLevel,
+                                sectionTrack
+                            );
+                            if (compGrade > 0) {
+                                await updateGradingSheetRecord({
+                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                    student_lrn: student.lrn,
+                                    subject_id: comp.id,
+                                    subject_name: comp.subject_name,
+                                    section_id: sectionObj.id,
+                                    quarter: quarter as 1 | 2 | 3,
+                                    school_year: activeSchoolYear,
+                                    final_grade: compGrade,
+                                    written_works: [],
+                                    performance_tasks: [],
+                                    quarterly_exam: 0
+                                });
+                                syncCount++;
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (subject._ecmkGroups) {
+                        const ecComps = subject._ecmkGroups.effectiveComm || [];
+                        const mkComps = subject._ecmkGroups.mabisangKom || [];
+                        for (const comp of [...ecComps, ...mkComps]) {
+                            const compGrade = resolveStudentQuarterGrade(
+                                student.lrn,
+                                comp.id,
+                                quarter,
+                                activeSchoolYear,
+                                classRecords,
+                                [],
+                                hpsRecords,
+                                sectionGradeLevel,
+                                sectionTrack
+                            );
+                            if (compGrade > 0) {
+                                await updateGradingSheetRecord({
+                                    id: `${student.lrn}_${comp.id}_${quarter}_${activeSchoolYear}`,
+                                    student_lrn: student.lrn,
+                                    subject_id: comp.id,
+                                    subject_name: comp.subject_name,
+                                    section_id: sectionObj.id,
+                                    quarter: quarter as 1 | 2 | 3,
+                                    school_year: activeSchoolYear,
+                                    final_grade: compGrade,
+                                    written_works: [],
+                                    performance_tasks: [],
+                                    quarterly_exam: 0
+                                });
+                                syncCount++;
+                            }
+                        }
+                        continue;
+                    }
 
                     const finalGrade = resolveStudentQuarterGrade(
                         student.lrn,
@@ -734,7 +803,7 @@ export function ConsolidatedGradesPage() {
                         quarter,
                         activeSchoolYear,
                         classRecords,
-                        gradingSheetRecords,
+                        [],
                         hpsRecords,
                         sectionGradeLevel,
                         sectionTrack
@@ -745,6 +814,7 @@ export function ConsolidatedGradesPage() {
                             id: `${student.lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
                             student_lrn: student.lrn,
                             subject_id: subject.id,
+                            subject_name: subject.subject_name,
                             section_id: sectionObj.id,
                             quarter: quarter as 1 | 2 | 3,
                             school_year: activeSchoolYear,
@@ -878,12 +948,20 @@ export function ConsolidatedGradesPage() {
                     
                     if (aoa.length < 6) continue;
 
-                    // Extract Subject ID from Row 1, Col 2 (Cell B1)
-                    const subjectId = String(aoa[0][1] || '').trim();
-                    const subject = subjects.find(s => s.id === subjectId);
+                    // Extract Subject ID from Row 1, Col 2 (Cell B1) and Subject Name from Row 2, Col 2 (Cell B2)
+                    const rawSubjectId = String(aoa[0][1] || '').trim();
+                    const rawSubjectName = String(aoa[1][1] || sheetName || '').trim();
+
+                    // Find matching subject from sectionSubjects or database subjects
+                    const subject = 
+                        sectionSubjects.find(s => s.id === rawSubjectId) ||
+                        subjects.find(s => s.id === rawSubjectId) ||
+                        sectionSubjects.find(s => isMatchingSubject(rawSubjectId, s.id, s.subject_name)) ||
+                        sectionSubjects.find(s => isMatchingSubject(rawSubjectName, s.id, s.subject_name)) ||
+                        subjects.find(s => isMatchingSubject(rawSubjectName, s.id, s.subject_name));
 
                     if (!subject) {
-                        console.warn(`Subject ID ${subjectId} in sheet ${sheetName} not found in system.`);
+                        console.warn(`Subject ID ${rawSubjectId} / Name ${rawSubjectName} in sheet ${sheetName} not found in system.`);
                         continue;
                     }
 
@@ -904,6 +982,7 @@ export function ConsolidatedGradesPage() {
                                 id: `${lrn}_${subject.id}_${quarter}_${activeSchoolYear}`,
                                 student_lrn: lrn,
                                 subject_id: subject.id,
+                                subject_name: subject.subject_name,
                                 section_id: sectionObj.id,
                                 quarter: quarter,
                                 school_year: activeSchoolYear,
@@ -1569,7 +1648,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
 
     const promotionStats = useMemo(() => {
         const stats = {
@@ -2546,12 +2625,17 @@ const groupedSections = useMemo(() => {
                         <>
                             <button
                                 onClick={async () => {
-                                    if (confirm('Are you sure you want to delete ALL grades in this Grade Management sheet? This cannot be undone.')) {
-                                        await useAppStore.getState().clearGradingSheet();
+                                    const termName = selectedTerm === 'all' ? 'All Terms' : TERM_LABELS[selectedTerm];
+                                    if (confirm(`Are you sure you want to clear manual/imported Grade Management entries for "${sectionObj?.section_name || selectedSection}" (${termName})?\n\nNOTE: This will only remove manual/imported overrides in this summary sheet and will NEVER delete any teacher E-Class Records.`)) {
+                                        await useAppStore.getState().clearGradingSheet(
+                                            sectionObj?.id,
+                                            selectedTerm === 'all' ? undefined : parseInt(selectedTerm.replace('q', '')),
+                                            activeSchoolYear
+                                        );
                                     }
                                 }}
                                 className="flex items-center gap-1 h-8 px-2 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border border-transparent transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 whitespace-nowrap shrink-0"
-                                title="Clear All Grades"
+                                title="Clear Manual/Imported Grades for this Section"
                             >
                                 <Trash2 className="w-3 h-3" />
                                 <span className="hidden xl:inline">Clear All</span>

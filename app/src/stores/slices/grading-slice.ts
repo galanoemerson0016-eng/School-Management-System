@@ -12,7 +12,7 @@ export interface GradingSlice {
   setGradingSheetRecords: (records: ClassRecord[]) => void;
   updateGradingSheetRecord: (record: ClassRecord) => Promise<void>;
   deleteGradingSheetRecord: (id: string) => Promise<void>;
-  clearGradingSheet: () => Promise<void>;
+  clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string) => Promise<void>;
 
   observedValues: ObservedValues[];
   setObservedValues: (values: ObservedValues[]) => void;
@@ -106,11 +106,29 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         throw error;
       }
     },
-    clearGradingSheet: async () => {
+    clearGradingSheet: async (sectionId?: string, quarter?: number | string, schoolYear?: string) => {
       try {
-        set({ gradingSheetRecords: [] });
-        await db.clearStore('gradingSheetRecords');
-        get().showNotification('All grading records cleared', 'success');
+        if (sectionId) {
+          const allRecords = get().gradingSheetRecords as ClassRecord[];
+          const toDelete = allRecords.filter(r => {
+            const matchSec = r.section_id === sectionId;
+            const matchQ = quarter === undefined || quarter === 'all' || Number(r.quarter) === Number(quarter);
+            const matchSY = !schoolYear || !r.school_year || r.school_year === schoolYear;
+            return matchSec && matchQ && matchSY;
+          });
+
+          const remaining = allRecords.filter(r => !toDelete.some(d => d.id === r.id));
+          set({ gradingSheetRecords: remaining });
+
+          for (const rec of toDelete) {
+            await db.deleteRecord('gradingSheetRecords', rec.id);
+          }
+          get().showNotification(`Cleared ${toDelete.length} grading sheet entries for this section`, 'success');
+        } else {
+          set({ gradingSheetRecords: [] });
+          await db.clearStore('gradingSheetRecords');
+          get().showNotification('All grading records cleared', 'success');
+        }
       } catch (error) {
         console.error('Error clearing grading sheet:', error);
         get().showNotification('Failed to clear records', 'error');
