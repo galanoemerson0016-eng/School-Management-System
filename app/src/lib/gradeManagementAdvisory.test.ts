@@ -56,7 +56,7 @@ describe('Grade Management & E-Class Record Advisory Subject Integration', () =>
         const subjects = mockG7Subjects;
         const sectionGradeNum = 7;
 
-        const intendedSubjects = getSubjectsForGrade(sectionObj.section_grade_level, 'MATATAG');
+        const intendedSubjects = getSubjectsForGrade(sectionObj.section_grade_level);
 
         const candidates = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
