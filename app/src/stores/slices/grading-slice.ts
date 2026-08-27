@@ -12,7 +12,7 @@ export interface GradingSlice {
   setGradingSheetRecords: (records: ClassRecord[]) => void;
   updateGradingSheetRecord: (record: ClassRecord) => Promise<void>;
   deleteGradingSheetRecord: (id: string) => Promise<void>;
-  clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string) => Promise<void>;
+  clearGradingSheet: (sectionId?: string, quarter?: number | string, schoolYear?: string, studentLrns?: string[]) => Promise<void>;
 
   observedValues: ObservedValues[];
   setObservedValues: (values: ObservedValues[]) => void;
@@ -106,28 +106,76 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
         throw error;
       }
     },
-    clearGradingSheet: async (sectionId?: string, quarter?: number | string, schoolYear?: string) => {
+    clearGradingSheet: async (sectionId?: string, quarter?: number | string, schoolYear?: string, studentLrns?: string[]) => {
       try {
-        if (sectionId) {
-          const allRecords = get().gradingSheetRecords as ClassRecord[];
-          const toDelete = allRecords.filter(r => {
-            const matchSec = r.section_id === sectionId;
+        const state = get();
+        const allGradingSheetRecords = state.gradingSheetRecords as ClassRecord[];
+
+        if (sectionId || (studentLrns && studentLrns.length > 0)) {
+          // Build set of section tokens to match against
+          const secTokens = new Set<string>();
+          if (sectionId) {
+            secTokens.add(sectionId.trim().toLowerCase());
+          }
+
+          const sections = (state.sections || []) as { id: string; section_name: string; section_grade_level: string }[];
+          const secObj = sections.find(s =>
+            s.id === sectionId ||
+            s.section_name.toLowerCase() === (sectionId || '').toLowerCase() ||
+            `${s.section_grade_level} - ${s.section_name}`.toLowerCase() === (sectionId || '').toLowerCase()
+          );
+
+          if (secObj) {
+            secTokens.add(secObj.id.trim().toLowerCase());
+            secTokens.add(secObj.section_name.trim().toLowerCase());
+            secTokens.add(`${secObj.section_grade_level} - ${secObj.section_name}`.trim().toLowerCase());
+          }
+
+          // Build set of student LRNs for this section
+          const lrnSet = new Set<string>((studentLrns || []).map(lrn => String(lrn).trim()));
+          if (secObj) {
+            const allStudents = (state.students || []) as { lrn: string; section_id?: string; student_section?: string }[];
+            allStudents.forEach(st => {
+              if (
+                st.section_id === secObj.id ||
+                st.student_section === secObj.section_name ||
+                st.student_section === `${secObj.section_grade_level} - ${secObj.section_name}`
+              ) {
+                lrnSet.add(String(st.lrn).trim());
+              }
+            });
+          }
+
+          const isRecordMatch = (r: ClassRecord) => {
             const matchQ = quarter === undefined || quarter === 'all' || Number(r.quarter) === Number(quarter);
-            const matchSY = !schoolYear || !r.school_year || r.school_year === schoolYear;
-            return matchSec && matchQ && matchSY;
+            const matchSY = !schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || '');
+            if (!matchQ || !matchSY) return false;
+
+            const rSec = (r.section_id || '').trim().toLowerCase();
+            const rLrn = String(r.student_lrn || '').trim();
+
+            const secMatch = rSec !== '' && secTokens.has(rSec);
+            const lrnMatch = rLrn !== '' && lrnSet.has(rLrn);
+
+            return secMatch || lrnMatch;
+          };
+
+          const gToDelete = allGradingSheetRecords.filter(isRecordMatch);
+          const remainingGradingSheet = allGradingSheetRecords.filter(r => !gToDelete.some(d => d.id === r.id));
+
+          set({
+            gradingSheetRecords: remainingGradingSheet,
           });
 
-          const remaining = allRecords.filter(r => !toDelete.some(d => d.id === r.id));
-          set({ gradingSheetRecords: remaining });
-
-          for (const rec of toDelete) {
+          for (const rec of gToDelete) {
             await db.deleteRecord('gradingSheetRecords', rec.id);
           }
-          get().showNotification(`Cleared ${toDelete.length} grading sheet entries for this section`, 'success');
+
+          get().showNotification(`Successfully cleared ${gToDelete.length} grade entries from this summary sheet`, 'success');
         } else {
           set({ gradingSheetRecords: [] });
           await db.clearStore('gradingSheetRecords');
-          get().showNotification('All grading records cleared', 'success');
+          get().showNotification('All grading sheet entries cleared', 'success');
         }
       } catch (error) {
         console.error('Error clearing grading sheet:', error);

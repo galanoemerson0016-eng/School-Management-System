@@ -293,7 +293,8 @@ export interface Section {
     adviser_id?: string;
     adviser_name?: string; // Teacher/Adviser Name
     subject_name?: string; // Keep for legacy/compatibility
-    taught_subjects?: string[]; // List of subjects taught in this section
+    taught_subjects?: string[]; // Official curriculum subjects assigned to this section (powers SF9, SF10, & Summary of Grades)
+    teaching_subjects?: string[]; // Specific subjects taught by the teacher in this section (powers E-Class Record)
     is_teaching_load?: boolean; // Keep for legacy
     is_advisory?: boolean; // Flag for advisory class
     track?: string; // Track for SHS (Academic or TechPro)

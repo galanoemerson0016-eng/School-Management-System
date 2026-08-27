@@ -3,7 +3,13 @@ import { describe, it, expect, vi } from 'vitest';
 // Mock app store to prevent importing browser-only APIs in Node.js
 vi.mock('../stores', () => ({
   useAppStore: {
-    getState: () => ({ activeSchoolYear: '2026-2027' }),
+    getState: () => ({
+      activeSchoolYear: '2026-2027',
+      sections: [
+        { id: 'sec-iris-7', section_name: 'Iris', section_grade_level: 'Grade 7' },
+        { id: 'sec-rose-8', section_name: 'Rose', section_grade_level: 'Grade 8' },
+      ],
+    }),
   },
 }));
 
@@ -361,6 +367,65 @@ describe('Grading Helpers', () => {
 
       // Initial grade = 100, transmuted = 100
       expect(grade).toBe(100);
+    });
+
+    it('correctly matches section HPS when section_id uses section name vs UUID, calculating 77 instead of 100', () => {
+      // Student: Endmar Aba (Grade 7 - Iris, Science Term 1)
+      const classRecords: ClassRecord[] = [
+        {
+          id: 'grade_1001_sub-science_Q1',
+          student_lrn: '1001',
+          section_id: 'sec-iris-7', // Saved as section UUID
+          subject_id: 'sub-science',
+          subject_name: 'Science',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [5, 3, 5],
+          performance_tasks: [93, 98],
+          summative_tests: [23, 5, ''],
+          quarterly_exam: '',
+        } as unknown as ClassRecord,
+      ];
+
+      const hpsRecords: HPSRecord[] = [
+        {
+          // Another section's HPS in the database with smaller scale
+          id: 'hps_sub-science_Rose_Q1_2026-2027',
+          subject_id: 'sub-science',
+          section_id: 'sec-rose-8',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [10, 10, 10],
+          performance_tasks: [10, 10], // Small PT HPS that would cause 955% if matched incorrectly!
+          summative_tests: [20, 20, 40],
+        } as unknown as HPSRecord,
+        {
+          // Iris HPS saved with section_name as section_id
+          id: 'hps_sub-science_Iris_Q1_2026-2027',
+          subject_id: 'sub-science',
+          section_id: 'Iris',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [10, 10, 10], // 30 HPS (13 score -> 43.33% * 20% = 8.67%)
+          performance_tasks: [100, 100], // 200 HPS (191 score -> 95.50% * 50% = 47.75%)
+          summative_tests: [25, 25, 50], // ST1=23/25, ST2=5/25 -> 56% * 30% = 16.80%
+          quarterly_exam: 50,
+        } as unknown as HPSRecord,
+      ];
+
+      const grade = resolveStudentQuarterGrade(
+        '1001',
+        'sub-science',
+        1,
+        '2026-2027',
+        classRecords,
+        [],
+        hpsRecords,
+        'Grade 7'
+      );
+
+      // Initial Grade: 8.67 + 47.75 + 16.80 = 73.22 -> Transmuted: 77 (NOT 100!)
+      expect(grade).toBe(77);
     });
 
     it('falls back to pre-stored final_grade if no raw scores exist', () => {

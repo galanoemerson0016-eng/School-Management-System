@@ -36,23 +36,24 @@ const isKeyStage2To4 = (gradeLevel: string) => {
     return false;
 };
 
-const getDescriptor = (grade: number, gradeLevel: string) => {
-    if (!grade || grade <= 0) return '';
+const getDescriptor = (grade: number | string, _gradeLevel?: string) => {
+    if (!grade && grade !== 0) return '';
     
-    // Key Stage 1 (Grades 1-3)
-    if (isKeyStage1(gradeLevel)) {
-        if (grade >= 90) return 'A';
-        if (grade >= 80) return 'B';
-        if (grade >= 75) return 'C';
-        if (grade >= 65) return 'D';
-        return 'E';
-    }
+    const strVal = String(grade).trim().toUpperCase();
+    if (strVal === 'A') return 'Advancing';
+    if (strVal === 'B') return 'Benchmarking';
+    if (strVal === 'C') return 'Connecting';
+    if (strVal === 'D') return 'Developing';
+    if (strVal === 'E') return 'Emerging';
 
-    // Key Stage 2 to 4 (Grades 4-12)
-    if (grade >= 90) return 'Advancing';
-    if (grade >= 80) return 'Benchmarking';
-    if (grade >= 75) return 'Connecting';
-    if (grade >= 65) return 'Developing';
+    const num = Number(grade);
+    if (isNaN(num) || num <= 0) return '';
+    
+    // Unified Word Descriptors for all Grade Levels
+    if (num >= 90) return 'Advancing';
+    if (num >= 80) return 'Benchmarking';
+    if (num >= 75) return 'Connecting';
+    if (num >= 65) return 'Developing';
     return 'Emerging';
 };
 
@@ -261,7 +262,7 @@ const showLegacyQuarter4 = false;
 
 const GradeInput = ({ 
     studentLrn, subjectId, quarter, value, className, activeSchoolYear, 
-    subjects, sectionObj, updateGradingSheetRecord, row, col
+    subjects, sectionObj, updateGradingSheetRecord: _updateGradingSheetRecord, row, col
 }: any) => {
     const [localValue, setLocalValue] = useState(value || '');
     const [isSaving, setIsSaving] = useState(false);
@@ -300,19 +301,25 @@ const GradeInput = ({
                 return;
             }
 
-            await updateGradingSheetRecord({
-                id: recordId,
-                student_lrn: studentLrn,
-                subject_id: subjectId,
-                subject_name: subject?.subject_name || '',
-                section_id: section.id,
-                quarter: quarter as 1 | 2 | 3,
-                school_year: activeSchoolYear,
-                final_grade: targetVal === '' ? 0 : valNum,
-                written_works: [],
-                performance_tasks: [],
-                quarterly_exam: 0
-            });
+            const { updateGradingSheetRecord, deleteGradingSheetRecord } = useAppStore.getState();
+
+            if (targetVal === '') {
+                await deleteGradingSheetRecord(recordId);
+            } else {
+                await updateGradingSheetRecord({
+                    id: recordId,
+                    student_lrn: studentLrn,
+                    subject_id: subjectId,
+                    subject_name: subject?.subject_name || '',
+                    section_id: section.id,
+                    quarter: quarter as 1 | 2 | 3,
+                    school_year: activeSchoolYear,
+                    final_grade: valNum,
+                    written_works: [],
+                    performance_tasks: [],
+                    quarterly_exam: 0
+                });
+            }
             valueRef.current = targetVal;
         } catch (error) {
             console.error("Failed to update grading record", error);
@@ -1404,12 +1411,12 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) musicArtsResults.push(val);
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) peHealthResults.push(val);
                         });
 
@@ -1472,12 +1479,12 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) ecResults.push(val);
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) mkResults.push(val);
                         });
 
@@ -1533,7 +1540,7 @@ const groupedSections = useMemo(() => {
                             subject.id,
                             q,
                             activeSchoolYear,
-                            classRecords,
+                            [],
                             gradingSheetRecords,
                             hpsRecords,
                             sectionObj?.section_grade_level,
@@ -1648,7 +1655,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, classRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
 
     const promotionStats = useMemo(() => {
         const stats = {
@@ -2625,17 +2632,20 @@ const groupedSections = useMemo(() => {
                         <>
                             <button
                                 onClick={async () => {
-                                    const termName = selectedTerm === 'all' ? 'All Terms' : TERM_LABELS[selectedTerm];
-                                    if (confirm(`Are you sure you want to clear manual/imported Grade Management entries for "${sectionObj?.section_name || selectedSection}" (${termName})?\n\nNOTE: This will only remove manual/imported overrides in this summary sheet and will NEVER delete any teacher E-Class Records.`)) {
+                                    const termName = selectedTerm === 'all' ? 'All Terms' : (TERM_LABELS[selectedTerm as keyof typeof TERM_LABELS] || selectedTerm);
+                                    const sectionName = sectionObj?.section_name || selectedSection;
+                                    if (confirm(`Are you sure you want to clear entries for "${sectionName}" (${termName}) on this Summary Sheet?\n\nNOTE: This will only clear this summary sheet and will NEVER delete or modify any teacher E-Class Records.`)) {
+                                        const studentLrns = sectionStudents.map(s => s.lrn);
                                         await useAppStore.getState().clearGradingSheet(
-                                            sectionObj?.id,
+                                            sectionObj?.id || selectedSection,
                                             selectedTerm === 'all' ? undefined : parseInt(selectedTerm.replace('q', '')),
-                                            activeSchoolYear
+                                            activeSchoolYear,
+                                            studentLrns
                                         );
                                     }
                                 }}
                                 className="flex items-center gap-1 h-8 px-2 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 border border-transparent transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 whitespace-nowrap shrink-0"
-                                title="Clear Manual/Imported Grades for this Section"
+                                title="Clear Summary Sheet for this Section"
                             >
                                 <Trash2 className="w-3 h-3" />
                                 <span className="hidden xl:inline">Clear All</span>

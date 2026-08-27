@@ -174,29 +174,32 @@ export function computeExamsWeightedScore(
     // TE-only EXs: TE gets 100% of the EXs percentage score
     if (EXS_TE_ONLY_CLUSTERS.includes(cluster)) {
         if (teHPS <= 0 || te === null) return 0;
-        return (te / teHPS) * 100;
+        return Math.min(100, Math.max(0, (te / teHPS) * 100));
     }
 
     let ps = 0;
     let totalWeightGiven = 0;
 
     if (st1HPS > 0 && s1 !== null) {
-        ps += (s1 / st1HPS) * 100 * 0.30;
+        const pct1 = Math.min(100, Math.max(0, (s1 / st1HPS) * 100));
+        ps += pct1 * 0.30;
         totalWeightGiven += 0.30;
     }
     if (st2HPS > 0 && s2 !== null) {
-        ps += (s2 / st2HPS) * 100 * 0.30;
+        const pct2 = Math.min(100, Math.max(0, (s2 / st2HPS) * 100));
+        ps += pct2 * 0.30;
         totalWeightGiven += 0.30;
     }
     if (teHPS > 0 && te !== null) {
-        ps += (te / teHPS) * 100 * 0.40;
+        const pctTe = Math.min(100, Math.max(0, (te / teHPS) * 100));
+        ps += pctTe * 0.40;
         totalWeightGiven += 0.40;
     }
 
     if (totalWeightGiven <= 0) return 0;
     
     // Normalize based on tests actually administered (e.g., if TE is missing, ST1+ST2 accounts for 100% of the grade so far)
-    return ps / totalWeightGiven;
+    return Math.min(100, Math.max(0, ps / totalWeightGiven));
 }
 
 // Determine subject cluster based on subject name, grade level, and track

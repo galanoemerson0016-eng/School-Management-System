@@ -4,6 +4,7 @@
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
+import { useAppStore } from '../stores';
 
 function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
     if (recQuarter === undefined || recQuarter === null || recQuarter === '') return false;
@@ -146,17 +147,73 @@ export function resolveStudentQuarterGrade(
     );
 
     if (cRecord) {
-        // Find HPS matching this section first, then fallback to global HPS
-        const hpsRec = hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
-            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
-            isQuarterMatch(h.quarter, quarter) &&
-            (cRecord.section_id && h.section_id === cRecord.section_id)
-        ) || hpsRecords.find(h =>
-            (isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id) &&
-            (!schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '')) &&
-            isQuarterMatch(h.quarter, quarter)
+        // Collect all possible section identifiers for this record
+        const targetSecTokens = new Set<string>();
+        if (cRecord.section_id) {
+            targetSecTokens.add(cRecord.section_id.trim().toLowerCase());
+        }
+
+        let allSections: Section[] = [];
+        try {
+            allSections = useAppStore.getState().sections || [];
+        } catch {
+            // safe fallback if store is uninitialized
+        }
+
+        const secObj = allSections.find(s =>
+            s.id === cRecord.section_id ||
+            s.section_name.toLowerCase() === (cRecord.section_id || '').toLowerCase() ||
+            `${s.section_grade_level} - ${s.section_name}`.toLowerCase() === (cRecord.section_id || '').toLowerCase()
         );
+
+        if (secObj) {
+            targetSecTokens.add(secObj.id.trim().toLowerCase());
+            targetSecTokens.add(secObj.section_name.trim().toLowerCase());
+            targetSecTokens.add(`${secObj.section_grade_level} - ${secObj.section_name}`.trim().toLowerCase());
+        }
+
+        if (sectionGradeLevel) {
+            targetSecTokens.add(sectionGradeLevel.trim().toLowerCase());
+        }
+
+        const isHpsQuarterMatch = (h: HPSRecord) => isQuarterMatch(h.quarter, quarter);
+        const isHpsSyMatch = (h: HPSRecord) => !schoolYear || !h.school_year || h.school_year === schoolYear || h.school_year.includes(schoolYear) || schoolYear.includes(h.school_year || '');
+        const isHpsSubMatch = (h: HPSRecord) => isSubjectMatch(h.subject_id, (h as HPSRecord & { subject_name?: string }).subject_name) || h.subject_id === cRecord.subject_id;
+
+        const candidateHPS = hpsRecords.filter(h => isHpsSubMatch(h) && isHpsQuarterMatch(h) && isHpsSyMatch(h));
+
+        const isSecMatch = (h: HPSRecord) => {
+            if (!h.section_id) return false;
+            const hSec = h.section_id.trim().toLowerCase();
+            return targetSecTokens.has(hSec) || Array.from(targetSecTokens).some(t => t.length >= 2 && h.id.toLowerCase().includes(t));
+        };
+
+        const rawWw = normalizeScores(cRecord.written_works, 10);
+        const rawPt = normalizeScores(cRecord.performance_tasks, 10);
+        const rawQa = (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
+        const normQaScores = normalizeScores(rawQa, 3);
+        if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null && cRecord.quarterly_exam !== 0 && cRecord.quarterly_exam !== '0') {
+            normQaScores[2] = cRecord.quarterly_exam;
+        }
+
+        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
+        const wwTotalScore = rawWw.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+        const ptTotalScore = rawPt.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
+
+        let hpsRec = candidateHPS.find(isSecMatch);
+        if (!hpsRec) {
+            // Find global (no section_id)
+            hpsRec = candidateHPS.find(h => !h.section_id);
+        }
+        if (!hpsRec && candidateHPS.length > 0) {
+            // Prefer candidates where HPS is greater than or equal to raw scores
+            const plausible = candidateHPS.find(h => {
+                const ptSum = normalizeScores(h.performance_tasks, 10).reduce((a: number, b: number | string | null | undefined) => a + (Number(b) || 0), 0);
+                const wwSum = normalizeScores(h.written_works, 10).reduce((a: number, b: number | string | null | undefined) => a + (Number(b) || 0), 0);
+                return (ptTotalScore <= ptSum || ptTotalScore <= 100) && (wwTotalScore <= wwSum || wwTotalScore <= 100);
+            });
+            hpsRec = plausible || candidateHPS[0];
+        }
 
         if (hpsRec) {
             const hps_ww = normalizeScores(hpsRec.written_works, 10).map((v: number | string) => v === '' ? 0 : Number(v));
@@ -169,32 +226,23 @@ export function resolveStudentQuarterGrade(
                 return Number(v) || 0;
             });
 
-            // Keep raw strings to accurately check if teacher entered any scores
-            const rawWw = normalizeScores(cRecord.written_works, 10);
-            const rawPt = normalizeScores(cRecord.performance_tasks, 10);
-            const rawQa = (cRecord as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests;
-            const normQaScores = normalizeScores(rawQa, 3);
-            if ((normQaScores[2] === '' || normQaScores[2] === undefined || normQaScores[2] === null) && cRecord.quarterly_exam !== '' && cRecord.quarterly_exam !== undefined && cRecord.quarterly_exam !== null && cRecord.quarterly_exam !== 0 && cRecord.quarterly_exam !== '0') {
-                normQaScores[2] = cRecord.quarterly_exam;
-            }
-
-            const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined && !isNaN(Number(s));
             const hasScores =
                 rawWw.some(isValidScore) ||
                 rawPt.some(isValidScore) ||
                 normQaScores.some(isValidScore);
 
-            const wwTotalScore = rawWw.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
             const wwTotalHPS = hps_ww.reduce((a, b) => a + b, 0);
-            const ptTotalScore = rawPt.reduce<number>((a, b) => a + (isValidScore(b) ? Number(b) : 0), 0);
             const ptTotalHPS = hps_pt.reduce((a, b) => a + b, 0);
 
             const subjectName = cRecord.subject_name || resolvedSubjectName || subjectIdOrName;
             const cluster = getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
             const weights = getWeights(cluster, { subject_name: subjectName } as Subject);
 
-            const wwWS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100 * (weights.written_works || 0);
-            const ptWS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100 * (weights.performance_tasks || 0);
+            const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
+            const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
+
+            const wwWS = wwPS * (weights.written_works || 0);
+            const ptWS = ptPS * (weights.performance_tasks || 0);
 
             const parseNumOrNull = (val: number | string | null | undefined): number | null => {
                 if (val === '' || val === null || val === undefined) return null;
@@ -212,7 +260,7 @@ export function resolveStudentQuarterGrade(
             const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, cluster);
             const qaWS = qaPS * (weights.quarterly_exam || 0);
 
-            const initialGrade = wwWS + ptWS + qaWS;
+            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
             const hasHps = wwTotalHPS > 0 || ptTotalHPS > 0 || st1HPS > 0 || st2HPS > 0 || teHPS > 0;
 
             if (hasScores && hasHps) {
