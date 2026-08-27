@@ -1,5 +1,26 @@
 # Version History
 
+## v3.1.1 (2026-08-27)
+
+### 🚀 New Features & Enhancements
+
+- **Responsive Grade Input Engine**: Reduced input debounce latency down to 300ms across Electronic Class Records and Senior High School grading sheets for instantaneous feedback.
+- **Zero-Lockout Pure Advisory Workflows**: Reinforced advisory subject resolution to guarantee class advisers have full access to all active grade-level learning areas without artificial lockouts.
+
+### ⚡ Improvements
+
+- **Grade Management Multi-Subject Visibility**: Resolved advisory section curriculum merging ensuring all standard DepEd learning areas (Filipino, English, Mathematics, Science, Araling Panlipunan, Values Education, TLE, MAPEH) seamlessly render in the Master Summary of Grades regardless of individual teaching load assignments.
+- **Junior High School Curriculum Cleanup**: Streamlined Grades 7–10 standard curriculum definitions by removing unused generic Specialization column placeholders.
+
+### 🐞 Bug Fixes
+
+- **Unconfigured Highest Possible Score (HPS) Input Guard**: Fixed score validation logic to accept student scores prior to explicit HPS configuration without triggering premature error alerts.
+- **Section Teaching Load Preservation**: Prevented individual teacher subject assignments from overriding or truncating the full advisory section curriculum.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.1.0 (2026-08-27)
 
 ### 🚀 New Features & Enhancements

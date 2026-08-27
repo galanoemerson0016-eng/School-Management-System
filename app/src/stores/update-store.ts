@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.1.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.1.1';
       const api = window.electronAPI;
 
       try {
@@ -402,10 +402,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📑 Official DepEd Grades 2-10 3-Term E-Class Record Excel export with 100% formula preservation (.xlsx and batch .zip).",
-              "🛡️ Highest Possible Score (HPS) section resolution & score bounding to prevent transmuted grade overflow.",
-              "🔒 Scoped Grade Management Clear All strictly isolating summary sheets from teacher E-Class Records.",
-              "📊 Unified Grade Management summary descriptors displaying the complete Word scale across all grade levels."
+              "📚 Fixed Grade Management multi-subject visibility ensuring all 8 DepEd learning areas render for advisory sections.",
+              "⚡ Responsive E-Class Record input latency reduced to 300ms with robust unconfigured HPS input handling.",
+              "🎯 Cleaned Junior High School curriculum definitions by removing unused Specialization placeholders.",
+              "🛡️ Preserved 100% official DepEd E-Class Record Excel formulas and zero-risk backward compatibility."
             ],
             timestamp: Date.now(),
             status: 'success',
