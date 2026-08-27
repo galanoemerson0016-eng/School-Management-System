@@ -3351,12 +3351,27 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.0.2 */}
+                                {/* Version 3.1.0 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.2</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.1.0</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 27, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>📑 <strong>Official DepEd Grades 2-10 3-Term E-Class Record Export</strong>: Complete integration of official DepEd templates for Academic & MAPEH/TLE learning areas (.xlsx and batch .zip) preserving 100% of Excel formulas.</li>
+                                        <li>🛡️ <strong>HPS Resolution & Score Bounding</strong>: Fixed section matching and enforced $[0, 100]\%$ boundary checks to eliminate transmuted grade overflow (100 vs 77).</li>
+                                        <li>🔒 <strong>Protected Grade Management Clear All</strong>: Scoped summary sheet clearing strictly to manual/imported overrides, leaving teacher E-Class Records completely untouched.</li>
+                                        <li>📊 <strong>Full Word Scale Descriptors</strong>: Unified summary descriptors to display the full word scale (<em>Advancing</em>, <em>Benchmarking</em>, <em>Connecting</em>, <em>Developing</em>, <em>Emerging</em>).</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.0.2 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.0.2</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">August 23, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

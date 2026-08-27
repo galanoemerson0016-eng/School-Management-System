@@ -1,5 +1,27 @@
 # Version History
 
+## v3.1.0 (2026-08-27)
+
+### 🚀 New Features & Enhancements
+
+- **Official DepEd Grades 2-10 3-Term E-Class Record Excel Export**: Integrated official DepEd 3-Term Electronic Class Record templates for Academic learning areas (Science, Math, English, Filipino, GMRC-VE, Araling Panlipunan) and MAPEH/TLE (Music & Arts, PE & Health, EPP/TLE, TLE), strictly preserving 100% of DepEd Excel formulas and data validations across all 6 worksheets.
+- **Single Subject & Batch ZIP Exporting**: Export individual official `.xlsx` spreadsheets or generate a consolidated `.zip` package containing all section subjects in one click directly from the E-Class Record interface.
+
+### ⚡ Improvements
+
+- **Protected Grade Management "Clear All"**: Redesigned summary sheet clearing to strictly target `gradingSheetRecords`, guaranteeing teachers' underlying Electronic Class Records (`classRecords`) are 100% untouched and preserved as the source of truth.
+- **Full Word Scale Descriptors**: Unified Grade Management summary descriptors to display the full word scale (**`Advancing`**, **`Benchmarking`**, **`Connecting`**, **`Developing`**, **`Emerging`**) across all grade levels.
+- **Role-Based Advisory Load Management**: Reinforced section subject assignments and advisory load checks for streamlined grade recording and reporting.
+
+### 🐞 Bug Fixes
+
+- **Highest Possible Score (HPS) Resolution & Score Bounding**: Resolved section UUID vs. section name mismatch in HPS lookups and applied $[0, 100]\%$ score bounding to eliminate percentage score overflows (fixing erroneous 100 final grade transmuted calculations).
+- **Dynamic HPS Grade Recalculation**: Automated immediate recalculation and synchronization of student final grades in both `classRecords` and `gradingSheetRecords` upon HPS adjustments.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.0.2 (2026-08-23)
 
 ### 🚀 New Features & Enhancements

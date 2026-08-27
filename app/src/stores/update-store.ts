@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.0.2';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.1.0';
       const api = window.electronAPI;
 
       try {
@@ -402,9 +402,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "☁️ Automated Google Drive Cloud Backup Onboarding with hourly sync, exit protection, and full restore.",
-              "📊 Enhanced Grade Management live E-Class Sync and robust subject matching for curriculum learning areas.",
-              "🛡️ Safe, section-scoped Grade Management Clear All preserving all teacher E-Class Record data."
+              "📑 Official DepEd Grades 2-10 3-Term E-Class Record Excel export with 100% formula preservation (.xlsx and batch .zip).",
+              "🛡️ Highest Possible Score (HPS) section resolution & score bounding to prevent transmuted grade overflow.",
+              "🔒 Scoped Grade Management Clear All strictly isolating summary sheets from teacher E-Class Records.",
+              "📊 Unified Grade Management summary descriptors displaying the complete Word scale across all grade levels."
             ],
             timestamp: Date.now(),
             status: 'success',
