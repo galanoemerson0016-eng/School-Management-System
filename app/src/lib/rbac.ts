@@ -171,22 +171,33 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     // Exclude subjects marked as 'none' (Not Offered)
     const activeSubjects = subjects.filter(s => s.term !== 'none');
     
-    // First, find subjects directly linked to this section
-    const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
-    
-    // Only show subjects that are registered in the section configuration
-    const registeredNames = new Set(section.taught_subjects || []);
+    // If the section is purely an Advisory class without a teaching load, the user does NOT teach subjects here in E-Class Record
+    if (section.is_advisory && !section.is_teaching_load) {
+        return [];
+    }
+
+    // Determine the teacher's explicit teaching load subjects
+    let teachingList: string[] = [];
+    if (section.teaching_subjects !== undefined) {
+        teachingList = section.teaching_subjects;
+    } else if (section.is_teaching_load && section.taught_subjects !== undefined) {
+        // Fallback only if this section was specifically designated as a teaching load in older records
+        teachingList = section.taught_subjects;
+    }
+
+    const registeredNames = new Set(teachingList);
     if (section.subject_name) {
         section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
     }
-    if (section.is_teaching_load || registeredNames.size > 0) {
-        // Find subjects (regardless of section_id) that match the grade level and are selected as taught
+
+    // If teaching load subjects or subject_name are configured, strictly filter to those subjects
+    if (registeredNames.size > 0) {
+        const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id && registeredNames.has(subject.subject_name));
         const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 
             registeredNames.has(s.subject_name)
         );
- 
-        // Combine and remove duplicates by subject name
+
         const combined = [...directlyLinked, ...gradeMatches];
         const unique: Subject[] = [];
         const seen = new Set<string>();
@@ -199,52 +210,30 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
             }
         }
         
-        // Ensure we only return subjects the user actually checked in the Section form
         return unique.filter(s => registeredNames.has(s.subject_name));
     }
-    
-    // Fallback: if not a teaching load and no subjects checked, return all active subjects for that grade level (with SHS track scoping if applicable)
-    let gradeLevelSubjects = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
-    const isSHS = (section.section_grade_level || '').includes('11') || (section.section_grade_level || '').includes('12');
-    const sectionTrack = (section.track || '').toLowerCase();
 
-    if (isSHS && sectionTrack) {
-        gradeLevelSubjects = gradeLevelSubjects.filter(s => {
-            const unitInfo = getShsSubjectUnitInfo(s.subject_name, section.section_grade_level);
-            if (unitInfo.category === 'core') return true;
-            if (sectionTrack.includes('acad')) {
-                return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
-            }
-            if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
-                return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
-            }
-            return true;
-        });
+    // If marked as teaching load but 0 subjects selected: return empty
+    if (section.is_teaching_load) {
+        return [];
     }
 
-    if (gradeLevelSubjects.length > 0) {
-        const unique: Subject[] = [];
-        const seen = new Set<string>();
-        for (const s of gradeLevelSubjects) {
+    // Section-specific subjects if directly tied to the section id
+    const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
+    if (directlyLinked.length > 0) {
+        const uniqueDirect: Subject[] = [];
+        const seenDirect = new Set<string>();
+        for (const s of directlyLinked) {
             const key = s.subject_name.trim().toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(s);
+            if (!seenDirect.has(key)) {
+                seenDirect.add(key);
+                uniqueDirect.push(s);
             }
         }
-        return unique;
+        return uniqueDirect;
     }
-    
-    const uniqueDirect: Subject[] = [];
-    const seenDirect = new Set<string>();
-    for (const s of directlyLinked) {
-        const key = s.subject_name.trim().toLowerCase();
-        if (!seenDirect.has(key)) {
-            seenDirect.add(key);
-            uniqueDirect.push(s);
-        }
-    }
-    return uniqueDirect;
+
+    return [];
 }
 
 export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {

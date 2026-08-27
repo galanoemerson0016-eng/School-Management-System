@@ -259,8 +259,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         adviser_name: getDefaultTeacherName(),
         subject_name: '',
         taught_subjects: [],
+        teaching_subjects: [],
         is_teaching_load: false,
-        is_advisory: false, // Default to false, will be set in useEffect
+        is_advisory: false,
         track: '',
         strand: '',
         cluster: ''
@@ -271,27 +272,13 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         if (!section) {
             setFormData(prev => ({
                 ...prev,
-                is_advisory: true,
+                is_advisory: false,
                 is_teaching_load: false,
-                taught_subjects: prev.section_grade_level === 'Grade 11' ? [...GRADE_11_CORE_SUBJECTS] : []
+                taught_subjects: [],
+                teaching_subjects: []
             }));
         }
     }, [section]);
-
-    // Automatically auto-assign Grade 11 Core subjects for advisory classes if none assigned
-    useEffect(() => {
-        if (formData.is_advisory && formData.section_grade_level === 'Grade 11') {
-            setFormData(prev => {
-                if (!prev.taught_subjects || prev.taught_subjects.length === 0) {
-                    return {
-                        ...prev,
-                        taught_subjects: [...GRADE_11_CORE_SUBJECTS]
-                    };
-                }
-                return prev;
-            });
-        }
-    }, [formData.section_grade_level, formData.is_advisory]);
 
     // Update adviser_name automatically if it's generic/empty and profile details appear
     useEffect(() => {
@@ -360,7 +347,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             .filter(a => normalizeSubjectLabel(a.name) !== 'mapeh')
             .sort((a, b) => {
                 const indexA = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
-                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(b.name));
+                const indexB = standardOrder.findIndex(name => normalizeSubjectLabel(name) === normalizeSubjectLabel(a.name));
 
                 if (indexA !== -1 && indexB !== -1) return indexA - indexB;
                 if (indexA !== -1) return -1;
@@ -382,17 +369,17 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
     };
 
     const selectAllInCategory = (categorySubjects: { name: string }[]) => {
-        const current = formData.taught_subjects || [];
+        const current = formData.teaching_subjects || [];
         const toAdd = categorySubjects.map(s => s.name);
         const next = Array.from(new Set([...current, ...toAdd]));
-        setFormData({ ...formData, taught_subjects: next });
+        setFormData({ ...formData, teaching_subjects: next });
     };
 
     const clearAllInCategory = (categorySubjects: { name: string }[]) => {
-        const current = formData.taught_subjects || [];
+        const current = formData.teaching_subjects || [];
         const toRemove = new Set(categorySubjects.map(s => s.name));
         const next = current.filter(name => !toRemove.has(name));
-        setFormData({ ...formData, taught_subjects: next });
+        setFormData({ ...formData, teaching_subjects: next });
     };
 
     const groupedSubjects = useMemo(() => {
@@ -453,12 +440,20 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         }));
     };
 
+    const handleTeachingChange = (checked: boolean) => {
+        setFormData(prev => ({
+            ...prev,
+            is_teaching_load: checked,
+            teaching_subjects: checked ? (prev.teaching_subjects && prev.teaching_subjects.length > 0 ? prev.teaching_subjects : []) : []
+        }));
+    };
+
     const toggleSubject = (subjectName: string) => {
-        const current = formData.taught_subjects || [];
+        const current = formData.teaching_subjects || [];
         if (current.includes(subjectName)) {
-            setFormData({ ...formData, taught_subjects: current.filter(s => s !== subjectName) });
+            setFormData({ ...formData, teaching_subjects: current.filter(s => s !== subjectName) });
         } else {
-            setFormData({ ...formData, taught_subjects: [...current, subjectName] });
+            setFormData({ ...formData, teaching_subjects: [...current, subjectName] });
         }
     };
 
@@ -467,6 +462,10 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             const profileName = (schoolProfile?.adviser_name || '').trim();
             const isGenericProfile = profileName.toLowerCase() === 'admin' || profileName === '';
             const isAdvisory = section.is_advisory ?? !section.is_teaching_load;
+            const isTeaching = section.is_teaching_load ?? false;
+            const teachingSubjs = section.teaching_subjects 
+                || (isTeaching && !isAdvisory ? (section.taught_subjects || (section.subject_name ? [section.subject_name] : [])) : []) 
+                || [];
             
             // Legacy Migration: If is_advisory is undefined, infer it
             setFormData({
@@ -476,7 +475,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     ? ((!isGenericProfile && profileName) ? profileName : (section.adviser_name || ''))
                     : '',
                 is_advisory: isAdvisory,
+                is_teaching_load: isTeaching,
                 taught_subjects: section.taught_subjects || (section.subject_name ? [section.subject_name] : []),
+                teaching_subjects: teachingSubjs,
                 track: section.track || '',
                 strand: section.strand || '',
                 cluster: section.cluster || (section.section_grade_level?.includes('Grade 11') ? section.strand || '' : '')
@@ -491,21 +492,39 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             return;
         }
 
+        if (!formData.is_advisory && !formData.is_teaching_load) {
+            showNotification('Please select at least one role: Advisory or Teaching.', 'error');
+            return;
+        }
+
         const isG11 = formData.section_grade_level?.includes('Grade 11');
         const isG12 = formData.section_grade_level?.includes('Grade 12');
+        const isTeaching = !!formData.is_teaching_load;
+        const isAdvisory = !!formData.is_advisory;
 
         try {
             const validSubjectNames = new Set(availableSubjects.map(s => s.name));
+            const validTeachingSubjects = isTeaching
+                ? (formData.teaching_subjects || []).filter(s => validSubjectNames.has(s))
+                : [];
+            
+            // Preserve existing advisory curriculum taught_subjects if present
+            const existingTaughtSubjects = section?.taught_subjects || [];
+            const finalTaughtSubjects = isAdvisory 
+                ? (existingTaughtSubjects.length > 0 ? existingTaughtSubjects : (isTeaching ? validTeachingSubjects : []))
+                : validTeachingSubjects;
+
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
                 section_name: formData.section_name!,
                 section_grade_level: formData.section_grade_level!,
                 adviser_id: formData.adviser_id || '',
-                adviser_name: formData.is_advisory ? (formData.adviser_name || '') : '',
+                adviser_name: isAdvisory ? (formData.adviser_name || '') : '',
                 subject_name: formData.subject_name,
-                taught_subjects: (formData.taught_subjects || []).filter(s => validSubjectNames.has(s)),
-                is_teaching_load: !!formData.is_teaching_load,
-                is_advisory: !!formData.is_advisory,
+                taught_subjects: finalTaughtSubjects,
+                teaching_subjects: validTeachingSubjects,
+                is_teaching_load: isTeaching,
+                is_advisory: isAdvisory,
                 track: (isG11 || isG12)
                     ? formData.track || ''
                     : undefined,
@@ -713,138 +732,153 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                         type="checkbox" 
                                         className="w-4 h-4 rounded border-2 border-slate-200 dark:border-white/10 text-amber-500 focus:ring-amber-500 transition-all cursor-pointer" 
                                         checked={formData.is_teaching_load}
-                                        onChange={(e) => setFormData({ ...formData, is_teaching_load: e.target.checked })}
+                                        onChange={(e) => handleTeachingChange(e.target.checked)}
                                     />
                                 </label>
                             </div>
 
-                            {/* SUBJECT SELECTION GRID */}
-                            <motion.div 
-                                initial={{ opacity: 0, height: 'auto' }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
-                            >
-                                <div className="flex items-center justify-between mb-4 ml-1">
-                                    <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
-                                        {formData.is_teaching_load ? 'Subjects Taught' : 'Active Section Subjects / Curriculum'} ({formData.taught_subjects?.length || 0})
-                                    </label>
-                                    <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
-                                        {formData.is_teaching_load ? 'Select subjects you teach' : 'Select subjects included in this section'}
-                                    </span>
-                                </div>
-                                    
-                                    {availableSubjects.length > 0 ? (
-                                        <div className="space-y-4">
-                                            {Object.entries(groupedSubjects).map(([category, list]) => {
-                                                const grade = formData.section_grade_level || 'Grade 11';
-                                                const isSHS = grade.includes('11') || grade.includes('12');
-                                                const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
-                                                
-                                                return (
-                                                    <div key={category} className="bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl overflow-hidden shadow-xs">
-                                                        {/* Category Header */}
-                                                        {category && (
-                                                            <div className="bg-slate-100/80 dark:bg-white/10 px-4 py-3 flex items-center justify-between border-b border-slate-200/50 dark:border-white/10">
-                                                                <div 
-                                                                    onClick={() => toggleCategory(category)}
-                                                                    className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
-                                                                >
-                                                                    <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
-                                                                    <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider truncate">
-                                                                        {category}
-                                                                    </span>
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300">
-                                                                        {list.length}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => selectAllInCategory(list)}
-                                                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
-                                                                    >
-                                                                        Select All
-                                                                    </button>
-                                                                    <span className="text-slate-300 dark:text-slate-600">|</span>
-                                                                    <button 
-                                                                        type="button"
-                                                                        onClick={() => clearAllInCategory(list)}
-                                                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
-                                                                    >
-                                                                        Clear All
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Category Grid */}
-                                                        {!isCollapsed && (
-                                                            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white dark:bg-[#0f172a]">
-                                                                {list.map((subj) => {
-                                                                    const electiveInfo = findElectiveInCatalog(subj.name);
-                                                                    const isSelected = formData.taught_subjects?.includes(subj.name);
-                                                                    return (
-                                                                        <div 
-                                                                            key={subj.name}
-                                                                            onClick={() => toggleSubject(subj.name)}
-                                                                            className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
-                                                                        >
-                                                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                                                <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
-                                                                                    {isSelected && (
-                                                                                        <Check className="w-3 h-3 stroke-[3.5]" />
-                                                                                    )}
-                                                                                </div>
-                                                                                <div className="min-w-0 flex-1">
-                                                                                    <span className={`text-[9px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-600 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>
-                                                                                        {subj.name}
-                                                                                    </span>
-                                                                                    {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
-                                                                                        <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
-                                                                                            Prereq: {electiveInfo.prerequisites.join(', ')}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {/* Badges for Hours and NC level */}
-                                                                            {electiveInfo && (
-                                                                                <div className="flex items-center gap-1 shrink-0">
-                                                                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
-                                                                                        {electiveInfo.hours}h
-                                                                                    </span>
-                                                                                    {electiveInfo.ncLevel && (
-                                                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40">
-                                                                                            {electiveInfo.ncLevel}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">No standard subjects found.</p>
-                                    )}
-                                    
-                                    {/* Manual Subject Fallback */}
-                                    <div className="mt-5">
-                                        <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-3 ml-1">Other Subjects (Comma separated)</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="e.g. Robotics, Research"
-                                            className="w-full bg-white dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-xl px-5 py-3 text-xs font-bold transition-all outline-none focus:border-amber-500/20 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                                            value={formData.subject_name || ''}
-                                            onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
-                                        />
+                            {/* SUBJECT SELECTION GRID - ONLY SHOWN FOR TEACHING LOAD */}
+                            {formData.is_teaching_load ? (
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 'auto' }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6"
+                                >
+                                    <div className="flex items-center justify-between mb-4 ml-1">
+                                        <label className="block text-[9px] font-black text-amber-500 dark:text-amber-400 uppercase tracking-widest">
+                                            Subjects Taught ({formData.teaching_subjects?.length || 0})
+                                        </label>
+                                        <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                            Select subjects you teach in this section
+                                        </span>
                                     </div>
+                                        
+                                        {availableSubjects.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {Object.entries(groupedSubjects).map(([category, list]) => {
+                                                    const grade = formData.section_grade_level || 'Grade 11';
+                                                    const isSHS = grade.includes('11') || grade.includes('12');
+                                                    const isCollapsed = category ? (collapsedCategories[category] ?? isSHS) : false;
+                                                    
+                                                    return (
+                                                        <div key={category} className="bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 rounded-2xl overflow-hidden shadow-xs">
+                                                            {/* Category Header */}
+                                                            {category && (
+                                                                <div className="bg-slate-100/80 dark:bg-white/10 px-4 py-3 flex items-center justify-between border-b border-slate-200/50 dark:border-white/10">
+                                                                    <div 
+                                                                        onClick={() => toggleCategory(category)}
+                                                                        className="flex items-center gap-2 cursor-pointer select-none flex-1 min-w-0"
+                                                                    >
+                                                                        <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
+                                                                        <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-wider truncate">
+                                                                            {category}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300">
+                                                                            {list.length}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider select-none shrink-0 pl-4">
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={() => selectAllInCategory(list)}
+                                                                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors font-bold cursor-pointer"
+                                                                        >
+                                                                            Select All
+                                                                        </button>
+                                                                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={() => clearAllInCategory(list)}
+                                                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors font-bold cursor-pointer"
+                                                                        >
+                                                                            Clear All
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Category Grid */}
+                                                            {!isCollapsed && (
+                                                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white dark:bg-[#0f172a]">
+                                                                    {list.map((subj) => {
+                                                                        const isSHS = (formData.section_grade_level || '').includes('11') || (formData.section_grade_level || '').includes('12');
+                                                                        const electiveInfo = isSHS ? findElectiveInCatalog(subj.name) : undefined;
+                                                                        const isSelected = formData.teaching_subjects?.includes(subj.name);
+                                                                        return (
+                                                                            <div 
+                                                                                key={subj.name}
+                                                                                onClick={() => toggleSubject(subj.name)}
+                                                                                className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
+                                                                            >
+                                                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                                <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
+                                                                                        {isSelected && (
+                                                                                            <Check className="w-3 h-3 stroke-[3.5]" />
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="min-w-0 flex-1">
+                                                                                        <span className={`text-[9px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-600 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                                                            {subj.name}
+                                                                                        </span>
+                                                                                        {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
+                                                                                            <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
+                                                                                                Prereq: {electiveInfo.prerequisites.join(', ')}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Badges for Hours and NC level */}
+                                                                                {electiveInfo && (
+                                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400">
+                                                                                            {electiveInfo.hours}h
+                                                                                        </span>
+                                                                                        {electiveInfo.ncLevel && (
+                                                                                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40">
+                                                                                                {electiveInfo.ncLevel}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">No standard subjects found.</p>
+                                        )}
                                 </motion.div>
+                            ) : formData.is_advisory ? (
+                                <div className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6">
+                                    <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100/70 dark:border-indigo-800/30 flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                            <Shield className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h5 className="text-[11px] font-black text-indigo-900 dark:text-indigo-200 uppercase tracking-tight mb-0.5">
+                                                Official Advisory Class
+                                            </h5>
+                                            <p className="text-[9.5px] font-medium text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed">
+                                                The curriculum subjects for this advisory class are configured in the <span className="font-bold underline">Subjects</span> tab (powers SF9, SF10, & Summary of Grades). If you also teach subjects to this class, check <span className="font-bold">Teaching</span> above.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-6 border-t border-slate-100 dark:border-white/10 pt-6">
+                                    <div className="p-5 text-center bg-slate-50/50 dark:bg-white/5 rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10">
+                                        <p className="text-xs font-bold text-slate-400 dark:text-slate-400">
+                                            Select a role above (<span className="text-indigo-600 dark:text-indigo-400 font-extrabold">Advisory</span> or <span className="text-amber-600 dark:text-amber-400 font-extrabold">Teaching</span>) to configure this section.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Adviser / Teacher (LOCKED) */}

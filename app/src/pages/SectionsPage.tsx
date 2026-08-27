@@ -260,7 +260,7 @@ export function SectionsPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                     {groupSections.map((section) => {
                                         const subjects = section.is_teaching_load
-                                            ? [...(section.taught_subjects || [])].sort((a, b) => a.localeCompare(b))
+                                            ? [...(section.teaching_subjects || section.taught_subjects || [])].sort((a, b) => a.localeCompare(b))
                                             : [];
                                         const isGrade11 = (section.section_grade_level || '').includes('Grade 11');
                                         const isGrade12 = (section.section_grade_level || '').includes('Grade 12');
@@ -313,17 +313,20 @@ export function SectionsPage() {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    {section.is_advisory ? (
-                                                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100/80 dark:border-blue-500/20 text-xs font-medium rounded-md">
-                                                            <Shield className="w-3 h-3" />
-                                                            Advisory
-                                                        </span>
-                                                    ) : (
-                                                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-100/80 dark:border-amber-500/20 text-xs font-medium rounded-md">
-                                                            <BookMarked className="w-3 h-3" />
-                                                            Subject Load
-                                                        </span>
-                                                    )}
+                                                    <div className="flex items-center gap-1">
+                                                        {section.is_advisory && (
+                                                            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100/80 dark:border-blue-500/20 text-xs font-medium rounded-md">
+                                                                <Shield className="w-3 h-3" />
+                                                                Advisory
+                                                            </span>
+                                                        )}
+                                                        {section.is_teaching_load && (
+                                                            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-100/80 dark:border-amber-500/20 text-xs font-medium rounded-md">
+                                                                <BookMarked className="w-3 h-3" />
+                                                                Teaching
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 {subjects.length > 0 ? (
@@ -331,13 +334,15 @@ export function SectionsPage() {
                                                         {subjects.map(subj => (
                                                             <span
                                                                 key={subj}
-                                                                className="px-2 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/5 text-xs font-medium rounded-md"
+                                                                className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/40 text-xs font-medium rounded-md"
                                                                 title={subj}
                                                             >
                                                                 {getShortSubjectName(subj)}
                                                             </span>
                                                         ))}
                                                     </div>
+                                                ) : section.is_advisory && !section.is_teaching_load ? (
+                                                    <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">Curriculum managed in Subjects tab</p>
                                                 ) : (
                                                     <p className="text-xs text-slate-400 dark:text-slate-500 italic">No subjects loaded</p>
                                                 )}
@@ -350,7 +355,9 @@ export function SectionsPage() {
                                                         </span>
                                                         <span className="inline-flex items-center gap-1.5" title="Loaded subjects">
                                                             <BookOpen className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                                            {(section.taught_subjects?.length || 0)} subjects
+                                                            {section.is_teaching_load 
+                                                                ? `${(section.teaching_subjects?.length ?? section.taught_subjects?.length ?? 0)} taught`
+                                                                : `${(section.taught_subjects?.length || 0)} curriculum`}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

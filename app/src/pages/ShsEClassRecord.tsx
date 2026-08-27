@@ -636,11 +636,22 @@ export function ShsEClassRecord() {
             return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
+        const secId = selectedSectionObj?.id || selectedSection;
+        const secName = selectedSectionObj?.section_name || selectedSection;
+        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
+
         const record = hpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
-            r.section_id === selectedSection
+            (
+                r.section_id === secId ||
+                r.section_id === secName ||
+                r.section_id === fullSecName ||
+                r.section_id === selectedSection ||
+                (secId && r.id.includes(secId)) ||
+                (secName && r.id.includes(secName))
+            )
         ) || hpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
@@ -665,7 +676,7 @@ export function ShsEClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj]);
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
@@ -774,12 +785,12 @@ export function ShsEClassRecord() {
 
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
         const wwWS = wwPS * (currentWeights.written_works || 0);
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
         const ptWS = ptPS * (currentWeights.performance_tasks || 0);
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
@@ -807,7 +818,7 @@ export function ShsEClassRecord() {
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
-        const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -981,12 +992,23 @@ export function ShsEClassRecord() {
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
 
+        const secId = selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || selectedSection;
+        const secName = selectedSectionObj?.section_name || selectedSection;
+        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
+
         const stateHpsRecords = useAppStore.getState().hpsRecords;
         const existingRecord = stateHpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === (quarter as number) &&
-            r.section_id === selectedSection
+            (
+                r.section_id === secId ||
+                r.section_id === secName ||
+                r.section_id === fullSecName ||
+                r.section_id === selectedSection ||
+                (secId && r.id.includes(secId)) ||
+                (secName && r.id.includes(secName))
+            )
         );
 
         const legacyRecord = !existingRecord ? stateHpsRecords.find(r =>
@@ -996,15 +1018,15 @@ export function ShsEClassRecord() {
             !r.section_id
         ) : null;
 
-        const newRecord: HPSRecord = existingRecord ? { ...existingRecord } : {
-            id: `hps_${effectiveSubjectId}_${selectedSection}_Q${quarter}_${activeSchoolYear}`,
+        const newRecord: HPSRecord = existingRecord ? { ...existingRecord, section_id: secId } : {
+            id: `hps_${effectiveSubjectId}_${secId}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: legacyRecord ? [...legacyRecord.written_works] : Array(WW_COUNT).fill(''),
             performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(PT_COUNT).fill(''),
             quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
-            section_id: selectedSection
+            section_id: secId
         };
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
@@ -1033,7 +1055,76 @@ export function ShsEClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
+
+        // Recalculate and update final_grade for all section students with scores to prevent stale calculations
+        const stateClassRecords = useAppStore.getState().classRecords;
+        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
+        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+        const currentHpsQa = normalizeScores(currentQa, ST_COUNT).map(v => Number(v) || 0);
+
+        const hpsWwTotal = currentHpsWw.reduce((a, b) => a + b, 0);
+        const hpsPtTotal = currentHpsPt.reduce((a, b) => a + b, 0);
+
+        sectionStudents.forEach(st => {
+            const cr = stateClassRecords.find(r =>
+                r.student_lrn === st.lrn &&
+                r.subject_id === effectiveSubjectId &&
+                Number(r.quarter) === Number(quarter)
+            );
+            if (!cr) return;
+
+            const sWw = normalizeScores(cr.written_works, WW_COUNT);
+            const sPt = normalizeScores(cr.performance_tasks, PT_COUNT);
+            const sQa = normalizeScores((cr as any).summative_tests, ST_COUNT);
+            if (!sQa[2] && cr.quarterly_exam !== '') sQa[2] = cr.quarterly_exam;
+
+            const isValid = (v: any) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
+            const hasScores = sWw.some(isValid) || sPt.some(isValid) || sQa.some(isValid);
+            if (!hasScores) return;
+
+            const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+            const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+
+            const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
+            const wwWS = wwPS * currentWeights.written_works;
+
+            const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
+            const ptWS = ptPS * currentWeights.performance_tasks;
+
+            const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
+            const st1HPS = Number(currentHpsQa[0]) || 0;
+            const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
+            const st2HPS = Number(currentHpsQa[1]) || 0;
+            const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
+            const teHPS = Number(currentHpsQa[2]) || 0;
+
+            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+            const qaWS = qaPS * currentWeights.quarterly_exam;
+
+            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            const newFinalGrade = transmuteGrade(initialGrade, cr.school_year || activeSchoolYear);
+
+            const updatedCr: ClassRecord = {
+                ...cr,
+                final_grade: newFinalGrade
+            };
+            updateClassRecord(updatedCr);
+
+            const { updateGradingSheetRecord } = useAppStore.getState();
+            updateGradingSheetRecord({
+                id: `${cr.student_lrn}_${cr.subject_id}_${cr.quarter}_${cr.school_year}`,
+                student_lrn: cr.student_lrn,
+                subject_id: cr.subject_id,
+                section_id: cr.section_id,
+                quarter: cr.quarter as 1|2|3,
+                school_year: cr.school_year,
+                final_grade: newFinalGrade,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0
+            });
+        });
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1097,14 +1188,14 @@ export function ShsEClassRecord() {
         const normalizedWW = normalizeScores(record.written_works, WW_COUNT);
         const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
 
-        const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + Number(b), 0);
+        const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
         const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
         const wwWS = wwPS * currentWeights.written_works;
 
-        const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + Number(b), 0);
+        const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
         const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
         const ptWS = ptPS * currentWeights.performance_tasks;
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
         const st1HPS = Number(hps.qa[0]) || 0;
@@ -1116,7 +1207,7 @@ export function ShsEClassRecord() {
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
-        const initialGrade = wwWS + ptWS + qaWS;
+        const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -1362,7 +1453,15 @@ export function ShsEClassRecord() {
                             className="form-input h-8 py-1 px-2 text-[11px] rounded-xl"
                             disabled={!selectedSection}
                         >
-                            <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
+                            <option value="">
+                                {selectedSection 
+                                    ? (filteredSubjects.length === 0 
+                                        ? (selectedSectionObj?.is_advisory && !selectedSectionObj?.is_teaching_load 
+                                            ? 'Advisory Class (No Teaching Load configured)' 
+                                            : 'No teaching load configured for this section') 
+                                        : 'Select Subject') 
+                                    : 'Select a section first'}
+                            </option>
                             {groupedSubjects ? (
                                 Object.entries(groupedSubjects).map(([category, items]) => {
                                     if (items.length === 0) return null;

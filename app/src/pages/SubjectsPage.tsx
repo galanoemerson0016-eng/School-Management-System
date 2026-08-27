@@ -796,6 +796,8 @@ export function SubjectsPage() {
         return userMatch || advisorySections[0];
     }, [advisorySections, selectedAdvisorySectionId, selectedGrade, user]);
 
+    const isGrade11 = Boolean(selectedGrade?.includes('11'));
+
     // Automatically initialize Grade 11 advisory section with Core Subjects if empty
     useEffect(() => {
         if (viewMode === 'subjects' && selectedGrade?.includes('11') && activeAdvisorySection && activeAdvisorySection.is_advisory) {
@@ -1646,123 +1648,125 @@ export function SubjectsPage() {
                         animate={{ opacity: 1, x: 0 }}
                         className="space-y-4"
                     >
-                        {/* Advisory Curriculum Management Toolbar Banner */}
-                        <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 border border-indigo-500/20 shadow-md relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                            <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
-                                        <Shield className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-sm font-black uppercase tracking-wider text-white">
-                                                Advisory Class Curriculum Scope
-                                            </h3>
-                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
-                                                Basis for SF9 • SF10 • Summary of Grades
-                                            </span>
+                        {/* Advisory Curriculum Management Toolbar Banner (SHS Grade 11 DO 017 Cluster System Only) */}
+                        {isGrade11 && (
+                            <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 border border-indigo-500/20 shadow-md relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                                <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
+                                            <Shield className="w-5 h-5" />
                                         </div>
-                                        <p className="text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
-                                            Subjects toggled as <span className="text-emerald-300 font-bold">In Advisory List</span> form the official grading summary, SF9 report card, SF10, and temporary grade slips for your advisory section. Electives opened for other classes will stay excluded unless assigned.
-                                        </p>
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                                                    Grade 11 Advisory Curriculum Scope
+                                                </h3>
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                                                    DepEd Order No. 017, s. 2026 • SF9 & SF10
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
+                                                Select the specific cluster electives and core subjects for this Grade 11 advisory section. Unassigned track electives will remain excluded from SF9 and SF10.
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Section Selector & Quick Batch Actions */}
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {advisorySections.length > 0 ? (
-                                        <>
-                                            {advisorySections.length > 1 ? (
-                                                <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
-                                                    <span className="text-[10px] font-bold text-slate-300 uppercase">Advisory:</span>
-                                                    <select
-                                                        value={activeAdvisorySection?.id || ''}
-                                                        onChange={(e) => setSelectedAdvisorySectionId(e.target.value)}
-                                                        className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
-                                                    >
-                                                        {advisorySections.map(sec => (
-                                                            <option key={sec.id} value={sec.id} className="bg-slate-900 text-white">
-                                                                {sec.section_name} {sec.adviser_name ? `(${sec.adviser_name})` : ''}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            ) : activeAdvisorySection ? (
-                                                <div className="px-3 py-1.5 bg-white/10 rounded-xl border border-white/10 text-xs font-bold text-white flex items-center gap-1.5">
-                                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span>{activeAdvisorySection.section_name}</span>
-                                                    {activeAdvisorySection.adviser_name && (
-                                                        <span className="text-[10px] text-slate-300">({activeAdvisorySection.adviser_name})</span>
-                                                    )}
-                                                </div>
-                                            ) : null}
-                                            
-                                            {canEdit && activeAdvisorySection && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleAssignAllCoreToAdvisory}
-                                                        title="Assign all standard Core subjects to this advisory section"
-                                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-400/40 active:scale-95 cursor-pointer shadow-xs"
-                                                    >
-                                                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                                                        <span>Assign Core</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleAssignAllOfferedToAdvisory}
-                                                        title="Assign all currently offered subjects in this grade to advisory"
-                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-white/10"
-                                                    >
-                                                        <span>Assign All</span>
-                                                    </button>
-                                                    {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
+                                    {/* Section Selector & Quick Batch Actions */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {advisorySections.length > 0 ? (
+                                            <>
+                                                {advisorySections.length > 1 ? (
+                                                    <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
+                                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Advisory:</span>
+                                                        <select
+                                                            value={activeAdvisorySection?.id || ''}
+                                                            onChange={(e) => setSelectedAdvisorySectionId(e.target.value)}
+                                                            className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
+                                                        >
+                                                            {advisorySections.map(sec => (
+                                                                <option key={sec.id} value={sec.id} className="bg-slate-900 text-white">
+                                                                    {sec.section_name} {sec.adviser_name ? `(${sec.adviser_name})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : activeAdvisorySection ? (
+                                                    <div className="px-3 py-1.5 bg-white/10 rounded-xl border border-white/10 text-xs font-bold text-white flex items-center gap-1.5">
+                                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span>{activeAdvisorySection.section_name}</span>
+                                                        {activeAdvisorySection.adviser_name && (
+                                                            <span className="text-[10px] text-slate-300">({activeAdvisorySection.adviser_name})</span>
+                                                        )}
+                                                    </div>
+                                                ) : null}
+                                                
+                                                {canEdit && activeAdvisorySection && (
+                                                    <div className="flex items-center gap-1.5">
                                                         <button
                                                             type="button"
-                                                            onClick={handleClearAdvisoryCurriculum}
-                                                            title="Clear all assigned advisory subjects"
-                                                            className="p-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-rose-500/30"
+                                                            onClick={handleAssignAllCoreToAdvisory}
+                                                            title="Assign all standard Grade 11 Core subjects to this advisory section"
+                                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-400/40 active:scale-95 cursor-pointer shadow-xs"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                                            <span>Assign Core</span>
                                                         </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <div className="text-xs text-amber-300 flex items-center gap-1.5 bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-500/30">
-                                            <ShieldAlert className="w-4 h-4" />
-                                            <span>No advisory class found for {selectedGrade}.</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {activeAdvisorySection && (
-                                <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-slate-400">Advisory Status:</span>
-                                        {(activeAdvisorySection.taught_subjects?.length || 0) > 0 ? (
-                                            <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
-                                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                                {activeAdvisorySection.taught_subjects?.length} subjects explicitly assigned to {activeAdvisorySection.section_name}
-                                            </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAssignAllOfferedToAdvisory}
+                                                            title="Assign all currently offered Grade 11 subjects to advisory"
+                                                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-white/10"
+                                                        >
+                                                            <span>Assign All</span>
+                                                        </button>
+                                                        {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleClearAdvisoryCurriculum}
+                                                                title="Clear all assigned advisory subjects"
+                                                                className="p-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-rose-500/30"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : (
-                                            <span className="inline-flex items-center gap-1 text-amber-300 font-medium">
-                                                <ShieldAlert className="w-3.5 h-3.5" />
-                                                No explicit subjects assigned yet. Click "Assign to Advisory" on subjects below.
+                                            <div className="text-xs text-amber-300 flex items-center gap-1.5 bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-500/30">
+                                                <ShieldAlert className="w-4 h-4" />
+                                                <span>No advisory class found for {selectedGrade}.</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {activeAdvisorySection && (
+                                    <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-slate-400">Advisory Status:</span>
+                                            {(activeAdvisorySection.taught_subjects?.length || 0) > 0 ? (
+                                                <span className="inline-flex items-center gap-1 text-emerald-400 font-bold">
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                    {activeAdvisorySection.taught_subjects?.length} subjects explicitly assigned to {activeAdvisorySection.section_name}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-amber-300 font-medium">
+                                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                                    No explicit subjects assigned yet. Click "Assign to Advisory" on subjects below.
+                                                </span>
+                                            )}
+                                        </div>
+                                        {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
+                                            <span className="text-[11px] text-slate-400">
+                                                Only these {activeAdvisorySection.taught_subjects?.length} subjects will appear in SF9, SF10, & Summary of Grades.
                                             </span>
                                         )}
                                     </div>
-                                    {(activeAdvisorySection.taught_subjects?.length || 0) > 0 && (
-                                        <span className="text-[11px] text-slate-400">
-                                            Only these {activeAdvisorySection.taught_subjects?.length} subjects will appear in SF9, SF10, & Summary of Grades.
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Subjects Table Container */}
                         <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-xs overflow-hidden">
@@ -1811,7 +1815,7 @@ export function SubjectsPage() {
                                                 {canEdit && <th className="px-6 py-4 w-16 text-center">Pos</th>}
                                                 <th className="px-6 py-4">Subject Info</th>
                                                 <th className="px-6 py-4">Term Offered</th>
-                                                <th className="px-6 py-4">Advisory Class (SF9/SF10)</th>
+                                                {isGrade11 && <th className="px-6 py-4">Advisory Class (SF9/SF10)</th>}
                                                 {canEdit && <th className="px-6 py-4 text-right">Actions</th>}
                                             </tr>
                                         </thead>
@@ -1826,7 +1830,7 @@ export function SubjectsPage() {
                                                                 onClick={() => toggleCategory(category)}
                                                                 className="bg-slate-50/50 dark:bg-white/5 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/10 transition-colors select-none"
                                                             >
-                                                                <td colSpan={canEdit ? 5 : 4} className="px-6 py-4 border-y border-slate-100 dark:border-white/10">
+                                                                <td colSpan={canEdit ? (isGrade11 ? 5 : 4) : (isGrade11 ? 4 : 3)} className="px-6 py-4 border-y border-slate-100 dark:border-white/10">
                                                                     <div className="flex items-center justify-between">
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
@@ -1938,51 +1942,53 @@ export function SubjectsPage() {
                                                                         </span>
                                                                     </td>
 
-                                                                    {/* Advisory Curriculum Assignment Column */}
-                                                                    <td className="px-6 py-6">
-                                                                        {activeAdvisorySection ? (
-                                                                            <div className="flex items-center gap-2">
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleToggleAdvisorySubject(subject)}
-                                                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                                                                                        isInAdvisory
-                                                                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
-                                                                                            : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                                                                                    }`}
-                                                                                    title={
-                                                                                        isInAdvisory
-                                                                                            ? `Assigned to ${activeAdvisorySection.section_name}. Basis for SF9, SF10, Summary of Grades, & Grade Slip. Click to remove.`
-                                                                                            : `Not in ${activeAdvisorySection.section_name}. Click to assign to Advisory Class for SF9, SF10, & Summary of Grades.`
-                                                                                    }
-                                                                                >
-                                                                                    {isInAdvisory ? (
-                                                                                        <>
-                                                                                            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                                                                            <span>In Advisory List</span>
-                                                                                        </>
-                                                                                    ) : (
-                                                                                        <>
-                                                                                            <Shield className="w-4 h-4 text-slate-400" />
-                                                                                            <span>+ Assign to Advisory</span>
-                                                                                        </>
-                                                                                    )}
-                                                                                </button>
-                                                                                {gradeSections.length > 1 && (
+                                                                    {/* Advisory Curriculum Assignment Column (SHS Grade 11 Only) */}
+                                                                    {isGrade11 && (
+                                                                        <td className="px-6 py-6">
+                                                                            {activeAdvisorySection ? (
+                                                                                <div className="flex items-center gap-2">
                                                                                     <button
                                                                                         type="button"
-                                                                                        onClick={() => setSectionAssignmentSubject(subject)}
-                                                                                        title={`Manage section assignments for ${subject.subject_name}`}
-                                                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                                                                        onClick={() => handleToggleAdvisorySubject(subject)}
+                                                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                                                                                            isInAdvisory
+                                                                                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                                                                                                : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                                                                                        }`}
+                                                                                        title={
+                                                                                            isInAdvisory
+                                                                                                ? `Assigned to ${activeAdvisorySection.section_name}. Basis for SF9, SF10, Summary of Grades, & Grade Slip. Click to remove.`
+                                                                                                : `Not in ${activeAdvisorySection.section_name}. Click to assign to Advisory Class for SF9, SF10, & Summary of Grades.`
+                                                                                        }
                                                                                     >
-                                                                                        <Layers className="w-4 h-4" />
+                                                                                        {isInAdvisory ? (
+                                                                                            <>
+                                                                                                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                                                                <span>In Advisory List</span>
+                                                                                            </>
+                                                                                        ) : (
+                                                                                            <>
+                                                                                                <Shield className="w-4 h-4 text-slate-400" />
+                                                                                                <span>+ Assign to Advisory</span>
+                                                                                            </>
+                                                                                        )}
                                                                                     </button>
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="text-[11px] text-slate-400 italic">No advisory section</span>
-                                                                        )}
-                                                                    </td>
+                                                                                    {gradeSections.length > 1 && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => setSectionAssignmentSubject(subject)}
+                                                                                            title={`Manage section assignments for ${subject.subject_name}`}
+                                                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                                                                        >
+                                                                                            <Layers className="w-4 h-4" />
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-[11px] text-slate-400 italic">No advisory section</span>
+                                                                            )}
+                                                                        </td>
+                                                                    )}
 
                                                                     {canEdit && (
                                                                         <td className="px-6 py-6 text-right">

@@ -128,7 +128,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(allSf10SubjectTitles).not.toContain('Shielded Metal Arc Welding (SMAW)');
     });
 
-    it('filterSubjectsForSection strictly honors taught_subjects for class records', () => {
+    it('filterSubjectsForSection strictly honors teaching_subjects for E-Class Record', () => {
         const mockUser: User = {
             uid: 'user-1',
             email: 'teacher@school.gov.ph',
@@ -136,7 +136,13 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
             role: 'teacher'
         };
 
-        const filtered = filterSubjectsForSection(mockUser, mockAdvisorySection, mockAllGradeSubjects);
+        const mockTeachingSection: Section = {
+            ...mockAdvisorySection,
+            is_teaching_load: true,
+            teaching_subjects: ['General Mathematics', 'General Science']
+        };
+
+        const filtered = filterSubjectsForSection(mockUser, mockTeachingSection, mockAllGradeSubjects);
         const filteredNames = filtered.map(s => s.subject_name);
 
         expect(filteredNames).toContain('General Mathematics');
@@ -269,6 +275,67 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         const sf10Names = g11Subjects.map(s => s.subjectName);
         expect(sf10Names).not.toContain('Biology 1');
         expect(sf10Names).not.toContain('Business 1 (Basic Accounting)');
+    });
+
+    it('returns only teaching_subjects in E-Class Record when teacher is adviser and teaches a single subject', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher'
+        };
+
+        const sectionWithSingleTeachingLoad: Section = {
+            ...mockAdvisorySection,
+            is_advisory: true,
+            is_teaching_load: true,
+            taught_subjects: [
+                'General Mathematics',
+                'General Science',
+                'Effective Communication / Komunikasyon',
+                'Pag-aaral ng Kasaysayan at Lipunang Pilipino'
+            ],
+            teaching_subjects: ['General Mathematics']
+        };
+
+        // In E-Class Record: filterSubjectsForSection should ONLY return General Mathematics
+        const filtered = filterSubjectsForSection(mockUser, sectionWithSingleTeachingLoad, mockAllGradeSubjects);
+        const filteredNames = filtered.map(s => s.subject_name);
+        expect(filteredNames).toEqual(['General Mathematics']);
+
+        // In SF9: all 4 advisory curriculum subjects must still be present
+        const sf9 = mapStudentToShsSf9Data({
+            student: mockStudent,
+            profile: mockProfile,
+            schoolYear: '2026-2027',
+            sectionObj: sectionWithSingleTeachingLoad,
+            subjects: mockAllGradeSubjects,
+            gradingSheetRecords: []
+        });
+        const sf9Names = sf9.subjectGrades.map(s => s.subjectName);
+        expect(sf9Names).toContain('General Mathematics');
+        expect(sf9Names).toContain('General Science');
+        expect(sf9Names).toContain('Effective Communication / Komunikasyon');
+        expect(sf9Names).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino');
+    });
+
+    it('returns empty teaching list for E-Class Record when section is pure advisory without teaching load', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher'
+        };
+
+        const pureAdvisorySection: Section = {
+            ...mockAdvisorySection,
+            is_advisory: true,
+            is_teaching_load: false,
+            teaching_subjects: []
+        };
+
+        const filtered = filterSubjectsForSection(mockUser, pureAdvisorySection, mockAllGradeSubjects);
+        expect(filtered).toHaveLength(0);
     });
 });
 

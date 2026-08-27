@@ -2,11 +2,12 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
+import { exportECRToExcel, exportECRBatchToZip, isGrade2To10 } from '../services/ecr-excel-export';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -468,6 +469,8 @@ export function EClassRecord() {
     const [isDownloading, setIsDownloading] = useState(false);
     const [paperSize, setPaperSize] = useState<PaperSize>('folio');
     const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
 
 
     const formatStudentFullName = useCallback((student: typeof students[number]) => {
@@ -496,6 +499,7 @@ export function EClassRecord() {
     const setCurrentView = useAppStore((s) => s.setCurrentView);
     const sectionGradeLevel = selectedSectionObj?.section_grade_level || '';
     const isGrade1Section = isGrade1(sectionGradeLevel);
+    const isG2ToG10Section = useMemo(() => isGrade2To10(sectionGradeLevel), [sectionGradeLevel]);
     const selectedSubjectObj = useMemo(() => {
         return subjects.find(s => s.id === selectedSubject);
     }, [subjects, selectedSubject]);
@@ -699,11 +703,22 @@ export function EClassRecord() {
             return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
+        const secId = selectedSectionObj?.id || selectedSection;
+        const secName = selectedSectionObj?.section_name || selectedSection;
+        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
+
         const record = hpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
-            r.section_id === selectedSection
+            (
+                r.section_id === secId ||
+                r.section_id === secName ||
+                r.section_id === fullSecName ||
+                r.section_id === selectedSection ||
+                (secId && r.id.includes(secId)) ||
+                (secName && r.id.includes(secName))
+            )
         ) || hpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
@@ -728,7 +743,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj]);
 
 
     // Get current subject and its weight cluster
@@ -853,12 +868,12 @@ export function EClassRecord() {
 
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
         const wwWS = wwPS * (currentWeights.written_works || 0);
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
         const ptWS = ptPS * (currentWeights.performance_tasks || 0);
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
@@ -886,7 +901,7 @@ export function EClassRecord() {
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
-        const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -1131,12 +1146,23 @@ export function EClassRecord() {
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
 
+        const secId = selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || selectedSection;
+        const secName = selectedSectionObj?.section_name || selectedSection;
+        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
+
         const stateHpsRecords = useAppStore.getState().hpsRecords;
         const existingRecord = stateHpsRecords.find(r =>
             r.subject_id === effectiveSubjectId &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === (quarter as number) &&
-            r.section_id === selectedSection
+            (
+                r.section_id === secId ||
+                r.section_id === secName ||
+                r.section_id === fullSecName ||
+                r.section_id === selectedSection ||
+                (secId && r.id.includes(secId)) ||
+                (secName && r.id.includes(secName))
+            )
         );
 
         const legacyRecord = !existingRecord ? stateHpsRecords.find(r =>
@@ -1146,15 +1172,15 @@ export function EClassRecord() {
             !r.section_id
         ) : null;
 
-        const newRecord: HPSRecord = existingRecord ? { ...existingRecord } : {
-            id: `hps_${effectiveSubjectId}_${selectedSection}_Q${quarter}_${activeSchoolYear}`,
+        const newRecord: HPSRecord = existingRecord ? { ...existingRecord, section_id: secId } : {
+            id: `hps_${effectiveSubjectId}_${secId}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: legacyRecord ? [...legacyRecord.written_works] : Array(WW_COUNT).fill(''),
             performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(PT_COUNT).fill(''),
             quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
-            section_id: selectedSection
+            section_id: secId
         };
 
         const hpsWithSummative = newRecord as HPSRecord & { summative_tests?: (number | string)[] };
@@ -1183,7 +1209,76 @@ export function EClassRecord() {
         }
 
         updateHPSRecord(newRecord);
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, updateHPSRecord]);
+
+        // Recalculate and update final_grade for all section students with scores to prevent stale calculations
+        const stateClassRecords = useAppStore.getState().classRecords;
+        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
+        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+        const currentHpsQa = normalizeScores(currentQa, ST_COUNT).map(v => Number(v) || 0);
+
+        const hpsWwTotal = currentHpsWw.reduce((a, b) => a + b, 0);
+        const hpsPtTotal = currentHpsPt.reduce((a, b) => a + b, 0);
+
+        sectionStudents.forEach(st => {
+            const cr = stateClassRecords.find(r =>
+                r.student_lrn === st.lrn &&
+                r.subject_id === effectiveSubjectId &&
+                Number(r.quarter) === Number(quarter)
+            );
+            if (!cr) return;
+
+            const sWw = normalizeScores(cr.written_works, WW_COUNT);
+            const sPt = normalizeScores(cr.performance_tasks, PT_COUNT);
+            const sQa = normalizeScores((cr as any).summative_tests, ST_COUNT);
+            if (!sQa[2] && cr.quarterly_exam !== '') sQa[2] = cr.quarterly_exam;
+
+            const isValid = (v: any) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
+            const hasScores = sWw.some(isValid) || sPt.some(isValid) || sQa.some(isValid);
+            if (!hasScores) return;
+
+            const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+            const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+
+            const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
+            const wwWS = wwPS * currentWeights.written_works;
+
+            const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
+            const ptWS = ptPS * currentWeights.performance_tasks;
+
+            const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
+            const st1HPS = Number(currentHpsQa[0]) || 0;
+            const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
+            const st2HPS = Number(currentHpsQa[1]) || 0;
+            const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
+            const teHPS = Number(currentHpsQa[2]) || 0;
+
+            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+            const qaWS = qaPS * currentWeights.quarterly_exam;
+
+            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            const newFinalGrade = transmuteGrade(initialGrade, cr.school_year || activeSchoolYear);
+
+            const updatedCr: ClassRecord = {
+                ...cr,
+                final_grade: newFinalGrade
+            };
+            updateClassRecord(updatedCr);
+
+            const { updateGradingSheetRecord } = useAppStore.getState();
+            updateGradingSheetRecord({
+                id: `${cr.student_lrn}_${cr.subject_id}_${cr.quarter}_${cr.school_year}`,
+                student_lrn: cr.student_lrn,
+                subject_id: cr.subject_id,
+                section_id: cr.section_id,
+                quarter: cr.quarter as 1|2|3,
+                school_year: cr.school_year,
+                final_grade: newFinalGrade,
+                written_works: [],
+                performance_tasks: [],
+                quarterly_exam: 0
+            });
+        });
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1248,14 +1343,14 @@ export function EClassRecord() {
         const normalizedWW = normalizeScores(record.written_works, WW_COUNT);
         const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
 
-        const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + Number(b), 0);
-        const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
+        const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
         const wwWS = wwPS * currentWeights.written_works;
 
-        const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + Number(b), 0);
-        const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
+        const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
         const ptWS = ptPS * currentWeights.performance_tasks;
 
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
@@ -1268,7 +1363,7 @@ export function EClassRecord() {
         const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = qaPS * currentWeights.quarterly_exam;
 
-        const initialGrade = wwWS + ptWS + qaWS;
+        const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -1450,6 +1545,109 @@ export function EClassRecord() {
         }
     };
 
+    const handleExportExcel = async (exportAll: boolean = false) => {
+        if (!selectedSectionObj || sectionStudents.length === 0) {
+            showNotification('Please select a section with enrolled students first.', 'error');
+            return;
+        }
+
+        if (!isG2ToG10Section) {
+            showNotification('Official 3-Term E-Class Record export is only available for Grades 2 to 10.', 'info');
+            return;
+        }
+
+        setIsExportingExcel(true);
+        setShowExportMenu(false);
+
+        try {
+            if (exportAll) {
+                // Collect subjects taught in this section
+                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
+                
+                // Expand composite MAPEH into its official components if needed
+                const targetSubjects: Subject[] = [];
+                for (const sub of sectionSubjects) {
+                    if (sub.subject_name.toUpperCase() === 'MAPEH' && mapehComponents.length > 0) {
+                        targetSubjects.push(...mapehComponents);
+                    } else {
+                        targetSubjects.push(sub);
+                    }
+                }
+
+                // Deduplicate by normalized name
+                const uniqueSubjects = targetSubjects.filter((s, idx, self) => 
+                    idx === self.findIndex(t => t.id === s.id || t.subject_name.trim().toLowerCase() === s.subject_name.trim().toLowerCase())
+                );
+
+                if (uniqueSubjects.length === 0) {
+                    showNotification('No subjects found for this section.', 'error');
+                    return;
+                }
+
+                const batchOptions = uniqueSubjects.map(sub => ({
+                    schoolProfile,
+                    schoolYear: activeSchoolYear,
+                    section: selectedSectionObj,
+                    subject: sub,
+                    teacherName: teacherName || selectedSectionObj.adviser_name,
+                    students,
+                    classRecords,
+                    hpsRecords
+                }));
+
+                const cleanGrade = (selectedSectionObj.section_grade_level || 'Grade').replace(/[^a-zA-Z0-9]/g, '_');
+                const cleanSection = (selectedSectionObj.section_name || 'Section').replace(/[^a-zA-Z0-9]/g, '_');
+                const cleanSY = (activeSchoolYear || '').replace(/[^a-zA-Z0-9-]/g, '_');
+                const zipName = `ECR_BATCH_${cleanGrade}_${cleanSection}_${cleanSY}.zip`;
+
+                await exportECRBatchToZip(batchOptions, zipName);
+                showNotification(`Successfully exported ${uniqueSubjects.length} E-Class Record(s) to ${zipName}!`, 'success');
+            } else {
+                // Export single subject
+                let targetSubjectObj = subjects.find(s => s.id === effectiveSubjectId) || selectedSubjectObj;
+
+                // Robust fallback for composite MAPEH
+                if (!targetSubjectObj && selectedSubject === 'virtual_mapeh') {
+                    if (selectedMapehComponentId) {
+                        targetSubjectObj = subjects.find(s => s.id === selectedMapehComponentId) || mapehComponents.find(c => c.id === selectedMapehComponentId);
+                    }
+                    if (!targetSubjectObj && mapehComponents.length > 0) {
+                        targetSubjectObj = mapehComponents[0];
+                    }
+                    if (!targetSubjectObj) {
+                        targetSubjectObj = { id: 'virtual_mapeh', subject_name: 'Music and Arts' } as Subject;
+                    }
+                } else if (!targetSubjectObj && selectedSubject) {
+                    targetSubjectObj = { id: selectedSubject, subject_name: selectedSubject } as Subject;
+                }
+
+                if (!targetSubjectObj) {
+                    showNotification('Please select a subject to export.', 'error');
+                    return;
+                }
+
+                await exportECRToExcel({
+                    schoolProfile,
+                    schoolYear: activeSchoolYear,
+                    section: selectedSectionObj,
+                    subject: targetSubjectObj,
+                    teacherName: teacherName || selectedSectionObj.adviser_name || schoolProfile?.adviser_name,
+                    students,
+                    classRecords,
+                    hpsRecords
+                });
+
+                showNotification(`Official DepEd E-Class Record exported for ${targetSubjectObj.subject_name}!`, 'success');
+            }
+        } catch (err) {
+            console.error('Failed to export ECR to Excel:', err);
+            const msg = err instanceof Error ? err.message : 'Failed to export E-Class Record. Please try again.';
+            showNotification(msg, 'error');
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
     const proficiencyData = proficiencyDataCalc;
     
     return (
@@ -1518,7 +1716,15 @@ export function EClassRecord() {
                             className="form-input h-8 py-1 px-2 text-[11px] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale"
                             disabled={isGrade1Section || !selectedSection}
                         >
-                            <option value="">{selectedSection ? 'Select Subject' : 'Select a section first'}</option>
+                            <option value="">
+                                {selectedSection 
+                                    ? (filteredSubjects.length === 0 
+                                        ? (selectedSectionObj?.is_advisory && !selectedSectionObj?.is_teaching_load 
+                                            ? 'Advisory Class (No Teaching Load configured)' 
+                                            : 'No teaching load configured for this section') 
+                                        : 'Select Subject') 
+                                    : 'Select a section first'}
+                            </option>
                             {groupedSubjects ? (
                                 Object.entries(groupedSubjects).map(([category, items]) => {
                                     if (items.length === 0) return null;
@@ -1642,7 +1848,7 @@ export function EClassRecord() {
                         <button 
                             onClick={handleDownload}
                             disabled={isGrade1Section || isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
+                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
                         >
                             {isDownloading ? (
                                 <>
@@ -1653,9 +1859,83 @@ export function EClassRecord() {
                                     Downloading…
                                 </>
                             ) : (
-                                <><Download className="w-3.5 h-3.5" /> Download</>  
+                                <><Download className="w-3.5 h-3.5" /> PDF</>  
                             )}
                         </button>
+
+                        {/* Official DepEd E-Class Record Excel Exporter (Grades 2-10 only) */}
+                        {isG2ToG10Section && (
+                            <div className="relative inline-block text-left shrink-0">
+                                <div className="inline-flex rounded-xl shadow-lg shadow-emerald-500/20">
+                                    <button
+                                        onClick={() => handleExportExcel(false)}
+                                        disabled={isExportingExcel || !selectedSubject || sectionStudents.length === 0}
+                                        className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-l-xl transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
+                                        title="Export Official DepEd E-Class Record (.xlsx)"
+                                    >
+                                        {isExportingExcel ? (
+                                            <>
+                                                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                                </svg>
+                                                Exporting…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                                <span>Excel</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowExportMenu(prev => !prev)}
+                                        disabled={isExportingExcel || !selectedSection || sectionStudents.length === 0}
+                                        className="h-8 px-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-xl border-l border-emerald-500/40 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale cursor-pointer"
+                                        title="More Excel Export Options"
+                                    >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+
+                                {showExportMenu && (
+                                    <>
+                                        <div 
+                                            className="fixed inset-0 z-40" 
+                                            onClick={() => setShowExportMenu(false)} 
+                                        />
+                                        <div className="absolute right-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200/80 dark:border-slate-800 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                            <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/80">
+                                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                    Official DepEd 3-Term ECR (Grades 2–10)
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleExportExcel(false)}
+                                                disabled={!selectedSubject}
+                                                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-400 flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                <div>
+                                                    <div className="font-bold">Current Subject (.xlsx)</div>
+                                                    <div className="text-[10px] text-slate-500 font-normal">All 3 terms for {selectedSubjectObj?.subject_name || 'selected subject'}</div>
+                                                </div>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportExcel(true)}
+                                                className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-400 flex items-center gap-2 transition-colors cursor-pointer"
+                                            >
+                                                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                <div>
+                                                    <div className="font-bold">All Section Subjects (.zip)</div>
+                                                    <div className="text-[10px] text-slate-500 font-normal">Export complete ECRs for all subjects</div>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                         <button 
                             onClick={async () => {
                                 if (!selectedSubjectObj || !sectionStudents.length || quarter === 'summary') return;
