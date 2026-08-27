@@ -568,38 +568,45 @@ function computeStudentGrades(
     // Determine candidate subjects for this section/grade
     let candidates = subjects.filter(s => {
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-        return (s.section_id === sectionObj.id || (!s.section_id && subjectGradeNum === gradeLevelNum)) && s.term !== 'none';
+        const isMatchingGrade = subjectGradeNum === gradeLevelNum;
+        const isMatchingSection = s.section_id === sectionObj.id;
+        return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
     });
 
-    const sectionSpecific = candidates.filter(s => s.section_id === sectionObj.id);
-    if (sectionSpecific.length > 0) {
-        candidates = sectionSpecific;
+    if (isSHS) {
+        if (taughtSet.size > 0) {
+            candidates = candidates.filter(s => {
+                const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+                if (unitInfo.category === 'core') return true;
+                const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (taughtSet.has(sNorm)) return true;
+                for (const t of taughtSet) {
+                    if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+                }
+                return false;
+            });
+        } else if (sectionTrack) {
+            candidates = candidates.filter(s => {
+                const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+                if (unitInfo.category === 'core') return true;
+                if (sectionTrack.includes('acad')) {
+                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                }
+                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                }
+                return true;
+            });
+        }
     }
 
-    if (taughtSet.size > 0) {
-        candidates = candidates.filter(s => {
-            const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (taughtSet.has(sNorm)) return true;
-            for (const t of taughtSet) {
-                if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
-            }
-            return false;
-        });
-    } else if (isSHS && sectionTrack) {
-        candidates = candidates.filter(s => {
-            const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-            if (unitInfo.category === 'core') return true;
-            if (sectionTrack.includes('acad')) {
-                return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
-            }
-            if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
-                return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
-            }
-            return true;
-        });
-    }
+    // Prioritize direct section subjects over generic ones, then deduplicate by normalized name
+    candidates.sort((a, b) => {
+        const aDirect = a.section_id === sectionObj.id ? 1 : 0;
+        const bDirect = b.section_id === sectionObj.id ? 1 : 0;
+        return bDirect - aDirect;
+    });
 
-    // Deduplicate DB subjects by normalized subject name
     const seenSubjectNames = new Set<string>();
     const uniqueDbSubjects: Subject[] = [];
     for (const sub of candidates) {

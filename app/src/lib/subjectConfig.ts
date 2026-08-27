@@ -88,8 +88,7 @@ const STANDARD_SUBJECTS = {
     { name: 'Technology and Livelihood Education (TLE)', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: 'Specialization', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade8: [
     { name: 'Filipino', code: '' },
@@ -101,8 +100,7 @@ const STANDARD_SUBJECTS = {
     { name: 'Technology and Livelihood Education (TLE)', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: 'Specialization', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade9: [
     { name: 'Filipino', code: '' },
@@ -114,8 +112,7 @@ const STANDARD_SUBJECTS = {
     { name: 'Technology and Livelihood Education (TLE)', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: 'Specialization', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade10: [
     { name: 'Filipino', code: '' },
@@ -127,8 +124,7 @@ const STANDARD_SUBJECTS = {
     { name: 'Technology and Livelihood Education (TLE)', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: 'Specialization', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade11: [
     { name: 'Effective Communication', code: '' },

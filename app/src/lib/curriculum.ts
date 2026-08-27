@@ -305,22 +305,18 @@ export const SPECIAL_SUBJECTS = {
     ],
     'Grade 7': [
         ...STANDARD_SUBJECTS['Grade 7'],
-        { name: 'Specialization', code: '' },
         { name: 'ICT', code: '' }
     ],
     'Grade 8': [
         ...STANDARD_SUBJECTS['Grade 8'],
-        { name: 'Specialization', code: '' },
         { name: 'ICT', code: '' }
     ],
     'Grade 9': [
         ...STANDARD_SUBJECTS['Grade 9'],
-        { name: 'Specialization', code: '' },
         { name: 'ICT', code: '' }
     ],
     'Grade 10': [
         ...STANDARD_SUBJECTS['Grade 10'],
-        { name: 'Specialization', code: '' },
         { name: 'ICT', code: '' }
     ],
     'Grade 11': [

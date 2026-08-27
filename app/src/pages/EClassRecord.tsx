@@ -196,7 +196,7 @@ interface DebouncedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEl
 function DebouncedInput({
     value: initialValue,
     onChange,
-    debounceMs = 2000,
+    debounceMs = 300,
     ...props
 }: DebouncedInputProps) {
     const [value, setValue] = useState(initialValue);
@@ -1320,7 +1320,7 @@ export function EClassRecord() {
             else if (type === 'pt') currentHPS = Number(hps.pt[index]);
             else if (type === 'qa') currentHPS = Number(hps.qa[index]);
 
-            if (parsedVal > currentHPS) {
+            if (currentHPS > 0 && parsedVal > currentHPS) {
                 showNotification(`Score (${parsedVal}) cannot be higher than the Highest Possible Score (${currentHPS}).`, 'error');
                 return;
             }

@@ -319,7 +319,7 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         expect(sf9Names).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino');
     });
 
-    it('returns empty teaching list for E-Class Record when section is pure advisory without teaching load', () => {
+    it('returns all active grade-level subjects for E-Class Record when section is advisory without restricted teaching load', () => {
         const mockUser: User = {
             uid: 'user-1',
             email: 'teacher@school.gov.ph',
@@ -335,7 +335,74 @@ describe('Advisory Subject Assignment for SF9, SF10 & Grade Management', () => {
         };
 
         const filtered = filterSubjectsForSection(mockUser, pureAdvisorySection, mockAllGradeSubjects);
+        const filteredNames = filtered.map(s => s.subject_name);
+        expect(filteredNames).toContain('General Mathematics');
+        expect(filteredNames).toContain('General Science');
+        expect(filteredNames).toContain('Effective Communication / Komunikasyon');
+        expect(filteredNames).toContain('Pag-aaral ng Kasaysayan at Lipunang Pilipino');
+    });
+
+    it('returns empty list for pure non-advisory teaching load section with 0 subjects selected', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher'
+        };
+
+        const pureTeachingSection: Section = {
+            ...mockAdvisorySection,
+            is_advisory: false,
+            is_teaching_load: true,
+            teaching_subjects: []
+        };
+
+        const filtered = filterSubjectsForSection(mockUser, pureTeachingSection, mockAllGradeSubjects);
         expect(filtered).toHaveLength(0);
+    });
+
+    it('preserves all Grade 7 subjects in E-Class Record and SF10 even if section had a single teaching load', () => {
+        const mockUser: User = {
+            uid: 'user-1',
+            email: 'teacher@school.gov.ph',
+            displayName: 'Teacher Emerson',
+            role: 'teacher'
+        };
+
+        const mockG7AdvisorySection: Section = {
+            id: 'sec-g7-matatag',
+            section_name: 'Grade 7 - Matatag',
+            section_grade_level: 'Grade 7',
+            is_advisory: true,
+            is_teaching_load: false,
+            adviser_name: 'Teacher Emerson',
+            taught_subjects: ['English'] // previous pollution
+        };
+
+        const mockG7Subjects: Subject[] = [
+            { id: 'g7-eng', subject_name: 'English', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-math', subject_name: 'Mathematics', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-sci', subject_name: 'Science', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-fil', subject_name: 'Filipino', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ap', subject_name: 'Araling Panlipunan', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ve', subject_name: 'Values Education', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-tle', subject_name: 'Technology and Livelihood Education', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-ma', subject_name: 'Music and Arts', grade_level: 'Grade 7', term: 'all' },
+            { id: 'g7-peh', subject_name: 'Physical Education and Health', grade_level: 'Grade 7', term: 'all' }
+        ];
+
+        // E-Class Record access for pure advisory class:
+        const filtered = filterSubjectsForSection(mockUser, mockG7AdvisorySection, mockG7Subjects);
+        const filteredNames = filtered.map(s => s.subject_name);
+        expect(filteredNames).toContain('English');
+        expect(filteredNames).toContain('Mathematics');
+        expect(filteredNames).toContain('Science');
+        expect(filteredNames).toContain('Filipino');
+        expect(filteredNames).toContain('Araling Panlipunan');
+        expect(filteredNames).toContain('Values Education');
+        expect(filteredNames).toContain('Technology and Livelihood Education');
+        expect(filteredNames).toContain('Music and Arts');
+        expect(filteredNames).toContain('Physical Education and Health');
     });
 });
 

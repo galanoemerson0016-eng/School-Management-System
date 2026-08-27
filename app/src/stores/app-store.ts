@@ -1444,7 +1444,6 @@ export async function initializeAppStore() {
           'MAPEH',
           'Music and Arts',
           'Physical Education and Health',
-          'Specialization',
           '*Arabic Language',
           '*Islamic Values Education',
         ];

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cloud, ShieldCheck, Clock, RefreshCw, HardDrive, X, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Cloud, ShieldCheck, Clock, RefreshCw, HardDrive, X, ArrowRight } from 'lucide-react';
 import { CloudSyncService } from '../../services/cloud-sync';
 
 interface GoogleDriveOnboardingModalProps {

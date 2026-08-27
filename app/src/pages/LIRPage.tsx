@@ -194,12 +194,12 @@ export function LIRPage() {
             );
 
             const hpsRec = hpsRecords.find(r => 
-                isMatch(r.subject_id, (r as any).subject_name) && 
+                isMatch(r.subject_id, (r as { subject_name?: string }).subject_name) && 
                 r.school_year === activeSchoolYear && 
                 Number(r.quarter) === term &&
                 (r.section_id === student.student_section || (selectedSectionObj?.id && r.section_id === selectedSectionObj.id))
             ) || hpsRecords.find(r => 
-                isMatch(r.subject_id, (r as any).subject_name) && 
+                isMatch(r.subject_id, (r as { subject_name?: string }).subject_name) && 
                 r.school_year === activeSchoolYear && 
                 Number(r.quarter) === term
             );
@@ -243,7 +243,7 @@ export function LIRPage() {
             };
         });
         return data;
-    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj?.section_grade_level, selectedSectionObj?.track, selectedSubject]);
+    }, [classRecords, gradingSheetRecords, hpsRecords, activeSchoolYear, selectedSectionObj, selectedSubject]);
 
     const attendanceData = useMemo(() => {
         return getAttendanceDataForStudent(selectedStudent);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
-import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, findElectiveInCatalog, GRADE_11_CORE_SUBJECTS, getClustersForGrade11Track, type GradeLevel } from '../../lib/curriculum';
+import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, findElectiveInCatalog, getClustersForGrade11Track, type GradeLevel } from '../../lib/curriculum';
 import { motion } from 'framer-motion';
 import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check } from 'lucide-react';
 
@@ -511,7 +511,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
             // Preserve existing advisory curriculum taught_subjects if present
             const existingTaughtSubjects = section?.taught_subjects || [];
             const finalTaughtSubjects = isAdvisory 
-                ? (existingTaughtSubjects.length > 0 ? existingTaughtSubjects : (isTeaching ? validTeachingSubjects : []))
+                ? existingTaughtSubjects
                 : validTeachingSubjects;
 
             const sectionData: Section = {

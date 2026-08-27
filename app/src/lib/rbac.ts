@@ -1,5 +1,4 @@
 import type { Section, Subject, User, UserRole } from '../types';
-import { getShsSubjectUnitInfo } from './curriculum';
 
 export type AppView =
     | 'dashboard'
@@ -170,18 +169,13 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
     
     // Exclude subjects marked as 'none' (Not Offered)
     const activeSubjects = subjects.filter(s => s.term !== 'none');
-    
-    // If the section is purely an Advisory class without a teaching load, the user does NOT teach subjects here in E-Class Record
-    if (section.is_advisory && !section.is_teaching_load) {
-        return [];
-    }
 
     // Determine the teacher's explicit teaching load subjects
     let teachingList: string[] = [];
     if (section.teaching_subjects !== undefined) {
         teachingList = section.teaching_subjects;
-    } else if (section.is_teaching_load && section.taught_subjects !== undefined) {
-        // Fallback only if this section was specifically designated as a teaching load in older records
+    } else if (section.is_teaching_load && !section.is_advisory && section.taught_subjects !== undefined) {
+        // Fallback only if this section was specifically designated as a pure teaching load in older legacy records
         teachingList = section.taught_subjects;
     }
 
@@ -213,27 +207,25 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         return unique.filter(s => registeredNames.has(s.subject_name));
     }
 
-    // If marked as teaching load but 0 subjects selected: return empty
-    if (section.is_teaching_load) {
+    // If marked purely as a teaching load but 0 subjects selected: return empty
+    if (section.is_teaching_load && !section.is_advisory) {
         return [];
     }
 
-    // Section-specific subjects if directly tied to the section id
+    // Fallback for advisory sections without explicit teaching load restrictions: return all active subjects for that grade level
     const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id);
-    if (directlyLinked.length > 0) {
-        const uniqueDirect: Subject[] = [];
-        const seenDirect = new Set<string>();
-        for (const s of directlyLinked) {
-            const key = s.subject_name.trim().toLowerCase();
-            if (!seenDirect.has(key)) {
-                seenDirect.add(key);
-                uniqueDirect.push(s);
-            }
+    const gradeMatches = activeSubjects.filter(s => s.grade_level === section.section_grade_level);
+    const combined = [...directlyLinked, ...gradeMatches];
+    const unique: Subject[] = [];
+    const seen = new Set<string>();
+    for (const s of combined) {
+        const key = s.subject_name.trim().toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(s);
         }
-        return uniqueDirect;
     }
-
-    return [];
+    return unique;
 }
 
 export function canAccessSF9Section(user: User | null | undefined, _section: Section): boolean {

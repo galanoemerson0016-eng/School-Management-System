@@ -187,7 +187,7 @@ interface DebouncedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEl
 function DebouncedInput({
     value: initialValue,
     onChange,
-    debounceMs = 2000,
+    debounceMs = 300,
     ...props
 }: DebouncedInputProps) {
     const [value, setValue] = useState(initialValue);

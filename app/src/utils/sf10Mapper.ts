@@ -1,5 +1,6 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
 import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
+import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import { formatLearnerName } from './student-name';
 import { resolveStudentQuarterGrade } from './grading-helpers';
 import { useAppStore } from '../stores';
@@ -165,8 +166,11 @@ export function mapStudentToSpecData({
         const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
         const taughtSet = new Set(taughtNorms);
 
-        if (taughtSet.size > 0) {
+        const isSHS = grade === 11 || grade === 12;
+        if (isSHS && taughtSet.size > 0) {
           dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+            const unitInfo = getShsSubjectUnitInfo(s.subject_name, studentSection.section_grade_level || `Grade ${grade}`);
+            if (unitInfo.category === 'core') return true;
             const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
             if (taughtSet.has(sNorm)) return true;
             for (const t of taughtSet) {

@@ -37,13 +37,17 @@ export function mapStudentToShsSf9Data({
     s => (s.section_id === sectionObj.id || (!s.section_id && parseInt(s.grade_level.replace(/\D/g, '')) === gradeLevelNum)) && s.term !== 'none'
   );
 
-  const sectionSpecific = candidateSubjects.filter(s => s.section_id === sectionObj.id);
-  if (sectionSpecific.length > 0) {
-    candidateSubjects = sectionSpecific;
-  }
+  // Prioritize direct section subjects over generic ones
+  candidateSubjects.sort((a, b) => {
+    const aDirect = a.section_id === sectionObj.id ? 1 : 0;
+    const bDirect = b.section_id === sectionObj.id ? 1 : 0;
+    return bDirect - aDirect;
+  });
 
   if (taughtSet.size > 0) {
     candidateSubjects = candidateSubjects.filter(s => {
+      const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+      if (unitInfo.category === 'core') return true;
       const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
       if (taughtSet.has(sNorm)) return true;
       for (const t of taughtSet) {
@@ -65,7 +69,17 @@ export function mapStudentToShsSf9Data({
     });
   }
 
-  const sectionSubjects = candidateSubjects;
+  // Deduplicate by normalized name
+  const seenShsNames = new Set<string>();
+  const uniqueShsSubjects: Subject[] = [];
+  for (const s of candidateSubjects) {
+    const norm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (norm && seenShsNames.has(norm)) continue;
+    if (norm) seenShsNames.add(norm);
+    uniqueShsSubjects.push(s);
+  }
+
+  const sectionSubjects = uniqueShsSubjects;
 
   // Compute grades per Term
   const computeGradesForSubject = (subjId: string, subjectName: string, subjectTerm?: 1 | 2 | 3 | 'all' | 'none') => {

@@ -1097,9 +1097,9 @@ const groupedSections = useMemo(() => {
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = sectionGradeNum === 11 || sectionGradeNum === 12;
         
-        const getEffectiveTerm = (s: Subject) => {
+        const getEffectiveTerm = (s: Subject | { subject_name: string; grade_level?: string; term?: string | number | null }) => {
             if (s.term !== undefined && s.term !== null) return s.term;
-            return getDefaultTermForSubject(s.subject_name, s.grade_level);
+            return getDefaultTermForSubject(s.subject_name, (s as Subject).grade_level || sectionObj.section_grade_level);
         };
 
         const sectionTrack = (sectionObj.track || '').toLowerCase();
@@ -1107,29 +1107,36 @@ const groupedSections = useMemo(() => {
 
         let candidates = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-            return subjectGradeNum === sectionGradeNum && getEffectiveTerm(s) !== 'none';
+            const isMatchingGrade = subjectGradeNum === sectionGradeNum;
+            const isMatchingSection = s.section_id === sectionObj.id;
+            return (isMatchingGrade || isMatchingSection) && getEffectiveTerm(s) !== 'none';
         });
 
-        const sectionSpecific = candidates.filter(s => s.section_id === sectionObj.id);
-        if (sectionSpecific.length > 0) {
-            candidates = sectionSpecific;
+        // For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack, but ALWAYS keep Core subjects!
+        if (isSHS) {
+            if (taughtSet.size > 0) {
+                candidates = candidates.filter(s => {
+                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+                    if (unitInfo.category === 'core') return true;
+                    const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
+                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || taughtSet.has(norm);
+                });
+            } else if (sectionTrack) {
+                candidates = candidates.filter(s => {
+                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
+                    if (unitInfo.category === 'core') return true;
+                    if (sectionTrack.includes('acad')) {
+                        return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                    }
+                    if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                        return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                    }
+                    return true;
+                });
+            }
         }
-
-        if (taughtSet.size > 0) {
-            candidates = candidates.filter(s => taughtSet.has(s.subject_name.toLowerCase().trim()));
-        } else if (isSHS && sectionTrack) {
-            candidates = candidates.filter(s => {
-                const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                if (unitInfo.category === 'core') return true;
-                if (sectionTrack.includes('acad')) {
-                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
-                }
-                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
-                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
-                }
-                return true;
-            });
-        }
+        // NOTE: For JHS (Grades 7–10) & Elementary (Grades 1–6):
+        // All students take the full standard curriculum. We DO NOT filter out subjects based on taughtSet.
 
         let sectionDbSubjects = candidates;
 
@@ -1144,7 +1151,13 @@ const groupedSections = useMemo(() => {
             }
         }
 
-        // Deduplicate sectionDbSubjects by normalized name
+        // Prioritize section-specific subjects over generic ones, then deduplicate by normalized name
+        sectionDbSubjects.sort((a, b) => {
+            const aDirect = a.section_id === sectionObj.id ? 1 : 0;
+            const bDirect = b.section_id === sectionObj.id ? 1 : 0;
+            return bDirect - aDirect;
+        });
+
         const seenSubjectNames = new Set<string>();
         const uniqueDbSubjects: Subject[] = [];
         for (const s of sectionDbSubjects) {
@@ -1155,69 +1168,91 @@ const groupedSections = useMemo(() => {
         }
         sectionDbSubjects = uniqueDbSubjects;
 
-        // 3. Determine the base list of subjects
-        // If there are actual subjects in the DB for this section, we use those as the primary source.
-        // If the section is new/empty, we fall back to the curriculum/standard list.
-        let baseList: VirtualSectionSubject[] = [];
+        // 3. Determine the base list of subjects:
+        // Use existing DB subjects and seamlessly merge with any missing intended curriculum subjects
+        const matchedNorms = new Set<string>();
+        const baseList: VirtualSectionSubject[] = [];
 
-        if (sectionDbSubjects.length > 0) {
-            // Use existing DB subjects
-            baseList = sectionDbSubjects.map(s => ({ ...s, is_virtual: false } as VirtualSectionSubject));
+        // Add DB subjects first
+        for (const s of sectionDbSubjects) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm) matchedNorms.add(norm);
+            baseList.push({ ...s, is_virtual: false } as VirtualSectionSubject);
+        }
+
+        // Merge any missing intended curriculum subjects (for this grade level & selected term)
+        const relevantIntended = intendedSubjects.filter(intended => {
+            // Never auto-inject generic 'Specialization' for Elementary/JHS (Grades 1-10)
+            if (!isSHS && normalizeSubjectName(intended.name) === 'specialization') {
+                return false;
+            }
+            const defaultTerm = getDefaultTermForSubject(intended.name, sectionObj.section_grade_level);
+            if (defaultTerm === 'none') return false;
             
-            // Special Case: If we have MAPEH components but no MAPEH header row in the DB, create a virtual one
-            const hasMapehHeader = !isSHS && sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
-            const hasMapehComponents = !isSHS && sectionDbSubjects.some(s => {
-                const n = normalizeSubjectName(s.subject_name);
-                return n.includes('musicandarts') || n.includes('musicarts') || 
-                       n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth');
-            });
-
-            if (hasMapehComponents && !hasMapehHeader) {
-                baseList.push({
-                    id: `virtual-mapeh-${sectionObj.id}`,
-                    subject_name: 'MAPEH',
-                    section_id: sectionObj.id,
-                    grade_level: sectionObj.section_grade_level,
-                    is_virtual: true
-                } as VirtualSectionSubject);
+            if (selectedTerm !== 'all') {
+                const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
+                if (termNum !== null) {
+                    return defaultTerm === 'all' || Number(defaultTerm) === termNum;
+                }
             }
+            return true;
+        });
 
-            // Special Case: If we have both EC and MK components but no parent header, create a virtual one
-            const hasEcmkHeader = sectionDbSubjects.some(s => isEcmkParent(s.subject_name));
-            const hasEc = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
-            const hasMk = sectionDbSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
-
-            if (hasEc && hasMk && !hasEcmkHeader) {
-                baseList.push({
-                    id: `virtual-ecmk-${sectionObj.id}`,
-                    subject_name: 'Effective Communication & Mabisang Komunikasyon',
-                    section_id: sectionObj.id,
-                    grade_level: sectionObj.section_grade_level,
-                    is_virtual: true
-                } as VirtualSectionSubject);
-            }
-        } else {
-            // Fallback to intended curriculum (Standard/Custom config)
-            const virtualSubjects = intendedSubjects.filter(intended => {
-                const defaultTerm = getDefaultTermForSubject(intended.name, sectionObj.section_grade_level);
-                if (defaultTerm === 'none') return false;
-                
-                if (selectedTerm !== 'all') {
-                    const termNum = selectedTerm === 'q1' ? 1 : selectedTerm === 'q2' ? 2 : selectedTerm === 'q3' ? 3 : null;
-                    if (termNum !== null) {
-                        return defaultTerm === 'all' || Number(defaultTerm) === termNum;
+        for (const intended of relevantIntended) {
+            const norm = normalizeSubjectName(intended.name);
+            let alreadyCovered = matchedNorms.has(norm);
+            if (!alreadyCovered) {
+                for (const m of matchedNorms) {
+                    if (m === norm || m.includes(norm) || norm.includes(m)) {
+                        alreadyCovered = true;
+                        break;
                     }
                 }
-                return true;
-            });
+            }
+            if (!alreadyCovered) {
+                matchedNorms.add(norm);
+                baseList.push({
+                    id: `virtual-${norm}-${sectionObj.id}`,
+                    subject_name: intended.name,
+                    section_id: sectionObj.id,
+                    grade_level: sectionObj.section_grade_level,
+                    is_virtual: true
+                } as VirtualSectionSubject);
+            }
+        }
 
-            baseList = virtualSubjects.map(intended => ({
-                id: `virtual-${normalizeSubjectName(intended.name)}-${sectionObj.id}`,
-                subject_name: intended.name,
+        // Special Case: If we have MAPEH components but no MAPEH header row, create a virtual one
+        const hasMapehHeader = !isSHS && baseList.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+        const hasMapehComponents = !isSHS && baseList.some(s => {
+            const n = normalizeSubjectName(s.subject_name);
+            return n.includes('musicandarts') || n.includes('musicarts') || 
+                   n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                   n === 'music' || n === 'arts' || n === 'pe' || n === 'health';
+        });
+
+        if (hasMapehComponents && !hasMapehHeader) {
+            baseList.push({
+                id: `virtual-mapeh-${sectionObj.id}`,
+                subject_name: 'MAPEH',
                 section_id: sectionObj.id,
                 grade_level: sectionObj.section_grade_level,
                 is_virtual: true
-            } as VirtualSectionSubject));
+            } as VirtualSectionSubject);
+        }
+
+        // Special Case: If we have both EC and MK components but no parent header, create a virtual one
+        const hasEcmkHeader = baseList.some(s => isEcmkParent(s.subject_name));
+        const hasEc = baseList.some(s => normalizeSubjectName(s.subject_name) === 'effectivecommunication');
+        const hasMk = baseList.some(s => normalizeSubjectName(s.subject_name) === 'mabisangkomunikasyon');
+
+        if (hasEc && hasMk && !hasEcmkHeader) {
+            baseList.push({
+                id: `virtual-ecmk-${sectionObj.id}`,
+                subject_name: 'Effective Communication & Mabisang Komunikasyon',
+                section_id: sectionObj.id,
+                grade_level: sectionObj.section_grade_level,
+                is_virtual: true
+            } as VirtualSectionSubject);
         }
 
         // 4. Post-process: Identify MAPEH and EC&MK groups for all items in the list
