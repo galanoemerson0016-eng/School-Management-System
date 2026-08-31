@@ -2,7 +2,7 @@ import {
   Key, Shield, Plus, List, Trash2, Copy, Check, Search, Filter, Cpu, User, Calendar, 
   Download, DownloadCloud, FileText, BarChart3, Activity, Clock, RotateCcw, Settings, Type,
   LogOut, Lock, Mail, AlertCircle, ShoppingCart, UserCheck, XCircle, Monitor, Apple, RefreshCcw, Smartphone, Wrench, Loader2,
-  ChevronRight, ExternalLink, Image as ImageIcon, X
+  ChevronRight, ExternalLink, Image as ImageIcon, X, Megaphone, Bell, Radio, Send, Globe, Sparkles, CheckCircle2, AlertTriangle, Info
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,18 +26,47 @@ interface License {
   platform?: 'windows' | 'mac';
 }
 
+export interface BroadcastNotice {
+  id: string;
+  title: string;
+  content: string;
+  severity: 'info' | 'warning' | 'urgent' | 'success';
+  display_type: 'banner' | 'modal';
+  action_label?: string;
+  action_url?: string;
+  is_active: boolean;
+  created_at: string;
+  expires_at?: string | null;
+  product?: string;
+}
+
 export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [licenses, setLicenses] = useState<License[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [trials, setTrials] = useState<any[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastNotice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeProduct, setActiveProduct] = useState<'formease-pro' | 'anecdotal-record' | 'id-generator'>('formease-pro');
-  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement' | 'broadcasts'>('generate');
   const [manageSubTab, setManageSubTab] = useState<'all' | 'windows' | 'mac'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'declined' | 'all'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  
+  // Broadcast Form State
+  const [isSubmittingBroadcast, setIsSubmittingBroadcast] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({
+    title: '',
+    content: '',
+    severity: 'info' as 'info' | 'warning' | 'urgent' | 'success',
+    display_type: 'banner' as 'banner' | 'modal',
+    action_label: '',
+    action_url: '',
+    is_active: true,
+    expires_at: '',
+    product: 'formease-pro'
+  });
   
   // For Decline Modal
   const [declineModal, setDeclineModal] = useState<{ isOpen: boolean; requestId: string | null; reason: string }>({
@@ -102,10 +131,12 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       const requestData = await licenseService.getAllRequests();
       const trialData = await licenseService.getAllTrials();
       const downloadData = await licenseService.getDownloadsInfo();
+      const broadcastData = await licenseService.getAllBroadcasts();
       
       setLicenses(Array.isArray(licenseData) ? (licenseData as License[]) : []);
       setRequests(Array.isArray(requestData) ? requestData : []);
       setTrials(Array.isArray(trialData) ? trialData : []);
+      setBroadcasts(Array.isArray(broadcastData) ? (broadcastData as BroadcastNotice[]) : []);
 
       if (downloadData) {
         setDownloadWinUrl(downloadData.win_url || '');
@@ -117,6 +148,67 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       console.error("Load failed:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastForm.title.trim() || !broadcastForm.content.trim()) {
+      alert("Title and content are required.");
+      return;
+    }
+    setIsSubmittingBroadcast(true);
+    try {
+      await licenseService.createBroadcast({
+        title: broadcastForm.title,
+        content: broadcastForm.content,
+        severity: broadcastForm.severity,
+        display_type: broadcastForm.display_type,
+        action_label: broadcastForm.action_label,
+        action_url: broadcastForm.action_url,
+        is_active: broadcastForm.is_active,
+        expires_at: broadcastForm.expires_at ? new Date(broadcastForm.expires_at).toISOString() : null,
+        product: activeProduct,
+      });
+      setBroadcastForm({
+        title: '',
+        content: '',
+        severity: 'info',
+        display_type: 'banner',
+        action_label: '',
+        action_url: '',
+        is_active: true,
+        expires_at: '',
+        product: activeProduct,
+      });
+      await loadData();
+      alert("📢 Broadcast notice published! All connected client apps will receive it.");
+    } catch (err: any) {
+      console.error("Publish broadcast error:", err);
+      alert("Failed to publish broadcast: " + (err.message || String(err)));
+    } finally {
+      setIsSubmittingBroadcast(false);
+    }
+  };
+
+  const handleToggleBroadcast = async (id: string, currentStatus: boolean) => {
+    try {
+      await licenseService.updateBroadcast(id, { is_active: !currentStatus });
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to toggle broadcast status");
+    }
+  };
+
+  const handleDeleteBroadcast = async (id: string) => {
+    if (!window.confirm("Are you sure you want to PERMANENTLY DELETE this broadcast notice?")) return;
+    try {
+      await licenseService.deleteBroadcast(id);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete broadcast");
     }
   };
 
@@ -399,6 +491,15 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
           <button onClick={() => setActiveTab('trials')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'trials' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400'}`}>
             Trials <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded-full text-[8px] font-black">{stats.trials}</span>
           </button>
+          <button onClick={() => setActiveTab('broadcasts')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'broadcasts' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-400'}`}>
+            <Megaphone className="w-3.5 h-3.5" />
+            <span>Broadcasts</span>
+            {broadcasts.filter(b => b.is_active).length > 0 && (
+              <span className="px-1.5 py-0.5 bg-cyan-400 text-slate-950 rounded-full text-[8px] font-black">
+                {broadcasts.filter(b => b.is_active).length}
+              </span>
+            )}
+          </button>
           <button onClick={() => setActiveTab('advertisement')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'advertisement' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400'}`}>Advertisement</button>
           <button onClick={() => setActiveTab('system')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'system' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400'}`}>System</button>
           <div className="w-px h-6 bg-white/10 mx-2" />
@@ -408,7 +509,262 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
 
       <main className="relative z-10 flex-1 p-8 max-w-7xl mx-auto w-full">
         <AnimatePresence mode="wait">
-          {activeTab === 'trials' ? (
+          {activeTab === 'broadcasts' ? (
+            <motion.div key="broadcasts" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-cyan-600/20 text-cyan-400 rounded-2xl border border-cyan-500/30">
+                      <Megaphone className="w-6 h-6" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white">Global Broadcast Notices</h2>
+                  </div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Send real-time alerts, maintenance memos, or DepEd advisories directly to all active FormEase Pro client apps when online.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="px-3.5 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-xs font-black text-cyan-400 flex items-center gap-2">
+                    <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+                    {broadcasts.filter(b => b.is_active).length} Active Online Broadcasts
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Create Broadcast Form */}
+                <div className="lg:col-span-5 bg-white/3 border border-white/10 rounded-[2.5rem] p-7 shadow-2xl backdrop-blur-xl space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Send className="w-4 h-4 text-cyan-400" />
+                      <h3 className="text-sm font-black text-white uppercase tracking-wider">Publish New Broadcast</h3>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                      Live to All Clients
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleCreateBroadcast} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notice Title</label>
+                      <input
+                        type="text"
+                        value={broadcastForm.title}
+                        onChange={(e) => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+                        placeholder="e.g. Important Advisory: Grade 11 SF9 Format Released"
+                        required
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all placeholder:text-slate-600"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notice Content / Message</label>
+                      <textarea
+                        value={broadcastForm.content}
+                        onChange={(e) => setBroadcastForm({ ...broadcastForm, content: e.target.value })}
+                        placeholder="Type the message that will be shown to all school advisers..."
+                        required
+                        rows={4}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all placeholder:text-slate-600 resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Severity / Color</label>
+                        <select
+                          value={broadcastForm.severity}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, severity: e.target.value as any })}
+                          className="w-full bg-[#0A192F] border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        >
+                          <option value="info">🔵 Info (Blue / Standard)</option>
+                          <option value="warning">🟡 Warning (Amber / Advisory)</option>
+                          <option value="urgent">🔴 Urgent (Red / Critical)</option>
+                          <option value="success">🟢 Success (Green / New Feature)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Display Style</label>
+                        <select
+                          value={broadcastForm.display_type}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, display_type: e.target.value as any })}
+                          className="w-full bg-[#0A192F] border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+                        >
+                          <option value="banner">📌 Top Sticky Banner</option>
+                          <option value="modal">💬 Interactive Popup Modal</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Action Button Text (Optional)</label>
+                        <input
+                          type="text"
+                          value={broadcastForm.action_label}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, action_label: e.target.value })}
+                          placeholder="e.g. View Guidelines"
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-600"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Action Button URL (Optional)</label>
+                        <input
+                          type="text"
+                          value={broadcastForm.action_url}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, action_url: e.target.value })}
+                          placeholder="https://... or download link"
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3.5 bg-white/2 border border-white/5 rounded-2xl">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          id="is_active_toggle"
+                          checked={broadcastForm.is_active}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, is_active: e.target.checked })}
+                          className="w-4 h-4 rounded text-cyan-500 bg-white/5 border-white/20 focus:ring-cyan-500"
+                        />
+                        <label htmlFor="is_active_toggle" className="text-xs font-bold text-slate-300 cursor-pointer">
+                          Activate Immediately
+                        </label>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500">Live on save</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmittingBroadcast}
+                      className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 active:scale-[0.98]"
+                    >
+                      {isSubmittingBroadcast ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          <span>Publish to All Client Apps</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Broadcasts List */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="flex items-center justify-between px-2">
+                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                      Broadcasts History & Status ({broadcasts.length})
+                    </h3>
+                  </div>
+
+                  {broadcasts.length > 0 ? (
+                    <div className="space-y-4">
+                      {broadcasts.map((b) => {
+                        const isInfo = b.severity === 'info';
+                        const isWarning = b.severity === 'warning';
+                        const isUrgent = b.severity === 'urgent';
+                        const isSuccess = b.severity === 'success';
+
+                        const borderColor = isUrgent
+                          ? 'border-red-500/30 bg-red-500/5'
+                          : isWarning
+                          ? 'border-amber-500/30 bg-amber-500/5'
+                          : isSuccess
+                          ? 'border-emerald-500/30 bg-emerald-500/5'
+                          : 'border-cyan-500/30 bg-cyan-500/5';
+
+                        const badgeColor = isUrgent
+                          ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                          : isWarning
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          : isSuccess
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+
+                        return (
+                          <div
+                            key={b.id}
+                            className={`rounded-3xl border p-6 space-y-4 transition-all ${borderColor} relative overflow-hidden`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badgeColor}`}>
+                                    {b.severity}
+                                  </span>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                                    {b.display_type === 'modal' ? '💬 Modal Popup' : '📌 Top Banner'}
+                                  </span>
+                                  {b.is_active ? (
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      Active Live
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-500/20 text-slate-400 border border-slate-500/30">
+                                      Paused / Inactive
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className="text-base font-black text-white mt-2">{b.title}</h4>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleToggleBroadcast(b.id, b.is_active)}
+                                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${
+                                    b.is_active
+                                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
+                                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                                  }`}
+                                >
+                                  {b.is_active ? 'Pause' : 'Activate'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteBroadcast(b.id)}
+                                  className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
+                                  title="Delete Broadcast"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <p className="text-xs font-medium text-slate-300 whitespace-pre-wrap bg-black/20 p-4 rounded-2xl border border-white/5">
+                              {b.content}
+                            </p>
+
+                            {b.action_label && (
+                              <div className="flex items-center gap-2 text-[11px] font-bold text-cyan-400">
+                                <span>Button:</span>
+                                <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">{b.action_label}</span>
+                                {b.action_url && <span className="text-slate-500 truncate max-w-[200px]">({b.action_url})</span>}
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 pt-2 border-t border-white/5">
+                              <span>Posted: {new Date(b.created_at).toLocaleString()}</span>
+                              <span>Target: {b.product || 'All Products'}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-20 text-center text-slate-500 font-bold text-sm bg-white/2 border border-white/5 border-dashed rounded-3xl">
+                      No broadcast notices published yet. Use the form on the left to broadcast an announcement to your users.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ) : activeTab === 'trials' ? (
              <motion.div key="trials" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div className="flex items-center justify-between mb-8">
                   <div className="space-y-1">

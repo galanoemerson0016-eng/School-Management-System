@@ -100,5 +100,11 @@ service cloud.firestore {
       allow read: if true;
       allow write, create, update, delete: if isAdmin();
     }
+
+    // Global Admin / System Broadcasts (Read-Only for clients, Write/Edit for Admin/Developer)
+    match /system_broadcasts/{broadcastId} {
+      allow read: if true;
+      allow write, create, update, delete: if isAdmin();
+    }
   }
 }

@@ -322,5 +322,82 @@ export const licenseService = {
   async updateDownloadsInfo(info: { win_url: string; mac_url: string; version: string; notes: string }) {
     const docRef = doc(db, DOWNLOADS_DOC_PATH, 'latest');
     await setDoc(docRef, info, { merge: true });
+  },
+
+  // --- SYSTEM BROADCASTS & ANNOUNCEMENTS ---
+  async getAllBroadcasts() {
+    try {
+      const q = query(collection(db, 'system_broadcasts'));
+      const snapshot = await getDocs(q);
+      const items = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title || '',
+          content: data.content || '',
+          severity: data.severity || 'info',
+          display_type: data.display_type || 'banner',
+          action_label: data.action_label || '',
+          action_url: data.action_url || '',
+          is_active: data.is_active !== false,
+          created_at: data.created_at || new Date().toISOString(),
+          expires_at: data.expires_at || null,
+          product: data.product || 'formease-pro',
+        };
+      });
+      // Sort newest first
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return items;
+    } catch (e) {
+      console.error("Failed to get broadcasts:", e);
+      return [];
+    }
+  },
+
+  async createBroadcast(broadcast: {
+    title: string;
+    content: string;
+    severity?: 'info' | 'warning' | 'urgent' | 'success';
+    display_type?: 'banner' | 'modal';
+    action_label?: string;
+    action_url?: string;
+    is_active?: boolean;
+    expires_at?: string | null;
+    product?: string;
+  }) {
+    const now = new Date();
+    const docRef = doc(collection(db, 'system_broadcasts'));
+    await setDoc(docRef, {
+      title: broadcast.title.trim(),
+      content: broadcast.content.trim(),
+      severity: broadcast.severity || 'info',
+      display_type: broadcast.display_type || 'banner',
+      action_label: (broadcast.action_label || '').trim(),
+      action_url: (broadcast.action_url || '').trim(),
+      is_active: broadcast.is_active !== false,
+      created_at: now.toISOString(),
+      expires_at: broadcast.expires_at || null,
+      product: broadcast.product || activeProduct,
+    });
+    return docRef.id;
+  },
+
+  async updateBroadcast(id: string, updates: Partial<{
+    title: string;
+    content: string;
+    severity: 'info' | 'warning' | 'urgent' | 'success';
+    display_type: 'banner' | 'modal';
+    action_label: string;
+    action_url: string;
+    is_active: boolean;
+    expires_at: string | null;
+    product: string;
+  }>) {
+    const docRef = doc(db, 'system_broadcasts', id);
+    await setDoc(docRef, updates, { merge: true });
+  },
+
+  async deleteBroadcast(id: string) {
+    await deleteDoc(doc(db, 'system_broadcasts', id));
   }
 };

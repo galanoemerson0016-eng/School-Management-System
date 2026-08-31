@@ -15,6 +15,7 @@ import { ProfileDiffModal } from './components/ProfileDiffModal';
 import { GoogleDriveOnboardingModal } from './components/modals/GoogleDriveOnboardingModal';
 import { ClosingSyncOverlay } from './components/modals/ClosingSyncOverlay';
 import { useUpdateStore } from './stores/update-store';
+import { BroadcastBannerModal } from './components/broadcasts/BroadcastBannerModal';
 import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
 import { triggerParentAttendanceSms } from './services/sms-gateway';
 import { formatLearnerName } from './utils/student-name';
@@ -554,6 +555,7 @@ function App() {
   if (!isAuthenticated) {
     return (
       <Suspense fallback={<LoadingSplash />}>
+        <BroadcastBannerModal />
         <AutoBackupManager />
         <LoginPage />
       </Suspense>
@@ -641,6 +643,7 @@ function App() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
       }} />
 
+      <BroadcastBannerModal />
       <Toast />
       <AnimatePresence>
         {showOnboarding && (
