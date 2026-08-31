@@ -1,5 +1,28 @@
 # Version History
 
+## v3.2.0 (2026-08-31)
+
+### 🚀 New Features & Enhancements
+
+- **Real-Time Global System Broadcasts & Client Announcement Engine**: Integrated an instant cloud announcement subsystem delivering real-time top notification banners and dialog modal alerts directly to FormEase Pro desktop users upon connection, complete with persistent local dismissal memory.
+- **License Portal Broadcast Manager**: Introduced a dedicated administrative broadcast management portal at `/admin` to compose, schedule, filter, and delete live broadcast messages across multiple severity levels (*Info*, *Warning*, *Urgent*, *Success*).
+- **Official DepEd SF9 Multi-Grade 3-Term Report Card Suite**: Integrated official DepEd 3-term SF9 report card template export generators for Grade 1, Grade 2, Grade 3, Grade 4–10, and Senior High School Grade 11 (Technical-Professional & Academic tracks).
+- **Comprehensive E-Class Record (ECR) Export Suite**: Added official templates for EPP/TLE, MAPEH 9-sheet dual-component systems, and GMRC & Values Education with automatic weighted component calculations.
+
+### ⚡ Improvements
+
+- **OpenXML Formula & Cell Border Preservation**: Enhanced spreadsheet generation engines across all DepEd forms to preserve complex array formulas, nested conditional formatting, cell merges, and print area boundaries.
+- **Resilient Real-Time Client Listening**: Configured non-blocking, zero-latency Firestore snapshot listeners for instant client notice delivery with offline fallback resilience.
+
+### 🐞 Bug Fixes
+
+- **SHS Grade 11 Attendance Sentinel Calculation**: Fixed absent day sentinel calculation and worksheet layout alignments in Senior High School Grade 11 forms.
+- **Multi-Sheet OpenXML Syntax**: Fixed formula syntax compatibility across multi-sheet DepEd SF9 workbooks.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.1.1 (2026-08-27)
 
 ### 🚀 New Features & Enhancements

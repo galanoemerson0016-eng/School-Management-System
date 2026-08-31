@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.1.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.2.0';
       const api = window.electronAPI;
 
       try {
@@ -402,10 +402,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📚 Fixed Grade Management multi-subject visibility ensuring all 8 DepEd learning areas render for advisory sections.",
-              "⚡ Responsive E-Class Record input latency reduced to 300ms with robust unconfigured HPS input handling.",
-              "🎯 Cleaned Junior High School curriculum definitions by removing unused Specialization placeholders.",
-              "🛡️ Preserved 100% official DepEd E-Class Record Excel formulas and zero-risk backward compatibility."
+              "📢 Added Real-Time Global System Broadcasts & Client Announcement engine with Banner and Modal support.",
+              "📑 Integrated official 3-term DepEd SF9 multi-grade report cards (G1, G2, G3, G4-10, G11 TechPro & Academic).",
+              "📊 Added full Electronic Class Record (ECR) generators for EPP/TLE, MAPEH 9-sheet, and GMRC & Values Education.",
+              "🛡️ 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],
             timestamp: Date.now(),
             status: 'success',
