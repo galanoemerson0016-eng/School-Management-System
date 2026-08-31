@@ -111,7 +111,7 @@ function getActiveWeeks(month: string, schoolYear: string, includeSaturdays: boo
     return activeWeeks;
 }
 
-function getSf2TotalColumns(month: string, schoolYear: string, includeSaturdays: boolean): number {
+export function getSf2TotalColumns(month: string, schoolYear: string, includeSaturdays: boolean): number {
     return getActiveWeeks(month, schoolYear, includeSaturdays).length * (includeSaturdays ? 6 : 5);
 }
 

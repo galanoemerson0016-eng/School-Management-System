@@ -21,20 +21,37 @@ export interface PaceGmrcMakabansaExcelExportOptions {
 }
 
 export async function fetchPaceGmrcMakabansaTemplateBuffer(): Promise<ArrayBuffer> {
-  const baseUrl = import.meta.env.BASE_URL || '/';
-  const timestamp = new Date().getTime();
+  const cleanBase = (import.meta.env.BASE_URL || '/').endsWith('/') 
+    ? (import.meta.env.BASE_URL || '/') 
+    : `${import.meta.env.BASE_URL}/`;
+  const timestamp = Date.now();
   
-  let response = await fetch(`${baseUrl}templates/PACE_FORM_GMRC_MAKABANSA.xlsx?t=${timestamp}`);
-  if (!response.ok) {
-    response = await fetch(`${baseUrl}templates/PACE%20FORM%20-%20GMRC%20%26%20MAKABANSA.xlsx?t=${timestamp}`);
+  const candidateUrls = [
+    `${cleanBase}templates/PACE_FORM_GMRC_MAKABANSA.xlsx?t=${timestamp}`,
+    `/templates/PACE_FORM_GMRC_MAKABANSA.xlsx?t=${timestamp}`,
+    `templates/PACE_FORM_GMRC_MAKABANSA.xlsx?t=${timestamp}`,
+    `${cleanBase}templates/PACE%20FORM%20-%20GMRC%20%26%20MAKABANSA.xlsx?t=${timestamp}`,
+    `/templates/PACE%20FORM%20-%20GMRC%20%26%20MAKABANSA.xlsx?t=${timestamp}`,
+    `${cleanBase}templates/PACE%20FORM%20-%20GMRC%20and%20MAKABANSA.xlsx?t=${timestamp}`,
+    `/templates/PACE%20FORM%20-%20GMRC%20and%20MAKABANSA.xlsx?t=${timestamp}`
+  ];
+
+  for (const url of candidateUrls) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+          return buffer;
+        }
+      }
+    } catch {
+      // Try next
+    }
   }
-  if (!response.ok) {
-    response = await fetch(`${baseUrl}templates/PACE%20FORM%20-%20GMRC%20and%20MAKABANSA.xlsx?t=${timestamp}`);
-  }
-  if (!response.ok) {
-    throw new Error(`Failed to fetch PACE GMRC & MAKABANSA template: ${response.statusText}`);
-  }
-  return await response.arrayBuffer();
+
+  throw new Error('Failed to fetch valid PACE GMRC & MAKABANSA template.');
 }
 
 /**

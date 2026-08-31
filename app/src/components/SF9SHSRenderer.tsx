@@ -140,6 +140,11 @@ export interface SF9SHSPagesProps {
     pageSize: 'A4' | 'LETTER';
     logoUrl: string;
     printMode?: string;
+    hideLearnerInfo?: boolean;
+    hideAttendance?: boolean;
+    hideGrades?: boolean;
+    hideAdviserName?: boolean;
+    hideHeadName?: boolean;
 }
 
 export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
@@ -148,6 +153,11 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
     attendance,
     pageSize,
     logoUrl,
+    hideLearnerInfo = false,
+    hideAttendance = false,
+    hideGrades = false,
+    hideAdviserName = false,
+    hideHeadName = false,
 }) => {
     const { student, schoolProfile, subjectGrades } = data;
 
@@ -274,7 +284,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                 count++;
             }
         });
-        const genAve = count > 0 ? (sum / count).toFixed(2) : '';
+        const genAve = count > 0 && !hideGrades ? (sum / count).toFixed(2) : '';
 
         const gradeNum = parseInt(schoolProfile.section.match(/\d+/)?.[0] || '11') || 11;
 
@@ -329,7 +339,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                      {catSubjects.map((subj, idx) => {
                                          const term = subj.term;
                                          const grades = subj.grades;
-                                         const remarks = grades.final >= 75 ? 'PASSED' : grades.final > 0 ? 'FAILED' : '';
+                                         const remarks = !hideGrades ? (grades.final >= 75 ? 'PASSED' : grades.final > 0 ? 'FAILED' : '') : '';
                                          
                                          const isTermActive = (t: number) => {
                                              if (!term || term === 'all') return true;
@@ -339,14 +349,14 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                          return (
                                              <View key={idx} style={styles.tableRow}>
                                                  <View style={styles.tableCellSubj}><Text>{subj.subjectName}</Text></View>
-                                                 <View style={styles.tableCellQ}><Text>{isTermActive(1) ? (grades.t1 || '') : '-'}</Text></View>
-                                                 <View style={styles.tableCellQ}><Text>{isTermActive(2) ? (grades.t2 || '') : '-'}</Text></View>
-                                                 <View style={styles.tableCellQ}><Text>{isTermActive(3) ? (grades.t3 || '') : '-'}</Text></View>
-                                                 <View style={styles.tableCellFinal}><Text>{grades.final || ''}</Text></View>
+                                                 <View style={styles.tableCellQ}><Text>{!hideGrades && isTermActive(1) ? (grades.t1 || '') : (hideGrades ? '' : '-')}</Text></View>
+                                                 <View style={styles.tableCellQ}><Text>{!hideGrades && isTermActive(2) ? (grades.t2 || '') : (hideGrades ? '' : '-')}</Text></View>
+                                                 <View style={styles.tableCellQ}><Text>{!hideGrades && isTermActive(3) ? (grades.t3 || '') : (hideGrades ? '' : '-')}</Text></View>
+                                                 <View style={styles.tableCellFinal}><Text>{!hideGrades ? (grades.final || '') : ''}</Text></View>
                                                  <View style={[styles.tableCellRemarks, { borderRightWidth: 0 }]}><Text>{remarks}</Text></View>
                                              </View>
                                          );
-                                    })}
+                                     })}
                                 </React.Fragment>
                             );
                         })
@@ -386,7 +396,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                 <View style={styles.attLabelCell}><Text>No. of school days</Text></View>
                                 {attendance.schoolDays.map((days, idx) => (
                                     <View key={idx} style={idx === attendance.schoolDays.length - 1 ? styles.attDataCellLast : styles.attDataCell}>
-                                        <Text>{days >= 0 ? days : ''}</Text>
+                                        <Text>{!hideAttendance && days >= 0 ? days : ''}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -394,7 +404,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                 <View style={styles.attLabelCell}><Text>No. of days present</Text></View>
                                 {attendance.daysPresent.map((days, idx) => (
                                     <View key={idx} style={idx === attendance.daysPresent.length - 1 ? styles.attDataCellLast : styles.attDataCell}>
-                                        <Text>{days >= 0 ? days : ''}</Text>
+                                        <Text>{!hideAttendance && days >= 0 ? days : ''}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -402,7 +412,7 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                 <View style={styles.attLabelCell}><Text>No. of days absent</Text></View>
                                 {attendance.daysAbsent.map((days, idx) => (
                                     <View key={idx} style={idx === attendance.daysAbsent.length - 1 ? [styles.attDataCellLast, { borderRightWidth: 0 }] : styles.attDataCell}>
-                                        <Text>{days >= 0 ? days : ''}</Text>
+                                        <Text>{!hideAttendance && days >= 0 ? days : ''}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -449,29 +459,29 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                         <View style={styles.studentInfoGrid}>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Name:</Text>
-                                <Text style={styles.infoValue}>{student.fullName}</Text>
+                                <Text style={styles.infoValue}>{hideLearnerInfo ? ' ' : student.fullName}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Age:</Text>
-                                <Text style={styles.infoValueShort}>{student.age}</Text>
+                                <Text style={styles.infoValueShort}>{hideLearnerInfo ? ' ' : student.age}</Text>
                                 <Text style={styles.infoLabelRight}>Sex:</Text>
-                                <Text style={styles.infoValueShort}>{student.gender}</Text>
+                                <Text style={styles.infoValueShort}>{hideLearnerInfo ? ' ' : student.gender}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Grade:</Text>
-                                <Text style={styles.infoValueShort}>{schoolProfile.section.match(/\d+/) || '11'}</Text>
+                                <Text style={styles.infoValueShort}>{hideLearnerInfo ? ' ' : (schoolProfile.section.match(/\d+/) || '11')}</Text>
                                 <Text style={styles.infoLabelRight}>Section:</Text>
-                                <Text style={styles.infoValueShort}>{schoolProfile.section}</Text>
+                                <Text style={styles.infoValueShort}>{hideLearnerInfo ? ' ' : schoolProfile.section}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>Track/Strand:</Text>
-                                <Text style={styles.infoValue}>{`${student.track} ${student.strand ? `- ${student.strand}` : ''}`}</Text>
+                                <Text style={styles.infoValue}>{hideLearnerInfo ? ' ' : `${student.track} ${student.strand ? `- ${student.strand}` : ''}`}</Text>
                             </View>
                             <View style={styles.infoRow}>
                                 <Text style={styles.infoLabel}>School Year:</Text>
                                 <Text style={styles.infoValue}>{schoolProfile.schoolYear}</Text>
                                 <Text style={styles.infoLabelRight}>LRN:</Text>
-                                <Text style={styles.infoValueShort}>{student.lrn}</Text>
+                                <Text style={styles.infoValueShort}>{hideLearnerInfo ? ' ' : student.lrn}</Text>
                             </View>
                         </View>
 
@@ -485,11 +495,11 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
 
                         <View style={styles.signatureLineBottom}>
                             <View style={styles.signatureBlock}>
-                                <Text style={styles.signatureName}>{schoolProfile.adviser || ''}</Text>
+                                <Text style={styles.signatureName}>{!hideAdviserName ? (schoolProfile.adviser || '') : ' '}</Text>
                                 <Text style={styles.signatureTitle}>Teacher</Text>
                             </View>
                             <View style={styles.signatureBlock}>
-                                <Text style={styles.signatureName}>{schoolProfile.principal || ''}</Text>
+                                <Text style={styles.signatureName}>{!hideHeadName ? (schoolProfile.principal || '') : ' '}</Text>
                                 <Text style={styles.signatureTitle}>Principal</Text>
                             </View>
                         </View>
@@ -535,9 +545,9 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                                                     <View style={[styles.valuesCoreCell, { borderBottomWidth: 0 }]}><Text> </Text></View>
                                                 )}
                                                 <View style={styles.valuesBehaviorCell}><Text>{behavior}</Text></View>
-                                                <View style={styles.valuesRatingCell}><Text>{rowVals[0]}</Text></View>
-                                                <View style={styles.valuesRatingCell}><Text>{rowVals[1]}</Text></View>
-                                                <View style={[styles.valuesRatingCell, { borderRightWidth: 0 }]}><Text>{rowVals[2]}</Text></View>
+                                                <View style={styles.valuesRatingCell}><Text>{!hideGrades ? rowVals[0] : ''}</Text></View>
+                                                <View style={styles.valuesRatingCell}><Text>{!hideGrades ? rowVals[1] : ''}</Text></View>
+                                                <View style={[styles.valuesRatingCell, { borderRightWidth: 0 }]}><Text>{!hideGrades ? rowVals[2] : ''}</Text></View>
                                             </View>
                                         );
                                     })}

@@ -2,14 +2,18 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
+import { exportSSHSEClassRecord, resolveSSHSMetadata, SSHS_GRADE11_CATALOG } from '../services/sshs-excel-export';
+import { isGrade11CoreSubject, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
+const SSHS_WW_COUNT = 10;
+const SSHS_PT_COUNT = 10;
 const WW_COUNT = 5;
 const PT_COUNT = 3;
 const ST_COUNT = 3;
@@ -24,7 +28,7 @@ const PAPER_SIZES: Record<PaperSize, { label: string; landscape: string; portrai
         margins: '0.12in 0.18in',
         summaryMargins: '0.5in 0.25in',
         jspdfFormat: 'legal',
-        previewWidthLandscape: '1248px',
+        previewWidthLandscape: '1380px',
         previewWidthPortrait: '816px',
     },
     a4: {
@@ -34,7 +38,7 @@ const PAPER_SIZES: Record<PaperSize, { label: string; landscape: string; portrai
         margins: '0.1in 0.15in',
         summaryMargins: '0.4in 0.2in',
         jspdfFormat: 'a4',
-        previewWidthLandscape: '1122px',
+        previewWidthLandscape: '1340px',
         previewWidthPortrait: '794px',
     },
     letter: {
@@ -44,7 +48,7 @@ const PAPER_SIZES: Record<PaperSize, { label: string; landscape: string; portrai
         margins: '0.1in 0.15in',
         summaryMargins: '0.4in 0.2in',
         jspdfFormat: 'letter',
-        previewWidthLandscape: '1056px',
+        previewWidthLandscape: '1300px',
         previewWidthPortrait: '816px',
     },
 };
@@ -237,6 +241,9 @@ interface StudentGradeRowProps {
     updateGrade: (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => void;
     handleKeyDown: (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => void;
     formatStudentFullName: (student: any) => string;
+    activeWwCount: number;
+    activePtCount: number;
+    isZeroExam: boolean;
 }
 
 const StudentGradeRow = memo(({
@@ -254,20 +261,22 @@ const StudentGradeRow = memo(({
     updateGrade,
     handleKeyDown,
     formatStudentFullName,
-    isFieldExposure,
-}: StudentGradeRowProps & { isFieldExposure: boolean }) => {
+    activeWwCount,
+    activePtCount,
+    isZeroExam,
+}: StudentGradeRowProps) => {
     const summary = useMemo(() => {
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
-            written_works: Array(5).fill(''),
-            performance_tasks: Array(3).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: ''
         };
 
-        const wwScores = normalizeScores(sGrades.written_works, 5).map(s => {
+        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
-        const ptScores = normalizeScores(sGrades.performance_tasks, 3).map(s => {
+        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
@@ -283,13 +292,13 @@ const StudentGradeRow = memo(({
 
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
-        const wwWS = wwPS * (currentWeights.written_works || 0);
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
+        const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : (ptTotalScore / ptTotalHPS) * 100;
-        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.round((ptTotalScore / ptTotalHPS) * 100 * 100) / 100;
+        const ptWS = Math.round(ptPS * (currentWeights.performance_tasks || 0) * 100) / 100;
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
@@ -298,9 +307,9 @@ const StudentGradeRow = memo(({
         const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
         const teHPS = Number(hps.qa[2]) || 0;
 
-        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? ((st1Score as number) / st1HPS) * 30 : null;
-        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? ((st2Score as number) / st2HPS) * 30 : null;
-        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? ((teScore as number) / teHPS) * 40 : null;
+        const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
+        const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
+        const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
 
         let qaScore = 0;
         let qaHPS = 0;
@@ -317,16 +326,16 @@ const StudentGradeRow = memo(({
             qaScore += (teScore as number);
         }
 
-        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaWS = isZeroExam ? 0 : Math.round(qaPS * (currentWeights.quarterly_exam || 0) * 100) / 100;
 
-        const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
+        const initialGrade = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
             wwScores.some(isValidScore) ||
             ptScores.some(isValidScore) ||
-            qaScores.some(isValidScore);
+            (!isZeroExam && qaScores.some(isValidScore));
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
@@ -342,18 +351,13 @@ const StudentGradeRow = memo(({
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [record, hps, currentWeights, currentCluster, activeSchoolYear]);
-
-    const descriptor = useMemo(() => {
-        if (!summary.hasScores || summary.quarterlyGrade <= 0) return '';
-        return getGradeDescriptorWithFilipino(summary.quarterlyGrade, sectionGradeLevel, activeSchoolYear);
-    }, [summary.quarterlyGrade, summary.hasScores, sectionGradeLevel, activeSchoolYear]);
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
 
     const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
 
     return (
-        <tr className="hover:bg-gray-50 h-6.5 text-[9px]">
-            <td className="border border-black p-1 text-left text-[10px] leading-none whitespace-nowrap font-bold uppercase truncate" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+        <tr className="hover:bg-gray-50 h-5.5 text-[8.5px]">
+            <td className="border border-black border-r-2 border-r-black p-0.5 text-left text-[9.5px] leading-none whitespace-nowrap font-bold uppercase truncate" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
                 {idx + 1}. {formatStudentFullName(student)}
             </td>
             {summary.ww.map((score, i) => (
@@ -365,57 +369,50 @@ const StudentGradeRow = memo(({
                         onKeyDown={(e) => handleKeyDown(e, rowNum, i)}
                         data-row={rowNum}
                         data-col={i}
-                        className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
                     />
                 </td>
             ))}
-            <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
-            <td className="border border-black bg-blue-50/30">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-blue-100/50 font-semibold">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
+            <td className="border border-black bg-blue-100/60 font-medium text-center">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwTotalScore : ''}</td>
+            <td className="border border-black bg-blue-100/60 text-[8px] text-center">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwPS.toFixed(2) : ''}</td>
+            <td className="border border-black border-r-2 border-r-black bg-blue-200/60 font-bold text-[8.5px] text-center">{summary.wwTotalHPS > 0 && summary.ww.some(s => s !== '') ? summary.wwWS.toFixed(2) : ''}</td>
             {summary.pt.map((score, i) => (
                 <td key={`pt-${i}`} className="border border-black p-0">
                     <DebouncedInput
                         type="number"
                         value={score === '' ? '' : score}
                         onChange={(v) => updateGrade(student.lrn, 'pt', i, v)}
-                        onKeyDown={(e) => handleKeyDown(e, rowNum, 5 + i)}
+                        onKeyDown={(e) => handleKeyDown(e, rowNum, activeWwCount + i)}
                         data-row={rowNum}
-                        data-col={5 + i}
-                        className="w-full h-full text-center outline-none p-0 focus:bg-green-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        data-col={activeWwCount + i}
+                        className="w-full h-full text-center outline-none p-0 focus:bg-green-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
                     />
                 </td>
             ))}
-            <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
-            <td className="border border-black bg-green-50/30">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-green-100/50 font-semibold">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
-            {summary.qa
-                .map((score, i) => ({ score, i }))
-                .filter(({ i }) => !isFieldExposure || i === 2)
-                .map(({ score, i }) => (
-                    <td key={`qa-${i}`} className="border border-black p-0">
-                        <DebouncedInput
-                            type="number"
-                            value={score === '' ? '' : score}
-                            onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
-                            onKeyDown={(e) => handleKeyDown(e, rowNum, 8 + i)}
-                            data-row={rowNum}
-                            data-col={8 + i}
-                            className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                    </td>
-                ))
-            }
-            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>}
-            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>}
-            {!isFieldExposure && <td className="border border-black bg-yellow-50/50 text-[8.5px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>}
-            <td className="border border-black bg-yellow-50/30 text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-yellow-100/50 font-semibold text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
-            <td className="border border-black bg-slate-100 font-bold">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
-            <td className={`border border-black w-20 min-w-20 max-w-20 font-bold text-[9.5px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+            <td className="border border-black bg-green-100/60 font-medium text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
+            <td className="border border-black bg-green-100/60 text-[8px] text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
+            <td className="border border-black border-r-2 border-r-black bg-green-200/60 font-bold text-[8.5px] text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
+            {!isZeroExam && summary.qa.map((score, i) => (
+                <td key={`qa-${i}`} className="border border-black p-0">
+                    <DebouncedInput
+                        type="number"
+                        value={score === '' ? '' : score}
+                        onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
+                        onKeyDown={(e) => handleKeyDown(e, rowNum, activeWwCount + activePtCount + i)}
+                        data-row={rowNum}
+                        data-col={activeWwCount + activePtCount + i}
+                        className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                    />
+                </td>
+            ))}
+            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>}
+            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>}
+            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>}
+            {!isZeroExam && <td className="border border-black bg-yellow-100/60 text-[8px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>}
+            {!isZeroExam && <td className="border border-black border-r-2 border-r-black bg-yellow-200/60 font-bold text-[8.5px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>}
+            <td className="border border-black border-r-2 border-r-black bg-yellow-50/50 font-bold text-center text-[9.5px] whitespace-nowrap">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
+            <td className={`border border-black font-black text-center text-[10.5px] leading-tight whitespace-nowrap ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-white'}`}>
                 {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
-            </td>
-            <td className="border border-black bg-blue-50 font-bold text-[9px] text-deped-blue leading-tight whitespace-normal wrap-break-word px-1">
-                {descriptor}
             </td>
         </tr>
     );
@@ -433,7 +430,10 @@ const StudentGradeRow = memo(({
         prev.hps === next.hps &&
         prev.currentWeights === next.currentWeights &&
         prev.currentCluster === next.currentCluster &&
-        prev.isFieldExposure === next.isFieldExposure
+        prev.optimalNameColumnWidth === next.optimalNameColumnWidth &&
+        prev.activeWwCount === next.activeWwCount &&
+        prev.activePtCount === next.activePtCount &&
+        prev.isZeroExam === next.isZeroExam
     );
 });
 
@@ -630,53 +630,8 @@ export function ShsEClassRecord() {
         return baseStudents;
     }, [students, selectedSection, selectedSectionObj, selectedSubject, subjects]);
 
-    // Highest Possible Scores (HPS) - Persistent
-    const hps = useMemo(() => {
-        if (!effectiveSubjectId) {
-            return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
-        }
-
-        const secId = selectedSectionObj?.id || selectedSection;
-        const secName = selectedSectionObj?.section_name || selectedSection;
-        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
-
-        const record = hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            (
-                r.section_id === secId ||
-                r.section_id === secName ||
-                r.section_id === fullSecName ||
-                r.section_id === selectedSection ||
-                (secId && r.id.includes(secId)) ||
-                (secName && r.id.includes(secName))
-            )
-        ) || hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
-            r.school_year === activeSchoolYear &&
-            Number(r.quarter) === quarter &&
-            !r.section_id
-        );
-
-        const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
-
-        const hps_ww = normalizeScores(record?.written_works, WW_COUNT).map(v => v === '' ? '' : Number(v));
-        const hps_pt = normalizeScores(record?.performance_tasks, PT_COUNT).map(v => v === '' ? '' : Number(v));
-        const hps_qa = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
-            if (i === 2 && (v === undefined || v === '')) {
-                const legacy = record?.quarterly_exam;
-                return (legacy === undefined || legacy === '') ? '' : Number(legacy);
-            }
-            return v === '' ? '' : Number(v);
-        });
-
-        return {
-            ww: hps_ww,
-            pt: hps_pt,
-            qa: hps_qa
-        };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj]);
+    const isGrade11 = (sectionGradeLevel || '').includes('11');
+    const isGrade12 = (sectionGradeLevel || '').includes('12');
 
     // Track/Strand determination
     const sectionTrack = useMemo(() => {
@@ -705,6 +660,172 @@ export function ShsEClassRecord() {
         if (norm.includes('TVL') || norm.includes('TECHPRO') || norm.includes('HE') || norm.includes('ICT')) return 'Technical-Vocational-Livelihood (TVL)';
         return 'Academic Track';
     }, [selectedSection, selectedSectionObj]);
+
+    // Smart Filtering Engine to distinguish New SSHS (DO 15/17, s. 2026) vs Old Legacy K-12 (DO 8, s. 2015)
+    // Note: Even though the entire school adopts the 3-Term calendar for SY 2026-2027,
+    // Grade 12 Old K-12 is identified by Track, Strand, and Subject Catalog vs SSHS Clusters & Electives.
+    const isSSHS = useMemo(() => {
+        if (isGrade11) return true; // Grade 11 is always Strengthened SHS (DO 15, s. 2026)
+        if (!isGrade12) return true; // Non-Grade 12 SHS defaults to SSHS
+        if (!selectedSubjectObj) return false;
+
+        const subjAny = selectedSubjectObj as any;
+        const norm = (selectedSubjectObj.subject_name || '').trim().toLowerCase();
+        const normClean = norm.replace(/[^a-z0-9]/g, '');
+
+        // 1. Explicit Curriculum / Version Flags
+        if (subjAny.is_sshs === true || subjAny.sshs === true || subjAny.curriculum === 'sshs' || subjAny.curriculum === '2026' || subjAny.curriculum === 'do15' || subjAny.curriculum === 'do17') {
+            return true;
+        }
+        if (subjAny.is_legacy === true || subjAny.is_old === true || subjAny.curriculum === 'legacy' || subjAny.curriculum === 'old' || subjAny.curriculum === '2016' || subjAny.curriculum === 'do8' || subjAny.curriculum === 'k12') {
+            return false;
+        }
+
+        // 2. Known Distinct Legacy K-12 Grade 12 Subjects & Core/Applied/Specialized (DO 8, s. 2015)
+        const legacyDistinctSubjects = [
+            'practical research 2',
+            'practical research 1',
+            'inquiries investigations and immersion',
+            'inquiries, investigations and immersion',
+            'inquiries investigations & immersion',
+            '3is',
+            'empowerment technologies',
+            'english for academic and professional purposes',
+            'eapp',
+            'entrepreneurship',
+            'filipino sa piling larang',
+            'filipino sa piling larang akademik',
+            'filipino sa piling larang akademiko',
+            'filipino sa piling larang isports',
+            'filipino sa piling larang sining at disenyo',
+            'filipino sa piling larang teknikal bokasyunal',
+            'filipino sa piling larang teknikal-bokasyunal',
+            'contemporary philippine arts from the regions',
+            'cpar',
+            'media and information literacy',
+            'mil',
+            'physical education and health 3',
+            'physical education and health 4',
+            'pe and health 3',
+            'pe and health 4',
+            'understanding culture society and politics',
+            'understanding culture, society and politics',
+            'ucsp',
+            'intro to philosophy',
+            'introduction to philosophy of the human person',
+            'personal development',
+            'perdev',
+            '21st century literature from the philippines and the world',
+            '21st century literature',
+            // Legacy Specialized Subjects
+            'basic calculus',
+            'general chemistry 1',
+            'general chemistry 2',
+            'general physics 1',
+            'general physics 2',
+            'general biology 1',
+            'general biology 2',
+            'fundamentals of accountancy, business and management 1',
+            'fundamentals of accountancy, business and management 2',
+            'fabm 1',
+            'fabm 2',
+            'business finance',
+            'principles of marketing',
+            'organization and management',
+            'business ethics and social responsibility',
+            'business math',
+            'business mathematics',
+            'philippine politics and governance',
+            'ppg',
+            'disciplines and ideas in the social sciences',
+            'diss',
+            'disciplines and ideas in the applied social sciences',
+            'diass',
+            'community engagement, solidarity and citizenship',
+            'cesc',
+            'trends, networks, and critical thinking in the 21st century culture',
+            'trends networks and critical thinking',
+            'tnct'
+        ];
+        if (legacyDistinctSubjects.some(l => normClean === l.replace(/[^a-z0-9]/g, '') || norm.includes(l))) {
+            return false;
+        }
+
+        // 3. Section Track / Strand check:
+        // If the section is configured with legacy K-12 Strands (STEM, ABM, HUMSS, GAS, ICT, HE, IA, AFA)
+        // and does NOT have explicit SSHS elective catalog match
+        const rawStrand = ((selectedSectionObj as any)?.section_strand || sectionTrack || '').toLowerCase();
+        const isLegacyStrand = ['abm', 'humss', 'gas', 'tvl - ict', 'tvl - he', 'tvl - ia', 'tvl - afa'].some(st => rawStrand.includes(st));
+
+        // 4. SSHS Official DO 17 s. 2026 Elective Catalogs (Pilot Schools & 2026 Offerings)
+        const inElectiveCatalog = SSHS_ELECTIVE_CATALOG.some(e => {
+            const eNorm = e.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return eNorm === normClean || norm.includes(e.title.toLowerCase()) || e.title.toLowerCase().includes(norm);
+        });
+        if (inElectiveCatalog) return true;
+
+        const inFullCatalog = SSHS_GRADE11_CATALOG.some(c => {
+            const cNorm = c.subject.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cNorm === normClean || norm.includes(c.subject.toLowerCase()) || c.subject.toLowerCase().includes(norm);
+        });
+        if (inFullCatalog && !isLegacyStrand) return true;
+
+        if (isGrade11CoreSubject(norm) && !isLegacyStrand) return true;
+
+        // Default for Grade 12 without explicit SSHS elective is Old K-12
+        return false;
+    }, [isGrade11, isGrade12, selectedSubjectObj, selectedSectionObj, sectionTrack]);
+
+    const activeWwCount = isSSHS ? SSHS_WW_COUNT : WW_COUNT;
+    const activePtCount = isSSHS ? SSHS_PT_COUNT : PT_COUNT;
+
+    // Highest Possible Scores (HPS) - Persistent
+    const hps = useMemo(() => {
+        if (!effectiveSubjectId) {
+            return { ww: Array(activeWwCount).fill(''), pt: Array(activePtCount).fill(''), qa: Array(ST_COUNT).fill('') };
+        }
+
+        const secId = selectedSectionObj?.id || selectedSection;
+        const secName = selectedSectionObj?.section_name || selectedSection;
+        const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
+
+        const record = hpsRecords.find(r =>
+            r.subject_id === effectiveSubjectId &&
+            r.school_year === activeSchoolYear &&
+            Number(r.quarter) === quarter &&
+            (
+                r.section_id === secId ||
+                r.section_id === secName ||
+                r.section_id === fullSecName ||
+                r.section_id === selectedSection ||
+                (secId && r.id.includes(secId)) ||
+                (secName && r.id.includes(secName))
+            )
+        ) || hpsRecords.find(r =>
+            r.subject_id === effectiveSubjectId &&
+            r.school_year === activeSchoolYear &&
+            Number(r.quarter) === quarter &&
+            !r.section_id
+        );
+
+        const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
+
+        const hps_ww = normalizeScores(record?.written_works, activeWwCount).map(v => v === '' ? '' : Number(v));
+        const hps_pt = normalizeScores(record?.performance_tasks, activePtCount).map(v => v === '' ? '' : Number(v));
+        const hps_qa = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
+            if (i === 2 && (v === undefined || v === '')) {
+                const legacy = record?.quarterly_exam;
+                return (legacy === undefined || legacy === '') ? '' : Number(legacy);
+            }
+            return v === '' ? '' : Number(v);
+        });
+
+        return {
+            ww: hps_ww,
+            pt: hps_pt,
+            qa: hps_qa
+        };
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount]);
 
     const currentCluster = useMemo(() => {
         return getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
@@ -748,9 +869,41 @@ export function ShsEClassRecord() {
         return `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`);
     }), [sectionStudents]);
 
-    const optimalNameColumnWidth = 280;
-
     const isFieldExposure = currentCluster === 'shs_field_exposure';
+    const isZeroExam = currentWeights.quarterly_exam === 0 || isFieldExposure;
+
+    const maxLearnerNameLength = useMemo(() => {
+        return sectionStudents.reduce((max, s) => Math.max(max, formatStudentFullName(s).length), 0);
+    }, [sectionStudents, formatStudentFullName]);
+
+    const optimalNameColumnWidth = useMemo(() => {
+        return Math.max(145, Math.ceil(maxLearnerNameLength * 6.0 + 14));
+    }, [maxLearnerNameLength]);
+
+    const sshsMeta = useMemo(() => {
+        if (!selectedSubjectObj) return null;
+        return resolveSSHSMetadata(selectedSubjectObj, isGrade11 ? 11 : 12);
+    }, [selectedSubjectObj, isGrade11]);
+
+    const displayGradeNum = sectionGradeLevel.match(/\d+/)?.[0] || (isGrade11 ? '11' : '12');
+    const displaySectionClean = (selectedSectionObj?.section_name || selectedSection)
+        .replace(new RegExp(`Grade\\s*${displayGradeNum}`, 'i'), '')
+        .replace(new RegExp(`^${displayGradeNum}\\s*-\\s*`, 'i'), '')
+        .trim();
+    const displaySubjectName = (isSSHS ? (sshsMeta?.subject || selectedSubjectObj?.subject_name || subjectName || '') : (selectedSubjectObj?.subject_name || subjectName || '')).toUpperCase();
+    const displayCluster = (isSSHS ? (sshsMeta?.cluster || currentCluster || 'CORE') : (sectionTrack || currentCluster || 'CORE')).toUpperCase();
+    const unitsPerTerm = (sshsMeta?.terms === 3 ? 2 : ((selectedSubjectObj as any)?.hours ? Math.round((selectedSubjectObj as any).hours / 40) : 2)) || 2;
+    const unitsPerYear = (sshsMeta ? (sshsMeta.terms * unitsPerTerm) : 6) || 6;
+
+    const subjectType = useMemo(() => {
+        return getSubjectCategory(selectedSubjectObj?.subject_name || subjectName || '', sectionGradeLevel).toUpperCase();
+    }, [selectedSubjectObj, subjectName, sectionGradeLevel]);
+
+    const totalNonNameCols = (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? 8 : 0) + 2;
+    const colSpanGls = Math.max(3, Math.round(totalNonNameCols * 0.20));
+    const colSpanSection = Math.max(4, Math.round(totalNonNameCols * 0.24));
+    const colSpanTeacher = Math.max(5, Math.round(totalNonNameCols * 0.30));
+    const colSpanSubject = totalNonNameCols - (colSpanGls + colSpanSection + colSpanTeacher);
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
@@ -760,16 +913,16 @@ export function ShsEClassRecord() {
         );
 
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
-            written_works: Array(WW_COUNT).fill(''),
-            performance_tasks: Array(PT_COUNT).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: ''
         };
 
-        const wwScores = normalizeScores(sGrades.written_works, WW_COUNT).map(s => {
+        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
-        const ptScores = normalizeScores(sGrades.performance_tasks, PT_COUNT).map(s => {
+        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
@@ -785,13 +938,13 @@ export function ShsEClassRecord() {
 
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-        const wwWS = wwPS * (currentWeights.written_works || 0);
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
+        const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
 
         const ptTotalScore = ptScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.round((ptTotalScore / ptTotalHPS) * 100 * 100) / 100;
+        const ptWS = Math.round(ptPS * (currentWeights.performance_tasks || 0) * 100) / 100;
 
         const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
         const st1HPS = Number(hps.qa[0]) || 0;
@@ -815,16 +968,16 @@ export function ShsEClassRecord() {
             qaScore += (teScore as number);
         }
 
-        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaWS = isZeroExam ? 0 : Math.round(qaPS * (currentWeights.quarterly_exam || 0) * 100) / 100;
 
-        const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
+        const initialGrade = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
             wwScores.some(isValidScore) ||
             ptScores.some(isValidScore) ||
-            qaScores.some(isValidScore);
+            (!isZeroExam && qaScores.some(isValidScore));
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
@@ -839,7 +992,7 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1023,8 +1176,8 @@ export function ShsEClassRecord() {
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(WW_COUNT).fill(''),
-            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(PT_COUNT).fill(''),
+            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(activeWwCount).fill(''),
+            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(activePtCount).fill(''),
             quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
             section_id: secId
         };
@@ -1058,8 +1211,8 @@ export function ShsEClassRecord() {
 
         // Recalculate and update final_grade for all section students with scores to prevent stale calculations
         const stateClassRecords = useAppStore.getState().classRecords;
-        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
-        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+        const currentHpsWw = normalizeScores(newRecord.written_works, activeWwCount).map(v => Number(v) || 0);
+        const currentHpsPt = normalizeScores(newRecord.performance_tasks, activePtCount).map(v => Number(v) || 0);
         const currentHpsQa = normalizeScores(currentQa, ST_COUNT).map(v => Number(v) || 0);
 
         const hpsWwTotal = currentHpsWw.reduce((a, b) => a + b, 0);
@@ -1073,23 +1226,23 @@ export function ShsEClassRecord() {
             );
             if (!cr) return;
 
-            const sWw = normalizeScores(cr.written_works, WW_COUNT);
-            const sPt = normalizeScores(cr.performance_tasks, PT_COUNT);
+            const sWw = normalizeScores(cr.written_works, activeWwCount);
+            const sPt = normalizeScores(cr.performance_tasks, activePtCount);
             const sQa = normalizeScores((cr as any).summative_tests, ST_COUNT);
             if (!sQa[2] && cr.quarterly_exam !== '') sQa[2] = cr.quarterly_exam;
 
             const isValid = (v: any) => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
-            const hasScores = sWw.some(isValid) || sPt.some(isValid) || sQa.some(isValid);
+            const hasScores = sWw.some(isValid) || sPt.some(isValid) || (!isZeroExam && sQa.some(isValid));
             if (!hasScores) return;
 
             const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
             const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
 
-            const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
-            const wwWS = wwPS * currentWeights.written_works;
+            const wwPS = hpsWwTotal === 0 ? 0 : Math.round((sWwTotal / hpsWwTotal) * 100 * 100) / 100;
+            const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
 
-            const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
-            const ptWS = ptPS * currentWeights.performance_tasks;
+            const ptPS = hpsPtTotal === 0 ? 0 : Math.round((sPtTotal / hpsPtTotal) * 100 * 100) / 100;
+            const ptWS = Math.round(ptPS * (currentWeights.performance_tasks || 0) * 100) / 100;
 
             const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
             const st1HPS = Number(currentHpsQa[0]) || 0;
@@ -1098,10 +1251,10 @@ export function ShsEClassRecord() {
             const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
             const teHPS = Number(currentHpsQa[2]) || 0;
 
-            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-            const qaWS = qaPS * currentWeights.quarterly_exam;
+            const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+            const qaWS = isZeroExam ? 0 : Math.round(qaPS * (currentWeights.quarterly_exam || 0) * 100) / 100;
 
-            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            const initialGrade = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
             const newFinalGrade = transmuteGrade(initialGrade, cr.school_year || activeSchoolYear);
 
             const updatedCr: ClassRecord = {
@@ -1124,7 +1277,7 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, activeWwCount, activePtCount, isZeroExam]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1146,8 +1299,8 @@ export function ShsEClassRecord() {
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: Array(WW_COUNT).fill(''),
-            performance_tasks: Array(PT_COUNT).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: '',
             final_grade: '',
             is_teaching_load: true
@@ -1185,18 +1338,18 @@ export function ShsEClassRecord() {
             record.performance_tasks = newPT;
         }
 
-        const normalizedWW = normalizeScores(record.written_works, WW_COUNT);
-        const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
+        const normalizedWW = normalizeScores(record.written_works, activeWwCount);
+        const normalizedPT = normalizeScores(record.performance_tasks, activePtCount);
 
         const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
         const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-        const wwWS = wwPS * currentWeights.written_works;
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
+        const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
 
         const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
         const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-        const ptWS = ptPS * currentWeights.performance_tasks;
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.round((ptTotalScore / ptTotalHPS) * 100 * 100) / 100;
+        const ptWS = Math.round(ptPS * (currentWeights.performance_tasks || 0) * 100) / 100;
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
         const st1HPS = Number(hps.qa[0]) || 0;
         const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
@@ -1204,16 +1357,16 @@ export function ShsEClassRecord() {
         const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
         const teHPS = Number(hps.qa[2]) || 0;
 
-        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * currentWeights.quarterly_exam;
+        const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+        const qaWS = isZeroExam ? 0 : Math.round(qaPS * (currentWeights.quarterly_exam || 0) * 100) / 100;
 
-        const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+        const initialGrade = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
             normalizedWW.some(isValidScore) ||
             normalizedPT.some(isValidScore) ||
-            qaScores.some(isValidScore);
+            (!isZeroExam && qaScores.some(isValidScore));
 
         if (!hasScores) {
             deleteClassRecord(record.id);
@@ -1237,7 +1390,7 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, activeWwCount, activePtCount, isZeroExam]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1381,6 +1534,38 @@ export function ShsEClassRecord() {
         } catch (err) {
             console.error('Download failed:', err);
             showNotification('Failed to download class record. Please try again.', 'error');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const handleExcelExport = async () => {
+        if (!selectedSectionObj || !selectedSubjectObj) {
+            showNotification('Please select both a section and a subject to export.', 'error');
+            return;
+        }
+        if (!isSSHS) {
+            showNotification('Excel Export is only supported for Strengthened Senior High School (SSHS) Grade 11 and Grade 12 records (DO 15, s. 2026).', 'error');
+            return;
+        }
+        try {
+            setIsDownloading(true);
+            await exportSSHSEClassRecord({
+                schoolProfile: schoolProfile || null,
+                schoolYear: activeSchoolYear,
+                section: selectedSectionObj,
+                subject: selectedSubjectObj,
+                students: sectionStudents,
+                classRecords,
+                hpsRecords,
+                teacherName,
+                termBlock: (selectedSubjectObj as any)?.term_block || '1ST, 2ND, 3RD',
+                numTerms: 3
+            });
+            showNotification('SSHS E-Class Record exported to Excel successfully!', 'success');
+        } catch (err: any) {
+            console.error('SSHS Excel Export Error:', err);
+            showNotification(err?.message || 'Failed to export SSHS Excel record.', 'error');
         } finally {
             setIsDownloading(false);
         }
@@ -1543,6 +1728,16 @@ export function ShsEClassRecord() {
                         <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
                             <Printer className="w-3.5 h-3.5" /> Print Record
                         </button>
+                        {isSSHS && (
+                            <button
+                                onClick={handleExcelExport}
+                                disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
+                                className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap cursor-pointer"
+                                title="Export official DepEd SSHS Excel File (.xlsx)"
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
+                            </button>
+                        )}
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
@@ -1615,44 +1810,48 @@ export function ShsEClassRecord() {
                         <div id="printable-summary-record" className="bg-white px-8 py-10 mx-auto print:p-0 font-sans shadow-[0_0_50px_rgba(0,0,0,0.05)] print:shadow-none border border-gray-100 print:border-none transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthPortrait }}>
                             <div className="flex flex-col mb-4">
                                 <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
-                                    <div className="w-14 h-14 shrink-0">
-                                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
+                                    <div className="w-16 h-16 shrink-0">
+                                        <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Seal" className="w-full h-full object-contain" />
                                     </div>
                                     <div className="text-center flex-1 mx-4 text-black">
-                                        <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
-                                        <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
-                                            (Pursuant to DepEd Order 15 series of 2026)
+                                        <h1 className="text-xl md:text-2xl font-bold font-sans tracking-tight text-black mb-0">
+                                            {isGrade11 ? 'Strengthened Senior High School Class Record' : 'Senior High School Class Record'}
+                                        </h1>
+                                        <p className="text-[9px] italic text-black/80 font-sans mt-0.5 font-medium mb-0">
+                                            (Pursuant to DepEd Order 15, series of 2026)
                                         </p>
                                     </div>
-                                    <div className="w-24 h-14 shrink-0 flex items-center justify-center">
+                                    <div className="w-24 h-16 shrink-0 flex items-center justify-center">
                                         <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
                                     </div>
                                 </div>
 
-                                <div className="flex items-stretch justify-between text-[11px] font-bold text-black uppercase w-full">
-                                    <div className="flex flex-col gap-0 w-[44%] text-[11px] font-bold text-black justify-between">
-                                        <div className="flex items-stretch flex-1">
-                                            <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">REGION</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[11px]")}`}>{schoolProfile.region}</div>
+                                <div className="flex items-stretch justify-between text-[10px] font-bold text-black uppercase w-full gap-4">
+                                    <div className="flex flex-col gap-1 w-[56%]">
+                                        <div className="flex items-stretch gap-2">
+                                            <div className="flex items-center flex-[1.1]">
+                                                <span className="w-20 text-right pr-2 font-bold text-[10px] shrink-0">REGION</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.region}</div>
+                                            </div>
+                                            <div className="flex items-center flex-[1.2]">
+                                                <span className="w-18 text-right pr-2 font-bold text-[10px] shrink-0">DIVISION</span>
+                                                <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.division}</div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-stretch flex-1">
-                                            <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL NAME</span>
-                                            <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[11px]")}`}>{schoolProfile.name}</div>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black justify-between">
-                                        <div className="flex items-stretch flex-1">
-                                            <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">DIVISION</span>
-                                            <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[11px]")}`}>{schoolProfile.division}</div>
-                                        </div>
-                                        <div className="flex items-stretch flex-1">
-                                            <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL ID</span>
-                                            <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[11px]")}`}>{schoolProfile.school_id}</div>
+                                        <div className="flex items-center">
+                                            <span className="w-20 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL NAME</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.name}</div>
                                         </div>
                                     </div>
-                                    <div className="w-[24%] flex items-stretch">
-                                        <div className="px-3 flex items-center bg-transparent font-black text-[11px] uppercase whitespace-nowrap">SCHOOL YEAR</div>
-                                        <div className={`border border-black flex-1 bg-white flex items-center justify-center text-center font-bold wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[11px]")}`}>{activeSchoolYear}</div>
+                                    <div className="flex flex-col gap-1 w-[38%]">
+                                        <div className="flex items-center">
+                                            <span className="w-24 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL ID</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{schoolProfile.school_id}</div>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className="w-24 text-right pr-2 font-bold text-[10px] shrink-0">SCHOOL YEAR</span>
+                                            <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold">{activeSchoolYear}</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1762,144 +1961,340 @@ export function ShsEClassRecord() {
                             </table>
                         </div>
                     ) : (
-                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 text-black">
-                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 text-black overflow-x-auto">
+<div id="printable-class-record" className="bg-white text-black p-3 md:p-5 shadow-xl border border-gray-100 mx-auto transition-all duration-300 rounded-lg" style={{ width: `${Math.max(1300, optimalNameColumnWidth + 1120)}px`, minWidth: `${Math.max(1300, optimalNameColumnWidth + 1120)}px` }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
                             ].map((section, sectionIdx) => (
-                            <div key={section.gender} className={`class-record-page bg-white p-4 print:p-0 ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-6'}`}>
-                             <div className="flex flex-col mb-4">
-                                 <div className="flex justify-between items-center w-full px-4 print:px-1 mb-2">
-                                     <div className="w-14 h-14 shrink-0">
-                                         <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
-                                     </div>
-                                     <div className="text-center flex-1 mx-4 text-black">
-                                         <h1 className="text-xl font-bold font-sans tracking-tight text-black mb-0">Senior High School Class Record</h1>
-                                         <p className="text-[8px] italic text-[#1d4ed8] font-sans mt-1.5 font-bold mb-0">
-                                             (Pursuant to DepEd Order 15 series of 2026)
-                                         </p>
-                                     </div>
-                                     <div className="w-24 h-14 shrink-0 flex items-center justify-center">
-                                         <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
-                                     </div>
-                                 </div>
+                                <div key={section.gender} className={`class-record-page bg-white p-2 print:p-0 w-full ${sectionIdx === 0 ? 'print:break-after-page' : 'print:mt-4'}`}>                              <div className="flex flex-col mb-2">
+                                   <div className="flex justify-between items-center w-full px-2 mb-1.5">
+                                       <div className="w-12 h-12 shrink-0">
+                                           <img src={`${import.meta.env.BASE_URL}deped_logo_left.png`} alt="DepEd Seal" className="w-full h-full object-contain" />
+                                       </div>
+                                       <div className="text-center flex-1 mx-4 text-black">
+                                           <h1 className="text-lg md:text-xl font-bold font-sans tracking-tight text-black mb-0">
+                                               {isSSHS ? 'Strengthened Senior High School Class Record' : 'Senior High School Class Record'}
+                                           </h1>
+                                           <p className="text-[8.5px] italic text-blue-600 font-sans mt-0.5 font-medium mb-0">
+                                               (Pursuant to DepEd Order 15 series of 2026)
+                                           </p>
+                                       </div>
+                                       <div className="w-20 h-12 shrink-0 flex items-center justify-center">
+                                           <img src={`${import.meta.env.BASE_URL}deped_logo_right.png`} alt="DepEd Logo" className="w-full h-full object-contain" />
+                                       </div>
+                                   </div>
 
-                                 <div className="flex items-stretch justify-between text-[11px] font-bold text-black uppercase w-full">
-                                     <div className="flex flex-col gap-0 w-[44%] text-[11px] font-bold text-black justify-between">
-                                         <div className="flex items-stretch flex-1">
-                                             <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">REGION</span>
-                                             <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.region, "text-[11px]")}`}>{schoolProfile.region}</div>
-                                         </div>
-                                         <div className="flex items-stretch flex-1">
-                                             <span className="w-24 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL NAME</span>
-                                             <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.name, "text-[11px]")}`}>{schoolProfile.name}</div>
-                                         </div>
-                                     </div>
-                                     <div className="flex flex-col gap-0 w-[32%] text-[11px] font-bold text-black justify-between">
-                                         <div className="flex items-stretch flex-1">
-                                             <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">DIVISION</span>
-                                             <div className={`border border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.division, "text-[11px]")}`}>{schoolProfile.division}</div>
-                                         </div>
-                                         <div className="flex items-stretch flex-1">
-                                             <span className="w-20 text-right pr-2 font-black text-[11px] flex items-center justify-end">SCHOOL ID</span>
-                                             <div className={`border-x border-b border-black px-2 py-0.5 flex-1 bg-white flex items-center justify-center text-center wrap-break-word leading-tight ${getDynamicFontSizeClass(schoolProfile.school_id, "text-[11px]")}`}>{schoolProfile.school_id}</div>
-                                         </div>
-                                     </div>
-                                     <div className="w-[24%] flex items-stretch">
-                                         <div className="px-3 flex items-center bg-transparent font-black text-[11px] uppercase whitespace-nowrap">SCHOOL YEAR</div>
-                                         <div className={`border border-black flex-1 bg-white flex items-center justify-center text-center font-bold wrap-break-word leading-tight ${getDynamicFontSizeClass(activeSchoolYear, "text-[11px]")}`}>{activeSchoolYear}</div>
-                                     </div>
-                                 </div>
-                             </div>
+                                   <div className="flex items-stretch justify-between text-[9.5px] font-bold text-black uppercase w-full gap-3">
+                                       {/* Left Columns: Region, School Name */}
+                                       <div className="flex flex-col gap-0.5 flex-[1.2]">
+                                           <div className="flex items-center">
+                                               <span className="w-20 text-right pr-2 font-bold text-[9px] shrink-0">REGION</span>
+                                               <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate">{schoolProfile.region}</div>
+                                           </div>
+                                           <div className="flex items-center">
+                                               <span className="w-20 text-right pr-2 font-bold text-[9px] shrink-0">SCHOOL NAME</span>
+                                               <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate">{schoolProfile.name}</div>
+                                           </div>
+                                       </div>
 
-                            <table className="w-full border-collapse border border-black text-[9px] font-sans text-black mb-2 bg-white">
-                                <tbody>
-                                    <tr className="h-6">
-                                        <td rowSpan={2} className="border border-black text-center font-black text-[11px] uppercase w-[12%] px-2">
-                                            {typeof quarter === 'string' && quarter.startsWith('summary') ? (
-                                                quarter === 'summary_final' ? 'FINAL SUMMARY' :
-                                                quarter === 'summary_t1' ? 'TERM 1 SUMMARY' :
-                                                quarter === 'summary_t2' ? 'TERM 2 SUMMARY' :
-                                                quarter === 'summary_t3' ? 'TERM 3 SUMMARY' :
-                                                'SUMMARY OF GRADES'
-                                            ) : (
-                                                getTermUpperLabel(quarter as any)
-                                            )}
-                                        </td>
-                                        <td rowSpan={2} className="border border-black px-2 py-0.5 text-black font-black text-[11px] w-[13%] text-center uppercase leading-tight">
-                                            GRADE LEVEL AND<br/>SECTION
-                                        </td>
-                                        <td rowSpan={2} className="border border-black text-center font-black text-[11px] w-[15%] uppercase px-1 whitespace-nowrap">
-                                            {sectionGradeLevel.replace('Grade ', '')} - {selectedSection.replace(sectionGradeLevel.replace('Grade ', ''), '').replace('-', '').trim()}
-                                        </td>
-                                        <td className="border border-black px-2 py-1 w-[30%] text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">TEACHER:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{teacherName}</span>
-                                            </div>
-                                        </td>
-                                        <td className="border border-black px-2 py-1 w-[30%] text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">SUBJECT:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] truncate flex-1 leading-none" title={subjectName}>{subjectName}</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr className="h-6">
-                                        <td className="border border-black px-2 py-1 text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">TRACK:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{sectionTrack}</span>
-                                            </div>
-                                        </td>
-                                        <td className="border border-black px-2 py-1 text-left align-middle">
-                                            <div className="flex items-center h-full leading-none">
-                                                <span className="font-black text-black mr-1.5 text-[11px] shrink-0">SUBJECT TYPE:</span>
-                                                <span className="uppercase font-bold text-black text-[11px] flex-1 leading-none">{getSubjectCategory(subjectName, sectionGradeLevel)}</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                       {/* Middle Columns: Division, School ID */}
+                                       <div className="flex flex-col gap-0.5 flex-[1.1]">
+                                           <div className="flex items-center">
+                                               <span className="w-16 text-right pr-2 font-bold text-[9px] shrink-0">DIVISION</span>
+                                               <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate">{schoolProfile.division}</div>
+                                           </div>
+                                           <div className="flex items-center">
+                                               <span className="w-16 text-right pr-2 font-bold text-[9px] shrink-0">SCHOOL ID</span>
+                                               <div className="border border-black px-2 py-0.5 flex-1 bg-white text-center font-bold truncate">{schoolProfile.school_id}</div>
+                                           </div>
+                                       </div>
 
-                            <table className="w-full table-fixed border-collapse border-2 border-black text-[10px] text-center bg-white text-black font-sans">
-                                <thead>
-                                    <tr className="h-10">
-                                        <th rowSpan={2} className="bg-gray-100 border border-black p-1 align-middle text-[9px] tracking-wide font-black" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
-                                        <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-blue-50/50">WRITTEN / ORAL WORKS ({Math.round(currentWeights.written_works * 100)}%)</th>
-                                        <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-green-50/50 leading-tight">
-                                            <span>PRODUCT / PERFORMANCE</span><br />
-                                            <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
+                                       {/* Right Column: School Year (spanning full 2-row height) */}
+                                       <div className="flex items-center flex-[0.8] justify-end">
+                                           <span className="text-right pr-2 font-bold text-[9px] shrink-0">SCHOOL YEAR</span>
+                                           <div className="border border-black px-4 py-2.5 bg-white text-center font-bold min-w-28 flex items-center justify-center">{activeSchoolYear}</div>
+                                       </div>
+                                   </div>
+                               </div>
+
+                             <table className="w-full table-fixed border-collapse border-2 border-black text-[9.5px] text-center bg-white text-black font-sans">
+                                 <colgroup>
+                                     {/* 1. Name */}
+                                     <col style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px` }} />
+
+                                     {/* 2..11: WW 1..10 or 1..5 */}
+                                     {Array.from({ length: activeWwCount }).map((_, i) => (
+                                         <col key={`col-ww-${i}`} style={{ width: '24px' }} />
+                                     ))}
+                                     {/* WW Total, WW PS, WW WS */}
+                                     <col style={{ width: '34px' }} />
+                                     <col style={{ width: '38px' }} />
+                                     <col style={{ width: '38px' }} />
+
+                                     {/* PT 1..10 or 1..3 */}
+                                     {Array.from({ length: activePtCount }).map((_, i) => (
+                                         <col key={`col-pt-${i}`} style={{ width: '24px' }} />
+                                     ))}
+                                     {/* PT Total, PT PS, PT WS */}
+                                     <col style={{ width: '34px' }} />
+                                     <col style={{ width: '38px' }} />
+                                     <col style={{ width: '38px' }} />
+
+                                     {/* EXs (8 cols) */}
+                                     {!isZeroExam && (
+                                         <>
+                                             <col style={{ width: '26px' }} />
+                                             <col style={{ width: '26px' }} />
+                                             <col style={{ width: '26px' }} />
+                                             <col style={{ width: '34px' }} />
+                                             <col style={{ width: '34px' }} />
+                                             <col style={{ width: '34px' }} />
+                                             <col style={{ width: '38px' }} />
+                                             <col style={{ width: '38px' }} />
+                                         </>
+                                     )}
+
+                                     {/* INITIAL GRADE, TERM/QUARTERLY GRADE */}
+                                     <col style={{ width: '56px', minWidth: '56px' }} />
+                                     <col style={{ width: '56px', minWidth: '56px' }} />
+                                 </colgroup>
+                                 <thead>
+                                     {/* Top Integrated Metadata Rows */}
+                                     {!isSSHS ? (
+                                         /* OLD SHS GRADE 12 METADATA HEADER LAYOUT */
+                                         <>
+                                             {/* Row 1 */}
+                                             <tr className="h-6 text-[8.5px] font-bold border-b border-black">
+                                                 {/* 1. Term Block spanning 2 rows */}
+                                                 <th
+                                                     rowSpan={2}
+                                                     className="border-2 border-black p-0.5 align-middle text-sm font-black uppercase text-center bg-white tracking-wide"
+                                                     style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}
+                                                 >
+                                                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
+                                                         quarter === 'summary_final' ? 'FINAL SUMMARY' :
+                                                         quarter === 'summary_t1' ? 'TERM 1 SUMMARY' :
+                                                         quarter === 'summary_t2' ? 'TERM 2 SUMMARY' :
+                                                         quarter === 'summary_t3' ? 'TERM 3 SUMMARY' :
+                                                         'SUMMARY'
+                                                     ) : (
+                                                         getTermUpperLabel(quarter as any)
+                                                     )}
+                                                 </th>
+
+                                                 {/* 2. GRADE LEVEL AND SECTION */}
+                                                 <th
+                                                     rowSpan={2}
+                                                     colSpan={colSpanGls}
+                                                     className="border-2 border-black p-1 align-middle text-center font-black text-[9px] uppercase bg-white leading-tight"
+                                                 >
+                                                     GRADE LEVEL AND<br />SECTION
+                                                 </th>
+
+                                                 {/* 3. Section Name (e.g. 12 - PACIOLI) */}
+                                                 <th
+                                                     rowSpan={2}
+                                                     colSpan={colSpanSection}
+                                                     className="border-2 border-black p-1 align-middle text-center font-black text-[10px] uppercase bg-white truncate"
+                                                 >
+                                                     {displayGradeNum} - {displaySectionClean}
+                                                 </th>
+
+                                                 {/* 4. TEACHER */}
+                                                 <th
+                                                     colSpan={colSpanTeacher}
+                                                     className="border-2 border-black border-b border-b-black px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                 >
+                                                     <span className="font-black mr-1 text-black">TEACHER:</span>
+                                                     <span className="font-black text-black">{teacherName}</span>
+                                                 </th>
+
+                                                 {/* 5. SUBJECT */}
+                                                 <th
+                                                     colSpan={colSpanSubject}
+                                                     className="border-2 border-black border-b border-b-black px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                 >
+                                                     <span className="font-black mr-1 text-black">SUBJECT:</span>
+                                                     <span className="font-black text-black">{displaySubjectName}</span>
+                                                 </th>
+                                             </tr>
+
+                                             {/* Row 2 */}
+                                             <tr className="h-6 text-[8.5px] font-bold border-b-2 border-black">
+                                                 {/* 4. TRACK */}
+                                                 <th
+                                                     colSpan={colSpanTeacher}
+                                                     className="border-2 border-black border-t-0 px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                 >
+                                                     <span className="font-black mr-1 text-black">TRACK:</span>
+                                                     <span className="font-black text-black">{sectionTrack || displayCluster}</span>
+                                                 </th>
+
+                                                 {/* 5. SUBJECT TYPE */}
+                                                 <th
+                                                     colSpan={colSpanSubject}
+                                                     className="border-2 border-black border-t-0 px-2 text-left font-black text-[9px] uppercase bg-white truncate"
+                                                 >
+                                                     <span className="font-black mr-1 text-black">SUBJECT TYPE:</span>
+                                                     <span className="font-black text-black">{subjectType}</span>
+                                                 </th>
+                                             </tr>
+                                         </>
+                                     ) : (
+                                         /* NEW SSHS GRADE 11 / SSHS GRADE 12 METADATA HEADER LAYOUT */
+                                         <>
+                                             <tr className="h-5 text-[8.5px] font-bold border-b border-black">
+                                                 <th
+                                                     rowSpan={2}
+                                                     className="border-2 border-black p-0.5 align-middle text-sm md:text-base font-black uppercase text-center bg-white tracking-wide"
+                                                     style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}
+                                                 >
+                                                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
+                                                         quarter === 'summary_final' ? 'FINAL SUMMARY' :
+                                                         quarter === 'summary_t1' ? 'TERM 1 SUMMARY' :
+                                                         quarter === 'summary_t2' ? 'TERM 2 SUMMARY' :
+                                                         quarter === 'summary_t3' ? 'TERM 3 SUMMARY' :
+                                                         'SUMMARY'
+                                                     ) : (
+                                                         getTermUpperLabel(quarter as any)
+                                                     )}
+                                                 </th>
+
+                                                 {/* GRADE LEVEL */}
+                                                 <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
+                                                     GRADE LEVEL
+                                                 </th>
+                                                 <th colSpan={2} className="border border-black text-center font-black text-[9px] bg-white px-1">
+                                                     {displayGradeNum}
+                                                 </th>
+
+                                                 {/* SECTION */}
+                                                 <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
+                                                     SECTION
+                                                 </th>
+                                                 <th colSpan={5} className="border border-black text-center font-black uppercase text-[9px] bg-white px-1 truncate">
+                                                     {displaySectionClean}
+                                                 </th>
+
+                                                 {/* SUBJECT */}
+                                                 <th colSpan={3} className="border border-black text-center font-bold text-blue-600 text-[8.5px] bg-white px-1">
+                                                     SUBJECT
+                                                 </th>
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black text-blue-600 uppercase text-[9.5px] bg-white truncate">
+                                                     {displaySubjectName}
+                                                 </th>
+
+                                                 {/* Over Examinations (8 cols) & Summary Grades (2 cols) = 10 cols */}
+                                                 <th colSpan={(!isZeroExam ? 8 : 0) + 2} className="border border-black bg-white"></th>
+                                             </tr>
+
+                                             <tr className="h-5 text-[8.5px] font-bold border-b-2 border-black">
+                                                 {/* TEACHER */}
+                                                 <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
+                                                     TEACHER
+                                                 </th>
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white truncate">
+                                                     {teacherName}
+                                                 </th>
+
+                                                 {/* CLUSTER */}
+                                                 <th colSpan={3} className="border border-black text-center font-bold text-[8.5px] bg-white px-1">
+                                                     CLUSTER
+                                                 </th>
+                                                 <th colSpan={10} className="border border-black text-left pl-2 font-black uppercase text-[9px] bg-white truncate">
+                                                     {displayCluster}
+                                                 </th>
+
+                                                 {/* UNITS */}
+                                                 {!isZeroExam && (
+                                                     <>
+                                                         <th colSpan={2} className="border border-black text-center font-bold text-[8px] bg-white px-0.5">
+                                                             UNITS
+                                                         </th>
+                                                         <th colSpan={1} className="border border-black text-center font-black text-[8px] bg-white px-0.5">
+                                                             {unitsPerTerm}
+                                                         </th>
+                                                         <th colSpan={2} className="border border-black text-center text-[7px] italic text-gray-600 font-medium bg-white px-0.5 whitespace-nowrap">
+                                                             / TERM
+                                                         </th>
+                                                         <th colSpan={1} className="border border-black text-center font-black text-[8px] bg-white px-0.5">
+                                                             {unitsPerYear}
+                                                         </th>
+                                                         <th colSpan={2} className="border border-black text-center text-[7px] italic text-gray-600 font-medium bg-white px-0.5 whitespace-nowrap">
+                                                             / YEAR
+                                                         </th>
+                                                     </>
+                                                 )}
+
+                                                 {/* Over Summary Grades (2 cols: Initial Grade + Term Grade) */}
+                                                 <th colSpan={2} className="border border-black bg-white"></th>
+                                             </tr>
+                                         </>
+                                     )}
+
+                                    {/* Component Titles Row */}
+                                    <tr className="h-7.5 border-b border-black">
+                                        <th
+                                            rowSpan={2}
+                                            className="bg-gray-100 border-2 border-black p-0.5 align-middle text-[8.5px] tracking-wide font-black"
+                                            style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}
+                                        >
+                                            LEARNERS' NAMES
                                         </th>
-                                        <th colSpan={currentCluster === 'shs_field_exposure' ? 3 : 8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-50/50 leading-tight">
-                                            <span>SUMMATIVE TESTS & TERM</span><br />
-                                            <span>EXAMINATION ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
+                                        <th colSpan={activeWwCount + 3} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-blue-100/70">
+                                            <div className="font-black text-[8.5px] tracking-wide">WRITTEN / ORAL WORKS (WWs)</div>
+                                            <div className="italic font-bold text-[8px]">{Math.round((currentWeights.written_works || 0) * 100)}%</div>
                                         </th>
-                                        <th rowSpan={3} className="border border-black w-14 min-w-14 max-w-14 p-1 align-middle bg-yellow-100/50 font-bold leading-none text-[8px]">INITIAL GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TRANSMUTED GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
+                                        <th colSpan={activePtCount + 3} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-green-100/70 leading-tight">
+                                            <div className="font-black text-[8.5px] tracking-wide">PRODUCT / PERFORMANCE TASKS (PTs)</div>
+                                            <div className="italic font-bold text-[8px]">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</div>
+                                        </th>
+                                        {!isZeroExam && (
+                                            <th colSpan={8} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-100/70 leading-tight">
+                                                <div className="font-black text-[8.5px] tracking-wide">EXAMINATIONS (EXs)</div>
+                                                <div className="italic font-bold text-[8px]">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</div>
+                                            </th>
+                                        )}
+                                        <th rowSpan={2} className="border-2 border-black p-0.5 align-middle bg-yellow-100/70 font-black leading-tight text-[8.5px] text-center whitespace-nowrap">
+                                            <div className="leading-tight">INITIAL<br />GRADE</div>
+                                        </th>
+                                        <th rowSpan={2} className="border-2 border-black p-0.5 align-middle bg-green-100/70 font-black leading-tight text-[8.5px] text-center whitespace-nowrap">
+                                            <div className="leading-tight">{isSSHS ? <>TERM<br />GRADE</> : <>QUARTERLY<br />GRADE</>}</div>
+                                        </th>
                                     </tr>
-                                    <tr className="h-7 text-[8px]">
-                                        {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="bg-gray-50 border border-black w-6 font-bold">{i}</th>)}
-                                        <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        {[1, 2, 3].map(i => <th key={`pt-${i}`} className="bg-gray-50 border border-black w-6 font-bold">{i}</th>)}
-                                        <th className="border border-black w-10 bg-slate-100 font-bold">Total</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">PS</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold">WS</th>
-                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST1</th>}
-                                        {!isFieldExposure && <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">ST2</th>}
-                                        <th className="bg-gray-50 border border-black w-8 font-bold text-[8px]">TE</th>
-                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
-                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>}
-                                        {!isFieldExposure && <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>}
-                                        <th className="border border-black w-12 bg-slate-100 font-bold text-[8px] leading-none">PS{!isFieldExposure && <><br/><span className="text-[6.5px] font-normal">(ST & TE)</span></>}</th>
-                                        <th className="border border-black w-12 bg-slate-100 font-bold text-[8px] leading-none">WS{!isFieldExposure && <><br/><span className="text-[6.5px] font-normal">(ST & TE)</span></>}</th>
+
+                                    {/* Sub-columns Row (1..10, Total, PS, WS, etc.) */}
+                                    <tr className="h-5 text-[7.5px] border-b-2 border-black">
+                                        {Array.from({ length: activeWwCount }, (_, i) => i + 1).map(i => (
+                                            <th key={`ww-${i}`} className="bg-white border border-black font-bold">{i}</th>
+                                        ))}
+                                        <th className="border border-black bg-blue-100/70 font-bold">TOTAL</th>
+                                        <th className="border border-black bg-blue-100/70 font-bold">PS</th>
+                                        <th className="border border-black border-r-2 border-r-black bg-blue-200/70 font-bold">WS</th>
+
+                                        {Array.from({ length: activePtCount }, (_, i) => i + 1).map(i => (
+                                            <th key={`pt-${i}`} className="bg-white border border-black font-bold">{i}</th>
+                                        ))}
+                                        <th className="border border-black bg-green-100/70 font-bold">TOTAL</th>
+                                        <th className="border border-black bg-green-100/70 font-bold">PS</th>
+                                        <th className="border border-black border-r-2 border-r-black bg-green-200/70 font-bold">WS</th>
+
+                                        {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">ST 1</th>}
+                                        {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">ST 2</th>}
+                                        {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">TE</th>}
+                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1</th>}
+                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2</th>}
+                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS TE</th>}
+                                        {!isZeroExam && <th className="border border-black bg-yellow-100/70 font-bold text-[7.5px] leading-none">PS</th>}
+                                        {!isZeroExam && <th className="border border-black border-r-2 border-r-black bg-yellow-200/70 font-bold text-[7.5px] leading-none">WS</th>}
                                     </tr>
-                                    <tr className="font-bold h-8 text-[8px]">
-                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[9px] font-black uppercase bg-slate-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+
+                                    {/* Highest Possible Score Row */}
+                                    <tr className="font-bold h-5.5 text-[7.5px] border-b-2 border-black">
+                                        <td className="border-2 border-black p-0.5 text-left whitespace-nowrap tracking-wide text-[8px] font-black italic uppercase bg-slate-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+                                            HIGHEST POSSIBLE SCORE
+                                        </td>
                                         {hps.ww.map((val, i) => (
                                             <td key={`hps-ww-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
@@ -1913,52 +2308,54 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-slate-200">100.00</td>
-                                        <td className="border border-black bg-slate-200">{Math.round(currentWeights.written_works * 100)}%</td>
+                                        <td className="border border-black bg-blue-100/80 font-bold">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-blue-100/80 font-bold">100</td>
+                                        <td className="border border-black border-r-2 border-r-black bg-blue-200/80 font-black italic">{Math.round((currentWeights.written_works || 0) * 100)}%</td>
+
                                         {hps.pt.map((val, i) => (
                                             <td key={`hps-pt-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
                                                     value={val === '' ? '' : val}
                                                     onChange={(v) => updateHPS('pt', i, v)}
-                                                    onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
+                                                    onKeyDown={(e) => handleKeyDown(e, 0, activeWwCount + i)}
                                                     data-row={0}
-                                                    data-col={5 + i}
+                                                    data-col={activeWwCount + i}
                                                     className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                                 />
                                             </td>
                                         ))}
-                                        <td className="border border-black bg-slate-200">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-slate-200">100.00</td>
-                                        <td className="border border-black bg-slate-200">{Math.round(currentWeights.performance_tasks * 100)}%</td>
-                                        {hps.qa
-                                            .map((val, i) => ({ val, i }))
-                                            .filter(({ i }) => !isFieldExposure || i === 2)
-                                            .map(({ val, i }) => (
-                                                <td key={`hps-qa-${i}`} className="bg-white border border-black p-0">
-                                                    <DebouncedInput
-                                                        type="number"
-                                                        value={val === '' ? '' : val}
-                                                        onChange={(v) => updateHPS('qa', i, v)}
-                                                        onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
-                                                        data-row={0}
-                                                        data-col={8 + i}
-                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                    />
-                                                </td>
-                                            ))
-                                        }
-                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>}
-                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>}
-                                        {!isFieldExposure && <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>}
-                                        <td className="border border-black bg-slate-200 text-[8px]">100.00</td>
-                                        <td className="border border-black bg-slate-200 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
+                                        <td className="border border-black bg-green-100/80 font-bold">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                        <td className="border border-black bg-green-100/80 font-bold">100</td>
+                                        <td className="border border-black border-r-2 border-r-black bg-green-200/80 font-black italic">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</td>
+
+                                        {!isZeroExam && hps.qa.map((val, i) => (
+                                            <td key={`hps-qa-${i}`} className="bg-white border border-black p-0">
+                                                <DebouncedInput
+                                                    type="number"
+                                                    value={val === '' ? '' : val}
+                                                    onChange={(v) => updateHPS('qa', i, v)}
+                                                    onKeyDown={(e) => handleKeyDown(e, 0, activeWwCount + activePtCount + i)}
+                                                    data-row={0}
+                                                    data-col={activeWwCount + activePtCount + i}
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                />
+                                            </td>
+                                        ))}
+                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
+                                        {!isZeroExam && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
+                                        {!isZeroExam && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
+
+                                        {/* Empty cells for Initial Grade & Term Grade */}
+                                        <td className="border border-black border-r-2 border-r-black bg-yellow-50/50"></td>
+                                        <td className="border-2 border-black bg-green-50/50"></td>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr className="bg-gray-100 font-bold text-left h-6">
-                                        <td colSpan={isFieldExposure ? 21 : 26} className="border border-black px-2 text-[9px] uppercase tracking-wider font-black">{section.gender}</td>
+                                    <tr className="bg-gray-100 font-bold text-left h-5">
+                                        <td colSpan={1 + (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? 8 : 0) + 2} className="border-2 border-black px-2 text-[8.5px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
@@ -1983,7 +2380,9 @@ export function ShsEClassRecord() {
                                                 updateGrade={updateGrade}
                                                 handleKeyDown={handleKeyDown}
                                                 formatStudentFullName={formatStudentFullName}
-                                                isFieldExposure={isFieldExposure}
+                                                activeWwCount={activeWwCount}
+                                                activePtCount={activePtCount}
+                                                isZeroExam={isZeroExam}
                                             />
                                         );
                                     })}

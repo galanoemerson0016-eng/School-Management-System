@@ -212,74 +212,109 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
         const isG12 = gradeLevel ? gradeLevel.includes('12') : false;
         
         if (isG12) {
-            // Check if Core Subject
             const norm = subjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            const cores = [
-                "21st century literature from the philippines and the world",
-                "contemporary philippine arts from the regions",
-                "disaster readiness and risk reduction",
-                "earth and life science",
-                "earth science",
-                "general mathematics",
-                "introduction to philosophy of the human person",
-                "komunikasyon at pananaliksik sa wika at kulturang pilipino",
-                "media and information literacy",
-                "oral communication in context",
-                "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
-                "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
-                "personal development",
-                "physical education and health 1",
-                "physical education and health 2",
-                "physical education and health 3",
-                "physical education and health 4",
-                "physical science",
-                "reading and writing skills",
-                "statistics and probability",
-                "understanding culture society and politics",
-                "understanding culture, society and politics",
-                "21st century literature",
-                "contemporary philippine arts",
-                "pe and health 3",
-                "pe and health 4"
-            ];
-            const isCore = cores.some(c => {
-                const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-                return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
-            });
 
-            if (isCore) {
-                return 'g12_core';
-            }
-
-            // Determine if track is TVL
-            const isTVL = track ? (
-                track.toLowerCase().includes('tvl') || 
-                track.toLowerCase().includes('techpro') || 
-                track.toLowerCase().includes('he') || 
-                track.toLowerCase().includes('ict') ||
-                track.toLowerCase().includes('sports') ||
-                track.toLowerCase().includes('arts')
+            // Check if explicitly an SSHS Pilot Elective / SSHS Track in Grade 12
+            const isExplicitSSHS = track ? (
+                track.toLowerCase().includes('sshs') ||
+                track.toLowerCase().includes('cluster')
             ) : false;
 
-            if (isTVL) {
-                return 'g12_tvl_all';
+            const distinctSshsElectives = [
+                'differential calculus',
+                'integral calculus',
+                'advanced mathematics',
+                'advanced biology',
+                'advanced chemistry',
+                'advanced physics',
+                'robotics and automation',
+                'artificial intelligence',
+                'ai and data science',
+                'cloud computing and cybersecurity',
+                'smart electrical installation',
+                'drone operation',
+                'precision machining',
+                'art criticism and creative markets',
+                'creative industries',
+                'enterprise management and startup incubation',
+                'financial technology and digital banking'
+            ];
+
+            const isSshsElective = isExplicitSSHS || distinctSshsElectives.some(e => norm.includes(e.replace(/[^a-z0-9]/g, '')));
+
+            if (!isSshsElective) {
+                // Standard Old K-12 Grade 12 logic (DO 8, s. 2015)
+                // Check if Core Subject
+                const cores = [
+                    "21st century literature from the philippines and the world",
+                    "contemporary philippine arts from the regions",
+                    "disaster readiness and risk reduction",
+                    "earth and life science",
+                    "earth science",
+                    "general mathematics",
+                    "introduction to philosophy of the human person",
+                    "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+                    "media and information literacy",
+                    "oral communication in context",
+                    "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+                    "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+                    "personal development",
+                    "physical education and health 1",
+                    "physical education and health 2",
+                    "physical education and health 3",
+                    "physical education and health 4",
+                    "physical science",
+                    "reading and writing skills",
+                    "statistics and probability",
+                    "understanding culture society and politics",
+                    "understanding culture, society and politics",
+                    "21st century literature",
+                    "contemporary philippine arts",
+                    "pe and health 3",
+                    "pe and health 4"
+                ];
+                const isCore = cores.some(c => {
+                    const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+                });
+
+                if (isCore) {
+                    return 'g12_core';
+                }
+
+                // Determine if track is TVL / Sports / Arts
+                const isTVL = track ? (
+                    track.toLowerCase().includes('tvl') || 
+                    track.toLowerCase().includes('techpro') || 
+                    track.toLowerCase().includes('he') || 
+                    track.toLowerCase().includes('ict') ||
+                    track.toLowerCase().includes('sports') ||
+                    track.toLowerCase().includes('arts')
+                ) : false;
+
+                if (isTVL) {
+                    return 'g12_tvl_all';
+                }
+
+                // Check if Academic Track Immersion/Research
+                const isImmersionResearch = 
+                    name.includes('work immersion') || cleanName.includes('workimmersion') ||
+                    name.includes('practical research') || cleanName.includes('practicalresearch') ||
+                    name.includes('inquiries') || name.includes('investigation') ||
+                    name.includes('business enterprise simulation') || cleanName.includes('businessenterprisesimulation') ||
+                    name.includes('enterprise simulation') || cleanName.includes('enterprisesimulation') ||
+                    name.includes('culminating activity') || cleanName.includes('culminatingactivity') ||
+                    name.includes('exhibit') || name.includes('performance');
+
+                if (isImmersionResearch) {
+                    return 'g12_academic_immersion_research';
+                }
+
+                return 'g12_academic_other';
             }
-
-            // Check if Academic Track Immersion/Research
-            const isImmersionResearch = 
-                name.includes('work immersion') || cleanName.includes('workimmersion') ||
-                name.includes('research') || name.includes('inquiries') || name.includes('investigation') ||
-                name.includes('business') || name.includes('simulation') || name.includes('enterprise') ||
-                name.includes('exhibit') || name.includes('performance');
-
-            if (isImmersionResearch) {
-                return 'g12_academic_immersion_research';
-            }
-
-            return 'g12_academic_other';
         }
 
-        // Grade 11 logic
+        // SSHS logic (Grade 11 & Grade 12 SSHS Pilot / Rollout)
         // 1. Work Immersion
         if (name.includes('work immersion') || cleanName.includes('workimmersion')) {
             return 'shs_immersion';
@@ -292,11 +327,19 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
         if (name.includes('field exposure') || cleanName.includes('fieldexposure') || name.includes('apprenticeship') || name.includes('creative production') || cleanName.includes('creativeproduction')) {
             return 'shs_field_exposure';
         }
-        // 4. Arts & Sports
+        // 4. Arts, Social Sciences & Humanities, and Sports (20/60/20)
         if (name.includes('creative industries') || cleanName.includes('creativeindustries') || 
             name.includes('arts 1') || name.includes('arts 2') || name.includes('arts1') || name.includes('arts2') ||
+            name.includes('art criticism') || cleanName.includes('artcriticism') ||
+            name.includes('citizenship') || name.includes('contemporary literature') ||
+            name.includes('creative composition') || name.includes('filipino 1') || name.includes('filipino 2') ||
+            name.includes('filipino identity') || name.includes('philosophy') ||
+            name.includes('leadership and management in the arts') || name.includes('malikhaing pagsulat') ||
+            name.includes('performance criticism') || name.includes('philippine governance') ||
+            name.includes('social sciences') ||
             name.includes('movement') || name.includes('fitness') || name.includes('recreation') || 
-            name.includes('sports') || name.includes('dance') || name.includes('coaching') || name.includes('officiating')) {
+            name.includes('sports') || name.includes('dance') || name.includes('coaching') || name.includes('officiating') ||
+            name.includes('first aid') || name.includes('life support')) {
             return 'shs_arts_sports';
         }
         // 5. TechPro Electives
@@ -311,7 +354,9 @@ export function getSubjectCluster(subjectName: string, gradeLevel?: string, trac
             'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
             'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic systems', 'broadband installation',
             'computer programming', 'java', '.net', 'oracle', 'computer systems servicing', 'contact center', 'marine engineering',
-            'marine transportation', 'support level', 'ships catering'
+            'marine transportation', 'support level', 'ships catering',
+            'robotics', 'automation', 'artificial intelligence', 'data science', 'cybersecurity', 'cloud computing',
+            'drone operation', 'smart electrical', 'precision machining'
         ];
         if (techPros.some(tp => name.includes(tp) || cleanName.includes(tp.replace(/\s+/g, '')))) {
             return 'shs_techpro';

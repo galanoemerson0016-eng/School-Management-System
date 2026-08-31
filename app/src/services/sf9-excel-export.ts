@@ -10,7 +10,13 @@ import type { Student, SchoolProfile } from '../types';
 import { formatLearnerName } from '../utils/student-name';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
-import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1Template } from './sf9-g1-excel-export';
+import type { PaceRatingDescriptor } from '../types/pace';
+import { isGrade1, fetchGrade1TemplateBuffer, populateGrade1TemplateBuffer, type SF9Grade1Remarks } from './sf9-g1-excel-export';
+import { isGrade2, fetchGrade2TemplateBuffer, populateGrade2TemplateBuffer } from './sf9-g2-excel-export';
+import { isGrade3, fetchGrade3TemplateBuffer, populateGrade3TemplateBuffer } from './sf9-g3-excel-export';
+import { isGrade4to10, fetchGrade4to10TemplateBuffer, populateGrade4to10TemplateBuffer, exportSF9Grade4to10SectionMasterToExcel } from './sf9-g4-10-excel-export';
+import { isGrade11Academic, fetchGrade11AcademicTemplateBuffer, populateGrade11AcademicTemplateBuffer, exportSF9Grade11AcademicSectionMasterToExcel } from './sf9-g11-academic-excel-export';
+import { isGrade11TechPro, fetchGrade11TechProTemplateBuffer, populateGrade11TechProTemplateBuffer, exportSF9Grade11TechProSectionMasterToExcel } from './sf9-g11-techpro-excel-export';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -28,6 +34,7 @@ export interface SF9ExcelExportOptions {
   schoolProfile: SchoolProfile;
   schoolYear: string;
   section: string;
+  track?: string;
   adviser: string;
   principal: string;
   principalTitle: string;
@@ -42,14 +49,15 @@ export interface SF9ExcelExportOptions {
     daysAbsent: number[];
   };
   gradeLevel: string;
-  g1Remarks?: {
-    term1CanDo?: string;
-    term1ToImprove?: string;
-    term2CanDo?: string;
-    term2ToImprove?: string;
-    term3CanDo?: string;
-    term3ToImprove?: string;
+  g1Remarks?: SF9Grade1Remarks;
+  paceRatings?: {
+    reading?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    language?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    math?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
   };
+  sectionStudents?: Student[];
+  getStudentRemarks?: (lrn: string) => SF9Grade1Remarks | undefined;
   subjectTerm?: (subjectName: string, subjectId?: string) => 1 | 2 | 3 | 'all' | 'none' | undefined;
   pageSize?: 'A4' | 'LETTER';
 }
@@ -92,12 +100,36 @@ function gradeAsNumber(displayVal: string): number | string {
 // ---------------------------------------------------------------------------
 
 async function fetchTemplateBuffer(): Promise<ArrayBuffer> {
-  const baseUrl = import.meta.env.BASE_URL || '/';
-  const response = await fetch(`${baseUrl}templates/SF9_Template_G2_G12.xlsx?t=${new Date().getTime()}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch template: ${response.statusText}`);
+  const cleanBase = (import.meta.env.BASE_URL || '/').endsWith('/') 
+    ? (import.meta.env.BASE_URL || '/') 
+    : `${import.meta.env.BASE_URL}/`;
+  const timestamp = Date.now();
+  
+  const candidateUrls = [
+    `${cleanBase}templates/SF9_Template_G2_G12.xlsx?t=${timestamp}`,
+    `/templates/SF9_Template_G2_G12.xlsx?t=${timestamp}`,
+    `templates/SF9_Template_G2_G12.xlsx?t=${timestamp}`,
+    `${cleanBase}templates/SF9_Template_G2_G12.xlsm?t=${timestamp}`,
+    `/templates/SF9_Template_G2_G12.xlsm?t=${timestamp}`,
+  ];
+
+  for (const url of candidateUrls) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        // Validate PK\x03\x04 magic header
+        if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+          return buffer;
+        }
+      }
+    } catch {
+      // Try next candidate
+    }
   }
-  return await response.arrayBuffer();
+
+  throw new Error('Failed to load official SF9 Excel template (G2-G12). File not found or corrupted.');
 }
 
 async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions): Promise<ExcelJS.Workbook> {
@@ -156,7 +188,7 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   const gradeNumStr = gradeLevel.replace(/\D/g, '') || gradeLevel;
   ws.getCell('E15').value = student.lrn || '';
   ws.getCell('O15').value = gradeNumStr;
-  ws.getCell('S15').value = section;
+  ws.getCell('S15').value = (section || '').toUpperCase();
   
   const gradeNum = parseInt(gradeLevel.replace(/\D/g, '') || '0');
   const isSHS = gradeNum === 11 || gradeNum === 12;
@@ -441,48 +473,51 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
  * that causes Excel to show "Removed Records: Formula from /xl/worksheets/sheet1.xml part"
  */
 async function postProcessXlsxFonts(buffer: ArrayBuffer): Promise<ArrayBuffer> {
-  const zip = await JSZip.loadAsync(buffer);
-  
-  // 1. Remove stale calcChain.xml and external links XML to prevent Excel repair warnings
-  zip.remove('xl/calcChain.xml');
-  zip.remove('xl/externalLinks/externalLink1.xml');
-  zip.remove('xl/externalLinks/_rels/externalLink1.xml.rels');
-
-  const wbRel = zip.file('xl/_rels/workbook.xml.rels');
-  if (wbRel) {
-    let xml = await wbRel.async('string');
-    xml = xml.replace(/<Relationship[^>]*Target="externalLinks\/[^"]*"[^>]*\/>/g, '');
-    zip.file('xl/_rels/workbook.xml.rels', xml);
+  if (!buffer || buffer.byteLength === 0) {
+    return buffer;
   }
-
-  const wbFile = zip.file('xl/workbook.xml');
-  if (wbFile) {
-    let xml = await wbFile.async('string');
-    xml = xml.replace(/<externalLink[^>]*\/>/g, '').replace(/<externalReferences>[\s\S]*?<\/externalReferences>/g, '');
-    zip.file('xl/workbook.xml', xml);
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+    return buffer;
   }
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    
+    // 1. Remove stale calcChain.xml and external links XML to prevent Excel repair warnings
+    zip.remove('xl/calcChain.xml');
+    zip.remove('xl/externalLinks/externalLink1.xml');
+    zip.remove('xl/externalLinks/_rels/externalLink1.xml.rels');
 
-  // 3. Fix Bookman Old Style font entries missing family val="1"
-  const stylesFile = zip.file('xl/styles.xml');
-  if (stylesFile) {
-    let stylesXml = await stylesFile.async('string');
-    stylesXml = stylesXml.replace(
-      /<font>((?:(?!<family)[\s\S])*?<name val="Bookman Old Style"\/>[\s\S]*?)<\/font>/g,
-      (match, inner) => {
-        if (!inner.includes('<family')) {
-          return match.replace(
-            '<name val="Bookman Old Style"/>',
-            '<family val="1"/><name val="Bookman Old Style"/>'
-          );
-        }
-        return match;
-      }
-    );
-    zip.file('xl/styles.xml', stylesXml);
+    const wbRel = zip.file('xl/_rels/workbook.xml.rels');
+    if (wbRel) {
+      let xml = await wbRel.async('string');
+      xml = xml.replace(/<Relationship[^>]*Target="externalLinks\/[^"]*"[^>]*\/>/g, '');
+      zip.file('xl/_rels/workbook.xml.rels', xml);
+    }
+
+    const wbFile = zip.file('xl/workbook.xml');
+    if (wbFile) {
+      let xml = await wbFile.async('string');
+      xml = xml.replace(/<externalLink[^>]*\/>/g, '').replace(/<externalReferences>[\s\S]*?<\/externalReferences>/g, '');
+      zip.file('xl/workbook.xml', xml);
+    }
+
+    // 3. Fix Bookman Old Style font entries missing family val="1"
+    const stylesFile = zip.file('xl/styles.xml');
+    if (stylesFile) {
+      let stylesXml = await stylesFile.async('string');
+      stylesXml = stylesXml.replace(
+        /(<font>[\s\S]*?<name val="Bookman Old Style"\/>)(?![\s\S]*?<family val="1"\/>)([\s\S]*?<\/font>)/g,
+        '$1<family val="1"/>$2'
+      );
+      zip.file('xl/styles.xml', stylesXml);
+    }
+
+    return await zip.generateAsync({ type: 'arraybuffer' });
+  } catch (err) {
+    console.warn('postProcessXlsxFonts skipped due to:', err);
+    return buffer;
   }
-
-  const newBuf = await zip.generateAsync({ type: 'arraybuffer' });
-  return newBuf;
 }
 
 /**
@@ -490,26 +525,131 @@ async function postProcessXlsxFonts(buffer: ArrayBuffer): Promise<ArrayBuffer> {
  */
 export async function exportSF9ToExcel(opts: SF9ExcelExportOptions): Promise<void> {
   const isG1 = isGrade1(opts.gradeLevel || opts.student.grade_level);
-  const buffer = isG1 ? await fetchGrade1TemplateBuffer() : await fetchTemplateBuffer();
-  const wb = isG1 ? await populateGrade1Template(buffer, opts) : await populateTemplate(buffer, opts);
+  const isG2 = isGrade2(opts.gradeLevel || opts.student.grade_level);
+  const isG3 = isGrade3(opts.gradeLevel || opts.student.grade_level);
+  const isG4to10 = isGrade4to10(opts.gradeLevel || opts.student.grade_level);
+  const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
+  const isG11Tech = isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
+  const isG11Acad = !isG11Tech && isGrade11Academic(opts.gradeLevel || opts.student.grade_level, rawTrack);
   
-  let outBuffer = await wb.xlsx.writeBuffer();
-  
-  // Post-process to fix font family attributes
-  outBuffer = await postProcessXlsxFonts(outBuffer as ArrayBuffer);
+  let outBuffer: ArrayBuffer;
+  if (isG1) {
+    const buffer = await fetchGrade1TemplateBuffer();
+    outBuffer = await populateGrade1TemplateBuffer(buffer, opts);
+  } else if (isG2) {
+    const buffer = await fetchGrade2TemplateBuffer();
+    outBuffer = await populateGrade2TemplateBuffer(buffer, opts);
+  } else if (isG3) {
+    const buffer = await fetchGrade3TemplateBuffer();
+    outBuffer = await populateGrade3TemplateBuffer(buffer, opts);
+  } else if (isG4to10) {
+    const buffer = await fetchGrade4to10TemplateBuffer();
+    outBuffer = await populateGrade4to10TemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade4to10TemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade4to10TemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
+  } else if (isG11Tech) {
+    const buffer = await fetchGrade11TechProTemplateBuffer();
+    outBuffer = await populateGrade11TechProTemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade11TechProTemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade11TechProTemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
+  } else if (isG11Acad) {
+    const buffer = await fetchGrade11AcademicTemplateBuffer();
+    outBuffer = await populateGrade11AcademicTemplateBuffer(buffer, {
+      ...opts,
+      grades: opts.grades as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['grades'],
+      subjects: opts.subjects as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['subjects'],
+      learners: opts.sectionStudents || [opts.student]
+    });
+  } else {
+    const buffer = await fetchTemplateBuffer();
+    const wb = await populateTemplate(buffer, opts);
+    const rawBuffer = await wb.xlsx.writeBuffer();
+    outBuffer = await postProcessXlsxFonts(rawBuffer as ArrayBuffer);
+  }
   
   const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = url;
-  const safeName = formatLearnerName(opts.student).replace(/[^a-z0-9]/gi, '_');
-  a.download = `SF9_${safeName}_${opts.schoolYear}.xlsx`;
+  if (isG2 || isG3 || isG4to10 || isG11Acad || isG11Tech) {
+    const safeSection = (opts.section || 'SECTION').replace(/[^a-z0-9]/gi, '_');
+    const safeGrade = (opts.gradeLevel || opts.student.grade_level || (isG11Tech ? 'Grade_11_TechPro' : (isG11Acad ? 'Grade_11_Academic' : (isG4to10 ? 'Grade_4' : (isG3 ? 'Grade_3' : 'Grade_2'))))).replace(/[^a-z0-9]/gi, '_');
+    a.download = `SF9_${safeGrade}_${safeSection}_${opts.schoolYear}.xlsx`;
+  } else {
+    const safeName = formatLearnerName(opts.student).replace(/[^a-z0-9]/gi, '_');
+    a.download = `SF9_${safeName}_${opts.schoolYear}.xlsx`;
+  }
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export {
+  exportSF9Grade4to10SectionMasterToExcel,
+  exportSF9Grade11AcademicSectionMasterToExcel,
+  exportSF9Grade11TechProSectionMasterToExcel,
+  isGrade11TechPro,
+  fetchGrade11TechProTemplateBuffer,
+  populateGrade11TechProTemplateBuffer
+};
+
+/**
+ * Export the complete Grade 2 Section Master SF9 Workbook containing all learners
+ */
+export async function exportSF9Grade2SectionMasterToExcel(
+  opts: SF9ExcelExportOptions,
+  sectionName: string,
+  schoolYear: string
+): Promise<void> {
+  const buffer = await fetchGrade2TemplateBuffer();
+  const outBuffer = await populateGrade2TemplateBuffer(buffer, opts);
+  
+  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  const safeSection = sectionName.replace(/[^a-z0-9]/gi, '_');
+  a.download = `SF9_SECTION_MASTER_${safeSection}_${schoolYear}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Export the complete Grade 3 Section Master SF9 Workbook containing all learners
+ */
+export async function exportSF9Grade3SectionMasterToExcel(
+  opts: SF9ExcelExportOptions,
+  sectionName: string,
+  schoolYear: string
+): Promise<void> {
+  const buffer = await fetchGrade3TemplateBuffer();
+  const outBuffer = await populateGrade3TemplateBuffer(buffer, opts);
+  
+  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  const safeSection = sectionName.replace(/[^a-z0-9]/gi, '_');
+  a.download = `SF9_SECTION_MASTER_${safeSection}_${schoolYear}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
 
 /**
  * Export multiple students' SF9 to a zip of Excel files.
@@ -524,24 +664,59 @@ export async function exportSF9BatchToExcel(
   if (studentOptions.length === 0) return;
   
   const g1Buffer = await fetchGrade1TemplateBuffer().catch(() => null);
-  const g2Buffer = await fetchTemplateBuffer().catch(() => null);
+  const g2Buffer = await fetchGrade2TemplateBuffer().catch(() => null);
+  const g3Buffer = await fetchGrade3TemplateBuffer().catch(() => null);
+  const g410Buffer = await fetchGrade4to10TemplateBuffer().catch(() => null);
+  const g11TechBuffer = await fetchGrade11TechProTemplateBuffer().catch(() => null);
+  const g11AcadBuffer = await fetchGrade11AcademicTemplateBuffer().catch(() => null);
+  const legacyBuffer = await fetchTemplateBuffer().catch(() => null);
   const zip = new JSZip();
   const total = studentOptions.length;
   
   for (let i = 0; i < total; i++) {
     const opts = studentOptions[i];
     const isThisG1 = isGrade1(opts.gradeLevel || opts.student.grade_level);
+    const isThisG2 = isGrade2(opts.gradeLevel || opts.student.grade_level);
+    const isThisG3 = isGrade3(opts.gradeLevel || opts.student.grade_level);
+    const isThisG4to10 = isGrade4to10(opts.gradeLevel || opts.student.grade_level);
+    const rawTrack = opts.track || opts.student.track || opts.student.strand || opts.student.student_section || opts.section;
+    const isThisG11Tech = isGrade11TechPro(opts.gradeLevel || opts.student.grade_level, rawTrack);
+    const isThisG11Acad = !isThisG11Tech && isGrade11Academic(opts.gradeLevel || opts.student.grade_level, rawTrack);
     
-    let wb: ExcelJS.Workbook;
+    let outBuffer: ArrayBuffer;
     if (isThisG1 && g1Buffer) {
-      wb = await populateGrade1Template(g1Buffer, opts);
+      outBuffer = await populateGrade1TemplateBuffer(g1Buffer, opts);
+    } else if (isThisG2 && g2Buffer) {
+      outBuffer = await populateGrade2TemplateBuffer(g2Buffer, opts);
+    } else if (isThisG3 && g3Buffer) {
+      outBuffer = await populateGrade3TemplateBuffer(g3Buffer, opts);
+    } else if (isThisG4to10 && g410Buffer) {
+      outBuffer = await populateGrade4to10TemplateBuffer(g410Buffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade4to10TemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade4to10TemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
+    } else if (isThisG11Tech && g11TechBuffer) {
+      outBuffer = await populateGrade11TechProTemplateBuffer(g11TechBuffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade11TechProTemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade11TechProTemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
+    } else if (isThisG11Acad && g11AcadBuffer) {
+      outBuffer = await populateGrade11AcademicTemplateBuffer(g11AcadBuffer, {
+        ...opts,
+        grades: opts.grades as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['grades'],
+        subjects: opts.subjects as unknown as Parameters<typeof populateGrade11AcademicTemplateBuffer>[1]['subjects'],
+        learners: opts.sectionStudents || [opts.student]
+      });
     } else {
-      const buf = g2Buffer || await fetchTemplateBuffer();
-      wb = await populateTemplate(buf, opts);
+      const buf = legacyBuffer || await fetchTemplateBuffer();
+      const wb = await populateTemplate(buf, opts);
+      const rawBuffer = await wb.xlsx.writeBuffer();
+      outBuffer = await postProcessXlsxFonts(rawBuffer as ArrayBuffer);
     }
-
-    let outBuffer = await wb.xlsx.writeBuffer();
-    outBuffer = await postProcessXlsxFonts(outBuffer as ArrayBuffer);
     
     const fileName = formatLearnerName(opts.student).replace(/[^a-z0-9-_]/gi, '_');
     zip.file(`SF9_${fileName}_${schoolYear}.xlsx`, outBuffer);

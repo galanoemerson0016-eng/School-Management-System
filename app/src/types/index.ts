@@ -284,6 +284,11 @@ export interface SF9SignatureSettings {
     headSigWidth?: number;
     headSigHeight?: number;
     headSigOffset?: number;
+    hideLearnerInfo?: boolean;
+    hideAttendance?: boolean;
+    hideGrades?: boolean;
+    hideAdviserName?: boolean;
+    hideHeadName?: boolean;
 }
 
 export interface Section {

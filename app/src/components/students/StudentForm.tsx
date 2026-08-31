@@ -19,7 +19,7 @@ const GRADE_LEVELS = [
     'Grade 11', 'Grade 12'
 ];
 
-const TRACKS = ['Academic', 'TVL', 'Sports', 'Arts and Design'];
+const TRACKS = ['Academic', 'TechPro', 'TVL', 'Sports', 'Arts and Design'];
 
 const STRAND_MAPPING: Record<string, string> = {
     'Science, Technology, Engineering, and Mathematics': 'STEM',
@@ -45,19 +45,44 @@ const STRANDS: Record<string, string[]> = {
         'STEM',
         'ABM',
         'HUMSS',
-        'GAS'
+        'GAS',
+        'Arts, Social Sciences, and Humanities',
+        'Business and Entrepreneurship',
+        'Science, Technology, Engineering, and Mathematics',
+        'Sports, Health, and Wellness',
+        'Field Experience'
     ],
     TVL: [
         'Home Economics (HE)',
         'Information and Communications Technology (ICT)',
         'Industrial Arts (IA)',
-        'Agri-Fishery Arts (AFA)'
+        'Agri-Fishery Arts (AFA)',
+        'Maritime',
+        'Aesthetic, Wellness, and Human Care',
+        'Agri-Fishery Business and Food Innovation',
+        'Artisanry and Creative Enterprise',
+        'Automotive and Small Engine Technologies',
+        'Construction and Building Technologies',
+        'Creative Arts and Design Technologies',
+        'Hospitality and Tourism',
+        'ICT Support and Computer Programming Technologies',
+        'Industrial Technologies'
     ],
     TechPro: [
         'Home Economics (HE)',
         'Information and Communications Technology (ICT)',
         'Industrial Arts (IA)',
-        'Agri-Fishery Arts (AFA)'
+        'Agri-Fishery Arts (AFA)',
+        'Maritime',
+        'Aesthetic, Wellness, and Human Care',
+        'Agri-Fishery Business and Food Innovation',
+        'Artisanry and Creative Enterprise',
+        'Automotive and Small Engine Technologies',
+        'Construction and Building Technologies',
+        'Creative Arts and Design Technologies',
+        'Hospitality and Tourism',
+        'ICT Support and Computer Programming Technologies',
+        'Industrial Technologies'
     ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],

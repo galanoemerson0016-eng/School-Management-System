@@ -7,7 +7,7 @@ import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
-import { exportECRToExcel, exportECRBatchToZip, isGrade2To10 } from '../services/ecr-excel-export';
+import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR } from '../services/ecr-excel-export';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -15,6 +15,9 @@ import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 const WW_COUNT = 5;
 const PT_COUNT = 3;
 const ST_COUNT = 3;
+
+const GMRC_WW_COUNT = 10;
+const GMRC_PT_COUNT = 9;
 
 type PaperSize = 'folio' | 'a4' | 'letter';
 
@@ -246,6 +249,7 @@ interface StudentGradeRowProps {
     updateGrade: (lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => void;
     handleKeyDown: (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => void;
     formatStudentFullName: (student: any) => string;
+    isGMRCSubject?: boolean;
 }
 
 const StudentGradeRow = memo(({
@@ -263,24 +267,28 @@ const StudentGradeRow = memo(({
     updateGrade,
     handleKeyDown,
     formatStudentFullName,
+    isGMRCSubject = false,
 }: StudentGradeRowProps) => {
     const summary = useMemo(() => {
+        const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
+        const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
+
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
-            written_works: Array(5).fill(''),
-            performance_tasks: Array(3).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: ''
         };
 
-        const wwScores = normalizeScores(sGrades.written_works, 5).map(s => {
+        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
-        const ptScores = normalizeScores(sGrades.performance_tasks, 3).map(s => {
+        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
         const rawQaRec = (record as any)?.summative_tests;
-        const qaScores = normalizeScores(rawQaRec, 3).map(s => {
+        const qaScores = normalizeScores(rawQaRec, ST_COUNT).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
@@ -289,6 +297,102 @@ const StudentGradeRow = memo(({
             qaScores[2] = Number(sGrades.quarterly_exam);
         }
 
+        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
+        const hasScores =
+            wwScores.some(isValidScore) ||
+            ptScores.some(isValidScore) ||
+            qaScores.some(isValidScore);
+
+        if (isGMRCSubject) {
+            const wwCogScores = wwScores.slice(0, 5);
+            const wwAffScores = wwScores.slice(5, 10);
+            const ptCogScores = ptScores.slice(0, 3);
+            const ptAffScores = ptScores.slice(3, 6);
+            const ptBehScores = ptScores.slice(6, 9);
+
+            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
+            const wwCogPS = wwCogTotalHPS === 0 ? 0 : Math.round((wwCogTotalScore / wwCogTotalHPS) * 100 * 100) / 100;
+            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
+
+            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
+            const wwAffPS = wwAffTotalHPS === 0 ? 0 : Math.round((wwAffTotalScore / wwAffTotalHPS) * 100 * 100) / 100;
+            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
+
+            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
+            const ptCogPS = ptCogTotalHPS === 0 ? 0 : Math.round((ptCogTotalScore / ptCogTotalHPS) * 100 * 100) / 100;
+            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
+
+            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
+            const ptAffPS = ptAffTotalHPS === 0 ? 0 : Math.round((ptAffTotalScore / ptAffTotalHPS) * 100 * 100) / 100;
+            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+
+            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
+            const ptBehPS = ptBehTotalHPS === 0 ? 0 : Math.round((ptBehTotalScore / ptBehTotalHPS) * 100 * 100) / 100;
+            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+
+            const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
+            const st1HPS = Number(hps.qa[0]) || 0;
+            const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
+            const st2HPS = Number(hps.qa[1]) || 0;
+            const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
+            const teHPS = Number(hps.qa[2]) || 0;
+
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
+
+            let qaScore = 0;
+            let qaHPS = 0;
+            if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
+                qaHPS += st1HPS;
+                qaScore += (st1Score as number);
+            }
+            if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
+                qaHPS += st2HPS;
+                qaScore += (st2Score as number);
+            }
+            if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+                qaHPS += teHPS;
+                qaScore += (teScore as number);
+            }
+
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
+            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+
+            const initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+            const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
+
+            return {
+                ww: wwScores,
+                pt: ptScores,
+                qa: qaScores,
+                hasScores,
+                wwTotalScore: 0,
+                wwTotalHPS: 0,
+                wwPS: 0,
+                wwWS: 0,
+                ptTotalScore: 0,
+                ptTotalHPS: 0,
+                ptPS: 0,
+                ptWS: 0,
+                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS, wwCogWS,
+                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS, wwAffWS,
+                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS, ptCogWS,
+                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS, ptAffWS,
+                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS, ptBehWS,
+                st1WS, st2WS, teWS,
+                qaScore, qaHPS, qaPS, qaWS,
+                initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
+                quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
+            };
+        }
+
+        // Standard Academic / EPP / MAPEH
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
         const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : (wwTotalScore / wwTotalHPS) * 100;
@@ -329,13 +433,6 @@ const StudentGradeRow = memo(({
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
         const initialGrade = (wwWS || 0) + (ptWS || 0) + (qaWS || 0);
-
-        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
-        const hasScores =
-            wwScores.some(isValidScore) ||
-            ptScores.some(isValidScore) ||
-            qaScores.some(isValidScore);
-
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
@@ -350,7 +447,7 @@ const StudentGradeRow = memo(({
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [record, hps, currentWeights, currentCluster, activeSchoolYear]);
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
 
     const descriptor = useMemo(() => {
         if (!summary.hasScores || summary.quarterlyGrade <= 0) return '';
@@ -359,9 +456,135 @@ const StudentGradeRow = memo(({
 
     const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
 
+    if (isGMRCSubject) {
+        return (
+            <tr className="hover:bg-gray-50">
+                <td className="border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+                    {idx + 1}. {formatStudentFullName(student)}
+                </td>
+                {/* WW Cognitive 1..5 (cols 0..4) */}
+                {(summary.wwCog || []).map((score, i) => (
+                    <td key={`ww-cog-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'ww', i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, i)}
+                            data-row={rowNum}
+                            data-col={i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogTotalScore : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-100 font-semibold text-[8px]">{summary.wwCogTotalHPS && summary.wwCogTotalHPS > 0 && summary.wwCog?.some(s => s !== '') ? summary.wwCogWS?.toFixed(2) : ''}</td>
+
+                {/* WW Affective 1..5 (cols 5..9) */}
+                {(summary.wwAff || []).map((score, i) => (
+                    <td key={`ww-aff-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'ww', 5 + i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 5 + i)}
+                            data-row={rowNum}
+                            data-col={5 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-blue-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffTotalScore : ''}</td>
+                <td className="border border-black bg-blue-50 text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-blue-100 font-semibold text-[8px]">{summary.wwAffTotalHPS && summary.wwAffTotalHPS > 0 && summary.wwAff?.some(s => s !== '') ? summary.wwAffWS?.toFixed(2) : ''}</td>
+
+                {/* PT Cognitive 1..3 (cols 10..12) */}
+                {(summary.ptCog || []).map((score, i) => (
+                    <td key={`pt-cog-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'pt', i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 10 + i)}
+                            data-row={rowNum}
+                            data-col={10 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-green-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptCogTotalHPS && summary.ptCogTotalHPS > 0 && summary.ptCog?.some(s => s !== '') ? summary.ptCogWS?.toFixed(2) : ''}</td>
+
+                {/* PT Affective 1..3 (cols 13..15) */}
+                {(summary.ptAff || []).map((score, i) => (
+                    <td key={`pt-aff-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'pt', 3 + i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 13 + i)}
+                            data-row={rowNum}
+                            data-col={13 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-green-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptAffTotalHPS && summary.ptAffTotalHPS > 0 && summary.ptAff?.some(s => s !== '') ? summary.ptAffWS?.toFixed(2) : ''}</td>
+
+                {/* PT Behavioral 1..3 (cols 16..18) */}
+                {(summary.ptBeh || []).map((score, i) => (
+                    <td key={`pt-beh-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'pt', 6 + i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 16 + i)}
+                            data-row={rowNum}
+                            data-col={16 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-green-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehTotalScore : ''}</td>
+                <td className="border border-black bg-green-50 text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehPS?.toFixed(2) : ''}</td>
+                <td className="border border-black bg-green-100 font-semibold text-[8px]">{summary.ptBehTotalHPS && summary.ptBehTotalHPS > 0 && summary.ptBeh?.some(s => s !== '') ? summary.ptBehWS?.toFixed(2) : ''}</td>
+
+                {/* QA ST1, ST2, TE (cols 19..21) */}
+                {summary.qa.map((score, i) => (
+                    <td key={`qa-${i}`} className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={score === '' ? '' : score}
+                            onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, 19 + i)}
+                            data-row={rowNum}
+                            data-col={19 + i}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                    </td>
+                ))}
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50/70 text-[8.5px]">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-50 font-medium text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-yellow-100 font-semibold text-[8.5px]">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+                <td className="border border-black bg-gray-100 font-bold text-[8.5px]">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
+                <td className={`border border-black font-bold text-[10px] leading-tight whitespace-normal wrap-break-word ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-gray-50'}`}>
+                    {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
+                </td>
+                <td className="border border-black bg-blue-50 text-[10px] font-bold leading-tight whitespace-normal wrap-break-word px-1">
+                    {descriptor}
+                </td>
+            </tr>
+        );
+    }
+
     return (
         <tr className="hover:bg-gray-50">
-            <td className="border border-black p-1 text-left text-[11px] leading-tight whitespace-nowrap font-bold uppercase" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
+            <td className="border border-black px-2 py-0.5 text-left text-[10px] leading-tight whitespace-nowrap font-bold uppercase truncate" title={`${idx + 1}. ${formatStudentFullName(student)}`} style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>
                 {idx + 1}. {formatStudentFullName(student)}
             </td>
             {summary.ww.map((score, i) => (
@@ -436,7 +659,8 @@ const StudentGradeRow = memo(({
         prev.record === next.record &&
         prev.hps === next.hps &&
         prev.currentWeights === next.currentWeights &&
-        prev.currentCluster === next.currentCluster
+        prev.currentCluster === next.currentCluster &&
+        prev.isGMRCSubject === next.isGMRCSubject
     );
 });
 
@@ -697,10 +921,18 @@ export function EClassRecord() {
         return baseStudents;
     }, [students, selectedSection, selectedSectionObj, selectedSubject, subjects, selectedMapehComponentId, mapehComponents]);
 
+    const isGMRCSubject = useMemo(() => {
+        const sName = subjectName || selectedSubjectObj?.subject_name || '';
+        return isGmrcVeSubject(sName);
+    }, [subjectName, selectedSubjectObj]);
+
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
+        const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
+        const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
+
         if (!effectiveSubjectId) {
-            return { ww: Array(WW_COUNT).fill(''), pt: Array(PT_COUNT).fill(''), qa: Array(ST_COUNT).fill('') };
+            return { ww: Array(activeWwCount).fill(''), pt: Array(activePtCount).fill(''), qa: Array(ST_COUNT).fill('') };
         }
 
         const secId = selectedSectionObj?.id || selectedSection;
@@ -728,8 +960,8 @@ export function EClassRecord() {
 
         const rawQa = (record as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
 
-        const hps_ww = normalizeScores(record?.written_works, WW_COUNT).map(v => v === '' ? '' : Number(v));
-        const hps_pt = normalizeScores(record?.performance_tasks, PT_COUNT).map(v => v === '' ? '' : Number(v));
+        const hps_ww = normalizeScores(record?.written_works, activeWwCount).map(v => v === '' ? '' : Number(v));
+        const hps_pt = normalizeScores(record?.performance_tasks, activePtCount).map(v => v === '' ? '' : Number(v));
         const hps_qa = normalizeScores(rawQa, ST_COUNT).map((v, i) => {
             if (i === 2 && (v === undefined || v === '')) {
                 const legacy = record?.quarterly_exam;
@@ -743,7 +975,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj]);
+    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject]);
 
 
     // Get current subject and its weight cluster
@@ -831,10 +1063,29 @@ export function EClassRecord() {
         return nameA.localeCompare(nameB);
     }), [sectionStudents]);
 
-    // Set fixed learners' names column width for consistency across all sections
-    const optimalNameColumnWidth = 280;
+    // Set learners' names column width dynamically based on longest student name
+    const optimalNameColumnWidth = useMemo(() => {
+        const allStudents = [...maleStudents, ...femaleStudents];
+        if (allStudents.length === 0) return 160;
+
+        let maxLen = 0;
+        allStudents.forEach((s, idx) => {
+            const formatted = `${idx + 1}. ${formatStudentFullName(s)}`;
+            if (formatted.length > maxLen) {
+                maxLen = formatted.length;
+            }
+        });
+
+        // 10px uppercase character ~ 6.0px + 14px cell padding
+        const minFloor = 145; // Minimum needed to cleanly display "HIGHEST POSSIBLE SCORE" / "LEARNERS' NAMES"
+        const calculated = Math.ceil(maxLen * 6.0 + 14);
+        return Math.max(minFloor, calculated);
+    }, [maleStudents, femaleStudents, formatStudentFullName]);
 
     const getStudentSummary = useCallback((student: typeof students[0]) => {
+        const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
+        const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
+
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
             r.subject_id === effectiveSubjectId &&
@@ -842,16 +1093,16 @@ export function EClassRecord() {
         );
 
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
-            written_works: Array(WW_COUNT).fill(''),
-            performance_tasks: Array(PT_COUNT).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: ''
         };
 
-        const wwScores = normalizeScores(sGrades.written_works, WW_COUNT).map(s => {
+        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
-        const ptScores = normalizeScores(sGrades.performance_tasks, PT_COUNT).map(s => {
+        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
             const n = Number(s);
             return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
         });
@@ -864,6 +1115,92 @@ export function EClassRecord() {
         // Only use legacy quarterly_exam if it's not empty AND not 0 (to avoid default 0 issues)
         if (qaScores[2] === '' && sGrades.quarterly_exam !== '' && sGrades.quarterly_exam !== 0 && sGrades.quarterly_exam !== '0') {
             qaScores[2] = Number(sGrades.quarterly_exam);
+        }
+
+        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
+        const hasScores =
+            wwScores.some(isValidScore) ||
+            ptScores.some(isValidScore) ||
+            qaScores.some(isValidScore);
+
+        if (isGMRCSubject) {
+            const wwCogScores = wwScores.slice(0, 5);
+            const wwAffScores = wwScores.slice(5, 10);
+            const ptCogScores = ptScores.slice(0, 3);
+            const ptAffScores = ptScores.slice(3, 6);
+            const ptBehScores = ptScores.slice(6, 9);
+
+            const wwCogTotalScore = wwCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwCogTotalHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
+            const wwCogPS = wwCogTotalHPS === 0 ? 0 : Math.round((wwCogTotalScore / wwCogTotalHPS) * 100 * 100) / 100;
+            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
+
+            const wwAffTotalScore = wwAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const wwAffTotalHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
+            const wwAffPS = wwAffTotalHPS === 0 ? 0 : Math.round((wwAffTotalScore / wwAffTotalHPS) * 100 * 100) / 100;
+            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
+
+            const ptCogTotalScore = ptCogScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptCogTotalHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
+            const ptCogPS = ptCogTotalHPS === 0 ? 0 : Math.round((ptCogTotalScore / ptCogTotalHPS) * 100 * 100) / 100;
+            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
+
+            const ptAffTotalScore = ptAffScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptAffTotalHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
+            const ptAffPS = ptAffTotalHPS === 0 ? 0 : Math.round((ptAffTotalScore / ptAffTotalHPS) * 100 * 100) / 100;
+            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+
+            const ptBehTotalScore = ptBehScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            const ptBehTotalHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
+            const ptBehPS = ptBehTotalHPS === 0 ? 0 : Math.round((ptBehTotalScore / ptBehTotalHPS) * 100 * 100) / 100;
+            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+
+            const st1Score = typeof qaScores[0] === 'number' ? qaScores[0] : (qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]));
+            const st1HPS = Number(hps.qa[0]) || 0;
+            const st2Score = typeof qaScores[1] === 'number' ? qaScores[1] : (qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]));
+            const st2HPS = Number(hps.qa[1]) || 0;
+            const teScore = typeof qaScores[2] === 'number' ? qaScores[2] : (qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]));
+            const teHPS = Number(hps.qa[2]) || 0;
+
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) ? Math.round(((st1Score as number) / st1HPS) * 30 * 100) / 100 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) ? Math.round(((st2Score as number) / st2HPS) * 30 * 100) / 100 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) ? Math.round(((teScore as number) / teHPS) * 40 * 100) / 100 : null;
+
+            let qaScore = 0;
+            let qaHPS = 0;
+            if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
+                qaHPS += st1HPS;
+                qaScore += (st1Score as number);
+            }
+            if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
+                qaHPS += st2HPS;
+                qaScore += (st2Score as number);
+            }
+            if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+                qaHPS += teHPS;
+                qaScore += (teScore as number);
+            }
+
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
+            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+
+            const initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+            const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
+
+            return {
+                ww: wwScores,
+                pt: ptScores,
+                qa: qaScores,
+                hasScores,
+                wwCog: wwCogScores, wwCogTotalScore, wwCogTotalHPS, wwCogPS, wwCogWS,
+                wwAff: wwAffScores, wwAffTotalScore, wwAffTotalHPS, wwAffPS, wwAffWS,
+                ptCog: ptCogScores, ptCogTotalScore, ptCogTotalHPS, ptCogPS, ptCogWS,
+                ptAff: ptAffScores, ptAffTotalScore, ptAffTotalHPS, ptAffPS, ptAffWS,
+                ptBeh: ptBehScores, ptBehTotalScore, ptBehTotalHPS, ptBehPS, ptBehWS,
+                qaScore, qaHPS, qaPS, qaWS,
+                initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
+                quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
+            };
         }
 
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
@@ -902,13 +1239,6 @@ export function EClassRecord() {
         const qaWS = qaPS * (currentWeights.quarterly_exam || 0);
 
         const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
-
-        const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
-        const hasScores =
-            wwScores.some(isValidScore) ||
-            ptScores.some(isValidScore) ||
-            qaScores.some(isValidScore);
-
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
         return {
@@ -922,7 +1252,7 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear]);
+    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1172,13 +1502,16 @@ export function EClassRecord() {
             !r.section_id
         ) : null;
 
+        const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
+        const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
+
         const newRecord: HPSRecord = existingRecord ? { ...existingRecord, section_id: secId } : {
             id: `hps_${effectiveSubjectId}_${secId}_Q${quarter}_${activeSchoolYear}`,
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(WW_COUNT).fill(''),
-            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(PT_COUNT).fill(''),
+            written_works: legacyRecord ? [...legacyRecord.written_works] : Array(activeWwCount).fill(''),
+            performance_tasks: legacyRecord ? [...legacyRecord.performance_tasks] : Array(activePtCount).fill(''),
             quarterly_exam: legacyRecord ? legacyRecord.quarterly_exam : '',
             section_id: secId
         };
@@ -1199,11 +1532,11 @@ export function EClassRecord() {
             hpsWithSummative.summative_tests = currentQa;
             newRecord.quarterly_exam = currentQa[2];
         } else if (type === 'ww') {
-            const newWW = [...newRecord.written_works];
+            const newWW = normalizeScores(newRecord.written_works, activeWwCount);
             newWW[index] = numVal;
             newRecord.written_works = newWW;
         } else if (type === 'pt') {
-            const newPT = [...newRecord.performance_tasks];
+            const newPT = normalizeScores(newRecord.performance_tasks, activePtCount);
             newPT[index] = numVal;
             newRecord.performance_tasks = newPT;
         }
@@ -1212,12 +1545,9 @@ export function EClassRecord() {
 
         // Recalculate and update final_grade for all section students with scores to prevent stale calculations
         const stateClassRecords = useAppStore.getState().classRecords;
-        const currentHpsWw = normalizeScores(newRecord.written_works, WW_COUNT).map(v => Number(v) || 0);
-        const currentHpsPt = normalizeScores(newRecord.performance_tasks, PT_COUNT).map(v => Number(v) || 0);
+        const currentHpsWw = normalizeScores(newRecord.written_works, activeWwCount).map(v => Number(v) || 0);
+        const currentHpsPt = normalizeScores(newRecord.performance_tasks, activePtCount).map(v => Number(v) || 0);
         const currentHpsQa = normalizeScores(currentQa, ST_COUNT).map(v => Number(v) || 0);
-
-        const hpsWwTotal = currentHpsWw.reduce((a, b) => a + b, 0);
-        const hpsPtTotal = currentHpsPt.reduce((a, b) => a + b, 0);
 
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
@@ -1227,8 +1557,8 @@ export function EClassRecord() {
             );
             if (!cr) return;
 
-            const sWw = normalizeScores(cr.written_works, WW_COUNT);
-            const sPt = normalizeScores(cr.performance_tasks, PT_COUNT);
+            const sWw = normalizeScores(cr.written_works, activeWwCount);
+            const sPt = normalizeScores(cr.performance_tasks, activePtCount);
             const sQa = normalizeScores((cr as any).summative_tests, ST_COUNT);
             if (!sQa[2] && cr.quarterly_exam !== '') sQa[2] = cr.quarterly_exam;
 
@@ -1236,26 +1566,70 @@ export function EClassRecord() {
             const hasScores = sWw.some(isValid) || sPt.some(isValid) || sQa.some(isValid);
             if (!hasScores) return;
 
-            const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
-            const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+            let initialGrade = 0;
 
-            const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
-            const wwWS = wwPS * currentWeights.written_works;
+            if (isGMRCSubject) {
+                const sWwCogTotal = sWw.slice(0, 5).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsWwCogTotal = currentHpsWw.slice(0, 5).reduce((a, b) => a + b, 0);
+                const wwCogPS = hpsWwCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwCogTotal / hpsWwCogTotal) * 100));
+                const wwCogWS = wwCogPS * 0.10;
 
-            const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
-            const ptWS = ptPS * currentWeights.performance_tasks;
+                const sWwAffTotal = sWw.slice(5, 10).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsWwAffTotal = currentHpsWw.slice(5, 10).reduce((a, b) => a + b, 0);
+                const wwAffPS = hpsWwAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwAffTotal / hpsWwAffTotal) * 100));
+                const wwAffWS = wwAffPS * 0.10;
 
-            const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
-            const st1HPS = Number(currentHpsQa[0]) || 0;
-            const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
-            const st2HPS = Number(currentHpsQa[1]) || 0;
-            const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
-            const teHPS = Number(currentHpsQa[2]) || 0;
+                const sPtCogTotal = sPt.slice(0, 3).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsPtCogTotal = currentHpsPt.slice(0, 3).reduce((a, b) => a + b, 0);
+                const ptCogPS = hpsPtCogTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtCogTotal / hpsPtCogTotal) * 100));
+                const ptCogWS = ptCogPS * 0.10;
 
-            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-            const qaWS = qaPS * currentWeights.quarterly_exam;
+                const sPtAffTotal = sPt.slice(3, 6).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsPtAffTotal = currentHpsPt.slice(3, 6).reduce((a, b) => a + b, 0);
+                const ptAffPS = hpsPtAffTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtAffTotal / hpsPtAffTotal) * 100));
+                const ptAffWS = ptAffPS * 0.10;
 
-            const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+                const sPtBehTotal = sPt.slice(6, 9).reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsPtBehTotal = currentHpsPt.slice(6, 9).reduce((a, b) => a + b, 0);
+                const ptBehPS = hpsPtBehTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtBehTotal / hpsPtBehTotal) * 100));
+                const ptBehWS = ptBehPS * 0.30;
+
+                const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
+                const st1HPS = Number(currentHpsQa[0]) || 0;
+                const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
+                const st2HPS = Number(currentHpsQa[1]) || 0;
+                const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
+                const teHPS = Number(currentHpsQa[2]) || 0;
+
+                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+                const qaWS = qaPS * 0.30;
+
+                initialGrade = Math.min(100, Math.max(0, wwCogWS + wwAffWS + ptCogWS + ptAffWS + ptBehWS + qaWS));
+            } else {
+                const sWwTotal = sWw.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const sPtTotal = sPt.reduce<number>((a, b) => a + (isValid(b) ? Number(b) : 0), 0);
+                const hpsWwTotal = currentHpsWw.reduce((a, b) => a + b, 0);
+                const hpsPtTotal = currentHpsPt.reduce((a, b) => a + b, 0);
+
+                const wwPS = hpsWwTotal === 0 ? 0 : Math.min(100, Math.max(0, (sWwTotal / hpsWwTotal) * 100));
+                const wwWS = wwPS * currentWeights.written_works;
+
+                const ptPS = hpsPtTotal === 0 ? 0 : Math.min(100, Math.max(0, (sPtTotal / hpsPtTotal) * 100));
+                const ptWS = ptPS * currentWeights.performance_tasks;
+
+                const st1Score = sQa[0] === '' || sQa[0] === null || sQa[0] === undefined ? null : Number(sQa[0]);
+                const st1HPS = Number(currentHpsQa[0]) || 0;
+                const st2Score = sQa[1] === '' || sQa[1] === null || sQa[1] === undefined ? null : Number(sQa[1]);
+                const st2HPS = Number(currentHpsQa[1]) || 0;
+                const teScore = sQa[2] === '' || sQa[2] === null || sQa[2] === undefined ? null : Number(sQa[2]);
+                const teHPS = Number(currentHpsQa[2]) || 0;
+
+                const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+                const qaWS = qaPS * currentWeights.quarterly_exam;
+
+                initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            }
+
             const newFinalGrade = transmuteGrade(initialGrade, cr.school_year || activeSchoolYear);
 
             const updatedCr: ClassRecord = {
@@ -1278,13 +1652,16 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord]);
+    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
 
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
         if (isSummaryMode) return;
+
+        const activeWwCount = isGMRCSubject ? GMRC_WW_COUNT : WW_COUNT;
+        const activePtCount = isGMRCSubject ? GMRC_PT_COUNT : PT_COUNT;
 
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
@@ -1300,8 +1677,8 @@ export function EClassRecord() {
             subject_id: effectiveSubjectId,
             school_year: activeSchoolYear,
             quarter: quarter as any,
-            written_works: Array(WW_COUNT).fill(''),
-            performance_tasks: Array(PT_COUNT).fill(''),
+            written_works: Array(activeWwCount).fill(''),
+            performance_tasks: Array(activePtCount).fill(''),
             quarterly_exam: '',
             final_grade: '',
             is_teaching_load: true
@@ -1331,39 +1708,84 @@ export function EClassRecord() {
             recordWithSummative.summative_tests = qaScores;
             record.quarterly_exam = qaScores[2];
         } else if (type === 'ww') {
-            const newWW = [...record.written_works];
+            const newWW = normalizeScores(record.written_works, activeWwCount);
             newWW[index] = parsedVal;
             record.written_works = newWW;
         } else if (type === 'pt') {
-            const newPT = [...record.performance_tasks];
+            const newPT = normalizeScores(record.performance_tasks, activePtCount);
             newPT[index] = parsedVal;
             record.performance_tasks = newPT;
         }
 
-        const normalizedWW = normalizeScores(record.written_works, WW_COUNT);
-        const normalizedPT = normalizeScores(record.performance_tasks, PT_COUNT);
+        const normalizedWW = normalizeScores(record.written_works, activeWwCount);
+        const normalizedPT = normalizeScores(record.performance_tasks, activePtCount);
 
-        const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-        const wwWS = wwPS * currentWeights.written_works;
+        let initialGrade = 0;
 
-        const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-        const ptWS = ptPS * currentWeights.performance_tasks;
+        if (isGMRCSubject) {
+            const wwCogTotal = normalizedWW.slice(0, 5).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const wwCogHPS = hps.ww.slice(0, 5).reduce<number>((a, b) => a + Number(b), 0);
+            const wwCogPS = wwCogHPS === 0 ? 0 : Math.round((wwCogTotal / wwCogHPS) * 100 * 100) / 100;
+            const wwCogWS = Math.round(wwCogPS * 0.10 * 100) / 100;
 
-        const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
-        const st1HPS = Number(hps.qa[0]) || 0;
-        const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
-        const st2HPS = Number(hps.qa[1]) || 0;
-        const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
-        const teHPS = Number(hps.qa[2]) || 0;
+            const wwAffTotal = normalizedWW.slice(5, 10).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const wwAffHPS = hps.ww.slice(5, 10).reduce<number>((a, b) => a + Number(b), 0);
+            const wwAffPS = wwAffHPS === 0 ? 0 : Math.round((wwAffTotal / wwAffHPS) * 100 * 100) / 100;
+            const wwAffWS = Math.round(wwAffPS * 0.10 * 100) / 100;
 
-        const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
-        const qaWS = qaPS * currentWeights.quarterly_exam;
+            const ptCogTotal = normalizedPT.slice(0, 3).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const ptCogHPS = hps.pt.slice(0, 3).reduce<number>((a, b) => a + Number(b), 0);
+            const ptCogPS = ptCogHPS === 0 ? 0 : Math.round((ptCogTotal / ptCogHPS) * 100 * 100) / 100;
+            const ptCogWS = Math.round(ptCogPS * 0.10 * 100) / 100;
 
-        const initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+            const ptAffTotal = normalizedPT.slice(3, 6).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const ptAffHPS = hps.pt.slice(3, 6).reduce<number>((a, b) => a + Number(b), 0);
+            const ptAffPS = ptAffHPS === 0 ? 0 : Math.round((ptAffTotal / ptAffHPS) * 100 * 100) / 100;
+            const ptAffWS = Math.round(ptAffPS * 0.10 * 100) / 100;
+
+            const ptBehTotal = normalizedPT.slice(6, 9).reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const ptBehHPS = hps.pt.slice(6, 9).reduce<number>((a, b) => a + Number(b), 0);
+            const ptBehPS = ptBehHPS === 0 ? 0 : Math.round((ptBehTotal / ptBehHPS) * 100 * 100) / 100;
+            const ptBehWS = Math.round(ptBehPS * 0.30 * 100) / 100;
+
+            const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
+            const st1HPS = Number(hps.qa[0]) || 0;
+            const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
+            const st2HPS = Number(hps.qa[1]) || 0;
+            const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
+            const teHPS = Number(hps.qa[2]) || 0;
+
+            const st1WS = (st1HPS > 0 && st1Score !== null && !isNaN(st1Score)) ? Math.round((st1Score / st1HPS) * 30 * 100) / 100 : null;
+            const st2WS = (st2HPS > 0 && st2Score !== null && !isNaN(st2Score)) ? Math.round((st2Score / st2HPS) * 30 * 100) / 100 : null;
+            const teWS = (teHPS > 0 && teScore !== null && !isNaN(teScore)) ? Math.round((teScore / teHPS) * 40 * 100) / 100 : null;
+
+            const qaPS = (st1WS !== null || st2WS !== null || teWS !== null) ? Math.round(((st1WS || 0) + (st2WS || 0) + (teWS || 0)) * 100) / 100 : 0;
+            const qaWS = Math.round(qaPS * 0.30 * 100) / 100;
+
+            initialGrade = Math.round(((wwCogWS || 0) + (wwAffWS || 0) + (ptCogWS || 0) + (ptAffWS || 0) + (ptBehWS || 0) + (qaWS || 0)) * 100) / 100;
+        } else {
+            const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
+            const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
+            const wwWS = wwPS * currentWeights.written_works;
+
+            const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
+            const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
+            const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
+            const ptWS = ptPS * currentWeights.performance_tasks;
+
+            const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
+            const st1HPS = Number(hps.qa[0]) || 0;
+            const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
+            const st2HPS = Number(hps.qa[1]) || 0;
+            const teScore = qaScores[2] === '' || qaScores[2] === null || qaScores[2] === undefined ? null : Number(qaScores[2]);
+            const teHPS = Number(hps.qa[2]) || 0;
+
+            const qaPS = computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
+            const qaWS = qaPS * currentWeights.quarterly_exam;
+
+            initialGrade = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
+        }
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -1396,7 +1818,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections]);
+    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, isGMRCSubject]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1589,6 +2011,7 @@ export function EClassRecord() {
                     schoolYear: activeSchoolYear,
                     section: selectedSectionObj,
                     subject: sub,
+                    allSubjects: subjects,
                     teacherName: teacherName || selectedSectionObj.adviser_name,
                     students,
                     classRecords,
@@ -1615,7 +2038,7 @@ export function EClassRecord() {
                         targetSubjectObj = mapehComponents[0];
                     }
                     if (!targetSubjectObj) {
-                        targetSubjectObj = { id: 'virtual_mapeh', subject_name: 'Music and Arts' } as Subject;
+                        targetSubjectObj = { id: 'virtual_mapeh', subject_name: 'MAPEH' } as Subject;
                     }
                 } else if (!targetSubjectObj && selectedSubject) {
                     targetSubjectObj = { id: selectedSubject, subject_name: selectedSubject } as Subject;
@@ -1631,6 +2054,7 @@ export function EClassRecord() {
                     schoolYear: activeSchoolYear,
                     section: selectedSectionObj,
                     subject: targetSubjectObj,
+                    allSubjects: subjects,
                     teacherName: teacherName || selectedSectionObj.adviser_name || schoolProfile?.adviser_name,
                     students,
                     classRecords,
@@ -2243,8 +2667,8 @@ export function EClassRecord() {
                             </table>
                         </div>
                     ) : (
-                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4">
-                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300 max-w-full" style={{ width: PAPER_SIZES[paperSize].previewWidthLandscape }}>
+                    <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 overflow-x-auto">
+                        <div id="printable-class-record" className="bg-white text-black p-4 md:p-6 shadow-xl border border-gray-100 mx-auto transition-all duration-300" style={{ width: isGMRCSubject ? `${optimalNameColumnWidth + 1330}px` : PAPER_SIZES[paperSize].previewWidthLandscape, minWidth: isGMRCSubject ? `${optimalNameColumnWidth + 1280}px` : undefined }}>
                             {[
                                 { gender: 'MALE' as const, students: maleStudents },
                                 { gender: 'FEMALE' as const, students: femaleStudents }
@@ -2309,116 +2733,280 @@ export function EClassRecord() {
                                 </div>
                             </div>
 
-                            <div className="flex border-2 border-black mb-px text-[10px] leading-none">
-                                <div className="h-9 px-3 border-r border-black font-bold bg-yellow-100 flex items-center justify-center text-center shrink-0">
+                            <div className="flex border-2 border-black mb-px text-[10px] leading-none bg-white">
+                                <div className="h-9 px-3 border-r-2 border-black font-bold bg-yellow-100 flex items-center justify-center text-center shrink-0 min-w-28 text-[10.5px] uppercase tracking-wide">
                                     {(typeof quarter === 'string' && quarter.startsWith('summary')) ? 'SUMMARY OF GRADES' : getTermUpperLabel(quarter as any)}
                                 </div>
-                                <div className="h-9 px-3 border-r border-black flex items-center justify-center whitespace-nowrap grow">
+                                <div className="h-9 px-4 border-r-2 border-black flex items-center justify-center whitespace-nowrap flex-1 text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">GRADE & SECTION:</span>
-                                    <span className="uppercase">{sectionGradeLevel} - {selectedSection}</span>
+                                    <span className="uppercase font-semibold">{sectionGradeLevel} - {selectedSectionObj?.section_name || selectedSection}</span>
                                 </div>
-                                <div className="h-9 px-3 border-r border-black flex items-center justify-center whitespace-nowrap grow">
+                                <div className="h-9 px-4 border-r-2 border-black flex items-center justify-center whitespace-nowrap flex-[1.6] text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">TEACHER:</span>
-                                    <span className="uppercase">{teacherName || selectedSectionObj?.adviser_name || ''}</span>
+                                    <span className="uppercase font-semibold ml-1 truncate">{teacherName || selectedSectionObj?.adviser_name || ''}</span>
                                 </div>
-                                <div className="h-9 px-3 flex items-center justify-center whitespace-nowrap grow">
+                                <div className="h-9 px-4 flex items-center justify-center whitespace-nowrap flex-1 text-[10.5px]">
                                     <span className="font-bold mr-1.5 shrink-0">SUBJECT:</span>
-                                    <span className="uppercase">{subjectName || selectedSectionObj?.subject_name || ''}</span>
+                                    <span className="uppercase font-semibold ml-1 truncate">{isGMRCSubject ? normalizeSubjectForECR(subjectName || selectedSectionObj?.subject_name || '', undefined, sectionGradeLevel) : (subjectName || selectedSectionObj?.subject_name || '')}</span>
                                 </div>
                             </div>
 
                             <table className="w-full table-fixed border-collapse border-2 border-black text-[10px] text-center">
-                                <thead>
-                                    <tr className="h-11">
-                                        <th rowSpan={2} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
-                                        <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS ({Math.round(currentWeights.written_works * 100)}%)</th>
-                                        <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
-                                            <span>PRODUCT / PERFORMANCE</span><br />
-                                            <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
-                                        </th>
-                                        <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
-                                            <span>SUMMATIVE TESTS AND TERM</span><br />
-                                            <span>EXAMINATIONS ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
-                                        </th>
-                                        <th rowSpan={3} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]">INITIAL GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
-                                        <th rowSpan={3} className="border border-black w-24 min-w-24 max-w-24 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
-                                    </tr>
-                                    <tr className="h-8">
-                                        {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
-                                        <th className="border border-black w-10 bg-gray-200">Total</th>
-                                        <th className="border border-black w-14 bg-gray-200">PS</th>
-                                        <th className="border border-black w-12 bg-gray-200">WS</th>
-                                        {[1, 2, 3].map(i => <th key={`pt-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
-                                        <th className="border border-black w-10 bg-gray-200">Total</th>
-                                        <th className="border border-black w-14 bg-gray-200">PS</th>
-                                        <th className="border border-black w-12 bg-gray-200">WS</th>
-                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST1</th>
-                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST2</th>
-                                        <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">TE</th>
-                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
-                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
-                                        <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>
-                                        <th className="border border-black w-14 bg-gray-200 text-[8px] font-bold leading-none">PS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
-                                        <th className="border border-black w-12 bg-gray-200 text-[8px] font-bold leading-none">WS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
-                                    </tr>
-                                    <tr className="font-bold h-9">
-                                        <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
-                                        {hps.ww.map((val, i) => (
-                                            <td key={`hps-ww-${i}`} className="border border-black p-0 bg-white">
-                                                <DebouncedInput
-                                                    type="number"
-                                                    value={val === '' ? '' : val}
-                                                    onChange={(v) => updateHPS('ww', i, v)}
-                                                    onKeyDown={(e) => handleKeyDown(e, 0, i)}
-                                                    data-row={0}
-                                                    data-col={i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
-                                                />
-                                            </td>
-                                        ))}
-                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.written_works * 100}%</td>
-                                        {hps.pt.map((val, i) => (
-                                            <td key={`hps-pt-${i}`} className="border border-black p-0 bg-white">
-                                                <DebouncedInput
-                                                    type="number"
-                                                    value={val === '' ? '' : val}
-                                                    onChange={(v) => updateHPS('pt', i, v)}
-                                                    onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
-                                                    data-row={0}
-                                                    data-col={5 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
-                                                />
-                                            </td>
-                                        ))}
-                                        <td className="border border-black bg-gray-100 text-[8px]">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.performance_tasks * 100}%</td>
-                                        {hps.qa.map((val, i) => (
-                                            <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
-                                                <DebouncedInput
-                                                    type="number"
-                                                    value={val === '' ? '' : val}
-                                                    onChange={(v) => updateHPS('qa', i, v)}
-                                                    onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
-                                                    data-row={0}
-                                                    data-col={8 + i}
-                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
-                                                />
-                                            </td>
-                                        ))}
-                                        <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
-                                        <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
-                                        <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
-                                        <td className="border border-black bg-gray-100 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
-                                    </tr>
-                                </thead>
+                                {isGMRCSubject ? (
+                                    <thead>
+                                        <tr className="h-10">
+                                            <th rowSpan={3} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
+                                            <th colSpan={16} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS (WWs) - 20%</th>
+                                            <th colSpan={18} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
+                                                PRODUCT / PERFORMANCE TASKS (PTs) - 50%
+                                            </th>
+                                            <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8.5px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
+                                                EXAMINATIONS (EXs) - 30%
+                                            </th>
+                                            <th rowSpan={4} className="border border-black w-14 min-w-14 max-w-14 p-1 align-middle bg-yellow-50 font-bold leading-none text-[8px]">INITIAL GRADE</th>
+                                            <th rowSpan={4} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
+                                            <th rowSpan={4} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
+                                        </tr>
+                                        <tr className="h-6">
+                                            <th colSpan={8} className="border border-black text-[7.5px] font-bold bg-gray-100">COGNITIVE DOMAIN</th>
+                                            <th colSpan={8} className="border border-black text-[7.5px] font-bold bg-gray-100">AFFECTIVE DOMAIN</th>
+                                            <th colSpan={6} className="border border-black text-[7.5px] font-bold bg-gray-100">COGNITIVE DOMAIN</th>
+                                            <th colSpan={6} className="border border-black text-[7.5px] font-bold bg-gray-100">AFFECTIVE DOMAIN</th>
+                                            <th colSpan={6} className="border border-black text-[7.5px] font-bold bg-gray-100">BEHAVIORAL DOMAIN</th>
+                                            <th colSpan={8} className="border border-black text-[7.5px] font-bold bg-gray-100">SUMMATIVE AND TERM EXAMS</th>
+                                        </tr>
+                                        <tr className="h-7 text-[8px]">
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+
+                                            {[1, 2, 3].map(i => <th key={`pt-cog-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3].map(i => <th key={`pt-aff-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(10%)</span></th>
+                                            {[1, 2, 3].map(i => <th key={`pt-beh-${i}`} className="border border-black w-6 min-w-6 text-[8px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">Total</th>
+                                            <th className="border border-black w-8 min-w-8 bg-gray-200 text-[7.5px]">PS</th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] leading-none">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
+
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">ST1</th>
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">ST2</th>
+                                            <th className="border border-black w-7 min-w-7 text-[8px] font-bold bg-gray-100">TE</th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 text-[7px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6px] font-normal">(40%)</span></th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none">PS<br/><span className="text-[6px] font-normal">(100)</span></th>
+                                            <th className="border border-black w-9 min-w-9 bg-gray-200 text-[7px] font-bold leading-none">WS<br/><span className="text-[6px] font-normal">(30%)</span></th>
+                                        </tr>
+                                        <tr className="font-bold h-8 text-[8px]">
+                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                            {hps.ww.slice(0, 5).map((val, i) => (
+                                                <td key={`hps-ww-cog-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('ww', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, i)}
+                                                        data-row={0}
+                                                        data-col={i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.ww.slice(0, 5).some(v => v !== '') ? hps.ww.slice(0, 5).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+
+                                            {hps.ww.slice(5, 10).map((val, i) => (
+                                                <td key={`hps-ww-aff-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('ww', 5 + i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
+                                                        data-row={0}
+                                                        data-col={5 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.ww.slice(5, 10).some(v => v !== '') ? hps.ww.slice(5, 10).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+
+                                            {hps.pt.slice(0, 3).map((val, i) => (
+                                                <td key={`hps-pt-cog-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('pt', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 10 + i)}
+                                                        data-row={0}
+                                                        data-col={10 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(0, 3).some(v => v !== '') ? hps.pt.slice(0, 3).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+
+                                            {hps.pt.slice(3, 6).map((val, i) => (
+                                                <td key={`hps-pt-aff-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('pt', 3 + i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 13 + i)}
+                                                        data-row={0}
+                                                        data-col={13 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(3, 6).some(v => v !== '') ? hps.pt.slice(3, 6).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">10%</td>
+
+                                            {hps.pt.slice(6, 9).map((val, i) => (
+                                                <td key={`hps-pt-beh-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('pt', 6 + i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 16 + i)}
+                                                        data-row={0}
+                                                        data-col={16 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">{hps.pt.slice(6, 9).some(v => v !== '') ? hps.pt.slice(6, 9).reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">30%</td>
+
+                                            {hps.qa.map((val, i) => (
+                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('qa', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 19 + i)}
+                                                        data-row={0}
+                                                        data-col={19 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[7.5px]">40</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[7.5px]">30%</td>
+                                        </tr>
+                                    </thead>
+                                ) : (
+                                    <thead>
+                                        <tr className="h-11">
+                                            <th rowSpan={2} className="border border-black p-1 align-middle text-[9px] tracking-wide bg-gray-200" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>LEARNERS' NAMES</th>
+                                            <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] bg-gray-200" style={{ letterSpacing: '0.02em' }}>WRITTEN / ORAL WORKS ({Math.round(currentWeights.written_works * 100)}%)</th>
+                                            <th colSpan={6} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
+                                                <span>PRODUCT / PERFORMANCE</span><br />
+                                                <span>TASKS ({Math.round(currentWeights.performance_tasks * 100)}%)</span>
+                                            </th>
+                                            <th colSpan={8} className="border border-black px-2 py-1 text-center align-middle font-bold text-[8px] leading-tight bg-gray-200" style={{ letterSpacing: '0.02em' }}>
+                                                <span>SUMMATIVE TESTS AND TERM</span><br />
+                                                <span>EXAMINATIONS ({Math.round(currentWeights.quarterly_exam * 100)}%)</span>
+                                            </th>
+                                            <th rowSpan={3} className="border border-black w-16 min-w-16 max-w-16 p-1 align-middle bg-yellow-50 font-bold leading-none text-[9px]">INITIAL GRADE</th>
+                                            <th rowSpan={3} className="border border-black w-20 min-w-20 max-w-20 p-1 align-middle bg-green-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">TERM GRADE</th>
+                                            <th rowSpan={3} className="border border-black w-24 min-w-24 max-w-24 p-1 align-middle bg-blue-100 font-bold leading-none text-[8px] whitespace-normal wrap-break-word">DESCRIPTOR</th>
+                                        </tr>
+                                        <tr className="h-8">
+                                            {[1, 2, 3, 4, 5].map(i => <th key={`ww-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-10 bg-gray-200">Total</th>
+                                            <th className="border border-black w-14 bg-gray-200">PS</th>
+                                            <th className="border border-black w-12 bg-gray-200">WS</th>
+                                            {[1, 2, 3].map(i => <th key={`pt-${i}`} className="border border-black w-6 text-[9px] font-bold bg-gray-100">{i}</th>)}
+                                            <th className="border border-black w-10 bg-gray-200">Total</th>
+                                            <th className="border border-black w-14 bg-gray-200">PS</th>
+                                            <th className="border border-black w-12 bg-gray-200">WS</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST1</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">ST2</th>
+                                            <th className="border border-black w-8 text-[9px] font-bold bg-gray-100">TE</th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST1<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS ST2<br/><span className="text-[6.5px] font-normal">(30%)</span></th>
+                                            <th className="border border-black w-12 text-[7.5px] font-bold leading-none bg-yellow-100/70">WS TE<br/><span className="text-[6.5px] font-normal">(40%)</span></th>
+                                            <th className="border border-black w-14 bg-gray-200 text-[8px] font-bold leading-none">PS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
+                                            <th className="border border-black w-12 bg-gray-200 text-[8px] font-bold leading-none">WS<br/><span className="text-[6.5px] font-normal">(ST & TE)</span></th>
+                                        </tr>
+                                        <tr className="font-bold h-9">
+                                            <td className="border border-black p-1 text-left whitespace-nowrap tracking-wide text-[7px] bg-gray-100" style={{ width: `${optimalNameColumnWidth}px`, minWidth: `${optimalNameColumnWidth}px`, maxWidth: `${optimalNameColumnWidth}px` }}>HIGHEST POSSIBLE SCORE</td>
+                                            {hps.ww.map((val, i) => (
+                                                <td key={`hps-ww-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('ww', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, i)}
+                                                        data-row={0}
+                                                        data-col={i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-blue-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[8px]">{hps.ww.some(v => v !== '') ? hps.ww.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.written_works * 100}%</td>
+                                            {hps.pt.map((val, i) => (
+                                                <td key={`hps-pt-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('pt', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 5 + i)}
+                                                        data-row={0}
+                                                        data-col={5 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-green-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-gray-100 text-[8px]">{hps.pt.some(v => v !== '') ? hps.pt.reduce((a, b) => a + Number(b), 0) : ''}</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">{currentWeights.performance_tasks * 100}%</td>
+                                            {hps.qa.map((val, i) => (
+                                                <td key={`hps-qa-${i}`} className="border border-black p-0 bg-white">
+                                                    <DebouncedInput
+                                                        type="number"
+                                                        value={val === '' ? '' : val}
+                                                        onChange={(v) => updateHPS('qa', i, v)}
+                                                        onKeyDown={(e) => handleKeyDown(e, 0, 8 + i)}
+                                                        data-row={0}
+                                                        data-col={8 + i}
+                                                        className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                                                    />
+                                                </td>
+                                            ))}
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]">30</td>
+                                            <td className="border border-black bg-yellow-100/70 text-[8px]">40</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">100.00</td>
+                                            <td className="border border-black bg-gray-100 text-[8px]">{Math.round(currentWeights.quarterly_exam * 100)}%</td>
+                                        </tr>
+                                    </thead>
+                                )}
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold">
-                                        <td colSpan={26} className="border border-black text-left px-2 py-1">{section.gender}</td>
+                                        <td colSpan={isGMRCSubject ? 46 : 26} className="border border-black text-left px-2 py-1">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
@@ -2443,6 +3031,7 @@ export function EClassRecord() {
                                                 updateGrade={updateGrade}
                                                 handleKeyDown={handleKeyDown}
                                                 formatStudentFullName={formatStudentFullName}
+                                                isGMRCSubject={isGMRCSubject}
                                             />
                                         );
                                     })}

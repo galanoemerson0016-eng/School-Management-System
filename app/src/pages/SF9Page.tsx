@@ -18,6 +18,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
@@ -1073,384 +1074,6 @@ function computeStudentValues(student: Student, observedValues: ObservedValues[]
     return values;
 }
 
-function computeStudentAttendance(
-    student: Student, 
-    sf2Sheets: SF2Sheet[], 
-    schoolYear: string, 
-    sectionObj?: Section,
-    attendanceRecords: AttendanceRecord[] = []
-) {
-    const months = ['JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL'];
-    const schoolDays: number[] = [];
-    const daysPresent: number[] = [];
-    const daysAbsent: number[] = [];
-
-    const SCHOOL_CALENDAR_2026_2027_COUNTS: Record<string, number> = {
-        JUNE: 16,
-        JULY: 23,
-        AUGUST: 19,
-        SEPTEMBER: 22,
-        OCTOBER: 22,
-        NOVEMBER: 19,
-        DECEMBER: 13,
-        JANUARY: 20,
-        FEBRUARY: 20,
-        MARCH: 21,
-        APRIL: 6
-    };
-
-    const getFallbackSchoolDays = (monthName: string) => {
-        const includeSaturdays = localStorage.getItem('formease_sf2_include_saturdays') === 'true';
-        if (!includeSaturdays && schoolYear === '2026-2027' && SCHOOL_CALENDAR_2026_2027_COUNTS[monthName] != null) {
-            return SCHOOL_CALENDAR_2026_2027_COUNTS[monthName];
-        }
-
-        const monthIndexMap: Record<string, number> = {
-            JANUARY: 0,
-            FEBRUARY: 1,
-            MARCH: 2,
-            APRIL: 3,
-            MAY: 4,
-            JUNE: 5,
-            JULY: 6,
-            AUGUST: 7,
-            SEPTEMBER: 8,
-            OCTOBER: 9,
-            NOVEMBER: 10,
-            DECEMBER: 11
-        };
-
-        const monthIndex = monthIndexMap[monthName];
-        if (monthIndex == null) return 0;
-
-        const [startYearRaw, endYearRaw] = (schoolYear || '').split('-');
-        const startYear = Number.parseInt(startYearRaw, 10);
-        const endYear = Number.parseInt(endYearRaw, 10);
-        const resolvedYear = monthIndex >= 5
-            ? (Number.isFinite(startYear) ? startYear : new Date().getFullYear())
-            : (Number.isFinite(endYear) ? endYear : Number.isFinite(startYear) ? startYear + 1 : new Date().getFullYear());
-
-        const daysInMonth = new Date(resolvedYear, monthIndex + 1, 0).getDate();
-
-        // Fetch calendar holidays from localStorage
-        let holidays: string[] = [];
-        try {
-            const storedEvents = localStorage.getItem('school_calendar_events');
-            if (storedEvents) {
-                const parsedEvents = JSON.parse(storedEvents);
-                if (Array.isArray(parsedEvents)) {
-                    holidays = parsedEvents
-                        .filter((e: CalendarEvent) => e.type === 'holiday' || e.type === 'suspension')
-                        .flatMap((e: CalendarEvent) => {
-                            const dates: string[] = [];
-                            try {
-                                const curr = new Date(e.date + 'T00:00:00');
-                                const end = e.end_date ? new Date(e.end_date + 'T00:00:00') : new Date(curr);
-                                if (!isNaN(curr.getTime()) && !isNaN(end.getTime())) {
-                                    while (curr <= end) {
-                                        dates.push(curr.toISOString().split('T')[0]);
-                                        curr.setDate(curr.getDate() + 1);
-                                    }
-                                }
-                            } catch (dateErr) {
-                                console.error('Error parsing date range for event:', e, dateErr);
-                            }
-                            return dates;
-                        });
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load/parse calendar events for holiday filter', e);
-        }
-
-        let schoolDaysCount = 0;
-        const limitDow = includeSaturdays ? 6 : 5;
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateObj = new Date(resolvedYear, monthIndex, day);
-            const dow = dateObj.getDay();
-            const dateStr = `${resolvedYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            if (holidays.includes(dateStr)) continue;
-
-            if (dow >= 1 && dow <= limitDow) {
-                if (schoolYear === '2026-2027' && SCHOOL_CALENDAR_2026_2027[monthName]) {
-                    const calendarDays = SCHOOL_CALENDAR_2026_2027[monthName];
-                    const firstSchoolDay = calendarDays.length > 0 ? calendarDays[0] : 1;
-                    const lastSchoolDay = calendarDays.length > 0 ? calendarDays[calendarDays.length - 1] : daysInMonth;
-
-                    const isHardcodedWeekday = calendarDays.includes(day);
-                    const isSaturday = (dow === 6 && day >= firstSchoolDay && day <= lastSchoolDay);
-                    if (isHardcodedWeekday || isSaturday) {
-                        schoolDaysCount++;
-                    }
-                } else {
-                    schoolDaysCount++;
-                }
-            }
-        }
-        const totalCols = getSf2TotalColumns(monthName, schoolYear, includeSaturdays);
-        return Math.min(totalCols, schoolDaysCount);
-    };
-
-    const normalizeText = (value?: string | number) => (value ?? '').toString().trim().toUpperCase();
-    const normalizeSectionToken = (value?: string | number) =>
-        (value ?? '').toString().toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    const monthByNumber: Record<number, string> = {
-        1: 'JANUARY',
-        2: 'FEBRUARY',
-        3: 'MARCH',
-        4: 'APRIL',
-        5: 'MAY',
-        6: 'JUNE',
-        7: 'JULY',
-        8: 'AUGUST',
-        9: 'SEPTEMBER',
-        10: 'OCTOBER',
-        11: 'NOVEMBER',
-        12: 'DECEMBER'
-    };
-
-    const normalizeMonthToken = (value?: string | number): string | null => {
-        const raw = normalizeText(value);
-        if (!raw) return null;
-
-        const asNumber = Number.parseInt(raw, 10);
-        if (!Number.isNaN(asNumber)) {
-            if (asNumber >= 1 && asNumber <= 12) return monthByNumber[asNumber];
-            if (asNumber >= 0 && asNumber <= 11) return monthByNumber[asNumber + 1];
-        }
-
-        const compact = raw.replace(/[^A-Z]/g, '');
-        if (!compact) return null;
-
-        for (const monthName of months) {
-            if (compact === monthName) return monthName;
-            if (compact === monthName.substring(0, 3)) return monthName;
-            if (monthName.startsWith(compact) || compact.startsWith(monthName.substring(0, 3))) {
-                return monthName;
-            }
-        }
-
-        return null;
-    };
-
-    const extractMonthFromId = (id?: string): string | null => {
-        const normalizedId = normalizeText(id);
-        if (!normalizedId) return null;
-
-        const parts = normalizedId.split('_').filter(Boolean);
-        if (parts.length === 0) return null;
-
-        return normalizeMonthToken(parts[parts.length - 1]);
-    };
-
-    const dbSections = useAppStore.getState().sections;
-    const advisorySection = dbSections.find(s => 
-        (s.id === student.student_section || s.section_name === student.student_section) &&
-        (s.is_advisory || !s.is_teaching_load)
-    ) || sectionObj;
-
-    const targetSectionTokens = new Set<string>([
-        normalizeSectionToken(student.student_section),
-        normalizeSectionToken(advisorySection?.id),
-        normalizeSectionToken(advisorySection?.section_name),
-        normalizeSectionToken(sectionObj?.id),
-        normalizeSectionToken(sectionObj?.section_name)
-    ].filter(Boolean));
-
-    const targetSchoolYear = normalizeText(schoolYear);
-    const targetStartYear = targetSchoolYear.match(/\d{4}/)?.[0] || '';
-
-    const getSheetMonth = (sheet: SF2Sheet) => normalizeMonthToken(sheet.month) || extractMonthFromId(sheet.id);
-
-    const isSchoolYearMatch = (sheetYearRaw?: string) => {
-        const sheetYear = normalizeText(sheetYearRaw);
-        if (!sheetYear) return true;
-        if (sheetYear === targetSchoolYear) return true;
-        if (sheetYear.includes(targetSchoolYear) || targetSchoolYear.includes(sheetYear)) return true;
-
-        const sheetStartYear = sheetYear.match(/\d{4}/)?.[0] || '';
-        return !!(sheetStartYear && targetStartYear && sheetStartYear === targetStartYear);
-    };
-
-    const getSectionTokensForSheet = (sheet: SF2Sheet) => {
-        const baseTokens = [
-            normalizeSectionToken(sheet.section_id),
-            normalizeSectionToken(sheet.id)
-        ];
-        const fromId = sheet.id?.split('_').filter(Boolean) || [];
-        if (fromId.length >= 3) {
-            baseTokens.push(normalizeSectionToken(fromId.slice(0, fromId.length - 2).join('_')));
-        }
-        return baseTokens.filter(Boolean);
-    };
-
-    const targetLRN = (student?.lrn ?? '').toString().trim().toLowerCase();
-
-    const isSectionMatch = (sheet: SF2Sheet) => {
-        if (targetLRN) {
-            const attendanceKeys = Object.keys(sheet.attendance || {});
-            if (attendanceKeys.some(k => k.toString().trim().toLowerCase() === targetLRN)) {
-                return true;
-            }
-        }
-        if (!targetSectionTokens.size) return true;
-        const sheetTokens = getSectionTokensForSheet(sheet);
-        if (!sheetTokens.length) return false;
-
-        return sheetTokens.some(sheetToken => {
-            for (const targetToken of targetSectionTokens) {
-                if (!targetToken) continue;
-                if (sheetToken === targetToken) return true;
-                if (sheetToken.includes(targetToken) || targetToken.includes(sheetToken)) return true;
-            }
-            return false;
-        });
-    };
-
-    const getSheetDataScore = (sheet: SF2Sheet) => {
-        const dateLabelCount = Object.values(sheet.date_labels || {}).filter(v => String(v || '').trim() !== '').length;
-        const attendanceCount = Object.keys(sheet.attendance || {}).length;
-        return dateLabelCount * 100 + attendanceCount;
-    };
-
-    const sf2MonthlySheetMap = new Map<string, SF2Sheet>();
-    sf2Sheets.forEach(sheet => {
-        const sheetMonth = getSheetMonth(sheet);
-        if (!sheetMonth) return;
-        if (!months.includes(sheetMonth)) return;
-        if (!isSectionMatch(sheet)) return;
-        if (!isSchoolYearMatch(sheet.school_year)) return;
-
-        const existing = sf2MonthlySheetMap.get(sheetMonth);
-        if (!existing) {
-            sf2MonthlySheetMap.set(sheetMonth, sheet);
-            return;
-        }
-
-        const existingScore = getSheetDataScore(existing);
-        const currentScore = getSheetDataScore(sheet);
-        if (currentScore > existingScore) {
-            sf2MonthlySheetMap.set(sheetMonth, sheet);
-            return;
-        }
-
-        if (currentScore === existingScore) {
-            const existingUpdatedAt = Date.parse(existing.updated_at || '') || 0;
-            const currentUpdatedAt = Date.parse(sheet.updated_at || '') || 0;
-            if (currentUpdatedAt >= existingUpdatedAt) {
-                sf2MonthlySheetMap.set(sheetMonth, sheet);
-            }
-        }
-    });
-
-    const studentDailyRecords = (attendanceRecords || []).filter(r => 
-        (r?.student_lrn ?? '').toString().trim().toLowerCase() === targetLRN
-    );
-
-    const monthIndexMap: Record<string, number> = {
-        JANUARY: 0, FEBRUARY: 1, MARCH: 2, APRIL: 3, MAY: 4, JUNE: 5,
-        JULY: 6, AUGUST: 7, SEPTEMBER: 8, OCTOBER: 9, NOVEMBER: 10, DECEMBER: 11
-    };
-
-    const isAbsentStatus = (st?: string | number) => {
-        if (st == null) return false;
-        const s = st.toString().toLowerCase().trim();
-        return s === 'absent' || s === 'excused' || s === 'x' || s === 'a' || s === 'abs' || s === 'ab' || s === 'unexcused';
-    };
-
-    months.forEach(month => {
-        const sheet = sf2MonthlySheetMap.get(month);
-        const monthIdx = monthIndexMap[month];
-
-        const dailyRecordsForMonth = studentDailyRecords.filter(r => {
-            if (!r.date) return false;
-            const parts = r.date.split('-');
-            if (parts.length === 3) {
-                const mNum = parseInt(parts[1], 10) - 1;
-                return mNum === monthIdx;
-            }
-            const d = new Date(r.date);
-            return !isNaN(d.getTime()) && d.getMonth() === monthIdx;
-        });
-
-        if (sheet) {
-            const dateLabels = sheet.date_labels || {};
-            const attendanceKeys = Object.keys(sheet.attendance || {});
-            const matchedKey = attendanceKeys.find(k => k.toString().trim().toLowerCase() === targetLRN);
-            const studentAttendance = matchedKey ? sheet.attendance[matchedKey] : {};
-            
-            let mAbsent = 0;
-            let mFilled = 0;
-
-            const dayKeys = Object.keys(dateLabels);
-            if (dayKeys.length > 0) {
-                dayKeys.forEach(dayKey => {
-                    const labelRaw = (dateLabels as Record<string, string | number>)[dayKey];
-                    if (labelRaw && labelRaw.toString().trim() !== '') {
-                        mFilled++;
-                        const dayNumStr = labelRaw.toString().trim();
-                        const dayNum = Number(dayNumStr);
-                        const paddedDay = !isNaN(dayNum) ? String(dayNum).padStart(2, '0') : dayNumStr;
-
-                        const attRecord = studentAttendance as Record<string, string | number>;
-                        let status: string | number | undefined = attRecord[`date_${dayNumStr}`]
-                            ?? attRecord[`date_${paddedDay}`]
-                            ?? attRecord[dayNumStr]
-                            ?? attRecord[paddedDay]
-                            ?? attRecord[dayKey];
-
-                        if (!isAbsentStatus(status) && !isNaN(dayNum)) {
-                            const dailyRec = dailyRecordsForMonth.find(r => {
-                                const dayOfRec = parseInt(r.date.split('-')[2] || '0', 10) || new Date(r.date).getDate();
-                                return dayOfRec === dayNum;
-                            });
-                            if (dailyRec && isAbsentStatus(dailyRec.status)) {
-                                status = dailyRec.status;
-                            }
-                        }
-
-                        if (isAbsentStatus(status)) {
-                            mAbsent++;
-                        }
-                    }
-                });
-            } else {
-                const sf2Absents = Object.values(studentAttendance).filter(isAbsentStatus).length;
-                const dailyAbsents = dailyRecordsForMonth.filter(r => isAbsentStatus(r.status)).length;
-                mAbsent = Math.max(sf2Absents, dailyAbsents);
-                mFilled = getFallbackSchoolDays(month);
-            }
-            
-            schoolDays.push(mFilled);
-            daysAbsent.push(mAbsent);
-            daysPresent.push(Math.max(0, mFilled - mAbsent));
-        } else {
-            const fallbackDays = getFallbackSchoolDays(month);
-            const dailyAbsents = dailyRecordsForMonth.filter(r => isAbsentStatus(r.status)).length;
-
-            schoolDays.push(fallbackDays);
-            daysAbsent.push(dailyAbsents);
-            daysPresent.push(Math.max(0, fallbackDays - dailyAbsents));
-        }
-    });
-
-    const sumFilter = (arr: number[]) => arr.filter(v => v >= 0).reduce((a, b) => a + b, 0);
-    const hasAnyData = schoolDays.some(v => v >= 0);
-
-    const totalSchoolDays = hasAnyData ? sumFilter(schoolDays) : -1;
-    const totalPresent = hasAnyData ? sumFilter(daysPresent) : -1;
-    const totalAbsent = hasAnyData ? sumFilter(daysAbsent) : -1;
-
-    return {
-        months: [...months.map(m => m.substring(0, 3)), 'TOTAL'],
-        schoolDays: [...schoolDays, totalSchoolDays],
-        daysPresent: [...daysPresent, totalPresent],
-        daysAbsent: [...daysAbsent, totalAbsent]
-    };
-}
-
 function calculateFinalGrade(quarterGrades: number[], term?: 1 | 2 | 3 | 'all' | 'none', subjectName?: string): number {
     if (term === 'none') return 0;
     
@@ -1654,6 +1277,11 @@ interface SF9ExactDocumentProps {
     headSigWidth?: number;
     headSigHeight?: number;
     headSigOffset?: number;
+    hideLearnerInfo?: boolean;
+    hideAttendance?: boolean;
+    hideGrades?: boolean;
+    hideAdviserName?: boolean;
+    hideHeadName?: boolean;
 }
 
 const isGrade1Level = (gLevel?: string): boolean => {
@@ -1675,7 +1303,12 @@ function SF9Pages({
     adviserSigOffset = 10,
     headSigWidth = 60,
     headSigHeight = 18,
-    headSigOffset = 10
+    headSigOffset = 10,
+    hideLearnerInfo = false,
+    hideAttendance = false,
+    hideGrades = false,
+    hideAdviserName = false,
+    hideHeadName = false
 }: SF9ExactDocumentProps) {
 
     const STRAND_MAPPING: Record<string, string> = {
@@ -1700,6 +1333,7 @@ function SF9Pages({
 
     // Determine which term columns to show values for
     const showTermValue = (termIndex: number): boolean => {
+        if (hideGrades) return false;
         if (printMode === 'full') return true;
         if (printMode === 'term1') return termIndex === 0;
         if (printMode === 'term2') return termIndex === 1;
@@ -1708,11 +1342,11 @@ function SF9Pages({
     };
 
     // Whether to show final grade & remarks (only in full or term3)
-    const showFinalAndRemarks = printMode === 'full' || printMode === 'term3';
+    const showFinalAndRemarks = !hideGrades && (printMode === 'full' || printMode === 'term3');
 
     // Filter attendance months by term
     const getAttendanceValue = (idx: number, value: number): number | string => {
-        if (value < 0) return '';
+        if (hideAttendance || value < 0) return '';
         if (printMode === 'full') return value;
         const monthAbbr = attendance.months[idx];
         if (monthAbbr === 'TOTAL') return '';
@@ -1722,7 +1356,7 @@ function SF9Pages({
     };
 
     const calculateTotal = (dataArr: number[]) => {
-        if (printMode === 'term1' || printMode === 'term2') return '';
+        if (hideAttendance || printMode === 'term1' || printMode === 'term2') return '';
         const values = dataArr.slice(0, 11);
         const sum = values.filter(v => v >= 0).reduce((a, b) => a + b, 0);
         const hasAnyData = values.some(v => v >= 0);
@@ -1774,29 +1408,29 @@ function SF9Pages({
                                 <View style={{ flexDirection: 'row', marginBottom: 3 }}>
                                     <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 28 }}>LRN:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{student.lrn || ' '}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.lrn || ' ')}</Text>
                                     </View>
                                     <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 30 }}>Name:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{formatLearnerName(student).toUpperCase()}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : formatLearnerName(student).toUpperCase()}</Text>
                                     </View>
                                     <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Sex:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{(student.gender || ' ').toUpperCase()}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.gender || ' ').toUpperCase()}</Text>
                                     </View>
                                 </View>
                                 <View style={{ flexDirection: 'row' }}>
                                     <View style={{ width: '27%', flexDirection: 'row', alignItems: 'center' }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 66 }}>Grade & Section:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{`1 - ${section}`}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : `1 - ${section}`}</Text>
                                     </View>
                                     <View style={{ width: '58%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 36 }}>Adviser:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{adviser ? adviser.toUpperCase() : ' '}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{!hideAdviserName && adviser ? adviser.toUpperCase() : ' '}</Text>
                                     </View>
                                     <View style={{ width: '15%', flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.2, width: 22 }}>Age:</Text>
-                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{student.age || ' '}</Text>
+                                        <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.2 }]}>{hideLearnerInfo ? ' ' : (student.age || ' ')}</Text>
                                     </View>
                                 </View>
                             </View>
@@ -1813,9 +1447,9 @@ function SF9Pages({
                                     {(() => {
                                         const g1R = g1Remarks || {};
                                         const termConfig = [
-                                            { title: 'TERM 1 (UNANG TERMINO)', canDo: g1R.term1CanDo || '', toImprove: g1R.term1ToImprove || '' },
-                                            { title: 'TERM 2 (IKALAWANG TERMINO)', canDo: g1R.term2CanDo || '', toImprove: g1R.term2ToImprove || '' },
-                                            { title: 'TERM 3 (IKATLONG TERMINO)', canDo: g1R.term3CanDo || '', toImprove: g1R.term3ToImprove || '' },
+                                            { title: 'TERM 1 (UNANG TERMINO)', canDo: !hideGrades ? (g1R.term1CanDo || '') : '', toImprove: !hideGrades ? (g1R.term1ToImprove || '') : '' },
+                                            { title: 'TERM 2 (IKALAWANG TERMINO)', canDo: !hideGrades ? (g1R.term2CanDo || '') : '', toImprove: !hideGrades ? (g1R.term2ToImprove || '') : '' },
+                                            { title: 'TERM 3 (IKATLONG TERMINO)', canDo: !hideGrades ? (g1R.term3CanDo || '') : '', toImprove: !hideGrades ? (g1R.term3ToImprove || '') : '' },
                                         ];
 
                                         return termConfig.map((tItem, tIdx) => (
@@ -1870,9 +1504,9 @@ function SF9Pages({
                                                     </View>
                                                     <View style={{ width: '88%' }}>
                                                         {tg.months.map((m, mInTerm) => {
-                                                            const days = attendance.schoolDays[m.idx] >= 0 ? attendance.schoolDays[m.idx] : '';
-                                                            const pres = attendance.daysPresent[m.idx] >= 0 ? attendance.daysPresent[m.idx] : '';
-                                                            const abs = attendance.daysAbsent[m.idx] >= 0 ? attendance.daysAbsent[m.idx] : '';
+                                                            const days = !hideAttendance && attendance.schoolDays[m.idx] >= 0 ? attendance.schoolDays[m.idx] : '';
+                                                            const pres = !hideAttendance && attendance.daysPresent[m.idx] >= 0 ? attendance.daysPresent[m.idx] : '';
+                                                            const abs = !hideAttendance && attendance.daysAbsent[m.idx] >= 0 ? attendance.daysAbsent[m.idx] : '';
                                                             return (
                                                                 <View key={m.idx} style={{ flexDirection: 'row', borderBottomWidth: mInTerm === 3 ? 0 : 1, borderColor: '#000', height: 14.5 }}>
                                                                     <View style={{ width: '22.727%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6 }}>{m.name}</Text></View>
@@ -1939,12 +1573,12 @@ function SF9Pages({
                                         <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 6, marginBottom: 14 }}>Approved:</Text>
 
                                         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 12 }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{adviser ? adviser.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideAdviserName && adviser ? adviser.toUpperCase() : ' '}</Text>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>Adviser</Text>
                                         </View>
 
                                         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center', marginBottom: 14 }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal.toUpperCase() : ' '}</Text>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
                                         </View>
 
@@ -1960,7 +1594,7 @@ function SF9Pages({
                                             </View>
                                         </View>
                                         <View style={{ alignItems: 'center', width: '80%', alignSelf: 'center' }}>
-                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{principal ? principal.toUpperCase() : ' '}</Text>
+                                            <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7, borderBottomWidth: 1, borderColor: '#000', width: '100%', textAlign: 'center' }}>{!hideHeadName && principal ? principal.toUpperCase() : ' '}</Text>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Italic', fontSize: 6, marginTop: 1 }}>School Head</Text>
                                         </View>
                                     </View>
@@ -2016,21 +1650,21 @@ function SF9Pages({
                                         <View style={{ width: '65%', flexDirection: 'row', alignItems: 'center' }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 30 }}>Name:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: nameFontSize }]}>
-                                                {fullName}
+                                                {hideLearnerInfo ? ' ' : fullName}
                                             </Text>
                                         </View>
                                         {/* Age Cell — 11%, short underline */}
                                         <View style={{ width: '11%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 22 }}>Age:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
-                                                {student.age || ' '}
+                                                {hideLearnerInfo ? ' ' : (student.age || ' ')}
                                             </Text>
                                         </View>
                                         {/* Sex Cell — 24%, long underline */}
                                         <View style={{ width: '24%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 22 }}>Sex:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
-                                                {(student.gender || ' ').toUpperCase()}
+                                                {hideLearnerInfo ? ' ' : (student.gender || ' ').toUpperCase()}
                                             </Text>
                                         </View>
                                     </View>
@@ -2039,21 +1673,21 @@ function SF9Pages({
                                         <View style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 30 }}>LRN:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
-                                                {student.lrn || ' '}
+                                                {hideLearnerInfo ? ' ' : (student.lrn || ' ')}
                                             </Text>
                                         </View>
                                         {/* Grade Cell — 12%, short underline */}
                                         <View style={{ width: '12%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 28 }}>Grade:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8, paddingLeft: 2 }]}>
-                                                {student.grade_level.replace('Grade ', '') || ' '}
+                                                {hideLearnerInfo ? ' ' : (student.grade_level.replace('Grade ', '') || ' ')}
                                             </Text>
                                         </View>
                                         {/* Section Cell — 43%, long underline */}
                                         <View style={{ width: '43%', flexDirection: 'row', alignItems: 'center', paddingLeft: 5 }}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, width: 38 }}>Section:</Text>
                                             <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>
-                                                {(section || ' ').toUpperCase()}
+                                                {hideLearnerInfo ? ' ' : (section || ' ').toUpperCase()}
                                             </Text>
                                         </View>
                                     </View>
@@ -2064,14 +1698,14 @@ function SF9Pages({
                                                 <View style={{ width: '38%', flexDirection: 'row', alignItems: 'center' }}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
                                                     <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize }]}>
-                                                        {trackDisplay || ' '}
+                                                        {hideLearnerInfo ? ' ' : (trackDisplay || ' ')}
                                                     </Text>
                                                 </View>
                                                 {/* Strand Cell — 62% */}
                                                 <View style={{ width: '62%', flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Strand:</Text>
                                                     <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'center', fontFamily: 'BookmanOldStyle-Bold', fontSize: strandFontSize }]}>
-                                                        {strandDisplay || ' '}
+                                                        {hideLearnerInfo ? ' ' : (strandDisplay || ' ')}
                                                     </Text>
                                                 </View>
                                             </>
@@ -2080,7 +1714,7 @@ function SF9Pages({
                                             <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
                                                 <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 8, marginRight: 4 }}>Track (if SHS only):</Text>
                                                 <Text style={[styles.singleInfoValue, { flex: 1, textAlign: 'left', fontFamily: 'BookmanOldStyle-Bold', fontSize: trackFontSize, paddingLeft: 4 }]}>
-                                                    {isSHS ? trackDisplay : ' '}
+                                                    {hideLearnerInfo ? ' ' : (isSHS ? trackDisplay : ' ')}
                                                 </Text>
                                             </View>
                                         )}
@@ -2161,29 +1795,29 @@ function SF9Pages({
                                                     <View style={{ flexDirection: 'row', flex: 1 }}>
                                                         <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(1)) ? { backgroundColor: '#E5E7EB' } : {}]}>
                                                             <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                                {!isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}
+                                                                {!hideGrades && !isCategoryHeader && isOfferedInTerm(1) && showTermValue(0) && gradeRow[0] ? formatGradeForDisplay(gradeRow[0], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
                                                         <View style={[{ width: '33.33%', borderRightWidth: 1, borderColor: borderColor, justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(2)) ? { backgroundColor: '#E5E7EB' } : {}]}>
                                                             <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                                {!isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}
+                                                                {!hideGrades && !isCategoryHeader && isOfferedInTerm(2) && showTermValue(1) && gradeRow[1] ? formatGradeForDisplay(gradeRow[1], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
                                                         <View style={[{ width: '33.34%', justifyContent: 'center', alignItems: 'center' }, (!isCategoryHeader && !isReserved && !isOfferedInTerm(3)) ? { backgroundColor: '#E5E7EB' } : {}]}>
                                                             <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                                {!isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}
+                                                                {!hideGrades && !isCategoryHeader && isOfferedInTerm(3) && showTermValue(2) && gradeRow[2] ? formatGradeForDisplay(gradeRow[2], student.grade_level) : ''}
                                                             </Text>
                                                         </View>
                                                     </View>
                                                 </View>
                                                 <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                        {!isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}
+                                                        {!hideGrades && !isCategoryHeader && showFinalAndRemarks && finalGrade ? formatGradeForDisplay(finalGrade, student.grade_level) : ''}
                                                     </Text>
                                                 </View>
                                                 <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center' }]}>
                                                     <Text style={{ fontFamily: 'BookmanOldStyle', fontSize: 7.5 }}>
-                                                        {!isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}
+                                                        {!hideGrades && !isCategoryHeader && showFinalAndRemarks && finalGrade ? getRemarks(finalGrade) : ''}
                                                     </Text>
                                                 </View>
                                             </View>
@@ -2193,11 +1827,11 @@ function SF9Pages({
                                         <View style={[styles.singleLpCell, { width: '66%', alignItems: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5, ...(isValuesOnly ? { color: transparentBorder } : {}) }}>General Average</Text></View>
                                         <View style={[styles.singleLpCell, { width: '14%', textAlign: 'center', justifyContent: 'center' }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}>
                                             <Text style={{ fontFamily: 'BookmanOldStyle-Bold', fontSize: 7.5 }}>
-                                                {showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
+                                                {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? formatGradeForDisplay(generalAverage, student.grade_level) : ''}
                                             </Text>
                                         </View>
                                         <View style={[styles.singleLpCellLast, { width: '20%', textAlign: 'center', justifyContent: 'center', alignItems: 'center' }]}>
-                                            {showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
+                                            {!hideGrades && showFinalAndRemarks && generalAverage > 0 ? getGeneralAverageRemarks(generalAverage, grades, currentSubjects, student.lrn, schoolYear).map((line, i) => (
                                                 <Text key={i} style={{ fontSize: 6.5, lineHeight: 1.1, fontFamily: 'BookmanOldStyle-Bold' }}>{line}</Text>
                                             )) : <Text></Text>}
                                         </View>
@@ -2314,15 +1948,15 @@ function SF9Pages({
                                 <View style={[styles.singleCommentsBox, isValuesOnly ? { borderColor: transparentBorder } : {}]}>
                                     <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 1</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(0) ? (comments[0] || '') : ''}</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{!hideGrades && showTermValue(0) ? (comments[0] || '') : ''}</Text>
                                     </View>
                                     <View style={[styles.singleCommentTermRow, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 2</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(1) ? (comments[1] || '') : ''}</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{!hideGrades && showTermValue(1) ? (comments[1] || '') : ''}</Text>
                                     </View>
                                     <View style={[styles.singleCommentTermRowLast, isValuesOnly ? { borderBottomColor: transparentBorder } : {}]}>
                                         <Text style={[styles.singleCommentLabel, isValuesOnly ? { color: transparentBorder } : {}, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>Term 3</Text>
-                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{showTermValue(2) ? (comments[2] || '') : ''}</Text>
+                                        <Text style={[styles.singleCommentValue, { fontFamily: 'BookmanOldStyle' }]}>{!hideGrades && showTermValue(2) ? (comments[2] || '') : ''}</Text>
                                     </View>
                                 </View>
                             </View>
@@ -2368,7 +2002,7 @@ function SF9Pages({
                                             </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {(principal || '').toUpperCase()}
+                                            {!hideHeadName ? (principal || '').toUpperCase() : ' '}
                                         </Text>
                                         <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
                                         <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
@@ -2385,7 +2019,7 @@ function SF9Pages({
                                             </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {(adviser || '').toUpperCase()}
+                                            {!hideAdviserName ? (adviser || '').toUpperCase() : ' '}
                                         </Text>
                                         <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
                                         <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>CLASS ADVISER</Text>
@@ -2412,7 +2046,7 @@ function SF9Pages({
                                             </View>
                                         )}
                                         <Text style={[{ fontSize: 7.5, fontFamily: 'BookmanOldStyle-Bold', textAlign: 'center', minHeight: 9 }, isValuesOnly ? { color: transparentBorder } : {}]}>
-                                            {(principal || '').toUpperCase()}
+                                            {!hideHeadName ? (principal || '').toUpperCase() : ' '}
                                         </Text>
                                         <View style={{ borderBottomWidth: 1, borderBottomColor: borderColor, width: '100%', marginTop: 1 }} />
                                         <Text style={[{ fontSize: 6.5, fontFamily: 'BookmanOldStyle', marginTop: 1, textAlign: 'center' }, isValuesOnly ? { color: transparentBorder } : {}]}>
@@ -2510,6 +2144,11 @@ export function SF9BatchDocument({
                         headSigWidth={sigSettings.headSigWidth ?? 60}
                         headSigHeight={sigSettings.headSigHeight ?? 18}
                         headSigOffset={sigSettings.headSigOffset ?? 10}
+                        hideLearnerInfo={sigSettings.hideLearnerInfo ?? false}
+                        hideAttendance={sigSettings.hideAttendance ?? false}
+                        hideGrades={sigSettings.hideGrades ?? false}
+                        hideAdviserName={sigSettings.hideAdviserName ?? false}
+                        hideHeadName={sigSettings.hideHeadName ?? false}
                     />
                 );
             })}
@@ -2561,6 +2200,14 @@ export function SF9Page() {
     const [headSigWidth, setHeadSigWidth] = useState(60);
     const [headSigHeight, setHeadSigHeight] = useState(18);
     const [headSigOffset, setHeadSigOffset] = useState(10);
+
+    // Hide Elements States
+    const [hideLearnerInfo, setHideLearnerInfo] = useState(false);
+    const [hideAttendance, setHideAttendance] = useState(false);
+    const [hideGrades, setHideGrades] = useState(false);
+    const [hideAdviserName, setHideAdviserName] = useState(false);
+    const [hideHeadName, setHideHeadName] = useState(false);
+
     const [printMode, setPrintMode] = useState<SF9PrintMode>('full');
     const [suggestionTab, setSuggestionTab] = useState<'academic' | 'behavior' | 'growth'>('academic');
     const [suggestionMode, setSuggestionMode] = useState<'replace' | 'append'>('append');
@@ -2665,6 +2312,12 @@ export function SF9Page() {
             setHeadSigWidth(sigSettings.headSigWidth ?? 60);
             setHeadSigHeight(sigSettings.headSigHeight ?? 18);
             setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+
+            setHideLearnerInfo(sigSettings.hideLearnerInfo ?? false);
+            setHideAttendance(sigSettings.hideAttendance ?? false);
+            setHideGrades(sigSettings.hideGrades ?? false);
+            setHideAdviserName(sigSettings.hideAdviserName ?? false);
+            setHideHeadName(sigSettings.hideHeadName ?? false);
         }
     }, [selectedSectionObj]);
     const isAdvisorySection = useCallback((section: Section) => {
@@ -2851,6 +2504,11 @@ export function SF9Page() {
                 setHeadSigWidth(sigSettings.headSigWidth ?? 60);
                 setHeadSigHeight(sigSettings.headSigHeight ?? 18);
                 setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+                setHideLearnerInfo(sigSettings.hideLearnerInfo ?? false);
+                setHideAttendance(sigSettings.hideAttendance ?? false);
+                setHideGrades(sigSettings.hideGrades ?? false);
+                setHideAdviserName(sigSettings.hideAdviserName ?? false);
+                setHideHeadName(sigSettings.hideHeadName ?? false);
             }
 
             setIsLayoutModalOpen(false);
@@ -2957,9 +2615,14 @@ export function SF9Page() {
                 headSigWidth={headSigWidth}
                 headSigHeight={headSigHeight}
                 headSigOffset={headSigOffset}
+                hideLearnerInfo={hideLearnerInfo}
+                hideAttendance={hideAttendance}
+                hideGrades={hideGrades}
+                hideAdviserName={hideAdviserName}
+                hideHeadName={hideHeadName}
             />
         );
-    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset]);
+    }, [selectedStudent, selectedSectionObj, schoolProfile, activeSchoolYear, adviserName, studentGrades, studentValues, g1RemarksState, observedValues, sf2Sheets, attendanceRecords, pageSize, sections, printMode, showAdviserSig, showHeadSig, adviserSigWidth, adviserSigHeight, adviserSigOffset, headSigWidth, headSigHeight, headSigOffset, hideLearnerInfo, hideAttendance, hideGrades, hideAdviserName, hideHeadName]);
 
     const handleCloseLayoutModal = () => {
         if (selectedSectionObj) {
@@ -2973,6 +2636,12 @@ export function SF9Page() {
             setHeadSigWidth(sigSettings.headSigWidth ?? 60);
             setHeadSigHeight(sigSettings.headSigHeight ?? 18);
             setHeadSigOffset(sigSettings.headSigOffset ?? 10);
+
+            setHideLearnerInfo(sigSettings.hideLearnerInfo ?? false);
+            setHideAttendance(sigSettings.hideAttendance ?? false);
+            setHideGrades(sigSettings.hideGrades ?? false);
+            setHideAdviserName(sigSettings.hideAdviserName ?? false);
+            setHideHeadName(sigSettings.hideHeadName ?? false);
         }
         setIsLayoutModalOpen(false);
     };
@@ -3084,6 +2753,19 @@ export function SF9Page() {
                             logoUrl={schoolProfile.logo_url || ''}
                             schoolProfile={schoolProfile}
                             printMode={printMode}
+                            showAdviserSig={showAdviserSig}
+                            showHeadSig={showHeadSig}
+                            adviserSigWidth={adviserSigWidth}
+                            adviserSigHeight={adviserSigHeight}
+                            adviserSigOffset={adviserSigOffset}
+                            headSigWidth={headSigWidth}
+                            headSigHeight={headSigHeight}
+                            headSigOffset={headSigOffset}
+                            hideLearnerInfo={hideLearnerInfo}
+                            hideAttendance={hideAttendance}
+                            hideGrades={hideGrades}
+                            hideAdviserName={hideAdviserName}
+                            hideHeadName={hideHeadName}
                         />
                     </Document>
                 );
@@ -3152,12 +2834,42 @@ export function SF9Page() {
             const resolvedSectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
             const getQComment = (q: number) => observedValues.find(v => v.student_lrn === selectedStudent.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
             const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
+            const sortedStudents = [...males, ...females].map(st => {
+                const { grades: stGrades } = (st.lrn === selectedStudent.lrn)
+                    ? { grades: studentGrades.grades || {} }
+                    : computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const stAttendance = (st.lrn === selectedStudent.lrn)
+                    ? attendance
+                    : computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+                return { ...st, grades: stGrades || {}, attendance: stAttendance };
+            });
+
+            const getPaceRatingsForStudent = (sLrn: string) => {
+                try {
+                    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+                    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+                    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+                    const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+
+                    return {
+                        reading: reading[sLrn]?.ratings || {},
+                        language: language[sLrn]?.ratings || {},
+                        math: math[sLrn]?.ratings || {},
+                        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+                    };
+                } catch {
+                    return undefined;
+                }
+            };
+
+            const studentTrack = selectedStudent.track || selectedStudent.strand || selectedSectionObj?.track || selectedSectionObj?.strand;
 
             const exportOpts: SF9ExcelExportOptions = {
                 student: selectedStudent,
                 schoolProfile,
                 schoolYear: activeSchoolYear,
                 section: resolvedSectionName,
+                track: studentTrack,
                 adviser: adviserName,
                 principal: schoolProfile.head_name || '',
                 principalTitle: schoolProfile.head_position || 'School Head',
@@ -3166,6 +2878,16 @@ export function SF9Page() {
                 observedValues: studentValues,
                 comments: studentComments,
                 g1Remarks: g1RemarksState,
+                paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
+                sectionStudents: sortedStudents,
+                getStudentRemarks: (sLrn: string) => {
+                    try {
+                        const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
+                        return stored ? JSON.parse(stored) : undefined;
+                    } catch {
+                        return undefined;
+                    }
+                },
                 attendance,
                 gradeLevel: selectedStudent.grade_level,
                 subjectTerm: buildSubjectTermResolver(),
@@ -3178,7 +2900,7 @@ export function SF9Page() {
             console.error('Excel export failed:', error);
             useAppStore.getState().showNotification('Failed to export SF9 to Excel: ' + (error as Error).message, 'error');
         }
-    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, g1RemarksState, buildSubjectTermResolver, pageSize]);
+    }, [selectedStudent, selectedSectionObj, sf2Sheets, activeSchoolYear, attendanceRecords, sections, observedValues, schoolProfile, adviserName, studentGrades, studentValues, g1RemarksState, males, females, buildSubjectTermResolver, pageSize, currentSubjectSelections, gradingSheetRecords, subjects]);
 
     /** Export batch SF9 (all students in section) to Excel */
     const handleBatchExcelExport = useCallback(async () => {
@@ -3200,12 +2922,37 @@ export function SF9Page() {
                 }
             };
 
-            const batchOptions: SF9ExcelExportOptions[] = sortedStudents.map(student => {
+            const getPaceRatingsForStudent = (sLrn: string) => {
+                try {
+                    const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+                    const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+                    const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+                    const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+
+                    return {
+                        reading: reading[sLrn]?.ratings || {},
+                        language: language[sLrn]?.ratings || {},
+                        math: math[sLrn]?.ratings || {},
+                        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+                    };
+                } catch {
+                    return undefined;
+                }
+            };
+
+            const allEnrichedStudents = sortedStudents.map(st => {
+                const { grades: stGrades } = computeStudentGrades(st, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
+                const stAttendance = computeStudentAttendance(st, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
+                return { ...st, grades: stGrades || {}, attendance: stAttendance };
+            });
+
+            const batchOptions: SF9ExcelExportOptions[] = allEnrichedStudents.map(student => {
                 const { subjects: compSubjects, grades } = computeStudentGrades(student, selectedSectionObj, subjects, gradingSheetRecords, activeSchoolYear, schoolProfile, currentSubjectSelections);
                 const values = computeStudentValues(student, observedValues, activeSchoolYear);
                 const attendance = computeStudentAttendance(student, sf2Sheets, activeSchoolYear, selectedSectionObj, attendanceRecords);
                 const resolvedSection = sections.find(s => s.id === student.student_section || s.section_name === student.student_section);
                 const sectionName = resolvedSection?.section_name || selectedSectionObj.section_name;
+                const sectionTrack = student.track || student.strand || selectedSectionObj.track || selectedSectionObj.strand;
                 const getQComment = (q: number) => observedValues.find(v => v.student_lrn === student.lrn && v.school_year === activeSchoolYear && v.quarter === q)?.values?.['teacher_comment'] || '';
                 const studentComments = [getQComment(1), getQComment(2), getQComment(3)];
 
@@ -3214,6 +2961,7 @@ export function SF9Page() {
                     schoolProfile,
                     schoolYear: activeSchoolYear,
                     section: sectionName,
+                    track: sectionTrack,
                     adviser: adviserName,
                     principal: schoolProfile.head_name || '',
                     principalTitle: schoolProfile.head_position || 'School Head',
@@ -3222,6 +2970,9 @@ export function SF9Page() {
                     observedValues: values,
                     comments: studentComments,
                     g1Remarks: getG1RemarksForStudent(student.lrn),
+                    paceRatings: getPaceRatingsForStudent(student.lrn),
+                    sectionStudents: allEnrichedStudents,
+                    getStudentRemarks: getG1RemarksForStudent,
                     attendance,
                     gradeLevel: student.grade_level,
                     subjectTerm: buildSubjectTermResolver(),
@@ -3352,48 +3103,50 @@ export function SF9Page() {
     return (
         <div className="flex flex-col h-full bg-linear-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-[#080d1a] dark:via-[#0b1329] dark:to-[#0d1630] relative overflow-hidden font-sans">
              {/* Sticky Premium Top Toolbar */}
-             <div className="z-20 bg-white/75 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_8px_28px_rgba(15,23,42,0.05)] relative print:hidden shrink-0 w-full">
-                <div className="absolute top-0 left-0 right-0 h-0.75 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
-                <div className="flex items-center justify-center w-full h-18 px-3 lg:px-5 gap-2.5 lg:gap-3 select-none overflow-x-auto scrollbar-none">
+             <div className="z-20 bg-white/80 dark:bg-[#0d1225]/90 backdrop-blur-2xl border-b border-slate-200/70 dark:border-white/10 shadow-[0_4px_20px_rgba(15,23,42,0.04)] relative print:hidden shrink-0 w-full">
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 via-indigo-500 to-cyan-500 z-30" />
+                <div className="flex items-center justify-between w-full h-13 px-2.5 sm:px-4 gap-1.5 sm:gap-2 select-none">
                     
                     {/* Identity & Context (Left) */}
-                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0 min-w-0">
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 min-w-0">
                         <button 
                             onClick={() => setCurrentView('school-forms')}
-                            className="w-8 h-8 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-white/20 transition-all group shrink-0 active:scale-95 duration-200"
+                            className="w-7.5 h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white transition-all group shrink-0 active:scale-95"
                             title="Back to Hub"
                         >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                         </button>
 
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
-                                    className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-32 lg:min-w-36 duration-200"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-6 text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1.5 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-32.5 sm:max-w-38.75 lg:max-w-43.75 truncate"
                                     value={selectedSection}
                                     onChange={(e) => {
                                         setSelectedSection(e.target.value);
                                         setSelectedStudent(null);
                                     }}
+                                    title="Select Advisory Section"
                                 >
-                                    <option value="">Select Advisory Section</option>
+                                    <option value="">Select Section</option>
                                     {filteredSections.map(s => (
                                         <option key={s.id} value={s.id}>
                                             {s.section_grade_level} - {s.section_name}
                                         </option>
                                     ))}
                                 </select>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                             </div>
                         )}
 
                         {!isBatchReady && (
                             <div className="relative group shrink-0">
                                 <select 
-                                    className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-35 lg:min-w-38.75 disabled:opacity-30 duration-200"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-6 text-[9.5px] font-bold text-slate-900 dark:text-white outline-none focus:ring-1.5 focus:ring-blue-500/30 focus:border-blue-500 cursor-pointer max-w-35 sm:max-w-42.5 lg:max-w-50 truncate disabled:opacity-30"
                                     value={selectedStudent?.lrn || ''}
                                     onChange={(e) => setSelectedStudent(students.find(s => s.lrn === e.target.value) || null)}
                                     disabled={!selectedSection || isShsSf9Section}
+                                    title="Select Learner"
                                 >
                                     <option value="">{isShsSf9Section ? 'Template Locked' : 'Select Learner'}</option>
                                     {males.length > 0 && (
@@ -3407,27 +3160,27 @@ export function SF9Page() {
                                         </optgroup>
                                     )}
                                 </select>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                             </div>
                         )}
-
                     </div>
 
                     {/* View & Formatting Controls (Center) */}
-                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                         {!isCurrentG1 && (
                             <div className="relative group shrink-0">
                                 <select
                                     value={printMode}
                                     onChange={(e) => setPrintMode(e.target.value as SF9PrintMode)}
-                                    className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer min-w-21.25 lg:min-w-23.75 duration-200"
+                                    className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-2 pr-5 text-[9px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                                    title="Report Term Filter"
                                 >
                                     <option value="full">Full Report</option>
-                                    <option value="term1">Term 1 Only</option>
-                                    <option value="term2">Term 2 Only</option>
-                                    <option value="term3">Term 3 Only</option>
+                                    <option value="term1">Term 1</option>
+                                    <option value="term2">Term 2</option>
+                                    <option value="term3">Term 3</option>
                                 </select>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                             </div>
                         )}
 
@@ -3435,78 +3188,75 @@ export function SF9Page() {
                             <select
                                 value={pageSize}
                                 onChange={(e) => setPageSize(e.target.value as 'A4' | 'LETTER')}
-                                className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 hover:border-slate-300 dark:hover:border-white/20 rounded-xl px-2 pr-7 text-[9.5px] lg:text-[10px] font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-white/15 transition-all cursor-pointer w-18.75 lg:w-20 duration-200"
+                                className="appearance-none h-7.5 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-lg px-1.5 pr-4.5 text-[9px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer w-14"
+                                title="Page Size"
                             >
                                 <option value="A4">A4</option>
                                 <option value="LETTER">Letter</option>
                             </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
+                            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
 
+                        {/* Layout Modal Button */}
                         <button
                             onClick={() => { setLayoutModalInitialTab('subjects'); setIsLayoutModalOpen(true); }}
-                            className="h-9 px-2.5 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/15 hover:border-blue-400 dark:hover:border-blue-400 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
+                            className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/15 hover:border-indigo-300 text-slate-700 dark:text-slate-200 text-[8.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
+                            title="SF9 Subject Order, Signatures & Display Options"
                         >
-                            <Settings2 className="w-3 h-3 text-indigo-500" />
-                            Layout
+                            <Settings2 className="w-3.5 h-3.5 text-indigo-500" />
+                            <span>Layout</span>
                         </button>
                     </div>
 
                     {/* Data and Actions (Right) */}
-                    <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
-                        {/* Divider between Center and Right */}
-                        <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0 mx-0.5" />
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                         {selectedStudent && !isBatchReady && !isShsSf9Section && !isGrade1Level(selectedStudent.grade_level) && (
                             <button
                                 onClick={() => { setPendingChanges({}); setIsValuesModalOpen(true); }}
-                                className="h-9 px-2.5 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-500/30 transition-all flex items-center gap-1 shadow-sm shrink-0 duration-200 active:scale-95"
+                                className="h-7.5 px-2 rounded-lg bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 text-[8.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center gap-1 shadow-xs shrink-0 active:scale-95"
+                                title="Edit Core Values & General Average Remarks"
                             >
-                                <Edit3 className="w-3 h-3 text-blue-500 dark:text-blue-400" />
-                                {isGrade1to10 ? 'Remarks' : 'Values'}
+                                <Edit3 className="w-3 h-3 text-blue-500" />
+                                <span className="hidden xl:inline">{isGrade1to10 ? 'Remarks' : 'Values'}</span>
                             </button>
                         )}
 
                         {selectedStudent && !isShsSf9Section && (
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shrink-0 h-7.5">
                                 <button
                                     onClick={handleSpeak}
-                                    className={`h-9 w-9 rounded-xl border transition-all flex items-center justify-center shadow-sm shrink-0 active:scale-95 duration-200 ${isSpeaking ? 'bg-red-50 dark:bg-red-500/20 border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 animate-pulse' : 'bg-white dark:bg-white/10 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 hover:border-indigo-200 dark:hover:border-indigo-500/30 hover:text-indigo-600 dark:hover:text-indigo-400'}`}
+                                    className={`h-full px-1.5 rounded-md flex items-center gap-1 text-[9px] font-black transition-all ${isSpeaking ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                                     title={isSpeaking ? "Stop Reading" : `Read Grades Aloud (${speechRate}x)`}
                                 >
-                                    {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                                    {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                                 </button>
-                                <div className="relative group shrink-0">
-                                    <select
-                                        value={speechRate}
-                                        onChange={(e) => setSpeechRate(Number(e.target.value))}
-                                        className="appearance-none h-9 bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 hover:bg-slate-200/60 dark:hover:bg-white/15 rounded-xl px-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 outline-none w-11.25 duration-200 cursor-pointer text-center"
-                                        title="Speech Rate"
-                                    >
-                                        <option value="1">1.0x</option>
-                                        <option value="1.5">1.5x</option>
-                                        <option value="2">2.0x</option>
-                                        <option value="2.5">2.5x</option>
-                                        <option value="3">3.0x</option>
-                                    </select>
-                                </div>
+                                <select
+                                    value={speechRate}
+                                    onChange={(e) => setSpeechRate(Number(e.target.value))}
+                                    className="bg-transparent text-[8.5px] font-black text-slate-500 dark:text-slate-400 outline-none cursor-pointer pr-1"
+                                    title="Speech Rate"
+                                >
+                                    <option value="1">1x</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="2">2x</option>
+                                    <option value="2.5">2.5x</option>
+                                    <option value="3">3x</option>
+                                </select>
                             </div>
                         )}
 
-                        {/* Thin divider before toggle & print/download */}
-                        <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
-
-                        <div className="flex items-center bg-slate-100 dark:bg-white/10 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shrink-0 h-9">
+                        <div className="flex items-center bg-slate-100 dark:bg-white/10 p-0.5 rounded-lg border border-slate-200 dark:border-white/10 shrink-0 h-7.5">
                             <button
                                 onClick={() => setIsBatchReady(false)}
                                 disabled={isShsSf9Section}
-                                className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                                className={`px-2 h-full rounded-md text-[8px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${!isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 Indiv
                             </button>
                             <button
                                 onClick={() => { setIsBatchReady(true); setSelectedStudent(null); }}
                                 disabled={isShsSf9Section}
-                                className={`px-2 h-full rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                                className={`px-2 h-full rounded-md text-[8px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 ${isBatchReady ? 'bg-white dark:bg-white/20 text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 Batch
                             </button>
@@ -3520,31 +3270,31 @@ export function SF9Page() {
                                             setTempG1Remarks(g1RemarksState);
                                             setIsG1ModalOpen(true);
                                         }}
-                                        className="h-9 px-3 rounded-xl bg-purple-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-purple-500/20 hover:bg-purple-700 hover:scale-[1.01] active:scale-95 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 duration-200"
+                                        className="h-7.5 px-2.5 rounded-lg bg-purple-600 text-white font-black text-[8px] uppercase tracking-wider shadow-xs hover:bg-purple-700 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
                                         title="Edit Grade 1 Learner Progress"
                                     >
-                                        <Edit3 className="w-3.5 h-3.5" />
-                                        Edit Progress
+                                        <Edit3 className="w-3 h-3" />
+                                        Progress
                                     </button>
                                 )}
                                 <button
                                     onClick={handlePrint}
-                                    className="h-9 px-3 lg:px-3.5 rounded-xl bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 hover:scale-[1.01] hover:-translate-y-px active:scale-95 disabled:opacity-30 disabled:grayscale transition-all flex items-center gap-1 group whitespace-nowrap duration-200"
+                                    className="h-7.5 px-2.5 sm:px-3 rounded-lg bg-blue-600 text-white font-black text-[8.5px] uppercase tracking-wider shadow-sm hover:bg-blue-700 active:scale-95 disabled:opacity-30 transition-all flex items-center gap-1 group whitespace-nowrap"
                                 >
-                                    <Printer className="w-3 h-3 group-hover:translate-y-0.5 transition-transform" />
-                                    Print SF9
+                                    <Printer className="w-3 h-3" />
+                                    <span>Print SF9</span>
                                 </button>
                                 <PDFDownloadLink
                                     document={singleDocument}
                                     fileName={`SF9_${selectedSectionObj?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
-                                    className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-white/10 hover:border-slate-300 transition-all flex items-center justify-center shrink-0 active:scale-95 duration-200"
+                                    className="h-7.5 w-7.5 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-white/10 transition-all flex items-center justify-center shrink-0 active:scale-95"
                                     title="Download PDF"
                                 >
                                     <Download className="w-3 h-3" />
                                 </PDFDownloadLink>
                                 <button
                                     onClick={handleExcelExport}
-                                    className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-emerald-200/60 dark:border-emerald-700/30 hover:border-emerald-300 transition-all flex items-center justify-center shrink-0 active:scale-95 duration-200"
+                                    className="h-7.5 w-7.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:text-emerald-700 border border-emerald-200/60 dark:border-emerald-700/30 transition-all flex items-center justify-center shrink-0 active:scale-95"
                                     title="Export to Excel"
                                 >
                                     <FileSpreadsheet className="w-3 h-3" />
@@ -3626,7 +3376,7 @@ export function SF9Page() {
                     ) : selectedStudent && singleDocument && !isBatchReady ? (
                         <div className="absolute inset-0 bg-white">
                             <PDFViewer 
-                                key={`${selectedStudent.lrn}_${selectedSectionObj?.id || ''}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${printMode}_${pageSize}`}
+                                key={`${selectedStudent.lrn}_${selectedSectionObj?.id || ''}_${showAdviserSig}_${adviserSigWidth}_${adviserSigHeight}_${adviserSigOffset}_${showHeadSig}_${headSigWidth}_${headSigHeight}_${headSigOffset}_${hideLearnerInfo}_${hideAttendance}_${hideGrades}_${hideAdviserName}_${hideHeadName}_${printMode}_${pageSize}`}
                                 width="100%" 
                                 height="100%" 
                                 showToolbar={false} 
@@ -3694,22 +3444,38 @@ export function SF9Page() {
                             </div>
 
                             {!isGeneratingBatch && (
-                                <motion.button
-                                    initial={{ y: 20, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    onClick={() => {
-                                        void generateBatchPDF();
-                                    }}
-                                    disabled={isPending}
-                                    className={`px-8 py-3.5 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl transition-all flex items-center gap-3 mt-4 ${isPending ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-blue-500/30'}`}
-                                >
-                                    {isPending ? (
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <Printer className="w-4 h-4" />
-                                    )}
-                                    {isPending ? 'Preparing Engine...' : 'Start Generation'}
-                                </motion.button>
+                                <div className="flex flex-wrap items-center justify-center gap-3.5 mt-4">
+                                    <motion.button
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        onClick={() => {
+                                            void generateBatchPDF();
+                                        }}
+                                        disabled={isPending}
+                                        className={`px-8 py-3.5 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl transition-all flex items-center gap-3 ${isPending ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-blue-500/30'}`}
+                                    >
+                                        {isPending ? (
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <Printer className="w-4 h-4" />
+                                        )}
+                                        {isPending ? 'Preparing Engine...' : 'Generate Batch PDF'}
+                                    </motion.button>
+
+                                    <motion.button
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        onClick={() => {
+                                            void handleBatchExcelExport();
+                                        }}
+                                        disabled={isPending}
+                                        className="px-8 py-3.5 rounded-xl text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-xl bg-emerald-600 hover:bg-emerald-700 hover:scale-105 active:scale-95 shadow-emerald-500/30 transition-all flex items-center gap-3 cursor-pointer"
+                                        title="Export All Students to Official DepEd Excel format"
+                                    >
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                        <span>Export Excel Batch</span>
+                                    </motion.button>
+                                </div>
                             )}
 
                             <div className="flex items-center justify-center gap-3 text-slate-400 text-[10px] font-black uppercase tracking-widest bg-white/50 px-4 py-2 rounded-full border border-slate-200/50">
@@ -4336,6 +4102,17 @@ export function SF9Page() {
                         headSigOffset={headSigOffset}
                         setHeadSigOffset={setHeadSigOffset}
                         
+                        hideLearnerInfo={hideLearnerInfo}
+                        setHideLearnerInfo={setHideLearnerInfo}
+                        hideAttendance={hideAttendance}
+                        setHideAttendance={setHideAttendance}
+                        hideGrades={hideGrades}
+                        setHideGrades={setHideGrades}
+                        hideAdviserName={hideAdviserName}
+                        setHideAdviserName={setHideAdviserName}
+                        hideHeadName={hideHeadName}
+                        setHideHeadName={setHideHeadName}
+
                         onSave={handleUpdateLayout}
                     />
                 )}
@@ -4433,7 +4210,7 @@ interface LayoutModalProps {
     currentSelections: Record<number, string>;
     subjects: Subject[];
     signatureSettings: SF9SignatureSettings;
-    initialTab?: 'subjects' | 'signatures';
+    initialTab?: 'subjects' | 'signatures' | 'display';
     onSave: (selections: Record<number, string>, sigSettings: SF9SignatureSettings) => Promise<void>;
 
     // Controlled Signature States for real-time live preview
@@ -4454,12 +4231,25 @@ interface LayoutModalProps {
     setHeadSigHeight: (v: number) => void;
     headSigOffset: number;
     setHeadSigOffset: (v: number) => void;
+
+    // Display & Hide Options
+    hideLearnerInfo: boolean;
+    setHideLearnerInfo: (v: boolean) => void;
+    hideAttendance: boolean;
+    setHideAttendance: (v: boolean) => void;
+    hideGrades: boolean;
+    setHideGrades: (v: boolean) => void;
+    hideAdviserName: boolean;
+    setHideAdviserName: (v: boolean) => void;
+    hideHeadName: boolean;
+    setHideHeadName: (v: boolean) => void;
 }
 
 function SF9LayoutModal({ 
     onClose, currentSelections, subjects, initialTab = 'subjects', onSave,
     showAdviserSig, setShowAdviserSig, adviserSigWidth, setAdviserSigWidth, adviserSigHeight, setAdviserSigHeight, adviserSigOffset, setAdviserSigOffset,
-    showHeadSig, setShowHeadSig, headSigWidth, setHeadSigWidth, headSigHeight, setHeadSigHeight, headSigOffset, setHeadSigOffset
+    showHeadSig, setShowHeadSig, headSigWidth, setHeadSigWidth, headSigHeight, setHeadSigHeight, headSigOffset, setHeadSigOffset,
+    hideLearnerInfo, setHideLearnerInfo, hideAttendance, setHideAttendance, hideGrades, setHideGrades, hideAdviserName, setHideAdviserName, hideHeadName, setHideHeadName
 }: LayoutModalProps) {
     const [localSelections, setLocalSelections] = useState<Record<number, string>>(currentSelections);
     const [isSaving, setIsSaving] = useState(false);
@@ -4474,6 +4264,13 @@ function SF9LayoutModal({
     const [localHeadWidth, setLocalHeadWidth] = useState(headSigWidth);
     const [localHeadHeight, setLocalHeadHeight] = useState(headSigHeight);
     const [localHeadOffset, setLocalHeadOffset] = useState(headSigOffset);
+
+    // Local hide states
+    const [localHideLearnerInfo, setLocalHideLearnerInfo] = useState(hideLearnerInfo);
+    const [localHideAttendance, setLocalHideAttendance] = useState(hideAttendance);
+    const [localHideGrades, setLocalHideGrades] = useState(hideGrades);
+    const [localHideAdviserName, setLocalHideAdviserName] = useState(hideAdviserName);
+    const [localHideHeadName, setLocalHideHeadName] = useState(hideHeadName);
 
     // Debounce refs and handler
     const timeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -4505,7 +4302,12 @@ function SF9LayoutModal({
                 showHeadSig: localShowHead,
                 headSigWidth: localHeadWidth,
                 headSigHeight: localHeadHeight,
-                headSigOffset: localHeadOffset
+                headSigOffset: localHeadOffset,
+                hideLearnerInfo: localHideLearnerInfo,
+                hideAttendance: localHideAttendance,
+                hideGrades: localHideGrades,
+                hideAdviserName: localHideAdviserName,
+                hideHeadName: localHideHeadName
             });
             // Do NOT call onClose() here. handleUpdateLayout already closes
             // the modal and sets the local states to the saved values.
@@ -4517,7 +4319,7 @@ function SF9LayoutModal({
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'subjects' | 'signatures'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'subjects' | 'signatures' | 'display'>(initialTab);
 
     const handleResetSignatures = () => {
         setLocalShowAdviser(true);
@@ -4540,6 +4342,20 @@ function SF9LayoutModal({
         setHeadSigOffset(10);
     };
 
+    const handleResetDisplay = () => {
+        setLocalHideLearnerInfo(false);
+        setLocalHideAttendance(false);
+        setLocalHideGrades(false);
+        setLocalHideAdviserName(false);
+        setLocalHideHeadName(false);
+
+        setHideLearnerInfo(false);
+        setHideAttendance(false);
+        setHideGrades(false);
+        setHideAdviserName(false);
+        setHideHeadName(false);
+    };
+
     return (
         <div className="fixed inset-0 z-110 overflow-hidden pointer-events-none">
             <motion.div 
@@ -4555,8 +4371,8 @@ function SF9LayoutModal({
                             <Settings2 className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">SF9 Layout & Signatures</h3>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Customize subject rows and signature positioning</p>
+                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">SF9 Layout & Options</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Customize subject rows, signatures, and visibility</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all">
@@ -4564,18 +4380,24 @@ function SF9LayoutModal({
                     </button>
                 </div>
 
-                <div className="flex border-b border-slate-100 px-8 py-2 gap-4 shrink-0 bg-slate-50/20">
+                <div className="flex border-b border-slate-100 px-8 py-2 gap-4 shrink-0 bg-slate-50/20 overflow-x-auto custom-scrollbar">
                     <button 
                         onClick={() => setActiveTab('subjects')}
-                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'subjects' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap ${activeTab === 'subjects' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                     >
                         Subject Order
                     </button>
                     <button 
                         onClick={() => setActiveTab('signatures')}
-                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${activeTab === 'signatures' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap ${activeTab === 'signatures' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                     >
-                        Signature Adjustments
+                        Signatures
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('display')}
+                        className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all whitespace-nowrap ${activeTab === 'display' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    >
+                        Display Options
                     </button>
                 </div>
 
@@ -4607,7 +4429,7 @@ function SF9LayoutModal({
                                 );
                             })}
                         </div>
-                    ) : (
+                    ) : activeTab === 'signatures' ? (
                         <div className="space-y-8">
                             {/* Adviser Signature Group */}
                             <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-150/60 space-y-5">
@@ -4773,6 +4595,118 @@ function SF9LayoutModal({
                                 )}
                             </div>
                         </div>
+                    ) : (
+                        /* Display & Hide Options Tab */
+                        <div className="space-y-4">
+                            <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 text-slate-600 text-xs leading-relaxed">
+                                Control which sections and identifiers appear on the printed SF9 document. Hidden fields remain formatted with underlines and blank table cells.
+                            </div>
+
+                            {/* Option 1: Hide Learner Info */}
+                            <div className="p-4 rounded-2xl border border-slate-150/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <div className="text-xs font-black text-slate-800 uppercase tracking-tight">Hide Learner's Information</div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Hides Name, LRN, Age, Sex, Grade, Section, Track/Strand</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={localHideLearnerInfo} 
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setLocalHideLearnerInfo(val);
+                                            setHideLearnerInfo(val);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {/* Option 2: Hide Attendance */}
+                            <div className="p-4 rounded-2xl border border-slate-150/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <div className="text-xs font-black text-slate-800 uppercase tracking-tight">Hide Attendance Record</div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Hides Monthly School Days, Days Present, Days Absent, and Totals</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={localHideAttendance} 
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setLocalHideAttendance(val);
+                                            setHideAttendance(val);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {/* Option 3: Hide Grades */}
+                            <div className="p-4 rounded-2xl border border-slate-150/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <div className="text-xs font-black text-slate-800 uppercase tracking-tight">Hide Grades & Remarks</div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Hides Quarterly/Term Grades, Final Grade, General Average & Remarks</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={localHideGrades} 
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setLocalHideGrades(val);
+                                            setHideGrades(val);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {/* Option 4: Hide Adviser Name */}
+                            <div className="p-4 rounded-2xl border border-slate-150/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <div className="text-xs font-black text-slate-800 uppercase tracking-tight">Hide Class Adviser Name</div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Hides printed name above signature lines (keeps lines & labels)</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={localHideAdviserName} 
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setLocalHideAdviserName(val);
+                                            setHideAdviserName(val);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {/* Option 5: Hide Head Name */}
+                            <div className="p-4 rounded-2xl border border-slate-150/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex items-center justify-between gap-4">
+                                <div className="space-y-0.5">
+                                    <div className="text-xs font-black text-slate-800 uppercase tracking-tight">Hide School Head Name</div>
+                                    <div className="text-[10px] text-slate-400 font-medium">Hides printed principal/head name above signature lines</div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={localHideHeadName} 
+                                        onChange={(e) => {
+                                            const val = e.target.checked;
+                                            setLocalHideHeadName(val);
+                                            setHideHeadName(val);
+                                        }}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                        </div>
                     )}
                 </div>
 
@@ -4784,12 +4718,19 @@ function SF9LayoutModal({
                         >
                             Clear All
                         </button>
-                    ) : (
+                    ) : activeTab === 'signatures' ? (
                         <button 
                             onClick={handleResetSignatures}
                             className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-650 hover:bg-blue-50/50 transition-all active:scale-95"
                         >
-                            Reset Defaults
+                            Reset Signatures
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleResetDisplay}
+                            className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-650 hover:bg-blue-50/50 transition-all active:scale-95"
+                        >
+                            Show All
                         </button>
                     )}
                     <div className="flex items-center gap-3">

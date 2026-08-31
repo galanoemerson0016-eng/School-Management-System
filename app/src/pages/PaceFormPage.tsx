@@ -4,26 +4,25 @@ import { useAuthStore } from '../stores/auth-store';
 import { filterSF9Sections } from '../lib/rbac';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
 import { PaceFormRenderer } from '../components/pace/PaceFormRenderer';
-import { exportPaceToExcel } from '../services/sf9-pace-excel-export';
-import { exportPaceLanguageToExcel } from '../services/sf9-pace-language-excel-export';
-import { exportPaceMathToExcel } from '../services/sf9-pace-math-excel-export';
-import { exportPaceGmrcMakabansaToExcel } from '../services/sf9-pace-gmrc-makabansa-excel-export';
+import { exportGrade1FullWorkbookToExcel } from '../services/sf9-g1-excel-export';
+import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { PACE_DESCRIPTORS } from '../services/pace-template-config';
 import type { PaceFormData, PaceRatingDescriptor, PaceDescriptorInfo } from '../types/pace';
 import { formatLearnerName } from '../utils/student-name';
 import { 
   ArrowLeft, 
   FileSpreadsheet, 
-  Save, 
-  ChevronLeft,
-  ChevronRight,
-  MousePointerClick,
-  BookOpen,
-  Languages,
-  Calculator,
-  HeartHandshake,
-  Users,
-  CheckCircle2
+  ChevronLeft, 
+  ChevronRight, 
+  MousePointerClick, 
+  BookOpen, 
+  Languages, 
+  Calculator, 
+  HeartHandshake, 
+  Users, 
+  CheckCircle2,
+  FileCheck,
+  Loader2
 } from 'lucide-react';
 
 export function PaceFormPage() {
@@ -77,7 +76,6 @@ export function PaceFormPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [selectedLrn, setSelectedLrn] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   // Auto-select first Grade 1 section
   useEffect(() => {
@@ -162,6 +160,7 @@ export function PaceFormPage() {
 
   const setRating = (ratingId: string, term: 't1' | 't2' | 't3', value: PaceRatingDescriptor) => {
     if (!selectedLrn) return;
+    setIsSaving(true);
     const storageKey = getStorageKey(formType);
     setRatingsStore(prev => {
       const studentPace = prev[selectedLrn] || {
@@ -192,50 +191,141 @@ export function PaceFormPage() {
       }
       return updatedStore;
     });
-  };
 
-  const handleSave = () => {
-    setIsSaving(true);
-    const storageKey = getStorageKey(formType);
-    localStorage.setItem(storageKey, JSON.stringify(ratingsStore));
-    if (formType === 'reading') {
-      localStorage.setItem('formease_pace_ratings', JSON.stringify(ratingsStore));
-    }
     setTimeout(() => {
       setIsSaving(false);
-      const formTitle = formType === 'gmrc-makabansa' 
-        ? 'GMRC & MAKABANSA' 
-        : formType === 'math' 
-        ? 'Mathematics' 
-        : formType === 'language' 
-        ? 'Language' 
-        : 'Reading & Literacy';
-      setSaveMessage(`PACE Form (${formTitle}) ratings saved!`);
-      setTimeout(() => setSaveMessage(null), 3000);
     }, 300);
   };
 
   const handleExcelExport = async () => {
     if (!selectedStudent || !selectedSection) return;
-    const opts = {
-      student: selectedStudent,
-      schoolProfile,
-      schoolYear: activeSchoolYear,
-      section: selectedSection.section_name,
-      adviser: selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser',
-      principal: schoolProfile.head_name || 'School Principal',
-      principalTitle: schoolProfile.head_position || 'School Principal',
-      paceData: currentPaceData
-    };
+    try {
+      const getPaceRatingsForStudent = (sLrn: string) => {
+        try {
+          const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+          const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+          const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+          const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
 
-    if (formType === 'gmrc-makabansa') {
-      await exportPaceGmrcMakabansaToExcel(opts);
-    } else if (formType === 'math') {
-      await exportPaceMathToExcel(opts);
-    } else if (formType === 'language') {
-      await exportPaceLanguageToExcel(opts);
-    } else {
-      await exportPaceToExcel(opts);
+          return {
+            reading: reading[sLrn]?.ratings || {},
+            language: language[sLrn]?.ratings || {},
+            math: math[sLrn]?.ratings || {},
+            gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+          };
+        } catch {
+          return undefined;
+        }
+      };
+
+      const getG1RemarksForStudent = (sLrn: string) => {
+        try {
+          const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
+          return stored ? JSON.parse(stored) : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+
+      const attendance = computeStudentAttendance(
+        selectedStudent,
+        useAppStore.getState().sf2Sheets || [],
+        activeSchoolYear,
+        selectedSection,
+        useAppStore.getState().attendanceRecords || []
+      );
+
+      const opts = {
+        student: selectedStudent,
+        schoolProfile,
+        schoolYear: activeSchoolYear,
+        section: selectedSection.section_name,
+        gradeLevel: selectedSection.section_grade_level || 'Grade 1',
+        adviser: selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser',
+        principal: schoolProfile.head_name || 'School Principal',
+        principalTitle: schoolProfile.head_position || 'School Principal',
+        attendance,
+        g1Remarks: getG1RemarksForStudent(selectedStudent.lrn),
+        paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
+        sectionStudents,
+        getStudentRemarks: getG1RemarksForStudent,
+        paceSubjectFilter: formType
+      };
+
+      await exportGrade1FullWorkbookToExcel(opts);
+      const formTitle = formType === 'gmrc-makabansa' 
+        ? 'GMRC & Makabansa' 
+        : formType === 'math' 
+        ? 'Mathematics' 
+        : formType === 'language' 
+        ? 'Language' 
+        : 'Reading & Literacy';
+      useAppStore.getState().showNotification(`SF9 & PACE Form (${formTitle}) exported successfully!`, 'success');
+    } catch (err) {
+      console.error('Failed to export subject workbook:', err);
+      useAppStore.getState().showNotification('Export failed: ' + (err as Error).message, 'error');
+    }
+  };
+
+  const handleFullExcelExport = async () => {
+    if (!selectedStudent || !selectedSection) return;
+    try {
+      const getPaceRatingsForStudent = (sLrn: string) => {
+        try {
+          const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+          const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+          const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+          const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+
+          return {
+            reading: reading[sLrn]?.ratings || {},
+            language: language[sLrn]?.ratings || {},
+            math: math[sLrn]?.ratings || {},
+            gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
+          };
+        } catch {
+          return undefined;
+        }
+      };
+
+      const getG1RemarksForStudent = (sLrn: string) => {
+        try {
+          const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
+          return stored ? JSON.parse(stored) : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+
+      const attendance = computeStudentAttendance(
+        selectedStudent,
+        useAppStore.getState().sf2Sheets || [],
+        activeSchoolYear,
+        selectedSection,
+        useAppStore.getState().attendanceRecords || []
+      );
+
+      const opts = {
+        student: selectedStudent,
+        schoolProfile,
+        schoolYear: activeSchoolYear,
+        section: selectedSection.section_name,
+        gradeLevel: selectedSection.section_grade_level || 'Grade 1',
+        adviser: selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser',
+        principal: schoolProfile.head_name || 'School Principal',
+        principalTitle: schoolProfile.head_position || 'School Principal',
+        attendance,
+        g1Remarks: getG1RemarksForStudent(selectedStudent.lrn),
+        paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
+        sectionStudents,
+        getStudentRemarks: getG1RemarksForStudent,
+      };
+
+      await exportGrade1FullWorkbookToExcel(opts);
+      useAppStore.getState().showNotification('Full SF9 & PACE Form exported successfully!', 'success');
+    } catch (err) {
+      console.error('Failed to export full workbook:', err);
+      useAppStore.getState().showNotification('Export failed: ' + (err as Error).message, 'error');
     }
   };
 
@@ -399,34 +489,45 @@ export function PaceFormPage() {
           </div>
 
           {/* Action Buttons Toolbar */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-amber-500/20"
-            >
-              {isSaving ? <CheckCircle2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              <span>{isSaving ? 'Saving...' : 'Save Ratings'}</span>
-            </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Live Auto-Save Status Badge */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-black shadow-xs transition-all">
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  <span className="text-amber-600 dark:text-amber-400">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                  <span>Auto-saved</span>
+                </>
+              )}
+            </div>
 
             <button
               onClick={handleExcelExport}
               disabled={!selectedStudent}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-emerald-600/20 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              title="Export only the active subject PACE sheet"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Export Excel</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>Export Subject (.xlsx)</span>
+            </button>
+
+            <button
+              onClick={handleFullExcelExport}
+              disabled={!selectedStudent}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-emerald-600/20 disabled:opacity-50"
+              title="Export complete official unified Grade 1 School Form 9 with PACE Form workbook"
+            >
+              <FileCheck className="w-4 h-4" />
+              <span>Export Full SF9 + PACE (.xlsx)</span>
             </button>
           </div>
 
         </div>
       </div>
-
-      {saveMessage && (
-        <div className="bg-emerald-500 text-white text-xs font-bold text-center py-1.5 px-4 animate-fade-in shadow-xs">
-          {saveMessage}
-        </div>
-      )}
 
       {/* Main Full-Width Workspace */}
       <div className="flex-1 w-full mx-auto p-4 space-y-3">

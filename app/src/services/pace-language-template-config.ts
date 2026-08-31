@@ -1,6 +1,6 @@
 /**
  * Authoritative PACE FORM - Language Domain & Competency Structure (Grade 1 Only)
- * Extracted directly from DepEd PACE FORM - Language.xlsx
+ * Directly synchronized with DepEd G1 School Form 9 with PACE Form (SY 26-27).xlsx
  */
 
 export interface PaceSubRow {
@@ -50,7 +50,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '1a',
-            label: 'a.    oneself',
+            label: 'a.    oneself and family',
             subRows: [
               { id: '1a_listening', skill: 'listening' },
               { id: '1a_speaking', skill: 'speaking' }
@@ -66,7 +66,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '1c',
-            label: 'a.    community',
+            label: 'c.    community',
             subRows: [
               { id: '1c_listening', skill: 'listening' },
               { id: '1c_speaking', skill: 'speaking' }
@@ -82,7 +82,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '2a',
-            label: "a.    Respond to teacher's instructions",
+            label: "a.    Respond to teacher's instructions.",
             subRows: [
               { id: '2a_listening', skill: 'listening' },
               { id: '2a_speaking', skill: 'speaking' }
@@ -90,7 +90,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '2b',
-            label: 'b.    Ask and respond to questions',
+            label: 'b.    Ask and respond to questions.',
             subRows: [
               { id: '2b_listening', skill: 'listening' },
               { id: '2b_speaking', skill: 'speaking' }
@@ -106,7 +106,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '3a',
-            label: 'a.    Make requests',
+            label: 'a.    Make requests.',
             subRows: [
               { id: '3a_listening', skill: 'listening' },
               { id: '3a_speaking', skill: 'speaking' }
@@ -114,7 +114,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '3b',
-            label: 'b.    Offer information',
+            label: 'b.    Offer information.',
             subRows: [
               { id: '3b_listening', skill: 'listening' },
               { id: '3b_speaking', skill: 'speaking' }
@@ -122,7 +122,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '3c',
-            label: 'c.    Communicate needs',
+            label: 'c.    Communicate needs.',
             subRows: [
               { id: '3c_listening', skill: 'listening' },
               { id: '3c_speaking', skill: 'speaking' }
@@ -130,7 +130,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '3d',
-            label: 'd.    Clarify information',
+            label: 'd.    Clarify information.',
             subRows: [
               { id: '3d_listening', skill: 'listening' },
               { id: '3d_speaking', skill: 'speaking' }
@@ -138,7 +138,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '3e',
-            label: 'e.    Seek help',
+            label: 'e.    Seek help.',
             subRows: [
               { id: '3e_listening', skill: 'listening' },
               { id: '3e_speaking', skill: 'speaking' }
@@ -146,7 +146,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '3f',
-            label: 'f.    Take part in our take turns in conversation or discussion',
+            label: 'f.    Take part in or take turns in conversation or discussion.',
             subRows: [
               { id: '3f_listening', skill: 'listening' },
               { id: '3f_speaking', skill: 'speaking' }
@@ -157,12 +157,12 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
       {
         id: 4,
         number: 4,
-        description: 'Use common and socially acceptable expressions (e.g. greetings, leave-taking).',
+        description: 'Use common and socially acceptable expressions (e.g., greetings, leave-taking).',
         hasSubItems: true,
         subItems: [
           {
             id: '4a',
-            label: 'a.    Use simple and appropriate personal greetings',
+            label: 'a.    Use simple and appropriate personal greetings.',
             subRows: [
               { id: '4a_listening', skill: 'listening' },
               { id: '4a_speaking', skill: 'speaking' }
@@ -170,7 +170,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '4b',
-            label: 'b.    Use familiar terms of address',
+            label: 'b.    Use familiar terms of address.',
             subRows: [
               { id: '4b_listening', skill: 'listening' },
               { id: '4b_speaking', skill: 'speaking' }
@@ -178,7 +178,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '4c',
-            label: 'c.    Greet and respond appropriately to greetings',
+            label: 'c.    Greet and respond appropriately to greetings.',
             subRows: [
               { id: '4c_listening', skill: 'listening' },
               { id: '4c_speaking', skill: 'speaking' }
@@ -189,7 +189,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
       {
         id: 5,
         number: 5,
-        description: 'Share confidently thoughts, preferences, needs, feelings, and ideas with peers, teacher, and other adults.',
+        description: 'Share confidently thoughts, preferences, needs, feelings, and ideas with peers, teachers, and other adults.',
         hasSubItems: false,
         subRows: [
           { id: '5_listening', skill: 'listening' },
@@ -208,12 +208,12 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
       {
         id: 6,
         number: 6,
-        description: 'Express ideas using a variety of symbols (e.g. drawings, emojis, scribbles).',
+        description: 'Express ideas using a variety of symbols (e.g., drawings, emojis, scribbles).',
         hasSubItems: true,
         subItems: [
           {
             id: '6a',
-            label: 'a.    oneself',
+            label: 'a.    oneself and family',
             subRows: [
               { id: '6a_listening', skill: 'listening' },
               { id: '6a_speaking', skill: 'speaking' }
@@ -229,7 +229,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '6c',
-            label: 'a.    community',
+            label: 'c.    community',
             subRows: [
               { id: '6c_listening', skill: 'listening' },
               { id: '6c_speaking', skill: 'speaking' }
@@ -277,7 +277,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '8a',
-            label: 'a.    oneself',
+            label: 'a.    oneself and family',
             subRows: [
               { id: '8a_listening', skill: 'listening' },
               { id: '8a_speaking', skill: 'speaking' }
@@ -293,7 +293,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '8c',
-            label: 'a.    community',
+            label: 'c.    community',
             subRows: [
               { id: '8c_listening', skill: 'listening' },
               { id: '8c_speaking', skill: 'speaking' }
@@ -309,7 +309,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '9a',
-            label: 'a.    Express compare and contrast',
+            label: 'a.    Express compare and contrast.',
             subRows: [
               { id: '9a_listening', skill: 'listening' },
               { id: '9a_speaking', skill: 'speaking' }
@@ -317,7 +317,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '9b',
-            label: 'b.    Express cause and effect',
+            label: 'b.    Express cause and effect.',
             subRows: [
               { id: '9b_listening', skill: 'listening' },
               { id: '9b_speaking', skill: 'speaking' }
@@ -325,7 +325,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '9c',
-            label: 'a.    Use time words to relate ideas',
+            label: 'c.    Use time words to relate ideas.',
             subRows: [
               { id: '9c_listening', skill: 'listening' },
               { id: '9c_speaking', skill: 'speaking' }
@@ -347,7 +347,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
       {
         id: 10,
         number: 10,
-        description: 'Participate in and contribute to group oral language activities (e.g. singing, chanting, sabayang bigkas).',
+        description: 'Participate in and contribute to group oral language activities (e.g., singing, chanting, sabayang bigkas).',
         hasSubItems: false,
         subRows: [
           { id: '10_listening', skill: 'listening' },
@@ -405,7 +405,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '13a',
-            label: 'a.    Share about the language(s) spoken at home',
+            label: 'a.    Share about the language(s) spoken at home.',
             subRows: [
               { id: '13a_listening', skill: 'listening' },
               { id: '13a_speaking', skill: 'speaking' }
@@ -413,7 +413,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '13b',
-            label: 'b.    Share words and phrases in their language',
+            label: 'b.    Share words and phrases in their language.',
             subRows: [
               { id: '13b_listening', skill: 'listening' },
               { id: '13b_speaking', skill: 'speaking' }
@@ -421,7 +421,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '13c',
-            label: 'c.    Notice how local names of streets, places and landmarks have origins in their language',
+            label: 'c.    Notice how local names of streets, places and landmarks have origins in their language.',
             subRows: [
               { id: '13c_listening', skill: 'listening' },
               { id: '13c_speaking', skill: 'speaking' }
@@ -429,7 +429,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '13d',
-            label: 'd.    Explore local terms for food and their origins',
+            label: 'd.    Explore local terms for food and their origins.',
             subRows: [
               { id: '13d_listening', skill: 'listening' },
               { id: '13d_speaking', skill: 'speaking' }
@@ -452,16 +452,17 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         description: 'View and listen to a range of texts for enjoyment and interest.',
         hasSubItems: false,
         subRows: [
-          { id: '14_listening', skill: 'listening' } // Single row: Listening (Yellow)
+          { id: '14_listening', skill: 'listening' }
         ]
       },
       {
         id: 15,
         number: 15,
-        description: 'Recognize icons and symbols in various texts found in familiar contexts (e.g. printed and digital texts, books, magazines, environmental print).',
+        description: 'Recognize icons and symbols in various texts found in familiar contexts (e.g., printed and digital texts, books, magazines, environmental print).',
         hasSubItems: false,
         subRows: [
-          { id: '15_speaking', skill: 'speaking' } // Single row: Speaking (Pink)
+          { id: '15_listening', skill: 'listening' },
+          { id: '15_speaking', skill: 'speaking' }
         ]
       },
       {
@@ -472,7 +473,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '16a',
-            label: 'a.    View or listen to spoken texts',
+            label: 'a.    View or listen to spoken texts.',
             subRows: [
               { id: '16a_listening', skill: 'listening' },
               { id: '16a_speaking', skill: 'speaking' }
@@ -480,7 +481,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '16b',
-            label: 'b.    Identify a variety of purposes for viewing and listening to texts',
+            label: 'b.    Identify a variety of purposes for viewing and listening to texts.',
             subRows: [
               { id: '16b_listening', skill: 'listening' },
               { id: '16b_speaking', skill: 'speaking' }
@@ -488,7 +489,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '16c',
-            label: 'c.    Discuss what is interesting or entertaining in a text',
+            label: 'c.    Discuss what is interesting or entertaining in a text.',
             subRows: [
               { id: '16c_listening', skill: 'listening' },
               { id: '16c_speaking', skill: 'speaking' }
@@ -496,7 +497,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '16d',
-            label: 'd.    Express personal preferences',
+            label: 'd.    Express personal preferences.',
             subRows: [
               { id: '16d_listening', skill: 'listening' },
               { id: '16d_speaking', skill: 'speaking' }
@@ -526,16 +527,12 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
       {
         id: 18,
         number: 18,
-        description: 'Record and report ideas and events using some learnt vocabulary',
+        description: 'Record and report ideas and events using some learnt vocabulary.',
         hasSubItems: true,
-        mainSubRows: [
-          { id: '18_listening', skill: 'listening' },
-          { id: '18_speaking', skill: 'speaking' }
-        ],
         subItems: [
           {
             id: '18a',
-            label: 'a.    Note and report main points',
+            label: 'a.    Note and report main points.',
             subRows: [
               { id: '18a_listening', skill: 'listening' },
               { id: '18a_speaking', skill: 'speaking' }
@@ -543,7 +540,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '18b',
-            label: 'b.    Sequence up to key three (3) key events',
+            label: 'b.    Sequence up to key three (3) key events.',
             subRows: [
               { id: '18b_listening', skill: 'listening' },
               { id: '18b_speaking', skill: 'speaking' }
@@ -551,7 +548,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '18c',
-            label: "c.    Relate ideas or events to one's experience",
+            label: "c.    Relate ideas or events to one's experience.",
             subRows: [
               { id: '18c_listening', skill: 'listening' },
               { id: '18c_speaking', skill: 'speaking' }
@@ -577,7 +574,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
         subItems: [
           {
             id: '20a',
-            label: 'a.    Note and describe main points (e.g., main characters and events)',
+            label: 'a.    Note and describe main points (e.g., main characters and events).',
             subRows: [
               { id: '20a_listening', skill: 'listening' },
               { id: '20a_speaking', skill: 'speaking' }
@@ -585,7 +582,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '20b',
-            label: 'b.    Sequence up to key three (3) key events',
+            label: 'b.    Sequence up to key three (3) key events.',
             subRows: [
               { id: '20b_listening', skill: 'listening' },
               { id: '20b_speaking', skill: 'speaking' }
@@ -593,7 +590,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '20c',
-            label: "c.    Infer the character's feelings and traits",
+            label: "c.    Infer the character's feelings and traits.",
             subRows: [
               { id: '20c_listening', skill: 'listening' },
               { id: '20c_speaking', skill: 'speaking' }
@@ -601,7 +598,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '20d',
-            label: 'd.    Predict possible endings',
+            label: 'd.    Predict possible endings.',
             subRows: [
               { id: '20d_listening', skill: 'listening' },
               { id: '20d_speaking', skill: 'speaking' }
@@ -609,7 +606,7 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
           },
           {
             id: '20e',
-            label: "e.    Relate ideas or events to one's experience",
+            label: "e.    Relate ideas or events to one's experience.",
             subRows: [
               { id: '20e_listening', skill: 'listening' },
               { id: '20e_speaking', skill: 'speaking' }
@@ -622,141 +619,142 @@ export const PACE_LANGUAGE_DOMAINS: PaceDomain[] = [
 ];
 
 /**
- * Authoritative Master Cell Background Color Dictionary for PACE FORM - Language
- * Directly extracted from PACE FORM - Language.xlsx
+ * 100% Authoritative Master Cell Background Color Dictionary for PACE FORM - Language
+ * Directly extracted from DepEd G1 School Form 9 with PACE Form (SY 26-27).xlsx
  */
 export const PACE_LANGUAGE_MASTER_CELL_COLORS: Record<string, { t1: string; t2: string; t3: string }> = {
-  "1_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "1a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#B8C0C8" },
-  "1a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#B8C0C8" },
-  "1b_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "1b_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
-  "1c_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "1c_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
+  // Left Column (Items 1 to 9)
+  "1_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "1a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#B7B7B7" },
+  "1a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#B7B7B7" },
+  "1b_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "1b_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
+  "1c_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "1c_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
 
-  "2_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "2a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "2a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "2b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "2b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "2_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "2a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "2a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "2b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "2b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "3_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "3a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "3b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "3c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "3d_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3d_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "3e_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3e_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "3f_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "3f_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "3_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "3a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "3b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "3c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "3d_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3d_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "3e_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3e_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "3f_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "3f_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "4_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "4a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "4a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "4b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "4b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "4c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "4c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "4_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "4a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "4a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "4b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "4b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "4c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "4c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "5_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "5_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "5_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "5_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "6_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "6a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#B8C0C8" },
-  "6a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#B8C0C8" },
-  "6b_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "6b_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
-  "6c_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "6c_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
+  "6_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "6a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#B7B7B7" },
+  "6a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#B7B7B7" },
+  "6b_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "6b_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
+  "6c_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "6c_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
 
-  "7_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "7a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "7a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "7b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "7b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "7c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "7c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "7_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "7a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "7a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "7b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "7b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "7c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "7c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "8_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "8a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#B8C0C8" },
-  "8a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#B8C0C8" },
-  "8b_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "8b_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
-  "8c_listening": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#FEF2CB" },
-  "8c_speaking": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#ECC8EC" },
+  "8_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "8a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#B7B7B7" },
+  "8a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#B7B7B7" },
+  "8b_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "8b_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
+  "8c_listening": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#FFE598" },
+  "8c_speaking": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#C9A6E6" },
 
-  "9_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "9a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "9a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "9b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "9b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "9c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "9c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "9_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "9a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "9a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "9b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "9b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "9c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "9c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "10_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "10_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  // Right Column (Items 10 to 20)
+  "10_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "10_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "11_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "11_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "11_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "11_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "12_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "12a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "12a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "12b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "12b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "12_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "12a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "12a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "12b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "12b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "13_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "13a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "13a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "13b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "13b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "13c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "13c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "13d_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "13d_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "13_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "13a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "13a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "13b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "13b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "13c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "13c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "13d_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "13d_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "14_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
+  "14_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "15_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "15_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "15_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "16_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "16a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "16a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "16b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "16b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "16c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "16c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "16d_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "16d_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "16_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "16a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "16a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "16b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "16b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "16c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "16c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "16d_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "16d_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "17_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "17_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "17_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "17_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "18_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "18a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "18a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "18b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "18b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "18c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "18c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "18_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "18_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "18a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "18a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "18b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "18b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "18c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "18c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
+  "19_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "19_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
 
-  "19_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "19_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-
-  "20_main": { "t1": "#B8C0C8", "t2": "#B8C0C8", "t3": "#B8C0C8" },
-  "20a_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "20a_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "20b_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "20b_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "20c_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "20c_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "20d_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "20d_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" },
-  "20e_listening": { "t1": "#FEF2CB", "t2": "#FEF2CB", "t3": "#FEF2CB" },
-  "20e_speaking": { "t1": "#ECC8EC", "t2": "#ECC8EC", "t3": "#ECC8EC" }
+  "20_main": { "t1": "#B7B7B7", "t2": "#B7B7B7", "t3": "#B7B7B7" },
+  "20a_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "20a_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "20b_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "20b_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "20c_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "20c_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "20d_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "20d_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" },
+  "20e_listening": { "t1": "#FFE598", "t2": "#FFE598", "t3": "#FFE598" },
+  "20e_speaking": { "t1": "#C9A6E6", "t2": "#C9A6E6", "t3": "#C9A6E6" }
 };

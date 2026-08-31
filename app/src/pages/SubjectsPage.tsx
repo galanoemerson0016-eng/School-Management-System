@@ -294,6 +294,7 @@ export function SubjectsPage() {
     const [showAutoLoadConfirm, setShowAutoLoadConfirm] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+    const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
 
     // Import Wizard states
     const [wizardStep, setWizardStep] = useState<'choice' | 'select' | null>(null);
@@ -659,6 +660,27 @@ export function SubjectsPage() {
         return sections.find(s => s.id === selectedSectionId);
     }, [sections, selectedSectionId]);
 
+    const totalGradeSubjectsCount = useMemo(() => {
+        if (!selectedGrade) return 0;
+        const rawList = subjects
+            .filter(s => !s.is_teaching_load) 
+            .filter((s) => {
+                if (selectedSectionId) return s.section_id === selectedSectionId;
+                return s.grade_level === selectedGrade && !s.section_id;
+            });
+        const seenNames = new Set<string>();
+        let count = 0;
+        for (const s of rawList) {
+            const key = normalizeSubjectLabel(s.subject_name);
+            if (key && seenNames.has(key)) continue;
+            if (key) {
+                seenNames.add(key);
+                count++;
+            }
+        }
+        return count;
+    }, [subjects, selectedSectionId, selectedGrade]);
+
     const filteredSubjects = useMemo(() => {
         if (!selectedGrade) return [];
         const rawList = subjects
@@ -677,7 +699,16 @@ export function SubjectsPage() {
             uniqueList.push(s);
         }
 
-        return uniqueList.sort((a, b) => {
+        let result = uniqueList;
+        if (subjectSearchQuery.trim()) {
+            const q = subjectSearchQuery.trim().toLowerCase();
+            result = result.filter(s => 
+                s.subject_name.toLowerCase().includes(q) || 
+                (s.subject_code && s.subject_code.toLowerCase().includes(q))
+            );
+        }
+
+        return result.sort((a, b) => {
                 const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
                 const isSHS = gradeNum === 11 || gradeNum === 12;
                 
@@ -709,7 +740,7 @@ export function SubjectsPage() {
                 if (orderA !== orderB) return orderA - orderB;
                 return a.subject_name.localeCompare(b.subject_name);
             });
-    }, [subjects, selectedSectionId, selectedGrade]);
+    }, [subjects, selectedSectionId, selectedGrade, subjectSearchQuery]);
 
     const groupedSubjects = useMemo(() => {
         if (!selectedGrade) return {};
@@ -949,6 +980,7 @@ export function SubjectsPage() {
 
     const handleGradeClick = (grade: string) => {
         setSelectedGrade(grade);
+        setSubjectSearchQuery('');
         const matchingSecs = sections.filter((section) => sectionMatchesGrade(section, grade));
         const firstSection = matchingSecs.sort((a, b) => a.section_name.localeCompare(b.section_name))[0];
         setSelectedSectionId(firstSection?.id || null);
@@ -963,6 +995,7 @@ export function SubjectsPage() {
     const handleBackToGrades = () => {
         setSelectedGrade(null);
         setSelectedAdvisorySectionId(null);
+        setSubjectSearchQuery('');
         setViewMode('grades');
     };
 
@@ -970,6 +1003,7 @@ export function SubjectsPage() {
         setSelectedCategory(null);
         setSelectedGrade(null);
         setSelectedAdvisorySectionId(null);
+        setSubjectSearchQuery('');
         setViewMode('grades');
     };
 
@@ -1768,9 +1802,68 @@ export function SubjectsPage() {
                             </div>
                         )}
 
+                        {/* Search and Quick Filters Bar */}
+                        {totalGradeSubjectsCount > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 p-3 rounded-2xl shadow-2xs">
+                                <div className="relative flex-1 min-w-65 max-w-xl">
+                                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={subjectSearchQuery}
+                                        onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                                        placeholder={`Search ${selectedGrade} subjects by name or code (e.g. Math, Pre-Calculus, CSS)...`}
+                                        className="w-full h-9.5 pl-10 pr-9 bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-inner"
+                                    />
+                                    {subjectSearchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSubjectSearchQuery('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                                            title="Clear search"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {subjectSearchQuery.trim() ? (
+                                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                                            {filteredSubjects.length} of {totalGradeSubjectsCount} found
+                                        </span>
+                                    ) : (
+                                        <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-white/10">
+                                            {filteredSubjects.length} {filteredSubjects.length === 1 ? 'subject' : 'subjects'} total
+                                        </span>
+                                    )}
+
+                                    {Object.keys(groupedSubjects).length > 1 && !subjectSearchQuery.trim() && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const allCategories = Object.keys(groupedSubjects);
+                                                const anyCollapsed = allCategories.some(cat => collapsedCategories[cat] ?? true);
+                                                const newCollapsed: Record<string, boolean> = {};
+                                                allCategories.forEach(cat => {
+                                                    newCollapsed[cat] = !anyCollapsed;
+                                                });
+                                                setCollapsedCategories(newCollapsed);
+                                            }}
+                                            className="h-9 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer border border-slate-200/60 dark:border-white/10"
+                                        >
+                                            <Layers className="w-3.5 h-3.5" />
+                                            <span>
+                                                {Object.keys(groupedSubjects).some(cat => collapsedCategories[cat] ?? true) ? 'Expand All' : 'Collapse All'}
+                                            </span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Subjects Table Container */}
                         <div className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white rounded-[2.5rem] border border-slate-100 dark:border-white/10 shadow-xs overflow-hidden">
-                            {!selectedSection && filteredSubjects.length === 0 ? (
+                            {totalGradeSubjectsCount === 0 ? (
                                 <div className="p-24 text-center">
                                     <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
                                         <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
@@ -1791,21 +1884,21 @@ export function SubjectsPage() {
                                     )}
                                 </div>
                             ) : filteredSubjects.length === 0 ? (
-                                <div className="p-24 text-center">
-                                    <div className="w-20 h-20 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                                        <BookText className="w-10 h-10 text-slate-300 dark:text-slate-500" />
+                                <div className="p-16 text-center">
+                                    <div className="w-16 h-16 bg-slate-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-white/10">
+                                        <Search className="w-8 h-8 text-slate-300 dark:text-slate-500" />
                                     </div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Empty Curriculum</h3>
-                                    <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
-                                    {canEdit && (
-                                        <button 
-                                            onClick={handleLoadStandardSubjects} 
-                                            disabled={isLoadingTemplate}
-                                            className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
-                                        >
-                                            {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
-                                        </button>
-                                    )}
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">No Subjects Found</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                                        No subjects match your search "{subjectSearchQuery}".
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSubjectSearchQuery('')}
+                                        className="mt-4 h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs"
+                                    >
+                                        Clear Search Filter
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto p-4">
@@ -1822,7 +1915,7 @@ export function SubjectsPage() {
                                         <tbody>
                                             {Object.entries(groupedSubjects).map(([category, categorySubjects]) => {
                                                 const isSHS = selectedGrade?.includes('11') || selectedGrade?.includes('12');
-                                                const isCollapsed = collapsedCategories[category] ?? isSHS;
+                                                const isCollapsed = subjectSearchQuery.trim() ? false : (collapsedCategories[category] ?? isSHS);
                                                 return (
                                                     <Fragment key={category}>
                                                         {category && (

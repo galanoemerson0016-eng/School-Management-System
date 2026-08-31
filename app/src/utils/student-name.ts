@@ -15,8 +15,17 @@ export interface MinimalStudent {
 export function formatLearnerName(student: MinimalStudent, options?: { middleInitialOnly?: boolean }): string {
     const last = (student.last_name || '').trim();
     let first = (student.first_name || '').trim();
-    const middle = (student.middle_name || '').trim();
-    const ext = (student.name_extension || '').trim();
+    const rawMiddle = (student.middle_name || '').trim();
+    const rawExt = (student.name_extension || '').trim();
+
+    // Sanitize middle name and extensions from placeholder hyphens, N/A, NONE, dots
+    const cleanMidChars = rawMiddle.replace(/[^a-zA-Z]/g, '');
+    const isPlaceholderMid = !cleanMidChars || ['na', 'none', 'null', 'no'].includes(cleanMidChars.toLowerCase());
+    const middle = isPlaceholderMid ? '' : rawMiddle;
+
+    const cleanExtChars = rawExt.replace(/[^a-zA-Z0-9]/g, '');
+    const isPlaceholderExt = !cleanExtChars || ['na', 'none', 'null', 'no'].includes(cleanExtChars.toLowerCase());
+    const ext = isPlaceholderExt ? '' : rawExt;
 
     // If first_name contains multiple words (e.g., "Mervin Emerson Galano Baman"), check and trim trailing middle names
     const firstWords = first.split(/\s+/);

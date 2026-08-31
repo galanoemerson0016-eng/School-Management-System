@@ -75,7 +75,11 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
         className={`text-center font-bold p-0 align-middle w-5 text-[9.5px] h-3.5 ${
           isBorderRight ? 'border-r border-black' : ''
         }`}
-        style={{ backgroundColor: getCellBg(domainId, subId, term, ratingVal, skillColor) }}
+        style={{ 
+          backgroundColor: getCellBg(domainId, subId, term, ratingVal, skillColor),
+          textAlign: 'center',
+          verticalAlign: 'middle'
+        }}
       >
         {isInteractive ? (
           <input
@@ -94,11 +98,12 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
               }
             }}
             onFocus={(e) => e.target.select()}
-            className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 print:bg-transparent cursor-text p-0 m-0 leading-none"
+            style={{ textAlign: 'center' }}
+            className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 print:bg-transparent cursor-text p-0 m-0 leading-none mx-auto block"
             title="Type A, B, C, D, or E"
           />
         ) : (
-          <span className="print:text-black font-black leading-none flex items-center justify-center h-full w-full">{ratingVal}</span>
+          <span style={{ textAlign: 'center' }} className="print:text-black font-black leading-none flex items-center justify-center h-full w-full text-center">{ratingVal}</span>
         )}
       </td>
     );
@@ -108,7 +113,10 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
     const isInteractive = editable && !!onSetRating;
 
     return (
-      <td className="text-center font-bold p-0 align-middle w-12 text-[9.5px] h-4 bg-white border-l border-black">
+      <td 
+        className="text-center font-bold p-0 align-middle w-12 text-[9.5px] h-4 bg-white border-l border-black"
+        style={{ textAlign: 'center', verticalAlign: 'middle' }}
+      >
         {isInteractive ? (
           <input
             type="text"
@@ -126,11 +134,12 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
               }
             }}
             onFocus={(e) => e.target.select()}
-            className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 cursor-text p-0 m-0 leading-none"
+            style={{ textAlign: 'center' }}
+            className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 cursor-text p-0 m-0 leading-none mx-auto block"
             title="Type A, B, C, D, or E"
           />
         ) : (
-          <span className="print:text-black font-black leading-none flex items-center justify-center h-full w-full">{ratingVal}</span>
+          <span style={{ textAlign: 'center' }} className="print:text-black font-black leading-none flex items-center justify-center h-full w-full text-center">{ratingVal}</span>
         )}
       </td>
     );
@@ -139,14 +148,14 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
   const renderDomainTable = (domains: typeof currentDomains) => (
     <table className="w-full border-collapse border border-black text-[8.5px]">
       <thead>
-        <tr className="bg-[#D9D9D9] border-b border-black font-bold text-center">
-          <th className="w-6 border-r border-black p-1 align-middle">No.</th>
-          <th className="p-1 border-r border-black text-center align-middle">Learning Competencies</th>
-          <th colSpan={3} className="w-16 p-0 border-black align-top">
-            <div className="p-0.5 border-b border-black text-[8.5px] font-bold">Rating</div>
+        <tr className="bg-[#002060] text-white border-b border-black font-bold text-center">
+          <th className="w-6 border-r border-slate-300 p-1 align-middle">No.</th>
+          <th className="p-1 border-r border-slate-300 text-center align-middle">Learning Competencies</th>
+          <th colSpan={3} className="w-16 p-0 align-top">
+            <div className="p-0.5 border-b border-slate-300 text-[8.5px] font-bold">Rating</div>
             <div className="grid grid-cols-3 text-[8px] font-bold">
-              <span className="border-r border-black py-0.5">T1</span>
-              <span className="border-r border-black py-0.5">T2</span>
+              <span className="border-r border-slate-300 py-0.5">T1</span>
+              <span className="border-r border-slate-300 py-0.5">T2</span>
               <span className="py-0.5">T3</span>
             </div>
           </th>
@@ -157,7 +166,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
           <React.Fragment key={domain.id}>
             {/* Domain Sky-Blue Header Banner */}
             {domain.showBanner !== false && (
-              <tr className="bg-[#BCE2F5] font-bold text-black border-b border-black">
+              <tr className="bg-[#83CAEB] font-bold text-black border-b border-black">
                 <td colSpan={5} className="p-1 text-[8.5px] align-middle">
                   {domain.title} <span className="font-normal italic">({domain.subtitle})</span>
                 </td>
@@ -176,7 +185,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                       const ratingT1 = getRating(sub.id, 't1');
                       const ratingT2 = getRating(sub.id, 't2');
                       const ratingT3 = getRating(sub.id, 't3');
-                      const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FEF2CB';
+                      const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FFE598';
                       const compLabel = `${comp.number}. ${comp.description} (${sub.skill})`;
 
                       return (
@@ -185,13 +194,13 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                             <>
                               <td
                                 rowSpan={totalRows}
-                                className="text-center font-bold border-r border-b border-black p-1 align-middle"
+                                className="text-center font-normal border-r border-b border-black p-1 align-middle"
                               >
                                 {comp.number}
                               </td>
                               <td
                                 rowSpan={totalRows}
-                                className="border-r border-b border-black p-1 text-black align-middle leading-tight"
+                                className="border-r border-b border-black p-1 text-black font-normal align-middle leading-tight"
                               >
                                 {comp.description}
                               </td>
@@ -220,7 +229,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                       const ratingT1 = getRating(sub.id, 't1');
                       const ratingT2 = getRating(sub.id, 't2');
                       const ratingT3 = getRating(sub.id, 't3');
-                      const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FEF2CB';
+                      const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FFE598';
                       const mainLabel = `${comp.number}. ${comp.description} (${sub.skill})`;
 
                       return (
@@ -229,13 +238,13 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                             <>
                               <td
                                 rowSpan={totalRows}
-                                className="text-center font-bold border-r border-b border-black p-1 align-middle"
+                                className="text-center font-normal border-r border-b border-black p-1 align-middle"
                               >
                                 {comp.number}
                               </td>
                               <td
                                 rowSpan={mainRowCount}
-                                className="border-r border-black p-1 text-black font-semibold align-middle leading-tight"
+                                className="border-r border-black p-1 text-black font-normal align-middle leading-tight"
                               >
                                 {comp.description}
                               </td>
@@ -251,11 +260,11 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                     <tr className="border-b border-black">
                       <td
                         rowSpan={totalRows}
-                        className="text-center font-bold border-r border-b border-black p-1 align-middle"
+                        className="text-center font-normal border-r border-b border-black p-1 align-middle"
                       >
                         {comp.number}
                       </td>
-                      <td className="border-r border-black p-1 text-black font-semibold align-middle leading-tight">
+                      <td className="border-r border-black p-1 text-black font-normal align-middle leading-tight">
                         {comp.description}
                       </td>
                       {renderRatingCell(domain.id, `${comp.id}_main`, `${comp.number}. ${comp.description}`, 't1', 'Term 1', getRating(`${comp.id}_main`, 't1'), UNASSESSED_CELL_GREY, true)}
@@ -275,7 +284,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                           const ratingT1 = getRating(sub.id, 't1');
                           const ratingT2 = getRating(sub.id, 't2');
                           const ratingT3 = getRating(sub.id, 't3');
-                          const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FEF2CB';
+                          const skillColor = MACRO_SKILL_COLORS[sub.skill] || '#FFE598';
                           const itemLabel = `${comp.number}. ${item.label} (${sub.skill})`;
 
                           return (
@@ -283,7 +292,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                               {idx === 0 && (
                                 <td
                                   rowSpan={itemTotalRows}
-                                  className="border-r border-b border-black p-1 text-black align-middle leading-tight pl-3"
+                                  className="border-r border-b border-black p-1 text-black font-normal align-middle leading-tight pl-3"
                                 >
                                   {item.label}
                                 </td>
@@ -344,7 +353,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
             <div className="flex items-center gap-1.5 flex-1 justify-end">
               <span>Section:</span>
               <span className="font-bold border-b border-black min-w-15 text-center">
-                {section || 'SAMPLE'}
+                {(section || 'SAMPLE').toUpperCase()}
               </span>
             </div>
           </div>
@@ -404,15 +413,15 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                                 const ratingVal = getRating(comp.id, 't1');
                                 return (
                                   <tr key={comp.id} className="border-b border-black hover:bg-slate-50">
-                                    <td className="text-center font-bold border-r border-black p-1 align-middle">
+                                    <td className="text-center font-normal border-r border-black p-1 align-middle">
                                       {comp.number}
                                     </td>
                                     {isGmrc && (
-                                      <td className="border-r border-black p-1 font-semibold text-black align-middle leading-tight italic">
+                                      <td className="border-r border-black p-1 font-normal text-black align-middle leading-tight italic">
                                         {comp.valueFocus}
                                       </td>
                                     )}
-                                    <td className="p-1 text-black align-middle leading-tight">
+                                    <td className="p-1 text-black font-normal align-middle leading-tight">
                                       {comp.description}
                                     </td>
                                     {renderSingleRatingCell(comp.id, ratingVal)}
@@ -429,16 +438,16 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                                   <tr className="border-b border-black hover:bg-slate-50">
                                     <td
                                       rowSpan={totalRows}
-                                      className="text-center font-bold border-r border-black p-1 align-middle"
+                                      className="text-center font-normal border-r border-black p-1 align-middle"
                                     >
                                       {comp.number}
                                     </td>
                                     {isGmrc && comp.valueFocus && (
-                                      <td className="border-r border-black p-1 font-semibold text-black align-middle leading-tight italic">
+                                      <td className="border-r border-black p-1 font-normal text-black align-middle leading-tight italic">
                                         {comp.valueFocus}
                                       </td>
                                     )}
-                                    <td className="p-1 text-black font-semibold align-middle leading-tight">
+                                    <td className="p-1 text-black font-normal align-middle leading-tight">
                                       {comp.description}
                                     </td>
                                     {renderSingleRatingCell(`${comp.id}_main`, getRating(`${comp.id}_main`, 't1'))}
@@ -450,7 +459,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                                     return (
                                       <tr key={item.id} className="border-b border-black hover:bg-slate-50">
                                         {isGmrc && <td className="border-r border-black p-1" />}
-                                        <td className="p-1 text-black align-middle leading-tight pl-4">
+                                        <td className="p-1 text-black font-normal align-middle leading-tight pl-4">
                                           {item.label}
                                         </td>
                                         {renderSingleRatingCell(item.id, itemRating)}
@@ -473,10 +482,10 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
             <div className="border border-black font-sans text-[8.5px]">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-[#D9D9D9] border-b border-black font-bold text-center">
-                    <th className="w-8 border-r border-black p-1 align-middle">No.</th>
+                  <tr className="bg-[#002060] text-white border-b border-black font-bold text-center">
+                    <th className="w-8 border-r border-slate-300 p-1 align-middle">No.</th>
                     <th className="p-1 text-center align-middle">Learning Competencies</th>
-                    <th className="w-12 border-l border-black p-1 text-center align-middle">Rating</th>
+                    <th className="w-12 border-l border-slate-300 p-1 text-center align-middle">Rating</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -503,10 +512,10 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                               const ratingVal = getRating(comp.id, 't1');
                               return (
                                 <tr key={comp.id} className="border-b border-black hover:bg-slate-50">
-                                  <td className="text-center font-bold border-r border-black p-1 align-middle">
+                                  <td className="text-center font-normal border-r border-black p-1 align-middle">
                                     {comp.number}
                                   </td>
-                                  <td className="p-1 text-black align-middle leading-tight">
+                                  <td className="p-1 text-black font-normal align-middle leading-tight">
                                     {comp.description}
                                   </td>
                                   {renderSingleRatingCell(comp.id, ratingVal)}
@@ -523,11 +532,11 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                                 <tr className="border-b border-black hover:bg-slate-50">
                                   <td
                                     rowSpan={totalRows}
-                                    className="text-center font-bold border-r border-black p-1 align-middle"
+                                    className="text-center font-normal border-r border-black p-1 align-middle"
                                   >
                                     {comp.number}
                                   </td>
-                                  <td className="p-1 text-black font-semibold align-middle leading-tight">
+                                  <td className="p-1 text-black font-normal align-middle leading-tight">
                                     {comp.description}
                                   </td>
                                   {renderSingleRatingCell(`${comp.id}_main`, getRating(`${comp.id}_main`, 't1'))}
@@ -568,34 +577,43 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                 {renderDomainTable(rightDomains)}
 
                 {/* Macro Skill Legend Box matching exact template image */}
-                <div className="mt-4 border border-black p-1.5 text-[8px]">
-                  <p className="font-semibold italic text-black mb-1.5 leading-tight">
+                <div className="mt-3 text-[8.5px]">
+                  <p className="italic text-black mb-1.5 leading-snug text-[8px]">
                     <strong>Note:</strong> Each colored square represents a language macro skill. Refer to the legend to identify the skill, and write the learner's rating directly on the colored square for each term.
                   </p>
-                  <div className="border border-black font-bold">
-                    <div className="bg-[#D9D9D9] border-b border-black px-1.5 py-0.5 uppercase tracking-wide">
-                      LEGEND:
-                    </div>
-                    {isLanguageForm ? (
-                      /* Language Legend (Listening & Speaking Only) */
-                      <div className="grid grid-cols-2 text-[8px]">
-                        <div className="p-1 bg-[#FEF2CB] border-r border-black text-center font-semibold">Listening</div>
-                        <div className="p-1 bg-[#ECC8EC] text-center font-semibold">Speaking</div>
-                      </div>
-                    ) : (
-                      /* Reading & Literacy Legend */
-                      <div className="grid grid-cols-[1.2fr_2fr] text-[8px]">
-                        <div className="divide-y divide-black border-r border-black">
-                          <div className="p-1 bg-[#FEF2CB]">Listening</div>
-                          <div className="p-1 bg-[#FBE5D6]">Speaking</div>
-                          <div className="p-1 bg-[#ECC8EC]">Reading</div>
-                        </div>
-                        <div className="p-1 bg-[#C6E0B4] flex items-center justify-center text-center font-semibold leading-tight">
+                  <table className="w-full border-collapse border border-black text-[8px]">
+                    <thead>
+                      <tr>
+                        <th colSpan={4} className="border-b border-black text-center font-bold py-0.5 tracking-wider uppercase bg-white">
+                          LEGEND
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="w-6 border-r border-b border-black p-0 bg-[#FFE598] h-4"></td>
+                        <td className="border-r border-b border-black px-2 py-0.5 font-medium text-black align-middle">
+                          Listening
+                        </td>
+                        <td rowSpan={3} className="w-6 border-r border-black p-0 bg-[#C4E0B3]"></td>
+                        <td rowSpan={3} className="px-2 py-1 font-medium text-black align-middle leading-tight">
                           Copying and Guided Writing in response to Comprehension Questions
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="w-6 border-r border-b border-black p-0 bg-[#C9A6E6] h-4"></td>
+                        <td className="border-r border-b border-black px-2 py-0.5 font-medium text-black align-middle">
+                          Speaking
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="w-6 border-r border-black p-0 bg-[#F7B083] h-4"></td>
+                        <td className="border-r border-black px-2 py-0.5 font-medium text-black align-middle">
+                          Reading
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

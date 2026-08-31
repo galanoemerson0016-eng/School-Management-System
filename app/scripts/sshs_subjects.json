@@ -1,0 +1,1262 @@
+[
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "Effective Communication",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "General Mathematics",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "General Science",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "Life and Career Skills",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "Mabisang Komunikasyon",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - CORE",
+    "cluster": "CORE",
+    "subject": "Pag-aaral ng Kasaysayan at Lipunang Pilipino",
+    "grade": "11 ",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Art Criticism and Creative Markets",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Citizenship and Civic Engagement",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Contemporary Literature 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Contemporary Literature 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Composition 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Composition 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Applied and Traditional Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Dance",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Literary Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Media Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Music",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Theater Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Industries - Visual Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Filipino 1 (Wika at Komunikasyon sa Akademikong Filipino)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Filipino 2 (Filipino sa Isports)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Filipino 2 (Filipino sa Larang Teknikal-Propesyonal)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Filipino 2 (Filipino sa Sining at Disenyo)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Filipino Identity Through the Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Introduction to the Philosophy of the Human Person",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Leadership and Management in the Arts",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Malikhaing Pagsulat",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Performance Criticism and Creative Markets",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Philippine Governance (Philippine Politics and Governance)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Social Sciences (Theory and Practice)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "ARTS, SOCIAL SCIENCES, AND HUMANITIES",
+    "subject": "Creative Production and Presentation",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Business 1 (Basic Accounting)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Business 2 (Business Finance and Income Taxation)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Contemporary Marketing",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Entrepreneurship",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Introduction to Organization and Management",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "BUSINESS AND ENTREPRENEURSHIP",
+    "subject": "Business 3 (Business Economics)",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Design and Innovation",
+    "grade": "11, 12",
+    "ww": 40,
+    "pt": 60,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Research 1",
+    "grade": "11, 12",
+    "ww": 40,
+    "pt": 60,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Research 2",
+    "grade": "11, 12",
+    "ww": 40,
+    "pt": 60,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship – Dance",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship - Literary Arts",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship - Media Arts",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship – Music",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship – Theater Arts",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship – Traditional Cultural Expressions",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Arts Apprenticeship – Visual Arts",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Field Exposure (Off Campus)",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "In-Campus Field Exposure for Sports",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 70,
+    "ex": 15
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "FIELD EXPERIENCE",
+    "subject": "Work Immersion for Academic Track",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Advanced Mathematics",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Basic Calculus",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Biology 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Biology 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Biology 3",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Chemistry 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Chemistry 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Chemistry 3",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Earth and Space Science 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Earth and Space Science 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Earth and Space Science 3",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Empowerment Technologies",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Finite Mathematics 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Finite Mathematics 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Physics 1",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Physics 2",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Physics 3",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Pre-Calculus",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Biology 4",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Chemistry 4",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Conceptual Biology and Earth and Space Science",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Conceptual Physics and Chemistry in Daily Life",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Database Management",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Earth and Space Science 4",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Fundamentals of Data Analytics",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS",
+    "subject": "Physics 4",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 50,
+    "ex": 30
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Exercise and Sports Programming",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "First Aid",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Fundamentals of Basic Life Support",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Human Movement 1 (Basic Anatomy in Sports and Exercise)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Human Movement 2 (Motor Skills Development)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Physical Education 1 (Fitness and Recreation)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Physical Education 2 (Sports and Dance)",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Sports Activity Management",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Sports Coaching",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "SPORTS, HEALTH, AND WELLNESS",
+    "subject": "Sports Officiating",
+    "grade": "11, 12",
+    "ww": 20,
+    "pt": 60,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - ACADEMIC",
+    "cluster": "OTHER ELECTIVE / SPECIAL CURRICULAR PROGRAM",
+    "subject": "0",
+    "grade": "11, 12",
+    "ww": 0,
+    "pt": 0,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AESTHETIC, WELLNESS, AND HUMAN CARE",
+    "subject": "Aesthetic Services (Beauty Care)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AESTHETIC, WELLNESS, AND HUMAN CARE",
+    "subject": "Caregiving (Adult Care)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AESTHETIC, WELLNESS, AND HUMAN CARE",
+    "subject": "Caregiving (Child Care)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AESTHETIC, WELLNESS, AND HUMAN CARE",
+    "subject": "Hairdressing Services",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Agricultural Crops Production",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Agro-entrepreneurship",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Aquaculture",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Fish Capture Operation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Food Processing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Organic Agriculture Production",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Poultry Production (Chicken)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Ruminants Production",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AGRI-FISHERY BUSINESS AND FOOD INNOVATION  ",
+    "subject": "Swine Production",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ARTISANRY AND CREATIVE ENTERPRISE ",
+    "subject": "Garments Artisanry",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ARTISANRY AND CREATIVE ENTERPRISE ",
+    "subject": "Handicrafts: Weaving",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ",
+    "subject": "Driving and Automotive Servicing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ",
+    "subject": "Motorcycle and Small Engine Servicing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ",
+    "subject": "Automotive Servicing (Electrical Repair)",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "AUTOMOTIVE AND SMALL ENGINE TECHNOLOGIES ",
+    "subject": "Automotive Servicing (Engine and Chassis Repairs)",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CONSTRUCTION AND BUILDING TECHNOLOGIES",
+    "subject": "Carpentry",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CONSTRUCTION AND BUILDING TECHNOLOGIES",
+    "subject": "Construction Operation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CONSTRUCTION AND BUILDING TECHNOLOGIES",
+    "subject": "Manual Metal Arc Welding",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CONSTRUCTION AND BUILDING TECHNOLOGIES",
+    "subject": "Technical Drafting",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CREATIVE ARTS AND DESIGN TECHNOLOGIES",
+    "subject": "Animation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CREATIVE ARTS AND DESIGN TECHNOLOGIES",
+    "subject": "Illustration",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "CREATIVE ARTS AND DESIGN TECHNOLOGIES",
+    "subject": "Visual Graphic Design",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Bakery Operations",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Events Management Services",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Food and Beverage Operation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Hotel Operations (Front Office Services)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Hotel Operations (Housekeeping Services)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Kitchen Operations",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "HOSPITALITY AND TOURISM",
+    "subject": "Tourism Services",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Broadband Installation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Computer Programming (.Net Technology)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Computer Programming (Java)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Computer Programming (Oracle Database)",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Computer Systems Servicing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "ICT SUPPORT AND COMPUTER PROGRAMMING TECHNOLOGIES",
+    "subject": "Contact Center Services",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Domestic Refrigeration and Air-Conditioning Servicing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Electrical Installation and Maintenance",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Electronic Products Assembly and Servicing",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Photovoltaic Systems Installation",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Commercial Air-Conditioning Installation and Servicing",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "INDUSTRIAL TECHNOLOGIES",
+    "subject": "Mechatronics",
+    "grade": "gr 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "MARITIME",
+    "subject": "Marine Engineering at the Support Level",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "MARITIME",
+    "subject": "Marine Transportation at the Support Level",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "MARITIME",
+    "subject": "Ships Catering Services",
+    "grade": "11, 12",
+    "ww": 15,
+    "pt": 65,
+    "ex": 20
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "WORK IMMERSION",
+    "subject": "Work Immersion for Tech-Pro Track (320 hours)",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "WORK IMMERSION",
+    "subject": "Work Immersion for Tech-Pro Track (540 hours) - 1 Term",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "WORK IMMERSION",
+    "subject": "Work Immersion for Tech-Pro Track (640 hours) - 1 Term",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "WORK IMMERSION",
+    "subject": "Work Immersion for Tech-Pro Track (540 hours) - 2 Terms",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  },
+  {
+    "cat": "SSHS - TECH-PRO",
+    "cluster": "WORK IMMERSION",
+    "subject": "Work Immersion for Tech-Pro Track (640 hours) - 2 Terms",
+    "grade": "gr 12",
+    "ww": 20,
+    "pt": 80,
+    "ex": 0
+  }
+]

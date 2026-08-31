@@ -326,3 +326,32 @@ describe('grade stage helpers', () => {
     expect(isKeyStage1('Grade 4')).toBe(false);
   });
 });
+
+describe('getSubjectCluster — Grade 12 Old K-12 vs SSHS Pilot', () => {
+  it('correctly maps Grade 12 Old K-12 core subjects to g12_core', () => {
+    expect(getSubjectCluster('21st Century Literature from the Philippines and the World', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Contemporary Philippine Arts from the Regions', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Media and Information Literacy', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Physical Education and Health 3', 'Grade 12')).toBe('g12_core');
+  });
+
+  it('correctly maps Grade 12 Old K-12 academic subjects to g12_academic_other or g12_academic_immersion_research', () => {
+    expect(getSubjectCluster('Practical Research 2', 'Grade 12', 'Academic - STEM')).toBe('g12_academic_immersion_research');
+    expect(getSubjectCluster('Inquiries, Investigations and Immersion', 'Grade 12', 'Academic - HUMSS')).toBe('g12_academic_immersion_research');
+    expect(getSubjectCluster('General Physics 1', 'Grade 12', 'Academic - STEM')).toBe('g12_academic_other');
+    expect(getSubjectCluster('Business Finance', 'Grade 12', 'Academic - ABM')).toBe('g12_academic_other');
+  });
+
+  it('correctly maps Grade 12 Old K-12 TVL subjects to g12_tvl_all', () => {
+    expect(getSubjectCluster('Computer Systems Servicing', 'Grade 12', 'TVL - ICT')).toBe('g12_tvl_all');
+    expect(getSubjectCluster('Cookery', 'Grade 12', 'TVL - HE')).toBe('g12_tvl_all');
+  });
+
+  it('correctly maps Grade 12 SSHS Pilot Electives to SSHS clusters', () => {
+    expect(getSubjectCluster('Differential Calculus', 'Grade 12')).toBe('shs_core_academic');
+    expect(getSubjectCluster('Artificial Intelligence and Data Science', 'Grade 12')).toBe('shs_techpro');
+    expect(getSubjectCluster('Robotics and Automation', 'Grade 12')).toBe('shs_techpro');
+    expect(getSubjectCluster('Smart Electrical Installation', 'Grade 12')).toBe('shs_techpro');
+    expect(getSubjectCluster('Art Criticism and Creative Markets', 'Grade 12')).toBe('shs_arts_sports');
+  });
+});

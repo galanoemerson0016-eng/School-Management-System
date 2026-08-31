@@ -28,3 +28,9 @@ _mac_temp_repair/
 .git-portable/
 .node-portable/
 gh-cli/
+
+# Scratch scripts and temporary files
+app/scratch/
+scratch/
+test_*.xlsx
+app/public/templates/test_*.xlsx

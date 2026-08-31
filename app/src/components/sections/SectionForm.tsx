@@ -17,24 +17,48 @@ const GRADE_LEVELS = [
 ];
 
 const STRANDS: Record<string, string[]> = {
-    Academic: ['STEM', 'ABM', 'HUMSS', 'GAS'],
+    Academic: [
+        'STEM',
+        'ABM',
+        'HUMSS',
+        'GAS',
+        'Arts, Social Sciences, and Humanities',
+        'Business and Entrepreneurship',
+        'Science, Technology, Engineering, and Mathematics',
+        'Sports, Health, and Wellness',
+        'Field Experience'
+    ],
     TVL: [
         'Home Economics (HE)',
         'Information and Communications Technology (ICT)',
         'Industrial Arts (IA)',
-        'Agri-Fishery Arts (AFA)'
-    ],
-    TechPro: [
-        'Hospitality and Tourism',
-        'ICT Support and Computer Programming',
+        'Agri-Fishery Arts (AFA)',
+        'Maritime',
         'Aesthetic, Wellness, and Human Care',
         'Agri-Fishery Business and Food Innovation',
         'Artisanry and Creative Enterprise',
         'Automotive and Small Engine Technologies',
         'Construction and Building Technologies',
         'Creative Arts and Design Technologies',
-        'Industrial Technologies',
-        'Maritime'
+        'Hospitality and Tourism',
+        'ICT Support and Computer Programming Technologies',
+        'Industrial Technologies'
+    ],
+    TechPro: [
+        'Home Economics (HE)',
+        'Information and Communications Technology (ICT)',
+        'Industrial Arts (IA)',
+        'Agri-Fishery Arts (AFA)',
+        'Maritime',
+        'Aesthetic, Wellness, and Human Care',
+        'Agri-Fishery Business and Food Innovation',
+        'Artisanry and Creative Enterprise',
+        'Automotive and Small Engine Technologies',
+        'Construction and Building Technologies',
+        'Creative Arts and Design Technologies',
+        'Hospitality and Tourism',
+        'ICT Support and Computer Programming Technologies',
+        'Industrial Technologies'
     ],
     Sports: ['Sports Track'],
     'Arts and Design': ['Arts and Design Track'],
@@ -648,6 +672,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                     ) : (
                                         <>
                                             <option value="Academic" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Academic</option>
+                                            <option value="TechPro" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">TechPro</option>
                                             <option value="TVL" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">TVL</option>
                                             <option value="Sports" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Sports</option>
                                             <option value="Arts and Design" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Arts and Design</option>
