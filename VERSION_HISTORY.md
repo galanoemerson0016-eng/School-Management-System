@@ -1,5 +1,28 @@
 # Version History
 
+## v3.3.0 (2026-09-02)
+
+### 🚀 New Features & Enhancements
+
+- **Live Grade Sync Inspector & Root-Cause Debugger Tool**: Integrated a multi-module cross-system debugger comparing student grades across E-Class Record (ECR), Grade Management, SF9, Grade Slips, and SF10 with 1-click batch synchronization and sticky pinned headers.
+- **Client Diagnostic & Error Reporter**: Integrated an automatic diagnostic report generator and Firestore uploader enabling teachers to submit detailed technical logs and feedback directly to Developer Emerson with offline queueing support.
+- **License Portal Bug Reports & Diagnostic Hub**: Added a centralized Bug Reports center in the License Admin Portal with live open-ticket counter badges, multi-filtering, search, and full modal inspection tools.
+
+### ⚡ Improvements
+
+- **Strict E-Class Record (ECR) Source-of-Truth Hierarchy**: Established live computed ECR transmuted scores as the primary source of truth across Advisory Grade Management and all downstream DepEd school forms.
+- **Smart Record Deduplication & ID Alignment**: Enhanced `updateGradingSheetRecord` to automatically detect, replace, and purge obsolete duplicate records and IDs from IndexedDB.
+- **Dynamic Subject Name Fallback Resolution**: Improved cross-module subject matching ensuring Advisory Grade Management scores seamlessly propagate to SF9, Temporary Grade Slips, and SF10.
+
+### 🐞 Bug Fixes
+
+- **Temporary Grade Slip Subject Deduplication**: Fixed section isolation and deduplicated repeated learning areas in Temporary Grade Slips.
+- **Inspector Table Viewport Scrolling**: Fixed flexbox container height constraints and enabled smooth vertical/horizontal scrolling directly over matrix tables.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.2.0 (2026-08-31)
 
 ### 🚀 New Features & Enhancements

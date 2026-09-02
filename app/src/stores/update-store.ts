@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.2.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.3.0';
       const api = window.electronAPI;
 
       try {
@@ -402,10 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📢 Added Real-Time Global System Broadcasts & Client Announcement engine with Banner and Modal support.",
-              "📑 Integrated official 3-term DepEd SF9 multi-grade report cards (G1, G2, G3, G4-10, G11 TechPro & Academic).",
-              "📊 Added full Electronic Class Record (ECR) generators for EPP/TLE, MAPEH 9-sheet, and GMRC & Values Education.",
-              "🛡️ 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
+              "🔍 Added Live Grade Sync Inspector & Root-Cause Debugger tool with 5-module cross-system comparison and 1-click sync.",
+              "✉️ Integrated Client Diagnostic Reporter for automatic bug and error logging directly to Developer Emerson.",
+              "🛡️ Established strict E-Class Record (ECR) primary source-of-truth grade flow into Advisory Grade Management.",
+              "✨ Fixed subject deduplication in Temporary Grade Slips and optimized cross-module grade resolution.",
+              "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],
             timestamp: Date.now(),
             status: 'success',
