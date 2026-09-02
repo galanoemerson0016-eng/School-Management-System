@@ -7,41 +7,36 @@ import {
   CheckCircle2, 
   X, 
   ExternalLink, 
-  Bell, 
-  Radio,
   ArrowRight
 } from 'lucide-react';
 import { broadcastService, dismissBroadcast, type SystemBroadcast } from '../../services/broadcast-service';
 
 export function BroadcastBannerModal() {
   const [broadcasts, setBroadcasts] = useState<SystemBroadcast[]>([]);
-  const [activeModalIndex, setActiveModalIndex] = useState<number>(0);
-
-  const refreshBroadcasts = async () => {
-    if (!navigator.onLine) return;
-    const items = await broadcastService.fetchActiveBroadcasts();
-    setBroadcasts(items);
-  };
 
   useEffect(() => {
-    // Initial fetch
-    void refreshBroadcasts();
+    let unsubscribe: (() => void) | undefined;
 
-    // Subscribe to realtime changes if online
-    const unsubscribe = broadcastService.subscribeToBroadcasts((items) => {
-      setBroadcasts(items);
-    });
+    const initSubscription = () => {
+      if (unsubscribe) unsubscribe();
+      unsubscribe = broadcastService.subscribeToBroadcasts((items) => {
+        setBroadcasts(items);
+      });
+    };
 
-    // Re-fetch when device reconnects to internet
+    // Initial subscription
+    initSubscription();
+
+    // Re-subscribe when device reconnects to internet
     const handleOnline = () => {
       console.log('📡 Device online: checking for global broadcasts...');
-      void refreshBroadcasts();
+      initSubscription();
     };
 
     window.addEventListener('online', handleOnline);
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
       window.removeEventListener('online', handleOnline);
     };
   }, []);
@@ -56,14 +51,14 @@ export function BroadcastBannerModal() {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
-      window.location.href = url;
+      window.location.assign(url);
     }
   };
 
   // Separate banners and modals
   const bannerBroadcasts = broadcasts.filter(b => b.display_type === 'banner');
   const modalBroadcasts = broadcasts.filter(b => b.display_type === 'modal');
-  const currentModal = modalBroadcasts[activeModalIndex] || null;
+  const currentModal = modalBroadcasts[0] || null;
 
   return (
     <>
@@ -71,7 +66,6 @@ export function BroadcastBannerModal() {
       <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none flex flex-col items-center gap-2 p-3">
         <AnimatePresence>
           {bannerBroadcasts.map((banner) => {
-            const isInfo = banner.severity === 'info';
             const isWarning = banner.severity === 'warning';
             const isUrgent = banner.severity === 'urgent';
             const isSuccess = banner.severity === 'success';

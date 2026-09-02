@@ -8,7 +8,7 @@ import SF10SpecRenderer from '../components/SF10SpecRenderer';
 import SF10JHSRenderer from '../components/SF10JHSRenderer';
 import { mapStudentToSpecData } from '../utils/sf10Mapper';
 import { mapStudentToShsSf10Data } from '../utils/shsSf10Mapper';
-import { ArrowLeft, Printer, FileText, Plus, Minus, History, ChevronDown, Clock3 } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Plus, Minus, History, ChevronDown, Clock3, Bug } from 'lucide-react';
 import { canAccessSF9Section, filterSF9Sections } from '../lib/rbac';
 import { SF10HistoricalDataModal } from '../components/SF10HistoricalDataModal';
 
@@ -323,6 +323,22 @@ export function SF10Page() {
                                 Reset
                             </button>
                             
+                            <button
+                                onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                        detail: {
+                                            sectionId: selectedSectionObj?.id || selectedSectionState,
+                                            studentLrn: selectedStudent?.lrn
+                                        }
+                                    }));
+                                }}
+                                className="h-9 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[8.5px] font-black uppercase tracking-wider cursor-pointer"
+                                title="Inspect & Debug Grade Sync"
+                            >
+                                <Bug className="w-3 h-3" />
+                                <span className="hidden sm:inline">Inspect Sync</span>
+                            </button>
+
                             <div className="h-6 w-px bg-slate-200 dark:bg-white/10 shrink-0" />
                             
                             <button

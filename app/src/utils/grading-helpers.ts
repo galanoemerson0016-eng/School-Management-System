@@ -132,7 +132,16 @@ export function resolveStudentQuarterGrade(
     const recWithName = allRecords.find(r =>
         (r.subject_id === subjectIdOrName || isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name)) && r.subject_name
     );
-    const resolvedSubjectName = recWithName?.subject_name || '';
+    let resolvedSubjectName = recWithName?.subject_name || '';
+    if (!resolvedSubjectName) {
+        try {
+            const allDbSubjects = useAppStore.getState().subjects || [];
+            const dbSub = allDbSubjects.find(s => s.id === subjectIdOrName || isMatchingSubject(subjectIdOrName, s.id, s.subject_name));
+            if (dbSub) resolvedSubjectName = dbSub.subject_name;
+        } catch {
+            // safe fallback
+        }
+    }
 
     const isSubjectMatch = (rSubId: string, rSubName?: string) => {
         return isMatchingSubject(subjectIdOrName, rSubId, rSubName, resolvedSubjectName);

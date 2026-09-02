@@ -14,6 +14,7 @@ import { ReconciliationReportModal } from './components/updates/ReconciliationRe
 import { ProfileDiffModal } from './components/ProfileDiffModal';
 import { GoogleDriveOnboardingModal } from './components/modals/GoogleDriveOnboardingModal';
 import { ClosingSyncOverlay } from './components/modals/ClosingSyncOverlay';
+import { GradeSyncInspectorModal } from './components/modals/GradeSyncInspectorModal';
 import { useUpdateStore } from './stores/update-store';
 import { BroadcastBannerModal } from './components/broadcasts/BroadcastBannerModal';
 import { pushAttendanceSessionToBackend, subscribeToAttendanceUpdates } from './services/mobile-attendance-sync';
@@ -654,6 +655,7 @@ function App() {
       {/* Global Update Modals */}
       <UpdateCenterModal />
       <ReconciliationReportModal />
+      <GradeSyncInspectorModal />
 
       {/* Google Drive Automated Cloud Backup Modals */}
       <GoogleDriveOnboardingModal

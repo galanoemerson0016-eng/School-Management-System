@@ -216,8 +216,12 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
     expect(sheet7Xml).toContain('DELA CRUZ');
     expect(sheet7Xml).toContain('CLARA, MARIA');
-    expect(sheet7Xml).toContain('r="F14"'); // Male 1 attendance
-    expect(sheet7Xml).toContain('r="F65"'); // Female 1 attendance
+    expect(sheet7Xml).toContain('r="F13"'); // June school days row 13
+    expect(sheet7Xml).toContain('r="P13"'); // April school days row 13
+    expect(sheet7Xml).toContain('r="F14"'); // Male 1 June attendance
+    expect(sheet7Xml).toContain('r="P14"'); // Male 1 April attendance
+    expect(sheet7Xml).toContain('r="F65"'); // Female 1 June attendance
+    expect(sheet7Xml).toContain('r="P65"'); // Female 1 April attendance
 
     // Sheet 8: SF9 - GRADE 11 ACADEMIC
     const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
@@ -234,16 +238,21 @@ describe('SF9 Grade 11 Academic Excel Export Service', () => {
     expect(sheet8Xml).toMatch(/<c\s+r="A12"[^>]*\/>/); // A12 is empty
     expect(sheet8Xml).toMatch(/<c\s+r="A15"[^>]*\/>/); // A15 is empty
     expect(sheet8Xml).toContain('r="E19"'); // Track in E19
+
+    // Attendance dynamic lookup formulas in Sheet 8
+    expect(sheet8Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
+    expect(sheet8Xml).toContain('IF(OR(R5="",R7=""),"",IF(R5&gt;=R7,R5-R7,0))');
     expect(sheet8Xml).toContain('SUM(R5:AB5)'); // 1D attendance sum for Class Days
     expect(sheet8Xml).toContain('SUM(R7:AB7)'); // 1D attendance sum for Days Present
+    expect(sheet8Xml).toContain('SUM(R9:AB9)'); // 1D attendance sum for Days Absent
 
     // Final Grades & Remarks formulas
     expect(sheet8Xml).toContain('ROUND(AVERAGE(F34:F35),0)'); // Combined Communication formula in Row 33
     expect(sheet8Xml).toContain('ROUND(AVERAGE(F34:H34),0)'); // Core Final Grade formula
     expect(sheet8Xml).toContain('IF(F41="","",F41)'); // Elective 1 Final Grade formula
     expect(sheet8Xml).toContain('ROUND(AVERAGE(I33,I36:I39,I41:I43),0)'); // General Average Final Grade formula
-    expect(sheet8Xml).toContain('IF(I34>=75,"Passed","Failed")'); // Core Subject Remarks formula
-    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41:I43)>=85'); // Academic Excellence no grade below 85 check
+    expect(sheet8Xml).toContain('IF(I34&gt;=75,"Passed","Failed")'); // Core Subject Remarks formula
+    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41:I43)&gt;=85'); // Academic Excellence no grade below 85 check
     expect(sheet8Xml).toContain('Promoted with Academic Excellence Award'); // General Average Academic Excellence Remarks formula
     expect(sheet8Xml).toContain('>Promoted with Academic Excellence Award<'); // General Average cached remarks
     expect(sheet8Xml).toContain('>Passed<'); // Core Subject cached remarks

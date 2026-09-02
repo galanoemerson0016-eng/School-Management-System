@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
-import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload } from 'lucide-react';
+import { Bell, X, Database, HelpCircle, Cloud, CloudUpload, Loader2, ChevronDown, HardDriveDownload, Bug } from 'lucide-react';
 import { UpdateStatus } from '../ui/UpdateStatus';
 import { CloudSyncService } from '../../services/cloud-sync';
 import { createComprehensiveBackup, validateBackup } from '../../utils/backup-restore';
@@ -367,6 +367,17 @@ export function Header() {
                             </>
                         )}
                     </div>
+
+                    {/* Grade Sync Debugger / Inspector Button */}
+                    <button
+                        onClick={() => {
+                            window.dispatchEvent(new CustomEvent('formease-open-grade-debugger'));
+                        }}
+                        className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-amber-50 dark:hover:bg-amber-500/10 text-slate-500 hover:text-amber-600 dark:text-slate-300 dark:hover:text-amber-400 transition-colors"
+                        title="Grade Sync Inspector & Live Diagnostics"
+                    >
+                        <Bug className="w-4 h-4" />
+                    </button>
 
                     {/* Help / Replay Onboarding Button */}
                     <button

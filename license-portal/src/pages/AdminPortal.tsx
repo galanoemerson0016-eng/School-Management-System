@@ -2,7 +2,8 @@ import {
   Key, Shield, Plus, List, Trash2, Copy, Check, Search, Filter, Cpu, User, Calendar, 
   Download, DownloadCloud, FileText, BarChart3, Activity, Clock, RotateCcw, Settings, Type,
   LogOut, Lock, Mail, AlertCircle, ShoppingCart, UserCheck, XCircle, Monitor, Apple, RefreshCcw, Smartphone, Wrench, Loader2,
-  ChevronRight, ExternalLink, Image as ImageIcon, X, Megaphone, Bell, Radio, Send, Globe, Sparkles, CheckCircle2, AlertTriangle, Info
+  ChevronRight, ExternalLink, Image as ImageIcon, X, Megaphone, Bell, Radio, Send, Globe, Sparkles, CheckCircle2, AlertTriangle, Info,
+  Bug, MessageSquare, Building, RefreshCw, CheckCheck
 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,14 +41,55 @@ export interface BroadcastNotice {
   product?: string;
 }
 
+export interface DiagnosticReportItem {
+  id: string;
+  ticket_id: string;
+  created_at: string;
+  timestamp: number;
+  app_version: string;
+  machine_id: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  category: string;
+  user_note?: string;
+  section_name?: string;
+  grade_level?: string;
+  student_lrn?: string;
+  student_name?: string;
+  total_mismatches: number;
+  sync_rate: number;
+  active_school_year?: string;
+  school?: {
+    id?: string;
+    name?: string;
+    division?: string;
+    region?: string;
+  };
+  submitted_by?: {
+    name?: string;
+    email?: string;
+    role?: string;
+  };
+  client_info?: {
+    userAgent?: string;
+    platform?: string;
+    screen?: string;
+  };
+  report_markdown: string;
+  technical_details?: Record<string, unknown>;
+}
+
 export default function AdminPortal({ user }: { user: FirebaseUser }) {
   const [licenses, setLicenses] = useState<License[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [trials, setTrials] = useState<any[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastNotice[]>([]);
+  const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReportItem[]>([]);
+  const [selectedReport, setSelectedReport] = useState<DiagnosticReportItem | null>(null);
+  const [reportStatusFilter, setReportStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
+  const [reportSearchTerm, setReportSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeProduct, setActiveProduct] = useState<'formease-pro' | 'anecdotal-record' | 'id-generator'>('formease-pro');
-  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement' | 'broadcasts'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'manage' | 'requests' | 'trials' | 'system' | 'advertisement' | 'broadcasts' | 'diagnostics'>('generate');
   const [manageSubTab, setManageSubTab] = useState<'all' | 'windows' | 'mac'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<'pending' | 'approved' | 'declined' | 'all'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
@@ -132,11 +174,13 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       const trialData = await licenseService.getAllTrials();
       const downloadData = await licenseService.getDownloadsInfo();
       const broadcastData = await licenseService.getAllBroadcasts();
+      const reportData = await licenseService.getAllDiagnosticReports();
       
       setLicenses(Array.isArray(licenseData) ? (licenseData as License[]) : []);
       setRequests(Array.isArray(requestData) ? requestData : []);
       setTrials(Array.isArray(trialData) ? trialData : []);
       setBroadcasts(Array.isArray(broadcastData) ? (broadcastData as BroadcastNotice[]) : []);
+      setDiagnosticReports(Array.isArray(reportData) ? (reportData as DiagnosticReportItem[]) : []);
 
       if (downloadData) {
         setDownloadWinUrl(downloadData.win_url || '');
@@ -148,6 +192,33 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       console.error("Load failed:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateReportStatus = async (ticketId: string, newStatus: 'open' | 'in_progress' | 'resolved') => {
+    try {
+      await licenseService.updateDiagnosticReportStatus(ticketId, newStatus);
+      setDiagnosticReports(prev => prev.map(r => (r.ticket_id === ticketId || r.id === ticketId) ? { ...r, status: newStatus } : r));
+      if (selectedReport && (selectedReport.ticket_id === ticketId || selectedReport.id === ticketId)) {
+        setSelectedReport(prev => prev ? { ...prev, status: newStatus } : null);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update report status');
+    }
+  };
+
+  const handleDeleteReport = async (ticketId: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete report #${ticketId}?`)) return;
+    try {
+      await licenseService.deleteDiagnosticReport(ticketId);
+      setDiagnosticReports(prev => prev.filter(r => r.ticket_id !== ticketId && r.id !== ticketId));
+      if (selectedReport && (selectedReport.ticket_id === ticketId || selectedReport.id === ticketId)) {
+        setSelectedReport(null);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete report');
     }
   };
 
@@ -431,6 +502,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
     const safeLicenses = Array.isArray(licenses) ? licenses : [];
     const safeRequests = Array.isArray(requests) ? requests : [];
     const safeTrials = Array.isArray(trials) ? trials : [];
+    const safeReports = Array.isArray(diagnosticReports) ? diagnosticReports : [];
     return {
       total: safeLicenses.length,
       activated: safeLicenses.filter((l: License) => l.status === 'activated').length,
@@ -439,15 +511,38 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
       mac: safeLicenses.filter((l: License) => l.platform === 'mac').length,
       requests: safeRequests.filter(r => r.status === 'pending').length,
       all_requests: safeRequests.length,
-      trials: safeTrials.length
+      trials: safeTrials.length,
+      open_reports: safeReports.filter(r => r.status === 'open').length,
+      total_reports: safeReports.length
     };
-  }, [licenses, requests, trials]);
+  }, [licenses, requests, trials, diagnosticReports]);
+
+  const filteredDiagnosticReports = useMemo(() => {
+    if (!Array.isArray(diagnosticReports)) return [];
+    const q = (reportSearchTerm || '').toLowerCase().trim();
+
+    return diagnosticReports.filter((r) => {
+      const matchesSearch = !q ||
+        r.ticket_id?.toLowerCase().includes(q) ||
+        r.school?.name?.toLowerCase().includes(q) ||
+        r.school?.id?.toLowerCase().includes(q) ||
+        r.submitted_by?.name?.toLowerCase().includes(q) ||
+        r.submitted_by?.email?.toLowerCase().includes(q) ||
+        r.section_name?.toLowerCase().includes(q) ||
+        r.student_name?.toLowerCase().includes(q) ||
+        r.student_lrn?.includes(q) ||
+        r.user_note?.toLowerCase().includes(q);
+
+      const matchesStatus = reportStatusFilter === 'all' || r.status === reportStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [diagnosticReports, reportSearchTerm, reportStatusFilter]);
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-[#0A192F] text-slate-200">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-600/20 rounded-full blur-[150px] animate-pulse" />
-        <div className="absolute bottom-[-15%] left-[-10%] w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-[-20%] right-[-10%] w-200 h-200 bg-blue-600/20 rounded-full blur-[150px] animate-pulse" />
+        <div className="absolute bottom-[-15%] left-[-10%] w-150 h-150 bg-indigo-600/15 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
       <nav className="relative z-50 w-full p-6 flex items-center justify-between border-b border-white/10 backdrop-blur-xl bg-white/3">
@@ -500,6 +595,15 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
               </span>
             )}
           </button>
+          <button onClick={() => setActiveTab('diagnostics')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeTab === 'diagnostics' ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400'}`}>
+            <Bug className="w-3.5 h-3.5" />
+            <span>Bug Reports</span>
+            {stats.open_reports > 0 && (
+              <span className="px-1.5 py-0.5 bg-red-500 text-white rounded-full text-[8px] font-black animate-pulse">
+                {stats.open_reports}
+              </span>
+            )}
+          </button>
           <button onClick={() => setActiveTab('advertisement')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'advertisement' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400'}`}>Advertisement</button>
           <button onClick={() => setActiveTab('system')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'system' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400'}`}>System</button>
           <div className="w-px h-6 bg-white/10 mx-2" />
@@ -509,7 +613,286 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
 
       <main className="relative z-10 flex-1 p-8 max-w-7xl mx-auto w-full">
         <AnimatePresence mode="wait">
-          {activeTab === 'broadcasts' ? (
+          {activeTab === 'diagnostics' ? (
+            <motion.div key="diagnostics" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+              {/* Header & Refresh */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-600/20 text-amber-400 rounded-2xl border border-amber-500/30">
+                      <Bug className="w-6 h-6" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white">Client Bug Reports & Diagnostics</h2>
+                  </div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
+                    Live diagnostic logs, grade synchronization discrepancies, and user notes submitted directly from FormEase Pro desktop apps.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={loadData}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-xs font-black text-slate-300 flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+                    <span>Refresh Reports</span>
+                  </button>
+                  <span className="px-3.5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-xs font-black text-amber-400 flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5" />
+                    {stats.open_reports} Open Issue{stats.open_reports === 1 ? '' : 's'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-6 rounded-3xl bg-white/3 border border-white/5 backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Submissions</span>
+                    <FileText className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <p className="text-3xl font-black text-white">{stats.total_reports}</p>
+                  <p className="text-xs text-slate-500 font-bold mt-1">All-time received</p>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white/3 border border-white/5 backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Open Tickets</span>
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                  </div>
+                  <p className="text-3xl font-black text-red-400">{stats.open_reports}</p>
+                  <p className="text-xs text-red-400/70 font-bold mt-1">Requires inspection</p>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white/3 border border-white/5 backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">In Progress</span>
+                    <Clock className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <p className="text-3xl font-black text-amber-400">
+                    {diagnosticReports.filter(r => r.status === 'in_progress').length}
+                  </p>
+                  <p className="text-xs text-amber-400/70 font-bold mt-1">Being reviewed</p>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white/3 border border-white/5 backdrop-blur-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Resolved</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <p className="text-3xl font-black text-emerald-400">
+                    {diagnosticReports.filter(r => r.status === 'resolved').length}
+                  </p>
+                  <p className="text-xs text-emerald-400/70 font-bold mt-1">Fixed & closed</p>
+                </div>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="p-4 bg-white/3 border border-white/10 rounded-3xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  {(['all', 'open', 'in_progress', 'resolved'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setReportStatusFilter(st)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        reportStatusFilter === st
+                          ? st === 'open'
+                            ? 'bg-red-600 text-white shadow-lg'
+                            : st === 'in_progress'
+                            ? 'bg-amber-600 text-white shadow-lg'
+                            : st === 'resolved'
+                            ? 'bg-emerald-600 text-white shadow-lg'
+                            : 'bg-blue-600 text-white shadow-lg'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {st.replace('_', ' ')} (
+                        {st === 'all'
+                          ? diagnosticReports.length
+                          : diagnosticReports.filter(r => r.status === st).length}
+                      )
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative min-w-65 sm:min-w-80">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={reportSearchTerm}
+                    onChange={(e) => setReportSearchTerm(e.target.value)}
+                    placeholder="Search by School, Teacher, LRN, Ticket..."
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-10 pr-4 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 transition-all placeholder:text-slate-600"
+                  />
+                </div>
+              </div>
+
+              {/* Reports List */}
+              <div className="space-y-4">
+                {filteredDiagnosticReports.length > 0 ? (
+                  filteredDiagnosticReports.map((report) => (
+                    <div
+                      key={report.id || report.ticket_id}
+                      className="p-6 bg-white/3 border border-white/5 hover:border-white/15 rounded-3xl backdrop-blur-xl transition-all space-y-4 hover:shadow-2xl"
+                    >
+                      {/* Top Row: Ticket ID, Date, Status */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-black text-xs">
+                            #{report.ticket_id}
+                          </span>
+                          <span className="text-xs text-slate-400 font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            {report.created_at ? new Date(report.created_at).toLocaleString() : 'N/A'}
+                          </span>
+                          <span className="text-xs text-slate-500 font-bold">
+                            App v{report.app_version || '3.2.0'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={report.status}
+                            onChange={(e) => handleUpdateReportStatus(report.ticket_id, e.target.value as any)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border outline-none cursor-pointer transition-all ${
+                              report.status === 'open'
+                                ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                                : report.status === 'in_progress'
+                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            }`}
+                          >
+                            <option value="open" className="bg-[#0A192F] text-red-400">🔴 Open</option>
+                            <option value="in_progress" className="bg-[#0A192F] text-amber-400">🟡 In Progress</option>
+                            <option value="resolved" className="bg-[#0A192F] text-emerald-400">🟢 Resolved</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Main Grid: School & Submitter Info */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        {/* School Info */}
+                        <div className="p-3.5 rounded-2xl bg-white/2 border border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Building className="w-3.5 h-3.5 text-blue-400" />
+                            School Information
+                          </span>
+                          <p className="font-bold text-white text-sm truncate">
+                            {report.school?.name || 'Unknown School'}
+                          </p>
+                          <p className="text-slate-400 text-[11px]">
+                            ID: {report.school?.id || 'N/A'} • {report.school?.division || 'Division'}
+                          </p>
+                        </div>
+
+                        {/* Submitter Info */}
+                        <div className="p-3.5 rounded-2xl bg-white/2 border border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-indigo-400" />
+                            Submitted By
+                          </span>
+                          <p className="font-bold text-white text-sm truncate">
+                            {report.submitted_by?.name || 'Anonymous User'}
+                          </p>
+                          <p className="text-slate-400 text-[11px] truncate">
+                            {report.submitted_by?.email || 'N/A'} ({report.submitted_by?.role || 'teacher'})
+                          </p>
+                        </div>
+
+                        {/* Section & Student Context */}
+                        <div className="p-3.5 rounded-2xl bg-white/2 border border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-purple-400" />
+                            Context & Discrepancies
+                          </span>
+                          <p className="font-bold text-white text-sm truncate">
+                            {report.section_name || 'All Sections'} ({report.grade_level || 'Grade Level'})
+                          </p>
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <span className="text-red-400 font-bold">
+                              {report.total_mismatches} Mismatch(es)
+                            </span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-400">
+                              SY {report.active_school_year || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* User Note */}
+                      {report.user_note && (
+                        <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex items-start gap-2.5">
+                          <MessageSquare className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                              Client Note / Description
+                            </p>
+                            <p className="text-xs text-slate-200 leading-relaxed italic">
+                              "{report.user_note}"
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Actions Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedReport(report)}
+                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Inspect Full Diagnostic Log</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(report.report_markdown);
+                              handleCopy(report.report_markdown, report.ticket_id);
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            {copiedId === report.ticket_id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedId === report.ticket_id ? 'Copied!' : 'Copy Markdown'}</span>
+                          </button>
+
+                          {report.submitted_by?.email && report.submitted_by.email !== 'N/A' && (
+                            <a
+                              href={`mailto:${report.submitted_by.email}?subject=${encodeURIComponent(`[FormEase Pro Support] Re: Issue Report #${report.ticket_id}`)}`}
+                              className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Email Teacher</span>
+                            </a>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => handleDeleteReport(report.ticket_id)}
+                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer"
+                          title="Delete Report"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center bg-white/2 border-2 border-dashed border-white/5 rounded-3xl space-y-2">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-60" />
+                    <p className="text-slate-400 font-black uppercase tracking-widest text-sm">
+                      No Bug Reports Found
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      All clients are operating smoothly with 0 reported grade synchronization discrepancies.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ) : activeTab === 'broadcasts' ? (
             <motion.div key="broadcasts" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1">
@@ -744,7 +1127,7 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                               <div className="flex items-center gap-2 text-[11px] font-bold text-cyan-400">
                                 <span>Button:</span>
                                 <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">{b.action_label}</span>
-                                {b.action_url && <span className="text-slate-500 truncate max-w-[200px]">({b.action_url})</span>}
+                                {b.action_url && <span className="text-slate-500 truncate max-w-50">({b.action_url})</span>}
                               </div>
                             )}
 
@@ -783,8 +1166,8 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
                                      {t.platform === 'mac' ? <Apple className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
                                   </div>
                                   <div>
-                                     <h4 className="font-black text-white text-sm truncate max-w-[150px]">{t.platform === 'mac' ? 'macOS Device' : 'Windows Device'}</h4>
-                                     <p className="text-[10px] text-slate-500 font-mono select-all uppercase tracking-wide truncate max-w-[150px]">{t.machine_id}</p>
+                                     <h4 className="font-black text-white text-sm truncate max-w-37.5">{t.platform === 'mac' ? 'macOS Device' : 'Windows Device'}</h4>
+                                     <p className="text-[10px] text-slate-500 font-mono select-all uppercase tracking-wide truncate max-w-37.5">{t.machine_id}</p>
                                   </div>
                                 </div>
                                {(() => {
@@ -978,11 +1361,11 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
              </motion.div>
           ) : activeTab === 'advertisement' ? (
               <motion.div key="advertisement" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full flex items-center justify-center pt-2 pb-10 px-4">
-                <div className="relative w-full max-w-[1200px] p-[2px] rounded-[3rem] bg-linear-to-br from-blue-500/80 via-indigo-500/80 to-purple-600/80 shadow-[0_0_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col">
+                <div className="relative w-full max-w-300 p-0.5 rounded-[3rem] bg-linear-to-br from-blue-500/80 via-indigo-500/80 to-purple-600/80 shadow-[0_0_100px_-20px_rgba(79,70,229,0.3)] overflow-hidden flex flex-col">
                   <div className="absolute inset-0 bg-linear-to-br from-blue-500/30 via-indigo-500/30 to-purple-600/30 blur-3xl opacity-60 pointer-events-none" />
                   <div className="relative bg-[#040814] rounded-[3rem] px-8 py-10 lg:py-12 w-full h-full flex flex-col justify-center text-center overflow-hidden">
-                      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
-                      <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
+                      <div className="absolute top-[-20%] right-[-10%] w-150 h-150 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
+                      <div className="absolute bottom-[-20%] left-[-10%] w-150 h-150 bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
                       
                       <div className="relative z-10 flex flex-col items-center justify-center">
                           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/30 mb-5 shadow-[0_0_20px_rgba(34,197,94,0.1)]">
@@ -1207,6 +1590,198 @@ export default function AdminPortal({ user }: { user: FirebaseUser }) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Full Diagnostic Report Inspector Modal */}
+      <AnimatePresence>
+        {selectedReport && (
+          <div
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 sm:p-6 backdrop-blur-xl bg-black/80 overflow-y-auto"
+            onClick={() => setSelectedReport(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative max-w-4xl w-full bg-[#0A192F] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl space-y-6 my-8 max-h-[90vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                    <Bug className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-black text-amber-400">
+                        #{selectedReport.ticket_id}
+                      </span>
+                      <span className="text-xs text-slate-500">•</span>
+                      <span className="text-xs text-slate-400 font-bold">
+                        {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-white mt-0.5">
+                      Client Diagnostic & Error Inspector
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={selectedReport.status}
+                    onChange={(e) => handleUpdateReportStatus(selectedReport.ticket_id, e.target.value as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border outline-none cursor-pointer ${
+                      selectedReport.status === 'open'
+                        ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                        : selectedReport.status === 'in_progress'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    }`}
+                  >
+                    <option value="open" className="bg-[#0A192F] text-red-400">🔴 Open</option>
+                    <option value="in_progress" className="bg-[#0A192F] text-amber-400">🟡 In Progress</option>
+                    <option value="resolved" className="bg-[#0A192F] text-emerald-400">🟢 Resolved</option>
+                  </select>
+
+                  <button
+                    onClick={() => setSelectedReport(null)}
+                    className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body: Scrollable */}
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+                
+                {/* School & Submitter Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-blue-400" />
+                      School Profile
+                    </span>
+                    <p className="font-bold text-white text-sm">
+                      {selectedReport.school?.name || 'Unknown School'}
+                    </p>
+                    <p className="text-slate-400">
+                      School ID: <strong className="text-white">{selectedReport.school?.id || 'N/A'}</strong>
+                    </p>
+                    <p className="text-slate-400">
+                      Division: {selectedReport.school?.division || 'N/A'} • Region: {selectedReport.school?.region || 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-indigo-400" />
+                      Submitter & Device
+                    </span>
+                    <p className="font-bold text-white text-sm">
+                      {selectedReport.submitted_by?.name || 'Anonymous'} ({selectedReport.submitted_by?.role || 'teacher'})
+                    </p>
+                    <p className="text-slate-400 truncate">
+                      Email: <strong className="text-white">{selectedReport.submitted_by?.email || 'N/A'}</strong>
+                    </p>
+                    <p className="text-slate-400 text-[11px] font-mono">
+                      Machine: {selectedReport.machine_id ? selectedReport.machine_id.substring(0, 16) + '...' : 'N/A'} • App v{selectedReport.app_version || '3.2.0'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Teacher's Note */}
+                {selectedReport.user_note && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1">
+                    <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-wider">
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Teacher's Note</span>
+                    </div>
+                    <p className="text-sm text-slate-200 italic leading-relaxed pt-1">
+                      "{selectedReport.user_note}"
+                    </p>
+                  </div>
+                )}
+
+                {/* Markdown Diagnostic Report Output */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      Full Raw Diagnostic Log Payload
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedReport.report_markdown);
+                        handleCopy(selectedReport.report_markdown, selectedReport.ticket_id);
+                      }}
+                      className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 flex items-center gap-1.5 transition-all"
+                    >
+                      {copiedId === selectedReport.ticket_id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === selectedReport.ticket_id ? 'Copied!' : 'Copy Full Log'}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-black/40 border border-white/5 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto custom-scrollbar">
+                    {selectedReport.report_markdown}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="border-t border-white/10 pt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {selectedReport.status === 'open' && (
+                    <button
+                      onClick={() => handleUpdateReportStatus(selectedReport.ticket_id, 'in_progress')}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all shadow-md shadow-amber-600/20 active:scale-95"
+                    >
+                      Mark In Progress
+                    </button>
+                  )}
+                  {selectedReport.status !== 'resolved' && (
+                    <button
+                      onClick={() => handleUpdateReportStatus(selectedReport.ticket_id, 'resolved')}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-95"
+                    >
+                      Mark as Resolved
+                    </button>
+                  )}
+                  {selectedReport.status === 'resolved' && (
+                    <button
+                      onClick={() => handleUpdateReportStatus(selectedReport.ticket_id, 'open')}
+                      className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-black text-xs rounded-xl transition-all"
+                    >
+                      Re-open Ticket
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {selectedReport.submitted_by?.email && selectedReport.submitted_by.email !== 'N/A' && (
+                    <a
+                      href={`mailto:${selectedReport.submitted_by.email}?subject=${encodeURIComponent(`[FormEase Pro Support] Ticket #${selectedReport.ticket_id} Resolved`)}`}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Reply via Email</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setSelectedReport(null)}
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs rounded-xl transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+

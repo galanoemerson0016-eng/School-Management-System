@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, Fragment, useEffect, useCallback, memo, useRef } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
-import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download } from 'lucide-react';
+import { Printer, ArrowLeft, ChevronDown, RefreshCcw, Trash2, FileSpreadsheet, Upload, Plus, Minus, Download, Bug } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
@@ -1446,12 +1446,12 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) musicArtsResults.push(val);
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) peHealthResults.push(val);
                         });
 
@@ -1514,12 +1514,12 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) ecResults.push(val);
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, [], gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
                             if (val > 0) mkResults.push(val);
                         });
 
@@ -1575,7 +1575,7 @@ const groupedSections = useMemo(() => {
                             subject.id,
                             q,
                             activeSchoolYear,
-                            [],
+                            classRecords,
                             gradingSheetRecords,
                             hpsRecords,
                             sectionObj?.section_grade_level,
@@ -2662,6 +2662,23 @@ const groupedSections = useMemo(() => {
                             </button>
                         </>
                     )}
+
+                    {/* Grade Sync Inspector Button */}
+                    <button
+                        onClick={() => {
+                            window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                detail: {
+                                    sectionId: sectionObj?.id || selectedSection,
+                                    quarter: selectedTerm !== 'all' ? parseInt(selectedTerm.replace('q', '')) : 1
+                                }
+                            }));
+                        }}
+                        className="flex items-center gap-1 h-8 px-2.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 whitespace-nowrap shrink-0 cursor-pointer"
+                        title="Open Grade Sync Inspector & Live Diagnostics"
+                    >
+                        <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span className="hidden sm:inline">Inspect Sync</span>
+                    </button>
 
                     {selectedSection && (
                         <>

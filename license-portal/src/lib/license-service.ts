@@ -399,5 +399,52 @@ export const licenseService = {
 
   async deleteBroadcast(id: string) {
     await deleteDoc(doc(db, 'system_broadcasts', id));
+  },
+
+  // --- CLIENT BUG & DIAGNOSTIC REPORTS ---
+  async getAllDiagnosticReports() {
+    try {
+      const q = query(collection(db, 'diagnostic_reports'), orderBy('timestamp', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ticket_id: data.ticket_id || docSnap.id,
+          created_at: data.created_at || '',
+          timestamp: data.timestamp || 0,
+          app_version: data.app_version || '3.2.0',
+          machine_id: data.machine_id || '',
+          status: data.status || 'open',
+          category: data.category || 'grade_sync',
+          user_note: data.user_note || '',
+          section_name: data.section_name || '',
+          grade_level: data.grade_level || '',
+          student_lrn: data.student_lrn || '',
+          student_name: data.student_name || '',
+          total_mismatches: data.total_mismatches ?? 0,
+          sync_rate: data.sync_rate ?? 100,
+          active_school_year: data.active_school_year || '',
+          school: data.school || {},
+          submitted_by: data.submitted_by || {},
+          client_info: data.client_info || {},
+          report_markdown: data.report_markdown || '',
+          technical_details: data.technical_details || {}
+        };
+      });
+    } catch (e) {
+      console.error("Failed to get diagnostic reports:", e);
+      return [];
+    }
+  },
+
+  async updateDiagnosticReportStatus(ticketId: string, status: 'open' | 'in_progress' | 'resolved') {
+    const docRef = doc(db, 'diagnostic_reports', ticketId);
+    await setDoc(docRef, { status }, { merge: true });
+  },
+
+  async deleteDiagnosticReport(ticketId: string) {
+    await deleteDoc(doc(db, 'diagnostic_reports', ticketId));
   }
 };
+

@@ -80,6 +80,32 @@ export function isMapehSubject(subjectName: string): boolean {
   );
 }
 
+export function isMusicArtsSubject(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('musicandart') ||
+    norm.includes('musicart') ||
+    norm === 'music' ||
+    norm === 'art' ||
+    norm === 'arts' ||
+    (norm.includes('music') && norm.includes('art'))
+  );
+}
+
+export function isPeHealthSubject(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('physicaleducationandhealth') ||
+    norm.includes('peandhealth') ||
+    norm.includes('pehealth') ||
+    norm.includes('physicaleducation') ||
+    norm === 'pe' ||
+    norm === 'health' ||
+    (norm.includes('pe') && norm.includes('health')) ||
+    (norm.includes('physical') && norm.includes('health'))
+  );
+}
+
 export function isEppTleSubject(subjectName: string): boolean {
   const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
   return (
@@ -315,7 +341,7 @@ export function normalizeSubjectForECR(
  */
 function populateTermGradingXml(
   sheetXml: string,
-  targetSubjectId: string,
+  targetSubject: Subject | string | Set<string>,
   term: 1 | 2 | 3,
   schoolYear: string,
   section: Section,
@@ -323,7 +349,8 @@ function populateTermGradingXml(
   femaleStudents: Student[],
   classRecords: ClassRecord[],
   hpsRecords: HPSRecord[],
-  templateType: ECRTemplateType = 'academic'
+  templateType: ECRTemplateType = 'academic',
+  candidateSubjectIds?: Set<string>
 ): string {
   const isGmrc = templateType === 'gmrc_ve';
   const wwCount = isGmrc ? 10 : WW_COUNT;
@@ -332,18 +359,77 @@ function populateTermGradingXml(
   const maleStartRow = isGmrc ? 19 : 18;
   const femaleStartRow = isGmrc ? 70 : 69;
 
+  const targetIds = new Set<string>();
+  if (typeof targetSubject === 'string') {
+    targetIds.add(targetSubject);
+  } else if (targetSubject instanceof Set) {
+    targetSubject.forEach(id => targetIds.add(id));
+  } else if (targetSubject && typeof targetSubject === 'object') {
+    if (targetSubject.id) targetIds.add(targetSubject.id);
+    if (targetSubject.subject_name) targetIds.add(targetSubject.subject_name);
+  }
+  if (candidateSubjectIds) {
+    candidateSubjectIds.forEach(id => targetIds.add(id));
+  }
+
+  const isTargetSubject = (subjId?: string, subjName?: string) => {
+    if (!subjId && !subjName) return false;
+    if (subjId && targetIds.has(subjId)) return true;
+    if (subjName && targetIds.has(subjName)) return true;
+    
+    // Case-insensitive / normalized match against all candidate IDs and names
+    const normSubjId = String(subjId || '').trim().toLowerCase();
+    const normSubjName = String(subjName || '').trim().toLowerCase();
+    for (const tid of targetIds) {
+      const normTid = tid.trim().toLowerCase();
+      if (normSubjId === normTid || normSubjName === normTid) return true;
+    }
+    return false;
+  };
+
+  const isSyMatch = (sy?: string) => {
+    if (!sy || !schoolYear) return true;
+    const cleanR = String(sy).trim().replace(/\s+/g, '');
+    const cleanTarget = String(schoolYear).trim().replace(/\s+/g, '');
+    return cleanR === cleanTarget || cleanR.includes(cleanTarget) || cleanTarget.includes(cleanR);
+  };
+
+  const isTermMatch = (q?: string | number) => {
+    return Number(q) === term;
+  };
+
+  const secId = section.id;
+  const secName = section.section_name;
+  const fullSecName = `${section.section_grade_level} - ${section.section_name}`;
+
+  const isSecMatch = (sId?: string, recId?: string) => {
+    if (!sId && !recId) return false;
+    if (sId === secId || sId === secName || sId === fullSecName) return true;
+    if (recId && (recId.includes(secId) || recId.includes(secName))) return true;
+    return false;
+  };
+
   const hpsRecord = hpsRecords.find(
     r =>
-      r.subject_id === targetSubjectId &&
-      r.school_year === schoolYear &&
-      Number(r.quarter) === term &&
-      (r.section_id === section.id || r.section_id === section.section_name)
+      isTargetSubject(r.subject_id) &&
+      isTermMatch(r.quarter) &&
+      isSyMatch(r.school_year) &&
+      isSecMatch(r.section_id, r.id)
   ) || hpsRecords.find(
     r =>
-      r.subject_id === targetSubjectId &&
-      r.school_year === schoolYear &&
-      Number(r.quarter) === term &&
+      isTargetSubject(r.subject_id) &&
+      isTermMatch(r.quarter) &&
+      isSyMatch(r.school_year) &&
       !r.section_id
+  ) || hpsRecords.find(
+    r =>
+      isTargetSubject(r.subject_id) &&
+      isTermMatch(r.quarter) &&
+      isSecMatch(r.section_id, r.id)
+  ) || hpsRecords.find(
+    r =>
+      isTargetSubject(r.subject_id) &&
+      isTermMatch(r.quarter)
   );
 
   const rawQaHps = (hpsRecord as (HPSRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
@@ -413,11 +499,17 @@ function populateTermGradingXml(
         const st = list[i];
         const rec = classRecords.find(
           r =>
-            r.student_lrn === st.lrn &&
-            r.subject_id === targetSubjectId &&
-            Number(r.quarter) === term &&
-            r.school_year === schoolYear
+            (r.student_lrn === st.lrn || String(r.student_lrn).trim() === String(st.lrn).trim()) &&
+            isTargetSubject(r.subject_id) &&
+            isTermMatch(r.quarter) &&
+            isSyMatch(r.school_year)
+        ) || classRecords.find(
+          r =>
+            (r.student_lrn === st.lrn || String(r.student_lrn).trim() === String(st.lrn).trim()) &&
+            isTargetSubject(r.subject_id) &&
+            isTermMatch(r.quarter)
         );
+
         const rawQa = (rec as (ClassRecord & { summative_tests?: (number | string)[] }) | undefined)?.summative_tests;
         const ww = normalizeScores(rec?.written_works, wwCount);
         const pt = normalizeScores(rec?.performance_tasks, ptCount);
@@ -562,17 +654,58 @@ export async function populateECRWorkbookZip(
     // sheet4.xml: TERM 2 Music and Arts, sheet5.xml: TERM 2 PE and Health
     // sheet6.xml: TERM 3 Music and Arts, sheet7.xml: TERM 3 PE and Health
 
-    const pool = allSubjects && allSubjects.length > 0 ? allSubjects : [subject];
+    // 1. Gather all candidate subjects matching this section first
+    const sectionScopedSubjects = (allSubjects || []).filter(s =>
+      s.section_id === section.id ||
+      s.section_id === section.section_name ||
+      s.grade_level === section.section_grade_level ||
+      (s.grade_level && normalizeGradeLevelForECR(s.grade_level) === normalizeGradeLevelForECR(section.section_grade_level))
+    );
 
-    const maSubject = pool.find(s => {
-      const n = s.subject_name.toLowerCase();
-      return (n.includes('music') && n.includes('art')) || n === 'music' || n === 'arts';
-    }) || subject;
+    const pool = sectionScopedSubjects.length > 0
+      ? sectionScopedSubjects
+      : (allSubjects && allSubjects.length > 0 ? allSubjects : [subject]);
 
-    const peSubject = pool.find(s => {
-      const n = s.subject_name.toLowerCase();
-      return (n.includes('pe') && n.includes('health')) || n.includes('physical education') || n === 'pe' || n === 'health';
-    }) || subject;
+    // Find section-specific MA and PE subjects
+    const maSubject = pool.find(s => isMusicArtsSubject(s.subject_name)) ||
+      (allSubjects || []).find(s => isMusicArtsSubject(s.subject_name)) ||
+      subject;
+
+    const peSubject = pool.find(s => isPeHealthSubject(s.subject_name)) ||
+      (allSubjects || []).find(s => isPeHealthSubject(s.subject_name)) ||
+      subject;
+
+    // Build comprehensive candidate ID sets so records saved under IDs or Names or Aliases match
+    const maCandidateIds = new Set<string>();
+    pool.filter(s => isMusicArtsSubject(s.subject_name)).forEach(s => {
+      maCandidateIds.add(s.id);
+      maCandidateIds.add(s.subject_name);
+    });
+    if (maSubject?.id) maCandidateIds.add(maSubject.id);
+    if (maSubject?.subject_name) maCandidateIds.add(maSubject.subject_name);
+    maCandidateIds.add('Music and Arts');
+    maCandidateIds.add('Music & Arts');
+    maCandidateIds.add('Music and Art');
+    maCandidateIds.add('Music & Art');
+    maCandidateIds.add('Music');
+    maCandidateIds.add('Arts');
+
+    const peCandidateIds = new Set<string>();
+    pool.filter(s => isPeHealthSubject(s.subject_name)).forEach(s => {
+      peCandidateIds.add(s.id);
+      peCandidateIds.add(s.subject_name);
+    });
+    if (peSubject?.id) peCandidateIds.add(peSubject.id);
+    if (peSubject?.subject_name) peCandidateIds.add(peSubject.subject_name);
+    peCandidateIds.add('Physical Education and Health');
+    peCandidateIds.add('PE and Health');
+    peCandidateIds.add('PE & Health');
+    peCandidateIds.add('P.E. and Health');
+    peCandidateIds.add('P.E. & Health');
+    peCandidateIds.add('Physical Education');
+    peCandidateIds.add('Health');
+    peCandidateIds.add('PE');
+    peCandidateIds.add('P.E.');
 
     const terms: Array<1 | 2 | 3> = [1, 2, 3];
     for (const term of terms) {
@@ -582,20 +715,27 @@ export async function populateECRWorkbookZip(
       const maFile = zip.file(maSheetPath);
       if (maFile) {
         let xml = await maFile.async('text');
-        xml = populateTermGradingXml(xml, maSubject.id, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType);
+        xml = populateTermGradingXml(xml, maSubject, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType, maCandidateIds);
         zip.file(maSheetPath, xml);
       }
 
       const peFile = zip.file(peSheetPath);
       if (peFile) {
         let xml = await peFile.async('text');
-        xml = populateTermGradingXml(xml, peSubject.id, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType);
+        xml = populateTermGradingXml(xml, peSubject, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType, peCandidateIds);
         zip.file(peSheetPath, xml);
       }
     }
   } else {
     // Academic, GMRC/VE & EPP/TLE Templates:
     // sheet2.xml: TERM 1, sheet3.xml: TERM 2, sheet4.xml: TERM 3
+    const candidateIds = new Set<string>();
+    candidateIds.add(subject.id);
+    candidateIds.add(subject.subject_name);
+    (allSubjects || [])
+      .filter(s => s.subject_name.trim().toLowerCase() === subject.subject_name.trim().toLowerCase())
+      .forEach(s => candidateIds.add(s.id));
+
     const terms: Array<1 | 2 | 3> = [1, 2, 3];
     for (const term of terms) {
       const sheetPath = `xl/worksheets/sheet${term + 1}.xml`;
@@ -603,7 +743,7 @@ export async function populateECRWorkbookZip(
       if (!sheetFile) continue;
 
       let sheetXml = await sheetFile.async('text');
-      sheetXml = populateTermGradingXml(sheetXml, subject.id, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType);
+      sheetXml = populateTermGradingXml(sheetXml, subject, term, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, templateType, candidateIds);
       zip.file(sheetPath, sheetXml);
     }
   }

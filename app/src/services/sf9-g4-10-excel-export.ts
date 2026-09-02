@@ -293,6 +293,14 @@ function updateFormulaValueInSheetXml(
   return sheetXml;
 }
 
+function escapeFormula(formula: string): string {
+  if (!formula) return '';
+  return formula
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function updateFormulaCellExplicit(
   sheetXml: string,
   cellRef: string,
@@ -302,7 +310,7 @@ function updateFormulaCellExplicit(
   const formattedVal = escapeXml(value);
   const isNum = typeof value === 'number' && !isNaN(value);
   const typeAttr = isNum ? '' : ' t="str"';
-  const fTag = formula ? `<f>${formula}</f>` : '';
+  const fTag = formula ? `<f>${escapeFormula(formula)}</f>` : '';
   const vTag = `<v>${formattedVal}</v>`;
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
@@ -866,7 +874,16 @@ export async function populateGrade4to10TemplateBuffer(
     };
 
     const attCells: Record<string, string | number> = {};
-    const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'];
+    const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']; // Jun to Apr (11 months)
+
+    // Populate Row 13: School Days in Sheet 7
+    if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
+      attendance.schoolDays.forEach((sd, idx) => {
+        if (idx < monthCols.length && sd !== undefined && sd !== null && sd > 0) {
+          attCells[`${monthCols[idx]}13`] = Number(sd);
+        }
+      });
+    }
 
     // Clear template dummy data in rows 14-63 and 65-114
     for (let idx = 0; idx < 50; idx++) {
@@ -961,51 +978,57 @@ export async function populateGrade4to10TemplateBuffer(
       'K17': isMale ? 'M' : 'F',
     };
 
-    const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB'];
+    const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
 
-    // Update School Days in Attendance Header if available (Row 5 only; Row 6 is lower merged cell)
+    // Row 5: No. of Class Days
     if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
       attendance.schoolDays.forEach((sd, idx) => {
         if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          sf9Cells[`${sf9MonthCols[idx]}5`] = Number(sd);
+          sheet8Xml = updateCellInSheetXml(sheet8Xml, `${sf9MonthCols[idx]}5`, Number(sd));
         }
       });
+      const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
+    } else {
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
     }
 
-    // Pre-evaluate attendance present and absent results for immediate rendering
-    if (attendance?.daysPresent && attendance.daysPresent.length > 0) {
-      attendance.daysPresent.forEach((dp, idx) => {
-        if (idx < sf9MonthCols.length && dp !== undefined && dp !== null && dp !== ('' as unknown as number)) {
-          const col = sf9MonthCols[idx];
-          const dpNum = Number(dp);
-          sf9FormulaResults[`${col}7`] = dpNum;
-          const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
-          const absent = classDays >= dpNum ? (classDays - dpNum) : 0;
-          sf9FormulaResults[`${col}9`] = absent;
-        }
-      });
-    }
+    // Row 7: No. of Days Present (Dynamic VLOOKUP formulas referencing C17 and ATTENDANCE RECORD SUMMARY)
+    sf9MonthCols.forEach((col, idx) => {
+      const vlookupCol = 4 + idx;
+      const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
+      const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+        ? Number(attendance.daysPresent[idx])
+        : '';
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}7`, formula, cachedVal);
+    });
+    const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
+      ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+      : '';
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+
+    // Row 9: No. of Days Absent (Dynamic difference formulas between Class Days and Days Present)
+    sf9MonthCols.forEach((col, idx) => {
+      const formula = `IF(OR(${col}5="",${col}7=""),"",IF(${col}5>=${col}7,${col}5-${col}7,0))`;
+      const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
+      const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+        ? Number(attendance.daysPresent[idx])
+        : null;
+      const cachedAbsent = (dpVal !== null && classDays > 0)
+        ? Math.max(0, classDays - dpVal)
+        : '';
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}9`, formula, cachedAbsent);
+    });
+    const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
+      ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+      : 0;
+    const totalAbsent = attendance?.daysAbsent
+      ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+      : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
 
     sheet8Xml = updateFormulaValuesBatch(sheet8Xml, sf9FormulaResults);
     sheet8Xml = updateCellsBatch(sheet8Xml, sf9Cells);
-
-    if (attendance) {
-      const schoolDaysArr = attendance.schoolDays || [];
-      const daysPresArr = attendance.daysPresent || [];
-      const totalClassDays = schoolDaysArr.reduce((a, b) => a + (Number(b) || 0), 0);
-      const totalPresent = daysPresArr.reduce((a, b) => a + (Number(b) || 0), 0);
-      const totalAbsent = attendance.daysAbsent
-        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
-        : Math.max(0, totalClassDays - totalPresent);
-
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', totalPresent);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent);
-    } else {
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', '');
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', '');
-    }
 
     zip.file('xl/worksheets/sheet8.xml', sheet8Xml);
   }

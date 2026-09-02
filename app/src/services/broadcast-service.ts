@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface SystemBroadcast {

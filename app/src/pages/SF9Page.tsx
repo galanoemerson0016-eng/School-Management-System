@@ -20,7 +20,7 @@ import { db } from '../services/database';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug } from 'lucide-react';
 import { exportSF9ToExcel, exportSF9BatchToExcel } from '../services/sf9-excel-export';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
 import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
@@ -3298,6 +3298,21 @@ export function SF9Page() {
                                     title="Export to Excel"
                                 >
                                     <FileSpreadsheet className="w-3 h-3" />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                            detail: {
+                                                sectionId: selectedSectionObj?.id || selectedSection,
+                                                studentLrn: selectedStudent?.lrn
+                                            }
+                                        }));
+                                    }}
+                                    className="h-7.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:text-amber-700 border border-amber-200/60 dark:border-amber-700/30 transition-all flex items-center gap-1 shrink-0 active:scale-95 text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                                    title="Inspect & Debug Grade Sync"
+                                >
+                                    <Bug className="w-3 h-3" />
+                                    <span className="hidden xl:inline">Inspect Sync</span>
                                 </button>
                             </div>
                         )}

@@ -165,24 +165,38 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet3Xml).toContain('r="L15" s="79"><v>87</v>'); // Mabisang Komunikasyon T1
     expect(sheet3Xml).toContain('r="Q15" s="79"><v>91</v>'); // TechPro Elective 1 T1
 
+    // Verify Sheet 7 (ATTENDANCE RECORD SUMMARY)
+    const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
+    expect(sheet7Xml).toContain('r="F13"'); // June school days row 13
+    expect(sheet7Xml).toContain('r="F14"'); // Student 1 June days present row 14
+    expect(sheet7Xml).toContain('r="P13"'); // April school days row 13
+    expect(sheet7Xml).toContain('r="P14"'); // Student 1 April days present row 14
+
     // Verify Sheet 8 (SF9 FRONT & BACK)
     const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
     expect(sheet8Xml).toContain('DELA CRUZ, JUAN SANTOS');
     expect(sheet8Xml).toContain('100000000001');
     expect(sheet8Xml).toContain('Kitchen Operations'); // Elective 1 name on Row 41
 
+    // Attendance dynamic lookup formulas in Sheet 8
+    expect(sheet8Xml).toContain("VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,4,0)");
+    expect(sheet8Xml).toContain('IF(OR(R5="",R7=""),"",IF(R5&gt;=R7,R5-R7,0))');
+    expect(sheet8Xml).toContain('SUM(R5:AB5)');
+    expect(sheet8Xml).toContain('SUM(R7:AB7)');
+    expect(sheet8Xml).toContain('SUM(R9:AB9)');
+
     // Header clean & no #REF!
     expect(sheet8Xml).not.toContain('#REF!');
 
     // Learning Area 1 (Effective Comm / Mabisang Kom) formulas
-    expect(sheet8Xml).toContain('IF(COUNT(F34:F35)=0,"",ROUND(AVERAGE(F34:F35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(G34:G35)=0,"",ROUND(AVERAGE(G34:G35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(H34:H35)=0,"",ROUND(AVERAGE(H34:H35),0))');
-    expect(sheet8Xml).toContain('IF(COUNT(F33:H33)=0,"",ROUND(AVERAGE(F33:H33),0))');
+    expect(sheet8Xml).toContain('IF(COUNT(F34:F35)&lt;2,"",ROUND(AVERAGE(F34:F35),0))');
+    expect(sheet8Xml).toContain('IF(COUNT(G34:G35)&lt;2,"",ROUND(AVERAGE(G34:G35),0))');
+    expect(sheet8Xml).toContain('IF(COUNT(H34:H35)&lt;2,"",ROUND(AVERAGE(H34:H35),0))');
+    expect(sheet8Xml).toContain('IF(COUNT(F33:H33)&lt;3,"",ROUND(AVERAGE(F33:H33),0))');
 
     // General Average formula & Remarks
-    expect(sheet8Xml).toContain('IF(COUNT(I33,I36:I39,I41)=0,"",ROUND(AVERAGE(I33,I36:I39,I41),0))');
-    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41)>=85'); // DO 15, s. 2026 check
+    expect(sheet8Xml).toContain('IF(COUNT(I33,I36:I39,I41)&lt;6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))');
+    expect(sheet8Xml).toContain('MIN(I33,I36:I39,I41)&gt;=85'); // DO 15, s. 2026 check
     expect(sheet8Xml).toContain('Promoted with Academic Excellence Award');
     expect(sheet8Xml).toContain('>Passed<');
     expect(sheet8Xml).toContain('r="J41" s="577"'); // Non-bold style 577 for Elective 1 Remarks
@@ -200,5 +214,65 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(drawing8Xml).not.toContain('name="Shape 4"');
     expect(drawing8Xml).not.toContain('Insert School Logo');
     expect(zip.file('xl/media/school_logo.png')).not.toBeNull();
+  }, 30000);
+
+  it('keeps final grades, remarks, general average, and final remarks blank when term grades are incomplete in TechPro', async () => {
+    const student: Student = {
+      lrn: '100000000001',
+      first_name: 'JUAN',
+      middle_name: 'SANTOS',
+      last_name: 'DELA CRUZ',
+      gender: 'Male',
+      birthday: '2009-05-15',
+      age: 17,
+      address: 'Victoria, Tarlac',
+      grade_level: 'Grade 11',
+      student_section: 'TechPro Section A'
+    };
+
+    // Only Term 1 grades filled, Term 2 and Term 3 are empty
+    const partialGrades: Record<string, { q1?: number; q2?: number; q3?: number; final?: number }> = {
+      'Effective Communication': {
+        q1: 88
+      },
+      'Mabisang Komunikasyon': {
+        q1: 87
+      }
+    };
+
+    const subjects: Subject[] = [
+      { id: 'effective-comm', subject_name: 'Effective Communication', grade_level: 'Grade 11' },
+      { id: 'mabisang-kom', subject_name: 'Mabisang Komunikasyon', grade_level: 'Grade 11' }
+    ];
+
+    const opts: SF9Grade11TechProExportOptions = {
+      schoolYear: '2026-2027',
+      section: 'TechPro Section A',
+      adviser: 'JUAN DELA CRUZ',
+      student,
+      track: 'Technical-Professional Track',
+      grades: partialGrades,
+      subjects,
+      gradeLevel: 'Grade 11',
+      learners: [student]
+    };
+
+    const templatePath = path.resolve(__dirname, '../../public/templates/G11 TechPro School Form 9 (SY 26-27).xlsx');
+    const templateBuf = fs.readFileSync(templatePath);
+
+    const resultBuffer = await populateGrade11TechProTemplateBuffer(templateBuf, opts);
+    const zip = await JSZip.loadAsync(resultBuffer);
+    const sheet8Xml = await zip.file('xl/worksheets/sheet8.xml')!.async('text');
+
+    // Term 1 is filled
+    expect(sheet8Xml).toContain('r="F34"'); // T1 Effective Comm
+    // Final grades (Col I) and Remarks (Col J) formulas are present with <3 and <6 conditions
+    expect(sheet8Xml).toContain('IF(COUNT(F33:H33)&lt;3,"",ROUND(AVERAGE(F33:H33),0))');
+    expect(sheet8Xml).toContain('IF(COUNT(I33,I36:I39,I41)&lt;6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))');
+    // Cached remarks and final grades should not contain completed results
+    expect(sheet8Xml).not.toContain('>Passed<');
+    expect(sheet8Xml).not.toContain('>Promoted<');
+    expect(sheet8Xml).not.toContain('>Retained<');
+    expect(sheet8Xml).not.toMatch(/<c\s+r="I43"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
   }, 30000);
 });

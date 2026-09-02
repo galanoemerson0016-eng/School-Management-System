@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import JSZip from 'jszip';
 import {
   isGrade2To10,
   getECRTemplateType,
@@ -291,6 +290,122 @@ describe('ECR Excel Export Service', () => {
       // Check that all 9 sheets are preserved in workbook
       expect(zip.file('xl/worksheets/sheet8.xml')).not.toBeNull();
       expect(zip.file('xl/worksheets/sheet9.xml')).not.toBeNull();
+    });
+
+    it('correctly exports MAPEH for Grade 9 section when allSubjects contains subjects from other grade levels', async () => {
+      const templatePath = path.join(templatesDir, TEMPLATE_MAPEH);
+      if (!fs.existsSync(templatePath)) return;
+
+      const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
+
+      const g9Section: Section = {
+        id: 'sec-g9-matalino',
+        section_name: 'Matalino',
+        section_grade_level: 'Grade 9',
+        adviser_name: 'Mr. Emerson Galano'
+      };
+
+      const g9Students: Student[] = [
+        {
+          lrn: '123456789001',
+          first_name: 'Aaron',
+          last_name: 'Asuncion',
+          gender: 'Male',
+          student_section: 'sec-g9-matalino',
+          birthday: '2008-01-01',
+          age: 18,
+          address: 'Tarlac',
+          grade_level: 'Grade 9'
+        }
+      ];
+
+      // Subjects from Grade 7, Grade 8, and Grade 9 in the school
+      const allSchoolSubjects: Subject[] = [
+        { id: 'sub-g7-ma', subject_name: 'Music and Arts', grade_level: 'Grade 7', section_id: 'sec-g7-a' },
+        { id: 'sub-g7-pe', subject_name: 'Physical Education and Health', grade_level: 'Grade 7', section_id: 'sec-g7-a' },
+        { id: 'sub-g8-ma', subject_name: 'Music and Arts', grade_level: 'Grade 8', section_id: 'sec-g8-a' },
+        { id: 'sub-g8-pe', subject_name: 'Physical Education and Health', grade_level: 'Grade 8', section_id: 'sec-g8-a' },
+        { id: 'sub-g9-ma', subject_name: 'Music and Arts', grade_level: 'Grade 9', section_id: 'sec-g9-matalino' },
+        { id: 'sub-g9-pe', subject_name: 'Physical Education and Health', grade_level: 'Grade 9', section_id: 'sec-g9-matalino' }
+      ];
+
+      const mockG9ClassRecords: ClassRecord[] = [
+        {
+          id: 'cr-g9-ma-1',
+          student_lrn: '123456789001',
+          subject_id: 'sub-g9-ma',
+          section_id: 'sec-g9-matalino',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [19, 18, 20, 19, 20],
+          performance_tasks: [48, 49, 50],
+          quarterly_exam: 45
+        },
+        {
+          id: 'cr-g9-pe-1',
+          student_lrn: '123456789001',
+          subject_id: 'sub-g9-pe',
+          section_id: 'sec-g9-matalino',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 18, 19],
+          performance_tasks: [50, 50, 48],
+          quarterly_exam: 47
+        }
+      ];
+
+      const mockG9HpsRecords: HPSRecord[] = [
+        {
+          id: 'hps-g9-ma-1',
+          subject_id: 'sub-g9-ma',
+          section_id: 'sec-g9-matalino',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20],
+          performance_tasks: [50, 50, 50],
+          quarterly_exam: 50
+        },
+        {
+          id: 'hps-g9-pe-1',
+          subject_id: 'sub-g9-pe',
+          section_id: 'sec-g9-matalino',
+          quarter: 1,
+          school_year: '2026-2027',
+          written_works: [20, 20, 20, 20, 20],
+          performance_tasks: [50, 50, 50],
+          quarterly_exam: 50
+        }
+      ];
+
+      const zip = await populateECRWorkbookZip(templateBuffer, {
+        schoolProfile: mockSchoolProfile,
+        schoolYear: '2026-2027',
+        section: g9Section,
+        subject: { id: 'virtual_mapeh', subject_name: 'MAPEH', grade_level: 'Grade 9' } as Subject,
+        allSubjects: allSchoolSubjects,
+        students: g9Students,
+        classRecords: mockG9ClassRecords,
+        hpsRecords: mockG9HpsRecords
+      });
+
+      // Sheet 1: Input Data
+      const sheet1Xml = await zip.file('xl/worksheets/sheet1.xml')!.async('text');
+      expect(sheet1Xml).toContain('MAPEH');
+      expect(sheet1Xml).toContain('ASUNCION, AARON');
+      expect(sheet1Xml).toContain('MATALINO');
+
+      // Sheet 2: Term 1 Music and Arts (HPS in F15=20, Student WW1 in F18=19)
+      const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
+      expect(sheet2Xml).toContain('r="F15"');
+      expect(sheet2Xml).toContain('r="F18"');
+      expect(sheet2Xml).toContain('<v>19</v>');
+
+      // Sheet 3: Term 1 PE and Health (HPS in F15=20, Student WW1 in F18=20, Exam in T18/V18=47)
+      const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+      expect(sheet3Xml).toContain('r="F15"');
+      expect(sheet3Xml).toContain('r="F18"');
+      expect(sheet3Xml).toContain('<v>20</v>');
+      expect(sheet3Xml).toContain('<v>47</v>');
     });
 
     it('populates GMRC & Values Education template with 10 WWs, 9 PTs, and Examinations', async () => {

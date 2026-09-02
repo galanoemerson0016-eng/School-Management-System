@@ -106,5 +106,11 @@ service cloud.firestore {
       allow read: if true;
       allow write, create, update, delete: if isAdmin();
     }
+
+    // Diagnostic & Client Bug Reports (Clients can submit, Admin can list, read, update, delete)
+    match /diagnostic_reports/{reportId} {
+      allow create: if true;
+      allow read, list, update, delete: if isAdmin();
+    }
   }
 }

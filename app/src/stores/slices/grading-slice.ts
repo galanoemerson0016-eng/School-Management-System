@@ -1,5 +1,6 @@
 import type { ClassRecord, ObservedValues, HPSRecord } from '../../types';
 import { db } from '../../services/database';
+import { isMatchingSubject } from '../../utils/grading-helpers';
 
 export interface GradingSlice {
   classRecords: ClassRecord[];
@@ -79,16 +80,28 @@ export function createGradingSlice(set: (state: any) => void, get: () => any): G
     setGradingSheetRecords: (records) => set({ gradingSheetRecords: records }),
     updateGradingSheetRecord: async (record) => {
       try {
-        const existing = get().gradingSheetRecords.find((r: ClassRecord) => r.id === record.id);
-        if (existing) {
-          set((state: { gradingSheetRecords: ClassRecord[] }) => ({
-            gradingSheetRecords: state.gradingSheetRecords.map((r) => (r.id === record.id ? record : r)),
-          }));
-        } else {
-          set((state: { gradingSheetRecords: ClassRecord[] }) => ({
-            gradingSheetRecords: [...state.gradingSheetRecords, record],
-          }));
+        const state = get();
+        const currentRecords = state.gradingSheetRecords as ClassRecord[];
+
+        const isMatch = (r: ClassRecord) => {
+          if (r.id === record.id) return true;
+          const sameStudent = r.student_lrn === record.student_lrn || String(r.student_lrn).trim() === String(record.student_lrn).trim();
+          const sameSubject = isMatchingSubject(r.subject_id, record.subject_id, r.subject_name, record.subject_name);
+          const sameQuarter = Number(r.quarter) === Number(record.quarter) || String(r.quarter).toLowerCase() === String(record.quarter).toLowerCase();
+          const sameSy = !r.school_year || !record.school_year || r.school_year === record.school_year;
+          return sameStudent && sameSubject && sameQuarter && sameSy;
+        };
+
+        const matchingOldRecords = currentRecords.filter(isMatch);
+        const remainingRecords = currentRecords.filter((r) => !isMatch(r));
+
+        for (const oldRec of matchingOldRecords) {
+          if (oldRec.id && oldRec.id !== record.id) {
+            await db.deleteRecord('gradingSheetRecords', oldRec.id);
+          }
         }
+
+        set({ gradingSheetRecords: [...remainingRecords, record] });
         await db.putRecord('gradingSheetRecords', record);
       } catch (error) {
         console.error('Error updating grading sheet record:', error);

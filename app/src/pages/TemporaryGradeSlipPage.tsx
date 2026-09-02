@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../stores';
-import { ArrowLeft, Printer, Layout, Plus, Minus } from 'lucide-react';
-import { sortSubjects, normalizeSubjectName } from '../lib/subjectConfig';
+import { ArrowLeft, Printer, Layout, Plus, Minus, Bug } from 'lucide-react';
+import { sortSubjects, normalizeSubjectName, getSubjectsForGrade } from '../lib/subjectConfig';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
 import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
@@ -66,37 +66,86 @@ export function TemporaryGradeSlipPage() {
         const sectionTrack = (selectedSectionObj.track || '').toLowerCase();
         const taughtSet = new Set((selectedSectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
 
-        // All subjects for this grade level
+        // 1. All active subjects matching this section's grade level or assigned to this section
         let candidates = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-            return subjectGradeNum === sectionGradeNum && s.term !== 'none';
+            const isMatchingGrade = subjectGradeNum === sectionGradeNum;
+            const isMatchingSection = s.section_id === selectedSectionObj.id;
+            return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
         });
 
-        // If section has section-specific subjects, prioritize them
-        const sectionSpecific = candidates.filter(s => s.section_id === selectedSectionObj.id);
-        if (sectionSpecific.length > 0) {
-            candidates = sectionSpecific;
+        // 2. Exclude subjects explicitly assigned to a different section
+        candidates = candidates.filter(s => !s.section_id || s.section_id === selectedSectionObj.id);
+
+        // 3. For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack, keeping Core subjects
+        if (isSHS) {
+            if (taughtSet.size > 0) {
+                candidates = candidates.filter(s => {
+                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
+                    if (unitInfo.category === 'core') return true;
+                    const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
+                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || taughtSet.has(norm);
+                });
+            } else if (sectionTrack) {
+                candidates = candidates.filter(s => {
+                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
+                    if (unitInfo.category === 'core') return true;
+                    if (sectionTrack.includes('acad')) {
+                        return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
+                    }
+                    if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
+                        return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
+                    }
+                    return true;
+                });
+            }
+        } else {
+            // For JHS / Elementary: if taught_subjects is configured, filter candidates by taughtSet
+            if (taughtSet.size > 0) {
+                candidates = candidates.filter(s => {
+                    const norm = normalizeSubjectName(s.subject_name);
+                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || (norm ? taughtSet.has(norm) : false);
+                });
+            }
         }
 
-        // If adviser configured taught_subjects, filter by taught_subjects
-        if (taughtSet.size > 0) {
-            candidates = candidates.filter(s => taughtSet.has(s.subject_name.toLowerCase().trim()));
-        } else if (isSHS && sectionTrack) {
-            // Track-based filtering for SSHS
-            candidates = candidates.filter(s => {
-                const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
-                if (unitInfo.category === 'core') return true;
-                if (sectionTrack.includes('acad')) {
-                    return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
-                }
-                if (sectionTrack.includes('tech') || sectionTrack.includes('tvl')) {
-                    return unitInfo.category === 'techpro_elective' || unitInfo.category === 'work_immersion';
-                }
-                return true;
-            });
+        // 4. Prioritize section-specific subjects over generic subjects
+        candidates.sort((a, b) => {
+            const aDirect = a.section_id === selectedSectionObj.id ? 1 : 0;
+            const bDirect = b.section_id === selectedSectionObj.id ? 1 : 0;
+            return bDirect - aDirect;
+        });
+
+        // 5. Strictly deduplicate by normalized subject name
+        const seenNames = new Set<string>();
+        const uniqueSubjects: Subject[] = [];
+        for (const s of candidates) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && seenNames.has(norm)) continue;
+            if (norm) seenNames.add(norm);
+            uniqueSubjects.push(s);
         }
 
-        return sortSubjects(candidates, s => s.subject_name);
+        // 6. Fallback: If no subjects exist in DB for this grade level, load standard curriculum subjects
+        if (uniqueSubjects.length === 0) {
+            const standardList = getSubjectsForGrade(selectedSectionObj.section_grade_level);
+            for (const item of standardList) {
+                if (item.name && item.name.trim()) {
+                    const norm = normalizeSubjectName(item.name);
+                    if (!seenNames.has(norm)) {
+                        seenNames.add(norm);
+                        uniqueSubjects.push({
+                            id: `curriculum-${norm}`,
+                            subject_name: item.name,
+                            grade_level: selectedSectionObj.section_grade_level,
+                            term: 'all'
+                        } as Subject);
+                    }
+                }
+            }
+        }
+
+        return sortSubjects(uniqueSubjects, s => s.subject_name);
     }, [subjects, selectedSectionObj]);
 
     const handlePrint = () => {
@@ -332,7 +381,22 @@ export function TemporaryGradeSlipPage() {
 
                     <div className="h-8 w-px bg-slate-200 dark:bg-white/10" />
 
-                     <button
+                    <button
+                        onClick={() => {
+                            window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                detail: {
+                                    sectionId: selectedSectionObj?.id || selectedSection
+                                }
+                            }));
+                        }}
+                        className="h-11 px-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-black text-[11px] uppercase tracking-widest hover:bg-amber-100 dark:hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                        title="Inspect & Debug Grade Sync"
+                    >
+                        <Bug className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="hidden sm:inline">Inspect Sync</span>
+                    </button>
+
+                    <button
                         onClick={handlePrint}
                         disabled={sectionStudents.length === 0}
                         className="h-11 px-6 rounded-xl bg-orange-600 text-white font-black text-[11px] uppercase tracking-widest shadow-lg shadow-orange-500/20 hover:bg-orange-700 hover:scale-[1.02] active:scale-95 disabled:opacity-30 transition-all flex items-center gap-2"
@@ -419,6 +483,19 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
     const baseUrl = import.meta.env.BASE_URL;
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
+
+    // Deduplicate incoming subjects as safeguard
+    const dedupedSubjects = useMemo(() => {
+        const seen = new Set<string>();
+        const res: Subject[] = [];
+        for (const s of subjects) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && seen.has(norm)) continue;
+            if (norm) seen.add(norm);
+            res.push(s);
+        }
+        return res;
+    }, [subjects]);
     
     // Extract grades for this student for all 3 terms
     const studentGrades = useMemo(() => {
@@ -433,9 +510,9 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const classRecords = useAppStore.getState().classRecords || [];
         const hpsRecords = useAppStore.getState().hpsRecords || [];
 
-        const hasParentMapeh = subjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+        const hasParentMapeh = dedupedSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
 
-        subjects.forEach((subj: Subject) => {
+        dedupedSubjects.forEach((subj: Subject) => {
             let q1 = '', q2 = '', q3 = '';
             let sTotal = 0, sCount = 0;
 
@@ -496,7 +573,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
         const genT3 = termCounts.t3 > 0 ? Math.round(termTotals.t3 / termCounts.t3).toString() : '';
 
         return { subjectGrades, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
+    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     
@@ -604,7 +681,7 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                         </tr>
                     </thead>
                     <tbody>
-                        {subjects.map((subj: Subject) => {
+                        {dedupedSubjects.map((subj: Subject) => {
                             const grades = studentGrades.subjectGrades[subj.id];
                             const isSubComponent = normalizeSubjectName(subj.subject_name).includes('music') || 
                                                    normalizeSubjectName(subj.subject_name).includes('arts') ||
@@ -698,10 +775,25 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
     const logoUrl = schoolProfile.logo_url || 'school-logo.png';
     const depedLogo = `${baseUrl}deped_logo_left.png`;
 
+    // Deduplicate incoming subjects as safeguard
+    const dedupedSubjects = useMemo(() => {
+        const seen = new Set<string>();
+        const res: Subject[] = [];
+        for (const s of subjects) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && seen.has(norm)) continue;
+            if (norm) seen.add(norm);
+            res.push(s);
+        }
+        return res;
+    }, [subjects]);
+
     const studentGrades = useMemo(() => {
         const rawGrades: Record<string, { q1: number; q2: number; q3: number; final: number; term?: Subject['term'] }> = {};
+        const classRecords = useAppStore.getState().classRecords || [];
+        const hpsRecords = useAppStore.getState().hpsRecords || [];
         
-        subjects.forEach((subj) => {
+        dedupedSubjects.forEach((subj) => {
             let q1 = 0, q2 = 0, q3 = 0;
             for (let q = 1; q <= 3; q++) {
                 const r = records.find(rec => rec.student_lrn === student.lrn && rec.subject_id === subj.id && Number(rec.quarter) === q && rec.school_year === activeSchoolYear);
@@ -710,6 +802,23 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                     if (q === 1) q1 = val;
                     if (q === 2) q2 = val;
                     if (q === 3) q3 = val;
+                } else {
+                    const g = resolveStudentQuarterGrade(
+                        student.lrn,
+                        subj.id,
+                        q,
+                        activeSchoolYear,
+                        classRecords,
+                        records,
+                        hpsRecords,
+                        section?.section_grade_level,
+                        section?.track
+                    );
+                    if (g > 0) {
+                        if (q === 1) q1 = g;
+                        if (q === 2) q2 = g;
+                        if (q === 3) q3 = g;
+                    }
                 }
             }
             
@@ -733,7 +842,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             rawGrades[subj.id] = { q1, q2, q3, final, term };
         });
 
-        const coreSubjectsList = subjects.filter(subj => {
+        const coreSubjectsList = dedupedSubjects.filter(subj => {
             const norm = subj.subject_name.trim().toLowerCase();
             const cores = [
                 'effective communication',
@@ -810,7 +919,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
             term: parentTerm
         };
 
-        subjects.forEach((subj) => {
+        dedupedSubjects.forEach((subj) => {
             const rg = rawGrades[subj.id];
             gradesLookup[subj.id] = {
                 q1: rg.q1 > 0 ? rg.q1.toString() : '',
@@ -828,7 +937,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         let genAvgFinalTotal = 0, genAvgFinalUnits = 0;
 
         const isComponentId = (id: string) => {
-            const subj = subjects.find(s => s.id === id);
+            const subj = dedupedSubjects.find(s => s.id === id);
             if (!subj) return false;
             const norm = normalizeSubjectName(subj.subject_name);
             return norm === 'effectivecommunication' || norm === 'mabisangkomunikasyon';
@@ -836,7 +945,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
 
         const gradeLevel = section?.section_grade_level || 'Grade 11';
 
-        subjects.forEach((subj) => {
+        dedupedSubjects.forEach((subj) => {
             if (isComponentId(subj.id)) return;
 
             const rg = rawGrades[subj.id];
@@ -892,7 +1001,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
 
         return { subjectGrades: gradesLookup, genAvg, genRemarks, genT1, genT2, genT3 };
-    }, [subjects, records, student.lrn, activeSchoolYear, section?.section_grade_level]);
+    }, [dedupedSubjects, records, student.lrn, activeSchoolYear, section?.section_grade_level, section?.track]);
 
     const studentFullName = `${student.last_name}, ${student.first_name} ${student.middle_name ? student.middle_name[0] + '.' : ''}`.trim();
     
@@ -921,7 +1030,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         const coreSubjectsList: Subject[] = [];
         const electiveSubjectsList: Subject[] = [];
 
-        subjects.forEach((subj) => {
+        dedupedSubjects.forEach((subj) => {
             const norm = subj.subject_name.trim().toLowerCase();
             const cores = [
                 'effective communication',
@@ -1019,7 +1128,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
         }
 
         return finalRows;
-    }, [subjects]);
+    }, [dedupedSubjects]);
 
     return (
         <div className="grade-slip-card font-serif text-[9px] relative text-black leading-tight">
@@ -1118,7 +1227,7 @@ function ShsGradeSlipCard({ student, schoolProfile, section, subjects, records, 
                             const isComponent = !isParent && row.isComponent;
 
                             return (
-                                <tr key={id}>
+                                <tr key={`${row.type}-${id}-${idx}`}>
                                     <td 
                                         className={`subject-col ${isComponent ? 'pl-3 font-normal' : 'font-bold'}`}
                                         style={{

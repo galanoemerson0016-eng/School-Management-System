@@ -2,12 +2,12 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, ArrowRight, Clock, FileSpreadsheet, ChevronDown, Bug } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
-import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR } from '../services/ecr-excel-export';
+import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject } from '../services/ecr-excel-export';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -2006,12 +2006,18 @@ export function EClassRecord() {
                     return;
                 }
 
+                const candidateSubjects = [
+                    ...(mapehComponents.length > 0 ? mapehComponents : []),
+                    ...(sectionSubjects.length > 0 ? sectionSubjects : []),
+                    ...subjects
+                ];
+
                 const batchOptions = uniqueSubjects.map(sub => ({
                     schoolProfile,
                     schoolYear: activeSchoolYear,
                     section: selectedSectionObj,
                     subject: sub,
-                    allSubjects: subjects,
+                    allSubjects: candidateSubjects,
                     teacherName: teacherName || selectedSectionObj.adviser_name,
                     students,
                     classRecords,
@@ -2029,8 +2035,12 @@ export function EClassRecord() {
                 // Export single subject
                 let targetSubjectObj = subjects.find(s => s.id === effectiveSubjectId) || selectedSubjectObj;
 
+                const isMapehSelected = selectedSubject === 'virtual_mapeh' ||
+                    selectedSubjectObj?.subject_name.toUpperCase() === 'MAPEH' ||
+                    isMapehSubject(targetSubjectObj?.subject_name || '');
+
                 // Robust fallback for composite MAPEH
-                if (!targetSubjectObj && selectedSubject === 'virtual_mapeh') {
+                if (isMapehSelected && (!targetSubjectObj || targetSubjectObj.id === 'virtual_mapeh')) {
                     if (selectedMapehComponentId) {
                         targetSubjectObj = subjects.find(s => s.id === selectedMapehComponentId) || mapehComponents.find(c => c.id === selectedMapehComponentId);
                     }
@@ -2049,12 +2059,19 @@ export function EClassRecord() {
                     return;
                 }
 
+                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
+                const candidateSubjects = [
+                    ...(mapehComponents.length > 0 ? mapehComponents : []),
+                    ...(sectionSubjects.length > 0 ? sectionSubjects : []),
+                    ...subjects
+                ];
+
                 await exportECRToExcel({
                     schoolProfile,
                     schoolYear: activeSchoolYear,
                     section: selectedSectionObj,
                     subject: targetSubjectObj,
-                    allSubjects: subjects,
+                    allSubjects: candidateSubjects,
                     teacherName: teacherName || selectedSectionObj.adviser_name || schoolProfile?.adviser_name,
                     students,
                     classRecords,
@@ -2399,6 +2416,24 @@ export function EClassRecord() {
                             className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
                         >
                             <CloudUpload className="w-3.5 h-3.5" /> Publish
+                        </button>
+
+                        {/* Grade Sync Inspector Button */}
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                    detail: {
+                                        sectionId: selectedSectionObj?.id || selectedSection,
+                                        subjectId: selectedSubject,
+                                        quarter: typeof quarter === 'number' ? quarter : 1
+                                    }
+                                }));
+                            }}
+                            className="h-8 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            title="Open Grade Sync Inspector & Live Diagnostics"
+                        >
+                            <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span className="hidden xl:inline">Inspect Sync</span>
                         </button>
                     </div>
                 </div>

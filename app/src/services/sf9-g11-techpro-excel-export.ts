@@ -493,6 +493,14 @@ function updateFormulaValueInSheetXml(
   return sheetXml;
 }
 
+function escapeFormula(formula: string): string {
+  if (!formula) return '';
+  return formula
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function updateFormulaCellExplicit(
   sheetXml: string,
   cellRef: string,
@@ -503,7 +511,7 @@ function updateFormulaCellExplicit(
   const formattedVal = escapeXml(value);
   const isNum = typeof value === 'number' && !isNaN(value);
   const typeAttr = isNum ? '' : ' t="str"';
-  const fTag = formula ? `<f>${formula}</f>` : '';
+  const fTag = formula ? `<f>${escapeFormula(formula)}</f>` : '';
   const vTag = `<v>${formattedVal}</v>`;
 
   const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
@@ -1137,7 +1145,7 @@ export async function populateGrade11TechProTemplateBuffer(
       const t2 = termAveragesMap.get(1)!.males[idx];
       const t3 = termAveragesMap.get(2)!.males[idx];
       const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
-      maleFinalGAs.push(valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : '');
+      maleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
     }
 
     const femaleFinalGAs: (number | '')[] = [];
@@ -1146,7 +1154,7 @@ export async function populateGrade11TechProTemplateBuffer(
       const t2 = termAveragesMap.get(1)!.females[idx];
       const t3 = termAveragesMap.get(2)!.females[idx];
       const valid = [t1, t2, t3].filter((v): v is number => typeof v === 'number' && v > 0);
-      femaleFinalGAs.push(valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : '');
+      femaleFinalGAs.push(valid.length === 3 ? Math.round(valid.reduce((a, b) => a + b, 0) / 3) : '');
     }
 
     const allFinalGAs = [
@@ -1197,7 +1205,7 @@ export async function populateGrade11TechProTemplateBuffer(
       sheet6Xml = updateFormulaCellExplicit(
         sheet6Xml,
         `P${row}`,
-        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})=0,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
+        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})<3,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
         finalGA !== '' ? finalGA : ''
       );
       sheet6Xml = updateFormulaCellExplicit(
@@ -1244,7 +1252,7 @@ export async function populateGrade11TechProTemplateBuffer(
       sheet6Xml = updateFormulaCellExplicit(
         sheet6Xml,
         `P${row}`,
-        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})=0,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
+        `IF(C${row}="","",IF(COUNT(F${row},J${row},M${row})<3,"",ROUND(AVERAGE(F${row},J${row},M${row}),0)))`,
         finalGA !== '' ? finalGA : ''
       );
       sheet6Xml = updateFormulaCellExplicit(
@@ -1295,12 +1303,12 @@ export async function populateGrade11TechProTemplateBuffer(
     sheet7FormulaResults['L10'] = cleanAdviser;
     sheet7FormulaResults['G11'] = cleanSection || cleanTrack;
 
-    const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']; // Jun to Apr
+    const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']; // Jun to Apr (11 months)
 
     if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
       attendance.schoolDays.forEach((sd, idx) => {
         if (idx < monthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          sheet7Cells[`${monthCols[idx]}12`] = Number(sd);
+          sheet7Cells[`${monthCols[idx]}13`] = Number(sd);
         }
       });
     }
@@ -1308,6 +1316,7 @@ export async function populateGrade11TechProTemplateBuffer(
     const populateAttendanceRow = (s: StudentWithGrades | undefined, row: number) => {
       if (!s) {
         sheet7FormulaResults[`C${row}`] = '';
+        monthCols.forEach(col => { sheet7Cells[`${col}${row}`] = ''; });
         return;
       }
       sheet7FormulaResults[`C${row}`] = formatLearnerName(s);
@@ -1486,8 +1495,6 @@ export async function populateGrade11TechProTemplateBuffer(
       const numA = typeof a === 'number' ? a : parseFloat(String(a));
       const numB = typeof b === 'number' ? b : parseFloat(String(b));
       if (!isNaN(numA) && !isNaN(numB)) return Math.round((numA + numB) / 2);
-      if (!isNaN(numA)) return Math.round(numA);
-      if (!isNaN(numB)) return Math.round(numB);
       return '';
     };
 
@@ -1496,11 +1503,11 @@ export async function populateGrade11TechProTemplateBuffer(
     const t3_comb = computeTermComb(t3_s1, t3_s2);
 
     // Write Explicit Formulas for Combined Learning Area 1 (Row 33)
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'F33', 'IF(COUNT(F34:F35)=0,"",ROUND(AVERAGE(F34:F35),0))', t1_comb);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'G33', 'IF(COUNT(G34:G35)=0,"",ROUND(AVERAGE(G34:G35),0))', t2_comb);
-    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'H33', 'IF(COUNT(H34:H35)=0,"",ROUND(AVERAGE(H34:H35),0))', t3_comb);
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'F33', 'IF(COUNT(F34:F35)<2,"",ROUND(AVERAGE(F34:F35),0))', t1_comb);
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'G33', 'IF(COUNT(G34:G35)<2,"",ROUND(AVERAGE(G34:G35),0))', t2_comb);
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'H33', 'IF(COUNT(H34:H35)<2,"",ROUND(AVERAGE(H34:H35),0))', t3_comb);
 
-    // Compute Final Grade & Remarks for each learning area
+    // Compute Final Grade & Remarks for each learning area (shown ONLY if ALL 3 term grades are complete)
     const computeFinalAndRemarks = (
       fCell: string,
       jCell: string,
@@ -1508,15 +1515,17 @@ export async function populateGrade11TechProTemplateBuffer(
       termsRange: string
     ): { finalGrade: number | ''; remarks: string } => {
       const nums = terms.map(v => typeof v === 'number' ? v : parseFloat(String(v))).filter(v => !isNaN(v));
-      if (nums.length === 0) {
-        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, `IF(COUNT(${termsRange})=0,"",ROUND(AVERAGE(${termsRange}),0))`, '');
-        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, `IF(${fCell}="","",IF(${fCell}>=75,"Passed","Failed"))`, '');
+      const formula = `IF(COUNT(${termsRange})<3,"",ROUND(AVERAGE(${termsRange}),0))`;
+      const remFormula = `IF(${fCell}="","",IF(${fCell}>=75,"Passed","Failed"))`;
+      if (nums.length < 3) {
+        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, formula, '');
+        sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, remFormula, '');
         return { finalGrade: '', remarks: '' };
       }
-      const finalVal = Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
+      const finalVal = Math.round(nums.reduce((a, b) => a + b, 0) / 3);
       const rem = finalVal >= 75 ? 'Passed' : 'Failed';
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, `IF(COUNT(${termsRange})=0,"",ROUND(AVERAGE(${termsRange}),0))`, finalVal);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, `IF(${fCell}="","",IF(${fCell}>=75,"Passed","Failed"))`, rem);
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, fCell, formula, finalVal);
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, jCell, remFormula, rem);
       return { finalGrade: finalVal, remarks: rem };
     };
 
@@ -1529,7 +1538,7 @@ export async function populateGrade11TechProTemplateBuffer(
     const res_s6 = computeFinalAndRemarks('I39', 'J39', [t1_s6, t2_s6, t3_s6], 'F39:H39');
     const res_s7 = computeFinalAndRemarks('I41', 'J41', [t1_s7, t2_s7, t3_s7], 'F41:H41');
 
-    // Compute General Average across the 6 Learning Areas:
+    // Compute General Average across the 6 Learning Areas ONLY if ALL 6 are complete:
     // Rows 33 (Combined EffComm/MabKom), 36 (GenMath), 37 (GenSci), 38 (LifeCareer), 39 (PKLP), 41 (TechPro Elective 1)
     const learningAreaFinals = [
       res_comb.finalGrade,
@@ -1544,8 +1553,8 @@ export async function populateGrade11TechProTemplateBuffer(
     let generalRemarksVal = '';
     let isAcademicExcellence = false;
 
-    if (learningAreaFinals.length > 0) {
-      generalAverageVal = Math.round(learningAreaFinals.reduce((a, b) => a + b, 0) / learningAreaFinals.length);
+    if (learningAreaFinals.length === 6) {
+      generalAverageVal = Math.round(learningAreaFinals.reduce((a, b) => a + b, 0) / 6);
       const minGrade = Math.min(...learningAreaFinals);
 
       // DepEd Order No. 15, s. 2026 Academic Excellence criteria
@@ -1561,8 +1570,8 @@ export async function populateGrade11TechProTemplateBuffer(
       }
     }
 
-    // Set General Average Formula and Remarks on Row 43
-    const gaFormula = 'IF(COUNT(I33,I36:I39,I41)=0,"",ROUND(AVERAGE(I33,I36:I39,I41),0))';
+    // Set General Average Formula and Remarks on Row 43 (shown ONLY if ALL 6 learning areas are complete)
+    const gaFormula = 'IF(COUNT(I33,I36:I39,I41)<6,"",ROUND(AVERAGE(I33,I36:I39,I41),0))';
     const gaRemarksFormula = 'IF(I43="","",IF(I43>=75,IF(AND(I43>=90,MIN(I33,I36:I39,I41)>=85),"Promoted with Academic Excellence Award","Promoted"),"Retained"))';
 
     sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'I43', gaFormula, generalAverageVal);
@@ -1579,54 +1588,68 @@ export async function populateGrade11TechProTemplateBuffer(
       '$136$2'
     );
 
-    // TechPro Elective 1 Remarks (J41 & K41) non-bold style
-    sheet8Xml = updateCellInSheetXml(sheet8Xml, 'J41', res_s7.remarks, '577');
+    // TechPro Elective 1 Remarks (J41 & K41) non-bold style 577 while preserving formula
+    sheet8Xml = updateFormulaCellExplicit(
+      sheet8Xml,
+      'J41',
+      'IF(I41="","",IF(I41>=75,"Passed","Failed"))',
+      res_s7.remarks,
+      '577'
+    );
     sheet8Xml = updateCellInSheetXml(sheet8Xml, 'K41', '', '577');
 
     // Sheet 8 Attendance Table
-    const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr
+    const sf9MonthCols = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB']; // Jun to Apr (11 columns)
 
+    // Row 5: No. of Class Days
     if (attendance?.schoolDays && attendance.schoolDays.length > 0) {
       attendance.schoolDays.forEach((sd, idx) => {
         if (idx < sf9MonthCols.length && sd !== undefined && sd !== null && sd > 0) {
-          sf8Cells[`${sf9MonthCols[idx]}5`] = Number(sd);
+          sheet8Xml = updateCellInSheetXml(sheet8Xml, `${sf9MonthCols[idx]}5`, Number(sd));
         }
       });
+      const totalClassDays = attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0);
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays > 0 ? totalClassDays : '');
+    } else {
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
     }
 
-    if (attendance?.daysPresent && attendance.daysPresent.length > 0) {
-      attendance.daysPresent.forEach((dp, idx) => {
-        if (idx < sf9MonthCols.length && dp !== undefined && dp !== null && dp !== ('' as unknown as number)) {
-          const col = sf9MonthCols[idx];
-          const dpNum = Number(dp);
-          sf8FormulaResults[`${col}7`] = dpNum;
-          const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
-          const absent = classDays >= dpNum ? (classDays - dpNum) : 0;
-          sf8FormulaResults[`${col}9`] = absent;
-        }
-      });
-    }
+    // Row 7: No. of Days Present (Dynamic VLOOKUP formulas referencing C17 and ATTENDANCE RECORD SUMMARY)
+    sf9MonthCols.forEach((col, idx) => {
+      const vlookupCol = 4 + idx; // Column 4 is F (Jun), Column 14 is P (Apr/Total)
+      const formula = `IF('ATTENDANCE RECORD SUMMARY'!F14="","",IFERROR(VLOOKUP(C17,'ATTENDANCE RECORD SUMMARY'!$C$14:$P$114,${vlookupCol},0),""))`;
+      const cachedVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+        ? Number(attendance.daysPresent[idx])
+        : '';
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}7`, formula, cachedVal);
+    });
+    const totalPresent = (attendance?.daysPresent && attendance.daysPresent.length > 0)
+      ? attendance.daysPresent.reduce((a, b) => a + (Number(b) || 0), 0)
+      : '';
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', (totalPresent !== '' && totalPresent > 0) ? totalPresent : (totalPresent === 0 ? 0 : ''));
+
+    // Row 9: No. of Days Absent (Dynamic difference formulas between Class Days and Days Present)
+    sf9MonthCols.forEach((col, idx) => {
+      const formula = `IF(OR(${col}5="",${col}7=""),"",IF(${col}5>=${col}7,${col}5-${col}7,0))`;
+      const classDays = (attendance?.schoolDays && attendance.schoolDays[idx]) ? Number(attendance.schoolDays[idx]) : 0;
+      const dpVal = (attendance?.daysPresent && attendance.daysPresent[idx] !== undefined && attendance.daysPresent[idx] !== null && attendance.daysPresent[idx] !== ('' as unknown as number))
+        ? Number(attendance.daysPresent[idx])
+        : null;
+      const cachedAbsent = (dpVal !== null && classDays > 0)
+        ? Math.max(0, classDays - dpVal)
+        : '';
+      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, `${col}9`, formula, cachedAbsent);
+    });
+    const totalSchoolDaysNum = (attendance?.schoolDays && attendance.schoolDays.length > 0)
+      ? attendance.schoolDays.reduce((a, b) => a + (Number(b) || 0), 0)
+      : 0;
+    const totalAbsent = attendance?.daysAbsent
+      ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
+      : (totalSchoolDaysNum > 0 && typeof totalPresent === 'number' ? Math.max(0, totalSchoolDaysNum - totalPresent) : '');
+    sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent !== '' ? totalAbsent : '');
 
     sheet8Xml = updateFormulaValuesBatch(sheet8Xml, sf8FormulaResults);
     sheet8Xml = updateCellsBatch(sheet8Xml, sf8Cells);
-
-    if (attendance) {
-      const schoolDaysArr = attendance.schoolDays || [];
-      const daysPresArr = attendance.daysPresent || [];
-      const totalClassDays = schoolDaysArr.reduce((a, b) => a + (Number(b) || 0), 0);
-      const totalPresent = daysPresArr.reduce((a, b) => a + (Number(b) || 0), 0);
-      const totalAbsent = attendance.daysAbsent
-        ? attendance.daysAbsent.reduce((a, b) => a + (Number(b) || 0), 0)
-        : Math.max(0, totalClassDays - totalPresent);
-
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', totalClassDays);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', totalPresent);
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', totalAbsent);
-    } else {
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC5', 'SUM(R5:AB5)', '');
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC7', 'SUM(R7:AB7)', '');
-      sheet8Xml = updateFormulaCellExplicit(sheet8Xml, 'AC9', 'SUM(R9:AB9)', '');
-    }
 
     zip.file('xl/worksheets/sheet8.xml', sheet8Xml);
   }

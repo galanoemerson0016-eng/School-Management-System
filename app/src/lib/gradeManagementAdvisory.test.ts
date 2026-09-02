@@ -181,4 +181,69 @@ describe('Grade Management & E-Class Record Advisory Subject Integration', () =>
         expect(columnNames).not.toContain('Specialization');
         expect(finalColumns.length).toBe(8);
     });
+
+    it('Grade Slip: Deduplicates subjects across sections and prevents duplicate rows', () => {
+        // Multi-section scenario with shared/duplicated subject records in the store
+        const multiSectionSubjects: Subject[] = [
+            { id: 'sub-eng-1', subject_name: 'English', grade_level: 'Grade 7', term: 'all', section_id: 'sec-g7-matatag-1' },
+            { id: 'sub-eng-2', subject_name: 'English', grade_level: 'Grade 7', term: 'all', section_id: 'sec-g7-matatag-2' },
+            { id: 'sub-eng-global', subject_name: 'English', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-math-1', subject_name: 'Mathematics', grade_level: 'Grade 7', term: 'all', section_id: 'sec-g7-matatag-1' },
+            { id: 'sub-math-2', subject_name: 'Mathematics', grade_level: 'Grade 7', term: 'all', section_id: 'sec-g7-matatag-2' },
+            { id: 'sub-sci-global', subject_name: 'Science', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-fil-global', subject_name: 'Filipino', grade_level: 'Grade 7', term: 'all' }
+        ];
+
+        const sectionObj: Section = {
+            id: 'sec-g7-matatag-2',
+            section_name: 'Newton',
+            section_grade_level: 'Grade 7',
+            is_advisory: true
+        };
+
+        const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
+        const taughtSet = new Set((sectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
+
+        // Grade Slip candidate filtering logic
+        let candidates = multiSectionSubjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            const isMatchingGrade = subjectGradeNum === sectionGradeNum;
+            const isMatchingSection = s.section_id === sectionObj.id;
+            return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
+        });
+
+        candidates = candidates.filter(s => !s.section_id || s.section_id === sectionObj.id);
+
+        if (taughtSet.size > 0) {
+            candidates = candidates.filter(s => {
+                const norm = normalizeSubjectName(s.subject_name);
+                return taughtSet.has(s.subject_name.toLowerCase().trim()) || (norm ? taughtSet.has(norm) : false);
+            });
+        }
+
+        candidates.sort((a, b) => {
+            const aDirect = a.section_id === sectionObj.id ? 1 : 0;
+            const bDirect = b.section_id === sectionObj.id ? 1 : 0;
+            return bDirect - aDirect;
+        });
+
+        const seenNames = new Set<string>();
+        const uniqueSubjects: Subject[] = [];
+        for (const s of candidates) {
+            const norm = normalizeSubjectName(s.subject_name);
+            if (norm && seenNames.has(norm)) continue;
+            if (norm) seenNames.add(norm);
+            uniqueSubjects.push(s);
+        }
+
+        const sorted = sortSubjects(uniqueSubjects, s => s.subject_name);
+        const subjectNames = sorted.map(s => s.subject_name);
+
+        // Every subject should appear exactly once
+        expect(subjectNames).toEqual(expect.arrayContaining(['English', 'Mathematics', 'Science', 'Filipino']));
+        expect(subjectNames.filter(n => n === 'English')).toHaveLength(1);
+        expect(subjectNames.filter(n => n === 'Mathematics')).toHaveLength(1);
+        expect(sorted.find(s => s.subject_name === 'English')?.id).toBe('sub-eng-2');
+        expect(sorted.find(s => s.subject_name === 'Mathematics')?.id).toBe('sub-math-2');
+    });
 });
