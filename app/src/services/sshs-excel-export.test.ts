@@ -222,4 +222,37 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     expect(posAlvarez).toBeGreaterThan(-1);
     expect(posZamora).toBeGreaterThan(posAlvarez);
   });
+
+  it('populates student names, headers, and clean B8 in Term sheets and Final Grades sheet', async () => {
+    if (!fs.existsSync(templatePath)) return;
+    const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
+
+    const zip = await populateSSHSWorkbookZip(templateBuffer, {
+      schoolProfile: mockSchoolProfile,
+      schoolYear: '2026-2027',
+      section: mockSection,
+      subject: mockSubject,
+      students: mockStudents,
+      classRecords: [],
+      hpsRecords: [],
+      teacherName: 'EMERSON M. GALANO'
+    });
+
+    const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+    // Male student in row 17
+    expect(sheet3Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
+    // Female student in row 68
+    expect(sheet3Xml).toContain('CLARA, MARIA DE LOS SANTOS');
+    // B8 is cleared and never #VALUE!
+    expect(sheet3Xml).not.toContain('>#VALUE!<');
+
+    // Headers in sheet 3
+    expect(sheet3Xml).toContain('STEM 11-A');
+    expect(sheet3Xml).toContain('EMERSON M. GALANO');
+
+    // Final Grades sheet (sheet6.xml)
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sheet6Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
+    expect(sheet6Xml).toContain('CLARA, MARIA DE LOS SANTOS');
+  });
 });

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
 import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, findElectiveInCatalog, getClustersForGrade11Track, type GradeLevel } from '../../lib/curriculum';
+import { isMatchingSubject, normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { motion } from 'framer-motion';
 import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check } from 'lucide-react';
 
@@ -162,6 +163,18 @@ const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): stri
             "physical education and health 2",
             "physical education and health 3",
             "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
             "physical science",
             "reading and writing skills",
             "statistics and probability",
@@ -169,8 +182,18 @@ const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): stri
             "understanding culture, society and politics",
             "21st century literature",
             "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
             "pe and health 3",
-            "pe and health 4"
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -532,11 +555,21 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 ? (formData.teaching_subjects || []).filter(s => validSubjectNames.has(s))
                 : [];
             
-            // Preserve existing advisory curriculum taught_subjects if present
+            // Preserve existing advisory curriculum taught_subjects if present, updating any matching legacy aliases
+            const isExplicitSSHS = (formData.track || '').toLowerCase().includes('sshs') || (formData.track || '').toLowerCase().includes('cluster');
             const existingTaughtSubjects = section?.taught_subjects || [];
-            const finalTaughtSubjects = isAdvisory 
-                ? existingTaughtSubjects
+            let finalTaughtSubjects = isAdvisory 
+                ? (existingTaughtSubjects.length > 0
+                    ? existingTaughtSubjects.map(item => {
+                        const matched = validTeachingSubjects.find(v => isMatchingSubject(v, undefined, item));
+                        return matched || item;
+                    })
+                    : validTeachingSubjects)
                 : validTeachingSubjects;
+
+            if (isG12 && !isExplicitSSHS) {
+                finalTaughtSubjects = finalTaughtSubjects.map(s => normalizeGrade12PESubjectName(s, false));
+            }
 
             const sectionData: Section = {
                 id: formData.id || `section_${Date.now()}`,
@@ -607,7 +640,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[95vh] border border-slate-200 dark:border-white/10"
+                className="relative bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white w-full max-w-5xl xl:max-w-6xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[95vh] border border-slate-200 dark:border-white/10"
             >
                 {/* Header */}
                 <div className="bg-deped-blue dark:bg-[#0f172a] p-8 text-white relative shrink-0 border-b border-deped-blue/30 dark:border-white/10">
@@ -824,7 +857,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
 
                                                             {/* Category Grid */}
                                                             {!isCollapsed && (
-                                                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white dark:bg-[#0f172a]">
+                                                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 bg-white dark:bg-[#0f172a]">
                                                                     {list.map((subj) => {
                                                                         const isSHS = (formData.section_grade_level || '').includes('11') || (formData.section_grade_level || '').includes('12');
                                                                         const electiveInfo = isSHS ? findElectiveInCatalog(subj.name) : undefined;
@@ -833,20 +866,20 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                                             <div 
                                                                                 key={subj.name}
                                                                                 onClick={() => toggleSubject(subj.name)}
-                                                                                className={`group p-2.5 ps-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
+                                                                                className={`group p-3 ps-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2.5 min-h-13 ${isSelected ? 'bg-white dark:bg-amber-950/40 border-amber-400 dark:border-amber-500 shadow-xs' : 'bg-white/50 dark:bg-white/5 border-slate-100 dark:border-white/10 hover:border-amber-200 dark:hover:border-amber-500/40'}`}
                                                                             >
                                                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                                                <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
+                                                                                    <div className={`w-4.5 h-4.5 rounded border-2 transition-all shrink-0 flex items-center justify-center ${isSelected ? 'bg-amber-500 border-amber-500 text-white shadow-xs' : 'border-slate-200 dark:border-white/20 group-hover:border-amber-400'}`}>
                                                                                         {isSelected && (
                                                                                             <Check className="w-3 h-3 stroke-[3.5]" />
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="min-w-0 flex-1">
-                                                                                        <span className={`text-[9px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-amber-600 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                                                        <span className={`text-[9.5px] font-black uppercase tracking-tight block leading-snug wrap-break-word ${isSelected ? 'text-amber-600 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>
                                                                                             {subj.name}
                                                                                         </span>
                                                                                         {electiveInfo?.prerequisites && electiveInfo.prerequisites.length > 0 && (
-                                                                                            <span className="text-[7.5px] font-semibold text-slate-400 dark:text-slate-500 block truncate">
+                                                                                            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 block leading-tight wrap-break-word mt-0.5">
                                                                                                 Prereq: {electiveInfo.prerequisites.join(', ')}
                                                                                             </span>
                                                                                         )}

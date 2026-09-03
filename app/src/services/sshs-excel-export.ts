@@ -67,12 +67,12 @@ function updateOrInsertCell(
 ): string {
   const cellRef = `${colRef}${rowNum}`;
   const targetIdx = colToIndex(colRef);
-  const cellRegex = new RegExp(`(<c\\s+r="${cellRef}"([^>]*))(?:>(?:<f[^>]*>[\\s\\S]*?<\\/f>)?(?:<v>[^<]*<\\/v>|<is><t[^>]*>[\\s\\S]*?<\\/t><\\/is>)?<\\/c>|\\/>)`, 'g');
+  const cellRegex = new RegExp(`(<c\\s+r="${cellRef}"(?:\\s+[^>]*?)?)(?:\\/>|>([\\s\\S]*?)<\\/c>)`, 'g');
 
   let found = false;
-  let newRowXml = rowXml.replace(cellRegex, (_match, _openTag, attrs) => {
+  let newRowXml = rowXml.replace(cellRegex, (_match, openTag) => {
     found = true;
-    const sMatch = attrs.match(/s="(\d+)"/);
+    const sMatch = openTag.match(/s="(\d+)"/);
     const styleAttr = sMatch ? ` s="${sMatch[1]}"` : '';
     if (value === '' || value === null || value === undefined) {
       return `<c r="${cellRef}"${styleAttr}/>`;
@@ -505,7 +505,14 @@ function populateSSHSInputDataXml(sheetXml: string, options: SSHSExportOptions):
     if (r === 29) updated = setCellString(updated, 'F', 29, cluster);
     if (r === 30) updated = setCellString(updated, 'F', 30, subjectName);
     if (r === 33) {
+      updated = setCellNumber(updated, 'F', 33, meta.terms || 3);
       updated = setCellString(updated, 'H', 33, formattedTermBlock);
+      const tbNum = formattedTermBlock === 'THIRD TERM' ? 3 : formattedTermBlock === 'SECOND TERM' ? 2 : 1;
+      updated = setCellNumber(updated, 'I', 33, tbNum);
+    }
+    if (r === 34) {
+      const tbNum = formattedTermBlock === 'THIRD TERM' ? 3 : formattedTermBlock === 'SECOND TERM' ? 2 : 1;
+      updated = setCellNumber(updated, 'I', 34, (meta.terms || 3) * 10 + tbNum);
     }
 
     // Student Rosters (Rows 11 to 60)
@@ -547,7 +554,15 @@ function populateSSHSTermXml(
   term: 1 | 2 | 3,
   options: SSHSExportOptions
 ): string {
-  const { subject, schoolYear, students, classRecords, hpsRecords } = options;
+  const { schoolProfile, schoolYear, section, subject, students, classRecords, hpsRecords, teacherName } = options;
+
+  const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
+  const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
+  const sectionName = (section.section_name || '').toUpperCase();
+  const teacher = (teacherName || section.adviser_name || '').toUpperCase();
+  const meta = resolveSSHSMetadata(subject, gradeLevel);
+  const cluster = meta.cluster;
+  const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
 
   // Find HPS Record for this term
   const hps = hpsRecords.find(
@@ -582,6 +597,32 @@ function populateSSHSTermXml(
     const r = parseInt(rStr, 10);
     let updated = rowXml;
 
+    // Header updates: Ensure school metadata and headers are directly populated
+    if (r === 6) {
+      updated = setCellString(updated, 'H', 6, normalizeRegionForECR(schoolProfile?.region || 'Region III'));
+      updated = setCellString(updated, 'P', 6, (schoolProfile?.division || '').toUpperCase());
+      updated = setCellString(updated, 'AA', 6, schoolProfile?.school_id || '');
+    }
+    if (r === 7) {
+      updated = setCellString(updated, 'H', 7, (schoolProfile?.name || '').toUpperCase());
+    }
+
+    // Row 8: Clear B8 so it never holds #VALUE! or trips "INCORRECT SHEET"
+    if (r === 8) {
+      updated = setCellString(updated, 'B', 8, '');
+    }
+
+    // Row 9 & 10: Metadata headers
+    if (r === 9) {
+      updated = setCellNumber(updated, 'H', 9, gradeLevel);
+      updated = setCellString(updated, 'N', 9, sectionName);
+      updated = setCellString(updated, 'U', 9, subjectName);
+    }
+    if (r === 10) {
+      updated = setCellString(updated, 'H', 10, teacher);
+      updated = setCellString(updated, 'U', 10, cluster);
+    }
+
     // Row 14: Highest Possible Score (HPS)
     if (r === 14) {
       wwCols.forEach((col, idx) => {
@@ -608,6 +649,8 @@ function populateSSHSTermXml(
       const idx = r - 17;
       if (idx < males.length) {
         const student = males[idx];
+        updated = setCellString(updated, 'C', r, formatDepEdStudentName(student));
+
         const record = classRecords.find(
           c => c.student_lrn === student.lrn && c.subject_id === subject.id && c.quarter === term && c.school_year === schoolYear
         );
@@ -634,6 +677,7 @@ function populateSSHSTermXml(
         updated = setCellNumber(updated, 'AF', r, teScore !== '' && !isNaN(Number(teScore)) ? Number(teScore) : '');
       } else {
         // Clear unused rows
+        updated = setCellString(updated, 'C', r, '');
         wwCols.forEach(col => { updated = setCellNumber(updated, col, r, ''); });
         ptCols.forEach(col => { updated = setCellNumber(updated, col, r, ''); });
         updated = setCellNumber(updated, 'AD', r, '');
@@ -647,6 +691,8 @@ function populateSSHSTermXml(
       const idx = r - 68;
       if (idx < females.length) {
         const student = females[idx];
+        updated = setCellString(updated, 'C', r, formatDepEdStudentName(student));
+
         const record = classRecords.find(
           c => c.student_lrn === student.lrn && c.subject_id === subject.id && c.quarter === term && c.school_year === schoolYear
         );
@@ -672,12 +718,123 @@ function populateSSHSTermXml(
         updated = setCellNumber(updated, 'AE', r, st2Val !== '' && !isNaN(Number(st2Val)) ? Number(st2Val) : '');
         updated = setCellNumber(updated, 'AF', r, teScore !== '' && !isNaN(Number(teScore)) ? Number(teScore) : '');
       } else {
+        updated = setCellString(updated, 'C', r, '');
         wwCols.forEach(col => { updated = setCellNumber(updated, col, r, ''); });
         ptCols.forEach(col => { updated = setCellNumber(updated, col, r, ''); });
         updated = setCellNumber(updated, 'AD', r, '');
         updated = setCellNumber(updated, 'AE', r, '');
         updated = setCellNumber(updated, 'AF', r, '');
       }
+    }
+
+    return updated;
+  });
+
+  return xml;
+}
+
+/**
+ * Populates sheet6.xml (FINAL GRADES).
+ */
+function populateSSHSFinalGradesXml(sheetXml: string, options: SSHSExportOptions): string {
+  const { schoolProfile, section, subject, students, teacherName } = options;
+  const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
+  const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
+  const sectionName = (section.section_name || '').toUpperCase();
+  const teacher = (teacherName || section.adviser_name || '').toUpperCase();
+  const meta = resolveSSHSMetadata(subject, gradeLevel);
+  const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
+
+  const males = sortStudentsAlphabetically(
+    students.filter(s => (s.gender || '').toLowerCase() === 'male')
+  ).slice(0, MAX_STUDENTS_PER_GENDER);
+
+  const females = sortStudentsAlphabetically(
+    students.filter(s => (s.gender || '').toLowerCase() === 'female')
+  ).slice(0, MAX_STUDENTS_PER_GENDER);
+
+  let xml = sheetXml;
+  const rowRegex = /<row r="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
+
+  xml = xml.replace(rowRegex, (rowXml, rStr) => {
+    const r = parseInt(rStr, 10);
+    let updated = rowXml;
+
+    if (r === 6) {
+      updated = setCellString(updated, 'H', 6, normalizeRegionForECR(schoolProfile?.region || 'Region III'));
+      updated = setCellString(updated, 'P', 6, (schoolProfile?.division || '').toUpperCase());
+      updated = setCellString(updated, 'AA', 6, schoolProfile?.school_id || '');
+    }
+    if (r === 7) {
+      updated = setCellString(updated, 'H', 7, (schoolProfile?.name || '').toUpperCase());
+    }
+    if (r === 9) {
+      updated = setCellNumber(updated, 'D', 9, gradeLevel);
+      updated = setCellString(updated, 'G', 9, subjectName);
+    }
+    if (r === 10) {
+      updated = setCellString(updated, 'D', 10, sectionName);
+      updated = setCellString(updated, 'G', 10, teacher);
+    }
+
+    // Male (Rows 17 to 66)
+    if (r >= 17 && r <= 66) {
+      const idx = r - 17;
+      if (idx < males.length) {
+        const m = males[idx];
+        updated = setCellString(updated, 'C', r, m.lrn || '');
+        updated = setCellString(updated, 'D', r, formatDepEdStudentName(m));
+      } else {
+        updated = setCellString(updated, 'C', r, '');
+        updated = setCellString(updated, 'D', r, '');
+      }
+    }
+
+    // Female (Rows 68 to 117)
+    if (r >= 68 && r <= 117) {
+      const idx = r - 68;
+      if (idx < females.length) {
+        const f = females[idx];
+        updated = setCellString(updated, 'C', r, f.lrn || '');
+        updated = setCellString(updated, 'D', r, formatDepEdStudentName(f));
+      } else {
+        updated = setCellString(updated, 'C', r, '');
+        updated = setCellString(updated, 'D', r, '');
+      }
+    }
+
+    return updated;
+  });
+
+  return xml;
+}
+
+/**
+ * Populates sheet7.xml (HELPER) to guarantee dropdown lookup formulas never resolve to #VALUE!.
+ */
+function populateSSHSHelperXml(sheetXml: string, options: SSHSExportOptions): string {
+  const { section, subject } = options;
+  const gradeMatch = String(section.section_grade_level || (subject as any).grade_level || '').match(/(\d+)/);
+  const gradeLevel = gradeMatch ? parseInt(gradeMatch[1], 10) : 11;
+  const meta = resolveSSHSMetadata(subject, gradeLevel);
+  const subjectName = (subject.subject_name || meta.subject || '').toUpperCase();
+
+  let xml = sheetXml;
+  const rowRegex = /<row r="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
+
+  xml = xml.replace(rowRegex, (rowXml, rStr) => {
+    const r = parseInt(rStr, 10);
+    let updated = rowXml;
+
+    if (r === 7) updated = setCellNumber(updated, 'F', 7, gradeLevel);
+    if (r === 8) updated = setCellString(updated, 'G', 8, meta.category);
+    if (r === 9) updated = setCellString(updated, 'G', 9, meta.cluster);
+    if (r === 10) updated = setCellString(updated, 'G', 10, subjectName);
+    if (r === 23) {
+      const code = meta.terms === 3 ? 33 : meta.terms === 2 ? 21 : 11;
+      const termDesc = meta.terms === 3 ? '1ST, 2ND, 3RD' : meta.terms === 2 ? '1ST & 2ND' : '1ST';
+      updated = setCellNumber(updated, 'F', 23, code);
+      updated = setCellString(updated, 'G', 23, termDesc);
     }
 
     return updated;
@@ -782,6 +939,22 @@ export async function populateSSHSWorkbookZip(
     const rawXml = await sheet5File.async('text');
     const updatedXml = populateSSHSTermXml(rawXml, 3, options);
     zip.file('xl/worksheets/sheet5.xml', updatedXml);
+  }
+
+  // 6. FINAL GRADES (sheet6.xml)
+  const sheet6File = zip.file('xl/worksheets/sheet6.xml');
+  if (sheet6File) {
+    const rawXml = await sheet6File.async('text');
+    const updatedXml = populateSSHSFinalGradesXml(rawXml, options);
+    zip.file('xl/worksheets/sheet6.xml', updatedXml);
+  }
+
+  // 7. HELPER (sheet7.xml)
+  const sheet7File = zip.file('xl/worksheets/sheet7.xml');
+  if (sheet7File) {
+    const rawXml = await sheet7File.async('text');
+    const updatedXml = populateSSHSHelperXml(rawXml, options);
+    zip.file('xl/worksheets/sheet7.xml', updatedXml);
   }
 
   // 6. Ensure full calculation on load and clean broken definedNames & externalReferences in xl/workbook.xml

@@ -226,6 +226,18 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                 "physical education and health 2",
                 "physical education and health 3",
                 "physical education and health 4",
+                "health optimizing physical education and health 1",
+                "health optimizing physical education and health 2",
+                "health optimizing physical education and health 3",
+                "health optimizing physical education and health 4",
+                "health optimizing physical education 1",
+                "health optimizing physical education 2",
+                "health optimizing physical education 3",
+                "health optimizing physical education 4",
+                "hope 1",
+                "hope 2",
+                "hope 3",
+                "hope 4",
                 "physical science",
                 "reading and writing skills",
                 "statistics and probability",
@@ -233,8 +245,18 @@ export const SF9SHSPages: React.FC<SF9SHSPagesProps> = ({
                 "understanding culture, society and politics",
                 "21st century literature",
                 "contemporary philippine arts",
+                "pe and health 1",
+                "pe and health 2",
                 "pe and health 3",
-                "pe and health 4"
+                "pe and health 4",
+                "physical education 1",
+                "physical education 2",
+                "physical education 3",
+                "physical education 4",
+                "pe 1",
+                "pe 2",
+                "pe 3",
+                "pe 4"
             ];
             if (cores.some(c => {
                 const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');

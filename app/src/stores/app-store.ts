@@ -11,6 +11,7 @@ import { db, onDatabaseWriteChange } from '../services/database';
 import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
+import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import {
   buildAttendanceRecordsFromSf2Sheet,
   buildAutoFilledDateLabels,
@@ -1513,11 +1514,61 @@ export async function initializeAppStore() {
       ? persistedSelectedSection
       : (advisorySection ? advisorySection.section_name : null);
     
+    // Transparent Migration: Ensure Grade 12 Old K-12 PE subjects and sections use the official title
+    let sectionsChanged = false;
+    const finalSections = sections.map(sec => {
+      const gNum = parseInt((sec.section_grade_level || '').replace(/\D/g, '')) || 0;
+      const isSSHS = (sec.track || '').toLowerCase().includes('sshs') || (sec.track || '').toLowerCase().includes('cluster');
+      if (gNum === 12 && !isSSHS) {
+        let secChanged = false;
+        const newTaught = (sec.taught_subjects || []).map(s => {
+          const norm = normalizeGrade12PESubjectName(s, false);
+          if (norm !== s) secChanged = true;
+          return norm;
+        });
+        const newTeaching = (sec.teaching_subjects || []).map(s => {
+          const norm = normalizeGrade12PESubjectName(s, false);
+          if (norm !== s) secChanged = true;
+          return norm;
+        });
+        if (secChanged) {
+          sectionsChanged = true;
+          return {
+            ...sec,
+            taught_subjects: newTaught,
+            teaching_subjects: newTeaching
+          };
+        }
+      }
+      return sec;
+    });
+
+    if (sectionsChanged) {
+      void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist migrated sections:', e));
+    }
+
+    let subjectsChanged = false;
+    const finalSubjectsWithMigration = finalSubjects.map(sub => {
+      const gNum = parseInt((sub.grade_level || '').replace(/\D/g, '')) || 0;
+      if (gNum === 12) {
+        const norm = normalizeGrade12PESubjectName(sub.subject_name, false);
+        if (norm !== sub.subject_name) {
+          subjectsChanged = true;
+          return { ...sub, subject_name: norm };
+        }
+      }
+      return sub;
+    });
+
+    if (subjectsChanged) {
+      void db.putRecordsBulk('subjects', finalSubjectsWithMigration).catch(e => console.error('Failed to persist migrated subjects:', e));
+    }
+
     useAppStore.setState({
       students,
       studentProfiles: students,
-      sections,
-      subjects: finalSubjects,
+      sections: finalSections,
+      subjects: finalSubjectsWithMigration,
       classRecords,
       gradingSheetRecords,
       hpsRecords,

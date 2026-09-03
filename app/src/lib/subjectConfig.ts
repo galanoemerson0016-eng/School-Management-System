@@ -142,16 +142,20 @@ const STANDARD_SUBJECTS = {
     { name: 'Earth and Life Science', code: '' },
     { name: 'Earth Science', code: '' },
     { name: 'General Mathematics', code: '' },
+    { name: 'Health Optimizing Physical Education and Health 1', code: '' },
+    { name: 'Health Optimizing Physical Education and Health 2', code: '' },
+    { name: 'Health Optimizing Physical Education and Health 3', code: '' },
+    { name: 'Health Optimizing Physical Education and Health 4', code: '' },
     { name: 'Introduction to Philosophy of the Human Person', code: '' },
     { name: 'Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino', code: '' },
     { name: 'Media and Information Literacy', code: '' },
     { name: 'Oral Communication in Context', code: '' },
     { name: 'Pagbasa at Pagsusuri ng Iba’t ibang Teksto Tungo sa Pananaliksik', code: '' },
     { name: 'Personal Development', code: '' },
-    { name: 'Physical Education and Health 1', code: '' },
-    { name: 'Physical Education and Health 2', code: '' },
-    { name: 'Physical Education and Health 3', code: '' },
-    { name: 'Physical Education and Health 4', code: '' },
+    { name: 'Physical Education 1', code: '' },
+    { name: 'Physical Education 2', code: '' },
+    { name: 'Physical Education 3', code: '' },
+    { name: 'Physical Education 4', code: '' },
     { name: 'Physical Science', code: '' },
     { name: 'Reading and Writing Skills', code: '' },
     { name: 'Statistics and Probability', code: '' },
@@ -459,6 +463,71 @@ export function normalizeSubjectName(name: string): string {
     .trim()
     .replace(/\s+/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Canonical subject normalization for DepEd Grades 1-10 deduplication.
+ * Stems common subject variations and strips trailing grade numbers so:
+ * "FILIPINO 4" / "Filipino" -> "filipino"
+ * "ENGLISH 4" / "English" -> "english"
+ * "GMRC 4" / "GMRC (Good Manners and Right Conduct)" -> "gmrc"
+ * "MAPEH 4" / "MAPEH" -> "mapeh"
+ */
+export function getCanonicalSubjectKey(name: string, gradeLevel?: string | number): string {
+  if (!name) return '';
+  const norm = normalizeSubjectName(name);
+
+  // If it is HOPE (Health Optimizing Physical Education)
+  if (norm.includes('healthoptimizing') || norm.startsWith('hope')) {
+    const num = norm.match(/[1-4]/)?.[0] || '';
+    return `healthoptimizingphysicaleducation${num}`;
+  }
+
+  // If it is SHS PE and Health 1-4 / Physical Education 1-4
+  if ((norm.includes('physicaleducation') || norm.includes('peandhealth') || norm.includes('pehealth') || /^pe[1-4]$/.test(norm)) && norm.match(/[1-4]$/)) {
+    const num = norm.match(/[1-4]$/)?.[0] || '';
+    return `physicaleducationandhealth${num}`;
+  }
+
+  const gNum = gradeLevel ? (typeof gradeLevel === 'number' ? gradeLevel : parseInt(String(gradeLevel).replace(/\D/g, '')) || 0) : 0;
+  const isSHS = gNum === 11 || gNum === 12;
+
+  // In SHS (Grades 11-12), numbers may indicate legitimate semester sequences (e.g. PE 1, PE 2, Elective 1-3)
+  if (isSHS) {
+    return norm;
+  }
+
+  // For Grades 1-10:
+  // 1. Strip trailing grade digits (e.g. "filipino4" -> "filipino", "english4" -> "english", "grade4" -> "")
+  let stripped = norm.replace(/(grade)?\d+$/, '');
+  if (!stripped) stripped = norm;
+
+  // 2. Canonical core stems
+  if (stripped.startsWith('filipino')) return 'filipino';
+  if (stripped.startsWith('english')) return 'english';
+  if (stripped.startsWith('math')) return 'mathematics';
+  if (stripped.startsWith('science')) return 'science';
+  if (stripped.startsWith('gmrc') || stripped.includes('goodmanners')) return 'gmrc';
+  if (stripped.startsWith('makabansa')) return 'makabansa';
+  if (stripped === 'ap' || stripped.includes('aralingpanlipunan') || stripped.includes('panlipunan')) return 'aralingpanlipunan';
+  if (stripped.includes('valueseducation') || stripped.includes('esp') || stripped.includes('pagpapakatao')) return 'valueseducation';
+  if (stripped.startsWith('epp') || stripped.includes('edukasyongpantahanan')) return 'epp';
+  if (stripped.startsWith('tle') || stripped.includes('technologyandlivelihood')) return 'tle';
+  if (stripped === 'mapeh') return 'mapeh';
+
+  // MAPEH Components
+  if (stripped.includes('musicandarts') || stripped.includes('musicarts')) return 'musicandarts';
+  if (stripped.includes('physicaleducationandhealth') || stripped.includes('peandhealth') || stripped.includes('pehealth')) return 'physicaleducationandhealth';
+  if (stripped === 'music') return 'music';
+  if (stripped === 'arts') return 'arts';
+  if (stripped === 'physicaleducation' || stripped === 'pe') return 'physicaleducation';
+  if (stripped === 'health') return 'health';
+
+  // ALIVE subjects
+  if (stripped.includes('arabic')) return 'arabiclanguage';
+  if (stripped.includes('islamic')) return 'islamicvalueseducation';
+
+  return stripped;
 }
 
 /**

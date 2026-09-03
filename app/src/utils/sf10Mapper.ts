@@ -1,8 +1,8 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
-import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects } from '../lib/subjectConfig';
+import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects, getSubjectsForGrade } from '../lib/subjectConfig';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import { formatLearnerName } from './student-name';
-import { resolveStudentQuarterGrade } from './grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject } from './grading-helpers';
 import { useAppStore } from '../stores';
 
 /**
@@ -163,27 +163,59 @@ export function mapStudentToSpecData({
       const seen = new Set<string>();
       if (grade === currentGradeNum && studentSection) {
         const taughtRaw = studentSection.taught_subjects || [];
-        const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-        const taughtSet = new Set(taughtNorms);
-
         const isSHS = grade === 11 || grade === 12;
-        if (isSHS && taughtSet.size > 0) {
-          dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
-            const unitInfo = getShsSubjectUnitInfo(s.subject_name, studentSection.section_grade_level || `Grade ${grade}`);
-            if (unitInfo.category === 'core') return true;
-            const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (taughtSet.has(sNorm)) return true;
-            for (const t of taughtSet) {
-              if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+
+        if (isSHS && taughtRaw.length > 0) {
+          for (const tName of taughtRaw) {
+            const alreadyHas = dbSubjectsForGrade.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+            if (!alreadyHas) {
+              dbSubjectsForGrade.push({
+                id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                subject_name: tName,
+                subject_code: '',
+                grade_level: studentSection.section_grade_level || `Grade ${grade}`,
+                section_id: studentSection.id,
+                term: 'all'
+              });
             }
-            return false;
+          }
+
+          dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+            return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+          });
+
+          dbSubjectsForGrade = dbSubjectsForGrade.map(s => {
+            const matchedTaught = taughtRaw.find(t => isMatchingSubject(t, s.id, s.subject_name));
+            if (matchedTaught && s.subject_name !== matchedTaught) {
+              return { ...s, subject_name: matchedTaught };
+            }
+            return s;
           });
         } else {
-          dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
-            const isGeneric = !s.section_id;
-            const isDirect = s.section_id === studentSection.id;
-            return isGeneric || isDirect;
-          });
+          const intendedSubjects = getSubjectsForGrade(grade);
+          const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+            return taughtRaw.some(t => {
+              if (isMatchingSubject(t, subId, subName)) return true;
+              const normT = normalizeSubjectName(t);
+              const normSub = normalizeSubjectName(subName);
+              if (normT === 'mapeh') {
+                return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+              }
+              return false;
+            });
+          };
+
+          if (taughtRaw.length > 1) {
+            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+          } else {
+            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
+              const isGeneric = !s.section_id;
+              const isDirect = s.section_id === studentSection.id;
+              const isIntended = intendedSubjects.some((intended: { name: string }) => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+              const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+              return (isGeneric || isDirect) && (isIntended || isExplicitlyTaught);
+            });
+          }
         }
 
         // Prioritize direct section subjects over generic ones

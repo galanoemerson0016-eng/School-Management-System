@@ -12,6 +12,7 @@ import type { LucideIcon } from 'lucide-react';
 import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
+import { isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -155,6 +156,18 @@ const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): stri
             "physical education and health 2",
             "physical education and health 3",
             "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
             "physical science",
             "reading and writing skills",
             "statistics and probability",
@@ -162,8 +175,18 @@ const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): stri
             "understanding culture, society and politics",
             "21st century literature",
             "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
             "pe and health 3",
-            "pe and health 4"
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -852,14 +875,18 @@ export function SubjectsPage() {
             currentTaught = [...GRADE_11_CORE_SUBJECTS];
         }
 
-        const norm = subject.subject_name.trim().toLowerCase();
-        const isAlreadyAssigned = currentTaught.some(s => s.trim().toLowerCase() === norm);
+        const isAlreadyAssigned = currentTaught.some(s => isMatchingSubject(s, subject.id, subject.subject_name));
 
         let updatedTaught: string[];
         if (isAlreadyAssigned) {
-            updatedTaught = currentTaught.filter(s => s.trim().toLowerCase() !== norm);
+            updatedTaught = currentTaught.filter(s => !isMatchingSubject(s, subject.id, subject.subject_name));
         } else {
-            updatedTaught = [...currentTaught, subject.subject_name];
+            const isG12 = selectedGrade?.includes('12');
+            const isExplicitSSHS = (activeAdvisorySection.track || '').toLowerCase().includes('sshs') || (activeAdvisorySection.track || '').toLowerCase().includes('cluster');
+            const targetName = (isG12 && !isExplicitSSHS)
+                ? normalizeGrade12PESubjectName(subject.subject_name, false)
+                : subject.subject_name;
+            updatedTaught = [...currentTaught, targetName];
         }
 
         try {
@@ -1950,7 +1977,7 @@ export function SubjectsPage() {
 
                                                             const isInAdvisory = Boolean(
                                                                 activeAdvisorySection?.taught_subjects?.some(
-                                                                    s => s.trim().toLowerCase() === norm
+                                                                    s => isMatchingSubject(s, subject.id, subject.subject_name)
                                                                 ) || (!hasExplicitTaught && isG11Core)
                                                             );
 

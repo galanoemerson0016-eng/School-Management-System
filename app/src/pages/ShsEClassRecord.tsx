@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { useAppStore, useAuthStore } from '../stores';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet } from 'lucide-react';
+import { Printer, CloudUpload, Plus, Minus, Download, FileText, Users, FileSpreadsheet, Bug } from 'lucide-react';
 import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
@@ -91,6 +91,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "physical education and health 2",
             "physical education and health 3",
             "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
             "physical science",
             "reading and writing skills",
             "statistics and probability",
@@ -98,8 +110,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "understanding culture, society and politics",
             "21st century literature",
             "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
             "pe and health 3",
-            "pe and health 4"
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -704,10 +726,34 @@ export function ShsEClassRecord() {
             'cpar',
             'media and information literacy',
             'mil',
+            'physical education and health 1',
+            'physical education and health 2',
             'physical education and health 3',
             'physical education and health 4',
+            'health optimizing physical education and health 1',
+            'health optimizing physical education and health 2',
+            'health optimizing physical education and health 3',
+            'health optimizing physical education and health 4',
+            'health optimizing physical education 1',
+            'health optimizing physical education 2',
+            'health optimizing physical education 3',
+            'health optimizing physical education 4',
+            'hope 1',
+            'hope 2',
+            'hope 3',
+            'hope 4',
+            'pe and health 1',
+            'pe and health 2',
             'pe and health 3',
             'pe and health 4',
+            'physical education 1',
+            'physical education 2',
+            'physical education 3',
+            'physical education 4',
+            'pe 1',
+            'pe 2',
+            'pe 3',
+            'pe 4',
             'understanding culture society and politics',
             'understanding culture, society and politics',
             'ucsp',
@@ -1609,8 +1655,8 @@ export function ShsEClassRecord() {
                 }
             `}</style>
 
-            <div className="bg-white rounded-lg shadow-md p-2.5 no-print">
-                <div className="flex flex-col lg:flex-row lg:flex-nowrap lg:items-end gap-2 lg:gap-2">
+            <div className="bg-white rounded-lg shadow-md p-2.5 no-print overflow-x-auto">
+                <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-2 lg:gap-2.5">
                     <div className="w-full lg:w-40 shrink-0">
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-[11px] font-semibold text-deped-blue whitespace-nowrap">Section</label>
@@ -1732,8 +1778,8 @@ export function ShsEClassRecord() {
                             <button
                                 onClick={handleExcelExport}
                                 disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                                className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap cursor-pointer"
-                                title="Export official DepEd SSHS Excel File (.xlsx)"
+                                className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                                title={!selectedSubject ? "Please select a subject first to export Excel" : "Export official DepEd SSHS Excel File (.xlsx)"}
                             >
                                 <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
                             </button>
@@ -1741,7 +1787,8 @@ export function ShsEClassRecord() {
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
+                            className="h-8 px-3 bg-sky-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-sky-500/20 hover:bg-sky-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            title={!selectedSubject ? "Please select a subject first to enable download" : "Download PDF Class Record"}
                         >
                             {isDownloading ? (
                                 <>
@@ -1791,9 +1838,28 @@ export function ShsEClassRecord() {
                                 }
                             }}
                             disabled={!selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-30 disabled:grayscale whitespace-nowrap"
+                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
                             <CloudUpload className="w-3.5 h-3.5" /> Publish
+                        </button>
+
+                        {/* Grade Sync Inspector Button */}
+                        <button
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent('formease-open-grade-debugger', {
+                                    detail: {
+                                        sectionId: selectedSectionObj?.id || selectedSection,
+                                        subjectId: selectedSubject,
+                                        quarter: typeof quarter === 'number' ? quarter : 1
+                                    }
+                                }));
+                            }}
+                            className="h-8 px-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            title="Open Grade Sync Inspector & Live Diagnostics"
+                        >
+                            <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                            <span>Inspect</span>
                         </button>
                     </div>
                 </div>

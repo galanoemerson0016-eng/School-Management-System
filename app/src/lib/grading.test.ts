@@ -332,7 +332,16 @@ describe('getSubjectCluster — Grade 12 Old K-12 vs SSHS Pilot', () => {
     expect(getSubjectCluster('21st Century Literature from the Philippines and the World', 'Grade 12')).toBe('g12_core');
     expect(getSubjectCluster('Contemporary Philippine Arts from the Regions', 'Grade 12')).toBe('g12_core');
     expect(getSubjectCluster('Media and Information Literacy', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Physical Education and Health 1', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Physical Education and Health 2', 'Grade 12')).toBe('g12_core');
     expect(getSubjectCluster('Physical Education and Health 3', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Physical Education and Health 4', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Health Optimizing Physical Education and Health 1', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Health Optimizing Physical Education and Health 2', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Health Optimizing Physical Education and Health 3', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('Health Optimizing Physical Education and Health 4', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('HOPE 1', 'Grade 12')).toBe('g12_core');
+    expect(getSubjectCluster('HOPE 4', 'Grade 12')).toBe('g12_core');
   });
 
   it('correctly maps Grade 12 Old K-12 academic subjects to g12_academic_other or g12_academic_immersion_research', () => {

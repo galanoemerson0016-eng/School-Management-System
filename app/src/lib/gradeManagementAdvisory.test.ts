@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterSubjectsForSection } from './rbac';
-import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from './subjectConfig';
+import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey } from './subjectConfig';
 import type { Section, Subject, User } from '../types';
 
 describe('Grade Management & E-Class Record Advisory Subject Integration', () => {
@@ -245,5 +245,160 @@ describe('Grade Management & E-Class Record Advisory Subject Integration', () =>
         expect(subjectNames.filter(n => n === 'Mathematics')).toHaveLength(1);
         expect(sorted.find(s => s.subject_name === 'English')?.id).toBe('sub-eng-2');
         expect(sorted.find(s => s.subject_name === 'Mathematics')?.id).toBe('sub-math-2');
+    });
+
+    it('Grade Management: Excludes ghost or deleted subjects like Entrepreneurship from Grade 10 even if present in the database', () => {
+        const mockG10AdvisorySection: Section = {
+            id: 'sec-g10-makisig',
+            section_name: 'Makisig',
+            section_grade_level: 'Grade 10',
+            is_advisory: true,
+            taught_subjects: [
+                'Filipino',
+                'English',
+                'Mathematics',
+                'Science',
+                'Araling Panlipunan (AP)',
+                'Values Education',
+                'Technology and Livelihood Education (TLE)',
+                'MAPEH'
+            ]
+        };
+
+        const mockG10Subjects: Subject[] = [
+            { id: 'sub-g10-fil', subject_name: 'Filipino', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-eng', subject_name: 'English', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-math', subject_name: 'Mathematics', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-sci', subject_name: 'Science', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ap', subject_name: 'Araling Panlipunan (AP)', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ve', subject_name: 'Values Education', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-tle', subject_name: 'Technology and Livelihood Education (TLE)', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-mapeh', subject_name: 'MAPEH', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ma', subject_name: 'Music and Arts', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-peh', subject_name: 'Physical Education and Health', grade_level: 'Grade 10', term: 'all' },
+            // Ghost / unassigned subject in DB with Grade 10 tag:
+            { id: 'sub-g10-entrepreneurship', subject_name: 'Entrepreneurship', grade_level: 'Grade 10', term: 'all' }
+        ];
+
+        const sectionObj = mockG10AdvisorySection;
+        const subjects = mockG10Subjects;
+        const sectionGradeNum = 10;
+        const isSHS = false;
+        const taughtRaw = sectionObj.taught_subjects || [];
+        const intendedSubjects = getSubjectsForGrade(sectionObj.section_grade_level);
+
+        let candidates = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            const isMatchingGrade = subjectGradeNum === sectionGradeNum;
+            const isMatchingSection = s.section_id === sectionObj.id;
+            return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
+        });
+
+        // The updated logic in ConsolidatedGradesPage
+        if (!isSHS) {
+            const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+                return taughtRaw.some(t => {
+                    const normT = normalizeSubjectName(t);
+                    const normSub = normalizeSubjectName(subName);
+                    if (normT === normSub || normT.includes(normSub) || normSub.includes(normT)) return true;
+                    if (normT === 'mapeh') {
+                        return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+                    }
+                    return false;
+                });
+            };
+
+            if (taughtRaw.length > 1) {
+                candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+            } else {
+                candidates = candidates.filter(s => {
+                    const isIntended = intendedSubjects.some(intended => normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+                    const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+                    return isIntended || isExplicitlyTaught;
+                });
+            }
+        }
+
+        const candidateNames = candidates.map(c => c.subject_name);
+        expect(candidateNames).not.toContain('Entrepreneurship');
+        expect(candidateNames).toContain('Filipino');
+        expect(candidateNames).toContain('English');
+        expect(candidateNames).toContain('Mathematics');
+        expect(candidateNames).toContain('Science');
+        expect(candidateNames).toContain('Araling Panlipunan (AP)');
+        expect(candidateNames).toContain('Values Education');
+        expect(candidateNames).toContain('Technology and Livelihood Education (TLE)');
+        expect(candidateNames).toContain('MAPEH');
+    });
+
+    it('Temporary Grade Slip: Includes parent MAPEH header when components exist, places it right before components', () => {
+        const mockG10SubjectsWithComponentsOnly: Subject[] = [
+            { id: 'sub-g10-fil', subject_name: 'Filipino', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-eng', subject_name: 'English', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-math', subject_name: 'Mathematics', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-sci', subject_name: 'Science', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ap', subject_name: 'Araling Panlipunan (AP)', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ve', subject_name: 'Values Education', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-tle', subject_name: 'Technology and Livelihood Education (TLE)', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-ma', subject_name: 'Music and Arts', grade_level: 'Grade 10', term: 'all' },
+            { id: 'sub-g10-peh', subject_name: 'Physical Education and Health', grade_level: 'Grade 10', term: 'all' }
+        ];
+
+        const sectionObj: Section = {
+            id: 'sec-g10-makisig',
+            section_name: 'Makisig',
+            section_grade_level: 'Grade 10',
+            is_advisory: true
+        };
+
+        const isSHS = false;
+        const candidates = [...mockG10SubjectsWithComponentsOnly];
+
+        const seenNames = new Set<string>();
+        const uniqueSubjects: Subject[] = [];
+        for (const s of candidates) {
+            const canonical = getCanonicalSubjectKey(s.subject_name, sectionObj.section_grade_level);
+            if (canonical && seenNames.has(canonical)) continue;
+            if (canonical) seenNames.add(canonical);
+            uniqueSubjects.push(s);
+        }
+
+        // Parent MAPEH logic from TemporaryGradeSlipPage
+        if (!isSHS) {
+            const hasMapehHeader = uniqueSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+            const hasMapehComponents = uniqueSubjects.some(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('musicandarts') || n.includes('musicarts') || 
+                       n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                       n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health';
+            });
+
+            if (hasMapehComponents && !hasMapehHeader) {
+                uniqueSubjects.push({
+                    id: `virtual-mapeh-${sectionObj.id}`,
+                    subject_name: 'MAPEH',
+                    section_id: sectionObj.id,
+                    grade_level: sectionObj.section_grade_level,
+                    term: 'all'
+                } as Subject);
+            }
+        }
+
+        const sorted = sortSubjects(uniqueSubjects, s => s.subject_name);
+        const names = sorted.map(s => s.subject_name);
+
+        expect(names).toContain('MAPEH');
+        expect(names).toContain('Music and Arts');
+        expect(names).toContain('Physical Education and Health');
+
+        const mapehIdx = names.indexOf('MAPEH');
+        const maIdx = names.indexOf('Music and Arts');
+        const pehIdx = names.indexOf('Physical Education and Health');
+
+        // MAPEH must appear directly before its components
+        expect(mapehIdx).toBeLessThan(maIdx);
+        expect(mapehIdx).toBeLessThan(pehIdx);
+        expect(maIdx).toBe(mapehIdx + 1);
+        expect(pehIdx).toBe(mapehIdx + 2);
     });
 });

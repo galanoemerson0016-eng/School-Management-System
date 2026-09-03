@@ -4,7 +4,7 @@ import { useAppStore, useAuthStore } from '../stores';
 import { ArrowLeft, FileText, Plus, Minus, Printer, ChevronDown, Layout as AppLogo, Download, ShieldCheck } from 'lucide-react';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatLearnerName } from '../utils/student-name';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject } from '../utils/grading-helpers';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 
 export function SF5Page() {
@@ -82,8 +82,6 @@ export function SF5Page() {
         const isSHS = currentSectionInfo.section_grade_level.includes('11') || currentSectionInfo.section_grade_level.includes('12');
         const sectionTrack = (currentSectionInfo.track || '').toLowerCase();
         const taughtRaw = currentSectionInfo.taught_subjects || [];
-        const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-        const taughtSet = new Set(taughtNorms);
 
         let candidates = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
@@ -95,15 +93,8 @@ export function SF5Page() {
             candidates = sectionSpecific;
         }
 
-        if (taughtSet.size > 0) {
-            candidates = candidates.filter(s => {
-                const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (taughtSet.has(sNorm)) return true;
-                for (const t of taughtSet) {
-                    if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
-                }
-                return false;
-            });
+        if (taughtRaw.length > 0) {
+            candidates = candidates.filter(s => taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name)));
         } else if (isSHS && sectionTrack) {
             candidates = candidates.filter(s => {
                 const unitInfo = getShsSubjectUnitInfo(s.subject_name, currentSectionInfo.section_grade_level);

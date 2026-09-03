@@ -7,8 +7,8 @@ import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
 import { getDefaultTermForSubject, getShsSubjectUnitInfo } from '../lib/curriculum';
-import { resolveStudentQuarterGrade, isMatchingSubject } from '../utils/grading-helpers';
-import type { Subject } from '../types';
+import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import type { Subject, ClassRecord } from '../types';
 
 type QuarterGrades = {
     q1?: QuarterGradeCell;
@@ -97,6 +97,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "physical education and health 2",
             "physical education and health 3",
             "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
             "physical science",
             "reading and writing skills",
             "statistics and probability",
@@ -104,8 +116,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "understanding culture, society and politics",
             "21st century literature",
             "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
             "pe and health 3",
-            "pe and health 4"
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1103,7 +1125,7 @@ const groupedSections = useMemo(() => {
         };
 
         const sectionTrack = (sectionObj.track || '').toLowerCase();
-        const taughtSet = new Set((sectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
+        const taughtRaw = sectionObj.taught_subjects || [];
 
         let candidates = subjects.filter(s => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
@@ -1112,19 +1134,46 @@ const groupedSections = useMemo(() => {
             return (isMatchingGrade || isMatchingSection) && getEffectiveTerm(s) !== 'none';
         });
 
-        // For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack, but ALWAYS keep Core subjects!
+        // For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack
         if (isSHS) {
-            if (taughtSet.size > 0) {
+            if (taughtRaw.length > 0) {
+                // Ensure all explicitly taught subjects are present
+                for (const tName of taughtRaw) {
+                    const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+                    if (!alreadyHas) {
+                        candidates.push({
+                            id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                            subject_name: tName,
+                            subject_code: '',
+                            grade_level: sectionObj.section_grade_level,
+                            section_id: sectionObj.id,
+                            term: 'all'
+                        });
+                    }
+                }
+
+                // Filter to only match explicitly taught subjects
                 candidates = candidates.filter(s => {
-                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                    if (unitInfo.category === 'core') return true;
-                    const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
-                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || taughtSet.has(norm);
+                    return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+                });
+
+                // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
+                const isExplicitSSHS = (sectionObj.track || '').toLowerCase().includes('sshs') || (sectionObj.track || '').toLowerCase().includes('cluster');
+                candidates = candidates.map(s => {
+                    const matchedTaught = taughtRaw.find(t => isMatchingSubject(t, s.id, s.subject_name));
+                    let name = matchedTaught || s.subject_name;
+                    if (sectionGradeNum === 12 && !isExplicitSSHS) {
+                        name = normalizeGrade12PESubjectName(name, false);
+                    }
+                    if (name !== s.subject_name) {
+                        return { ...s, subject_name: name };
+                    }
+                    return s;
                 });
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
                     const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                    if (unitInfo.category === 'core') return true;
+                    if (unitInfo.category === 'core' && sectionGradeNum === 11) return true;
                     if (sectionTrack.includes('acad')) {
                         return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                     }
@@ -1134,9 +1183,39 @@ const groupedSections = useMemo(() => {
                     return true;
                 });
             }
+            if (sectionGradeNum === 12 && !((sectionObj.track || '').toLowerCase().includes('sshs') || (sectionObj.track || '').toLowerCase().includes('cluster'))) {
+                candidates = candidates.map(s => {
+                    const normName = normalizeGrade12PESubjectName(s.subject_name, false);
+                    return normName !== s.subject_name ? { ...s, subject_name: normName } : s;
+                });
+            }
         }
-        // NOTE: For JHS (Grades 7–10) & Elementary (Grades 1–6):
-        // All students take the full standard curriculum. We DO NOT filter out subjects based on taughtSet.
+        // For JHS (Grades 7–10) & Elementary (Grades 1–6):
+        if (!isSHS) {
+            const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+                return taughtRaw.some(t => {
+                    if (isMatchingSubject(t, subId, subName)) return true;
+                    const normT = normalizeSubjectName(t);
+                    const normSub = normalizeSubjectName(subName);
+                    if (normT === 'mapeh') {
+                        return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+                    }
+                    return false;
+                });
+            };
+
+            if (taughtRaw.length > 1) {
+                // If an explicit subject roster was selected in the Subjects tab, strictly respect it
+                candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+            } else {
+                // If taught_subjects is not explicitly set (or single legacy pollution), only allow standard intended curriculum subjects
+                candidates = candidates.filter(s => {
+                    const isIntended = intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+                    const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+                    return isIntended || isExplicitlyTaught;
+                });
+            }
+        }
 
         let sectionDbSubjects = candidates;
 
@@ -1185,6 +1264,19 @@ const groupedSections = useMemo(() => {
             // Never auto-inject generic 'Specialization' for Elementary/JHS (Grades 1-10)
             if (!isSHS && normalizeSubjectName(intended.name) === 'specialization') {
                 return false;
+            }
+            // If explicit subject roster is configured (> 1), don't inject unselected subjects
+            if (!isSHS && taughtRaw.length > 1) {
+                const isAllowed = taughtRaw.some(t => {
+                    if (isMatchingSubject(t, '', intended.name)) return true;
+                    const normT = normalizeSubjectName(t);
+                    const normInt = normalizeSubjectName(intended.name);
+                    if (normT === 'mapeh') {
+                        return normInt.includes('music') || normInt.includes('arts') || normInt.includes('pe') || normInt.includes('health') || normInt.includes('physical');
+                    }
+                    return false;
+                });
+                if (!isAllowed) return false;
             }
             const defaultTerm = getDefaultTermForSubject(intended.name, sectionObj.section_grade_level);
             if (defaultTerm === 'none') return false;
@@ -1322,21 +1414,21 @@ const groupedSections = useMemo(() => {
         return sectionSubjects.filter((subject) => subject.subject_name.toUpperCase() !== 'MAPEH' && !isEcmkParent(subject.subject_name));
     }, [sectionSubjects]);
 
-    const [subjectColumnSelections, setSubjectColumnSelections] = useState<Record<string, string>>({});
+    const [overrideSubjectSelections, setOverrideSubjectSelections] = useState<Record<string, Record<string, string>>>({});
 
-    useEffect(() => {
-        if (sectionObj?.section_metadata?.sf9SubjectSelections) {
-            setSubjectColumnSelections(sectionObj.section_metadata.sf9SubjectSelections);
-        } else {
-            setSubjectColumnSelections({});
-        }
-    }, [sectionObj]);
+    const subjectColumnSelections = useMemo(() => {
+        if (!sectionObj) return {};
+        return overrideSubjectSelections[sectionObj.id] || sectionObj.section_metadata?.sf9SubjectSelections || {};
+    }, [sectionObj, overrideSubjectSelections]);
 
     const handleUpdateSubjectSelection = async (baseId: string, selectedId: string) => {
         if (!sectionObj) return;
         
         const newSelections = { ...subjectColumnSelections, [baseId]: selectedId };
-        setSubjectColumnSelections(newSelections);
+        setOverrideSubjectSelections(prev => ({
+            ...prev,
+            [sectionObj.id]: newSelections
+        }));
         
         try {
             const updatedSection = {
@@ -1424,15 +1516,55 @@ const groupedSections = useMemo(() => {
     const maleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Male').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
     const femaleStudents = useMemo(() => sectionStudents.filter(s => s.gender === 'Female').sort((a, b) => `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`)), [sectionStudents]);
 
+    // PERFORMANCE OPTIMIZATION: Index records by student LRN once
+    const recordsByLrn = useMemo(() => {
+        const map = new Map<string, { classRecs: ClassRecord[]; gradingRecs: ClassRecord[] }>();
+        sectionStudents.forEach(s => {
+            const entry = { classRecs: [] as ClassRecord[], gradingRecs: [] as ClassRecord[] };
+            map.set(s.lrn, entry);
+            map.set(String(s.lrn).trim(), entry);
+        });
+        classRecords.forEach(r => {
+            const entry = map.get(r.student_lrn) || map.get(String(r.student_lrn).trim());
+            if (entry) entry.classRecs.push(r);
+        });
+        gradingSheetRecords.forEach(r => {
+            const entry = map.get(r.student_lrn) || map.get(String(r.student_lrn).trim());
+            if (entry) entry.gradingRecs.push(r);
+        });
+        return map;
+    }, [sectionStudents, classRecords, gradingSheetRecords]);
+
     // GRADES COMPUTATION
     const gradesData = useMemo(() => {
         const data: GradesData = {};
+        const gradeCache = new Map<string, number>();
 
-            sectionStudents.forEach(student => {
+        sectionStudents.forEach(student => {
             const studentData: StudentGradeRow = {};
             let totalFinal = 0;
             let totalUnits = 0;
             let subjectCount = 0;
+
+            const stRecs = recordsByLrn.get(student.lrn) || recordsByLrn.get(String(student.lrn).trim()) || { classRecs: [], gradingRecs: [] };
+
+            const getStudentQuarterGrade = (subjectId: string, q: number) => {
+                const cacheKey = `${student.lrn}_${subjectId}_${q}`;
+                if (gradeCache.has(cacheKey)) return gradeCache.get(cacheKey)!;
+                const val = resolveStudentQuarterGrade(
+                    student.lrn,
+                    subjectId,
+                    q,
+                    activeSchoolYear,
+                    stRecs.classRecs,
+                    stRecs.gradingRecs,
+                    hpsRecords,
+                    sectionObj?.section_grade_level,
+                    sectionObj?.track
+                );
+                gradeCache.set(cacheKey, val);
+                return val;
+            };
 
             sectionSubjects.forEach(subject => {
                 if (subject._mapehGroups) {
@@ -1446,12 +1578,12 @@ const groupedSections = useMemo(() => {
                         const peHealthResults: number[] = [];
 
                         subject._mapehGroups.musicArts.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = getStudentQuarterGrade(comp.id, q);
                             if (val > 0) musicArtsResults.push(val);
                         });
 
                         subject._mapehGroups.peHealth.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = getStudentQuarterGrade(comp.id, q);
                             if (val > 0) peHealthResults.push(val);
                         });
 
@@ -1514,12 +1646,12 @@ const groupedSections = useMemo(() => {
                         const mkResults: number[] = [];
 
                         subject._ecmkGroups.effectiveComm.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = getStudentQuarterGrade(comp.id, q);
                             if (val > 0) ecResults.push(val);
                         });
 
                         subject._ecmkGroups.mabisangKom.forEach(comp => {
-                            const val = resolveStudentQuarterGrade(student.lrn, comp.id, q, activeSchoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionObj?.section_grade_level, sectionObj?.track);
+                            const val = getStudentQuarterGrade(comp.id, q);
                             if (val > 0) mkResults.push(val);
                         });
 
@@ -1570,17 +1702,7 @@ const groupedSections = useMemo(() => {
                     let qCount = 0;
 
                     for (let q = 1; q <= 4; q++) {
-                        const gradeVal = resolveStudentQuarterGrade(
-                            student.lrn,
-                            subject.id,
-                            q,
-                            activeSchoolYear,
-                            classRecords,
-                            gradingSheetRecords,
-                            hpsRecords,
-                            sectionObj?.section_grade_level,
-                            sectionObj?.track
-                        );
+                        const gradeVal = getStudentQuarterGrade(subject.id, q);
 
                         if (gradeVal > 0) {
                             const qKey = `q${q}` as QuarterKey;
@@ -1690,7 +1812,7 @@ const groupedSections = useMemo(() => {
         });
 
         return data;
-    }, [sectionStudents, sectionSubjects, subjectColumns, gradingSheetRecords, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
+    }, [sectionStudents, sectionSubjects, subjectColumns, recordsByLrn, hpsRecords, activeSchoolYear, sectionObj, selectedTerm, isSHSSection]);
 
     const promotionStats = useMemo(() => {
         const stats = {
@@ -1922,8 +2044,6 @@ const groupedSections = useMemo(() => {
     }, [subjectColumns, selectedTerm, showGenAvg, learnerNameColumnWidth, subjectColumnWidth, termColSpan]);
 
     useEffect(() => {
-        setSheetWidth(null);
-        
         let active = true;
         requestAnimationFrame(() => {
             if (!active || !containerRef.current) return;
@@ -1934,7 +2054,7 @@ const groupedSections = useMemo(() => {
                     maxWidth = Math.max(maxWidth, sheet.clientWidth);
                 });
                 if (maxWidth > 0) {
-                    setSheetWidth(maxWidth);
+                    setSheetWidth(prev => prev === maxWidth ? prev : maxWidth);
                 }
             }
         });
@@ -2322,10 +2442,7 @@ const groupedSections = useMemo(() => {
                                                         </span>
                                                         <select
                                                             value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                            onChange={(e) => {
-                                                                const nextId = e.target.value;
-                                                                setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                            }}
+                                                            onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
                                                             className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
                                                             aria-label={`Select subject for column ${index + 1}`}
                                                         >
@@ -2396,10 +2513,7 @@ const groupedSections = useMemo(() => {
                                                     </span>
                                                     <select
                                                         value={subjectColumnSelections[column.baseId] || column.subject.id}
-                                                        onChange={(e) => {
-                                                            const nextId = e.target.value;
-                                                            setSubjectColumnSelections((prev) => ({ ...prev, [column.baseId]: nextId }));
-                                                        }}
+                                                        onChange={(e) => handleUpdateSubjectSelection(column.baseId, e.target.value)}
                                                         className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
                                                         aria-label={`Select subject for column ${index + 1}`}
                                                     >

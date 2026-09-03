@@ -18,17 +18,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { Student, Subject, ClassRecord } from '../../types';
-import { normalizeSubjectName, sortSubjects } from '../../lib/subjectConfig';
+import { normalizeSubjectName, sortSubjects, getCanonicalSubjectKey, getSubjectsForGrade } from '../../lib/subjectConfig';
 import {
   resolveStudentQuarterGrade,
   isMatchingSubject,
 } from '../../utils/grading-helpers';
-import {
-  getSubjectCluster,
-  getWeights,
-  computeExamsWeightedScore,
-  transmuteGrade,
-} from '../../lib/grading';
 import { DiagnosticReporter, type SubmissionResult } from '../../services/diagnostic-reporter';
 
 interface GradeSyncInspectorModalProps {
@@ -94,10 +88,21 @@ export function GradeSyncInspectorModal({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(initialSubjectId || 'all');
   const [selectedQuarter, setSelectedQuarter] = useState<number>(initialQuarter);
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'mismatches' | 'in_sync'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'mismatches' | 'in_sync' | 'missing'>('all');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
   const [copiedReport, setCopiedReport] = useState(false);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+
+  // Sections sorted strictly by grade level (numeric) then section name (alphabetical)
+  const sortedSections = useMemo(() => {
+    if (!sections || sections.length === 0) return [];
+    return [...sections].sort((a, b) => {
+      const aGrade = parseInt(a.section_grade_level.replace(/\D/g, '')) || 0;
+      const bGrade = parseInt(b.section_grade_level.replace(/\D/g, '')) || 0;
+      if (aGrade !== bGrade) return aGrade - bGrade;
+      return a.section_name.localeCompare(b.section_name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [sections]);
 
   // Global event listener to open from anywhere
   useEffect(() => {
@@ -127,10 +132,10 @@ export function GradeSyncInspectorModal({
   useEffect(() => {
     if (initialSectionId) {
       setSelectedSectionId(initialSectionId);
-    } else if (!selectedSectionId && sections.length > 0) {
-      setSelectedSectionId(sections[0].id || sections[0].section_name);
+    } else if (!selectedSectionId && sortedSections.length > 0) {
+      setSelectedSectionId(sortedSections[0].id || sortedSections[0].section_name);
     }
-  }, [sections, initialSectionId, selectedSectionId]);
+  }, [sortedSections, initialSectionId, selectedSectionId]);
 
   useEffect(() => {
     if (initialStudentLrn) {
@@ -145,8 +150,8 @@ export function GradeSyncInspectorModal({
   }, [initialSubjectId]);
 
   const selectedSectionObj = useMemo(() => {
-    return sections.find(s => s.id === selectedSectionId || s.section_name === selectedSectionId);
-  }, [sections, selectedSectionId]);
+    return sortedSections.find(s => s.id === selectedSectionId || s.section_name === selectedSectionId);
+  }, [sortedSections, selectedSectionId]);
 
   const sectionStudents = useMemo(() => {
     if (!selectedSectionObj) return [];
@@ -174,17 +179,39 @@ export function GradeSyncInspectorModal({
     return sectionStudents.find(s => s.lrn === selectedStudentLrn) || sectionStudents[0] || null;
   }, [sectionStudents, selectedStudentLrn]);
 
-  // Section subjects deduplicated
+  // Section subjects deduplicated with Curriculum Fallback
   const sectionSubjects = useMemo(() => {
     if (!selectedSectionObj) return [];
-    const sectionGradeNum = parseInt(selectedSectionObj.section_grade_level.replace(/\D/g, '')) || 0;
+    const gradeLevelStr = selectedSectionObj.section_grade_level || '';
+    const sectionGradeNum = parseInt(gradeLevelStr.replace(/\D/g, '')) || 0;
 
-    const candidates = subjects.filter(s => {
+    // 1. Direct section subjects
+    const sectionSpecific = subjects.filter(s => s.section_id === selectedSectionObj.id && s.term !== 'none');
+
+    // 2. Generic grade subjects (no section_id or matching grade)
+    const genericGradeSubjects = subjects.filter(s => {
+      if (s.section_id) return false;
       const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
-      const isMatchingGrade = subjectGradeNum === sectionGradeNum;
-      const isMatchingSection = s.section_id === selectedSectionObj.id;
-      return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
-    }).filter(s => !s.section_id || s.section_id === selectedSectionObj.id);
+      return subjectGradeNum === sectionGradeNum && s.term !== 'none';
+    });
+
+    const candidates: Subject[] = [...sectionSpecific, ...genericGradeSubjects];
+
+    // 3. Fallback: If no subjects exist in DB for this grade level, load standard curriculum subjects
+    if (candidates.length === 0) {
+      const standardList = getSubjectsForGrade(gradeLevelStr);
+      for (const item of standardList) {
+        if (item.name && item.name.trim()) {
+          const canonical = getCanonicalSubjectKey(item.name, sectionGradeNum);
+          candidates.push({
+            id: `curriculum-${canonical}`,
+            subject_name: item.name,
+            grade_level: gradeLevelStr,
+            term: 'all'
+          } as Subject);
+        }
+      }
+    }
 
     candidates.sort((a, b) => {
       const aDirect = a.section_id === selectedSectionObj.id ? 1 : 0;
@@ -195,13 +222,23 @@ export function GradeSyncInspectorModal({
     const seen = new Set<string>();
     const res: Subject[] = [];
     for (const s of candidates) {
-      const norm = normalizeSubjectName(s.subject_name);
-      if (norm && seen.has(norm)) continue;
-      if (norm) seen.add(norm);
+      const canonical = getCanonicalSubjectKey(s.subject_name, sectionGradeNum);
+      if (canonical && seen.has(canonical)) continue;
+      if (canonical) seen.add(canonical);
       res.push(s);
     }
     return sortSubjects(res, s => s.subject_name);
   }, [subjects, selectedSectionObj]);
+
+  // Auto-reset selectedSubjectId if it does not belong to the current section
+  useEffect(() => {
+    if (selectedSubjectId !== 'all' && sectionSubjects.length > 0) {
+      const exists = sectionSubjects.some(s => s.id === selectedSubjectId);
+      if (!exists) {
+        setSelectedSubjectId('all');
+      }
+    }
+  }, [sectionSubjects, selectedSubjectId]);
 
   const filteredStudents = useMemo(() => {
     if (!studentSearchQuery.trim()) return sectionStudents;
@@ -221,7 +258,7 @@ export function GradeSyncInspectorModal({
     const gradeLevel = selectedSectionObj?.section_grade_level || student.grade_level || 'Grade 7';
     const track = selectedSectionObj?.track || student.track || '';
 
-    // 1. E-Class Record Search
+    // 1. E-Class Record Search & True Transmuted Grade Resolution
     const ecrMatches = classRecords.filter(r =>
       (r.student_lrn === student.lrn || String(r.student_lrn).trim() === String(student.lrn).trim()) &&
       isMatchingSubject(subject.id, r.subject_id, r.subject_name, subject.subject_name) &&
@@ -237,7 +274,6 @@ export function GradeSyncInspectorModal({
     );
 
     let ecrRawScoreSummary = 'No raw scores entered';
-    let ecrTransmutedGrade: number | null = null;
     let ecrStoredFinalGrade: number | null = null;
     let ecrRecordId: string | undefined;
 
@@ -251,9 +287,10 @@ export function GradeSyncInspectorModal({
       const rawWw = (cRec.written_works || []).map(v => (v !== undefined && v !== null ? v : ''));
       const rawPt = (cRec.performance_tasks || []).map(v => (v !== undefined && v !== null ? v : ''));
       const rawQa = cRec.quarterly_exam !== undefined && cRec.quarterly_exam !== null ? cRec.quarterly_exam : '';
+      const rawSt = (cRec as ClassRecord & { summative_tests?: (number | string)[] }).summative_tests || [];
 
       const isValidScore = (v: unknown): boolean => v !== '' && v !== null && v !== undefined && !isNaN(Number(v));
-      const hasScores = rawWw.some(isValidScore) || rawPt.some(isValidScore) || isValidScore(rawQa);
+      const hasScores = rawWw.some(isValidScore) || rawPt.some(isValidScore) || isValidScore(rawQa) || rawSt.some(isValidScore);
 
       if (hasScores) {
         // Find HPS
@@ -265,7 +302,6 @@ export function GradeSyncInspectorModal({
 
         const hps_ww: number[] = (hRec?.written_works || []).map((v: unknown) => Number(v) || 0);
         const hps_pt: number[] = (hRec?.performance_tasks || []).map((v: unknown) => Number(v) || 0);
-        const hps_qa: number = Number(hRec?.quarterly_exam) || 0;
 
         const wwTotalScore = rawWw.reduce<number>((acc: number, v: unknown) => acc + (isValidScore(v) ? Number(v) : 0), 0);
         const ptTotalScore = rawPt.reduce<number>((acc: number, v: unknown) => acc + (isValidScore(v) ? Number(v) : 0), 0);
@@ -274,35 +310,7 @@ export function GradeSyncInspectorModal({
 
         ecrRawScoreSummary = `WW: ${wwTotalScore}/${wwTotalHPS || 0}, PT: ${ptTotalScore}/${ptTotalHPS || 0}`;
 
-        if (wwTotalHPS > 0 || ptTotalHPS > 0) {
-          const cluster = getSubjectCluster(subject.subject_name, gradeLevel, track);
-          const weights = getWeights(cluster, subject);
-
-          const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
-          const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
-          const wwWS = wwPS * (weights.written_works || 0);
-          const ptWS = ptPS * (weights.performance_tasks || 0);
-
-          const parseNumOrNull = (val: number | string | null | undefined): number | null => {
-            if (val === '' || val === null || val === undefined) return null;
-            const n = Number(val);
-            return isNaN(n) ? null : n;
-          };
-
-          const qaPS = computeExamsWeightedScore(
-            parseNumOrNull(rawQa), hps_qa,
-            null, 0,
-            null, 0,
-            cluster
-          );
-          const qaWS = qaPS * (weights.quarterly_exam || 0);
-
-          const initial = Math.min(100, Math.max(0, wwWS + ptWS + qaWS));
-          const transmuted = transmuteGrade(initial, activeSchoolYear);
-          if (transmuted > 0) {
-            ecrTransmutedGrade = transmuted;
-          }
-        } else {
+        if (wwTotalHPS === 0 && ptTotalHPS === 0) {
           discrepancies.push(`E-Class Record has raw student scores, but Total Highest Possible Score (HPS) is 0.`);
           recommendations.push(`Open E-Class Record and fill in the Highest Possible Score (HPS) row so transmuted grades can be computed.`);
         }
@@ -311,6 +319,20 @@ export function GradeSyncInspectorModal({
       discrepancies.push(`Found ECR record under different school year "${crossSyEcrMatches[0].school_year}" (Active SY: "${activeSchoolYear}").`);
       recommendations.push(`Verify School Year in Settings matches the recorded ECR school year.`);
     }
+
+    // 1. True E-Class Record Computed Transmuted Grade Resolution
+    const ecrResolved = resolveStudentQuarterGrade(
+      student.lrn,
+      subject.id,
+      q,
+      activeSchoolYear,
+      classRecords,
+      [], // Strictly compute from ECR raw scores (no grading sheet fallback)
+      hpsRecords,
+      gradeLevel,
+      track
+    );
+    const ecrTransmutedGrade: number | null = ecrResolved > 0 ? ecrResolved : null;
 
     // 2. Grade Management (Grading Sheet) Search
     const gsMatches = gradingSheetRecords.filter(r =>
@@ -372,20 +394,31 @@ export function GradeSyncInspectorModal({
     // SF10 Standard Key
     const sf10StandardKey = norm;
 
-    // Detect Mismatches and Root Causes
+    // Detect Mismatches and Root Causes Across All 5 Modules
     const ecrEffective = ecrTransmutedGrade || ecrStoredFinalGrade;
     const gsEffective = gradeManagementValue;
 
-    if (ecrEffective && gsEffective && ecrEffective !== gsEffective) {
+    // Compare all 5 modules across the board
+    const moduleGrades = [
+      ecrEffective,
+      gradeManagementValue,
+      sf9ResolvedGrade,
+      gradeSlipResolvedGrade,
+      sf10ResolvedGrade
+    ].filter((g): g is number => g !== null && g > 0);
+
+    const hasCrossModuleMismatch = moduleGrades.length > 1 && new Set(moduleGrades).size > 1;
+
+    if (hasCrossModuleMismatch) {
       discrepancies.push(
-        `Grade Management has a stored value of ${gsEffective}, but E-Class Record (Teacher's Teaching Load) computed transmutation is ${ecrEffective}.`
+        `Module grade mismatch detected: ECR (${ecrTransmutedGrade ?? ecrStoredFinalGrade ?? '-'}), Grade Mgmt (${gradeManagementValue ?? '-'}), Forms SF9/Slip/SF10 (${sf9ResolvedGrade ?? '-'}).`
       );
       recommendations.push(
-        `Click "Sync ECR" to overwrite Grade Management with the teacher's official E-Class Record calculation (${ecrEffective}).`
+        `Click "Sync ECR" to synchronize the teacher's official E-Class Record grade (${ecrTransmutedGrade ?? ecrStoredFinalGrade}) across all modules.`
       );
     }
 
-    if (ecrEffective && !gsEffective) {
+    if (ecrEffective && !gsEffective && !hasCrossModuleMismatch) {
       discrepancies.push(
         `E-Class Record has computed grade ${ecrEffective}, but it is not yet saved into Grading Sheet records.`
       );
@@ -394,7 +427,7 @@ export function GradeSyncInspectorModal({
       );
     }
 
-    if (!ecrEffective && gsEffective) {
+    if (!ecrEffective && gsEffective && !hasCrossModuleMismatch) {
       discrepancies.push(
         `Grade Management has score ${gsEffective}, but no raw scores exist in E-Class Record.`
       );
@@ -406,12 +439,10 @@ export function GradeSyncInspectorModal({
     // Determine overall sync status
     let syncStatus: ModuleGradeBreakdown['syncStatus'] = 'in_sync';
 
-    if (discrepancies.some(d => d.includes('different school year') || d.includes('stored value of'))) {
+    if (hasCrossModuleMismatch || discrepancies.some(d => d.includes('different school year') || d.includes('stored value of'))) {
       syncStatus = 'mismatch';
     } else if (!ecrEffective && !gsEffective && !effectiveResolved) {
       syncStatus = 'missing';
-    } else if (ecrEffective && gsEffective && ecrEffective !== gsEffective) {
-      syncStatus = 'mismatch';
     } else {
       syncStatus = 'in_sync';
     }
@@ -459,6 +490,7 @@ export function GradeSyncInspectorModal({
     if (statusFilter === 'all') return inspectionRows;
     if (statusFilter === 'mismatches') return inspectionRows.filter(r => r.breakdown.syncStatus === 'mismatch');
     if (statusFilter === 'in_sync') return inspectionRows.filter(r => r.breakdown.syncStatus === 'in_sync');
+    if (statusFilter === 'missing') return inspectionRows.filter(r => r.breakdown.syncStatus === 'missing');
     return inspectionRows;
   }, [inspectionRows, statusFilter]);
 
@@ -851,10 +883,14 @@ export function GradeSyncInspectorModal({
               <span className="text-xs font-black text-slate-500 uppercase tracking-wider">Section:</span>
               <select
                 value={selectedSectionId}
-                onChange={(e) => setSelectedSectionId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedSectionId(e.target.value);
+                  setSelectedSubjectId('all');
+                  setStatusFilter('all');
+                }}
                 className="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold text-xs focus:ring-2 focus:ring-blue-500"
               >
-                {sections.map(s => (
+                {sortedSections.map(s => (
                   <option key={s.id || s.section_name} value={s.id || s.section_name}>
                     {s.section_grade_level} - {s.section_name}
                   </option>
@@ -912,6 +948,16 @@ export function GradeSyncInspectorModal({
               >
                 <CheckCircle2 className="w-3 h-3" />
                 <span>Synced ({stats.inSync})</span>
+              </button>
+              <button
+                onClick={() => setStatusFilter('missing')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  statusFilter === 'missing'
+                    ? 'bg-slate-300 dark:bg-slate-600 text-slate-900 dark:text-white border border-slate-400/30'
+                    : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>No Grade ({stats.missing})</span>
               </button>
             </div>
           </div>
@@ -1145,9 +1191,10 @@ export function GradeSyncInspectorModal({
 
                               {/* Action Button */}
                               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                {breakdown.ecrTransmutedGrade && breakdown.ecrTransmutedGrade !== breakdown.gradeManagementValue ? (
+                                {(breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade) &&
+                                ((breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade) !== breakdown.gradeManagementValue || breakdown.syncStatus === 'mismatch') ? (
                                   <button
-                                    onClick={() => handleSyncSubject(selectedStudentObj!, subject, breakdown.ecrTransmutedGrade!)}
+                                    onClick={() => handleSyncSubject(selectedStudentObj!, subject, (breakdown.ecrTransmutedGrade || breakdown.ecrStoredFinalGrade)!)}
                                     className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all shadow-sm active:scale-95 cursor-pointer"
                                     title="Sync ECR transmuted grade to Grade Management"
                                   >
@@ -1242,7 +1289,25 @@ export function GradeSyncInspectorModal({
                     ) : (
                       <tr>
                         <td colSpan={8} className="p-8 text-center text-xs text-slate-400 font-medium">
-                          No subject grade records found matching the active filter.
+                          <div className="flex flex-col items-center justify-center gap-2 py-4">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                              {statusFilter === 'mismatches'
+                                ? 'All subjects are perfectly synchronized! No grade mismatches found.'
+                                : statusFilter === 'in_sync'
+                                ? 'No synchronized grades found under this filter.'
+                                : statusFilter === 'missing'
+                                ? 'No missing grade subjects found.'
+                                : 'No subject grade records found matching the active filter.'}
+                            </p>
+                            {statusFilter !== 'all' && (
+                              <button
+                                onClick={() => setStatusFilter('all')}
+                                className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold text-xs hover:bg-blue-100 transition-all cursor-pointer mt-1"
+                              >
+                                Show All Subjects ({stats.total})
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}

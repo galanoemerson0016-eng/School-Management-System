@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../stores';
 import { ArrowLeft, Printer, Layout, Plus, Minus, Bug } from 'lucide-react';
-import { sortSubjects, normalizeSubjectName, getSubjectsForGrade } from '../lib/subjectConfig';
+import { sortSubjects, normalizeSubjectName, getCanonicalSubjectKey, getSubjectsForGrade } from '../lib/subjectConfig';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import type { Section, Student, Subject, ClassRecord, SchoolProfile } from '../types';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 
 type PaperSize = 'a4' | 'letter' | 'folio';
 
@@ -64,7 +64,7 @@ export function TemporaryGradeSlipPage() {
         const sectionGradeNum = parseInt(selectedSectionObj.section_grade_level.replace(/\D/g, '')) || 0;
         const isSHS = selectedSectionObj.section_grade_level.includes('11') || selectedSectionObj.section_grade_level.includes('12');
         const sectionTrack = (selectedSectionObj.track || '').toLowerCase();
-        const taughtSet = new Set((selectedSectionObj.taught_subjects || []).map(s => s.toLowerCase().trim()));
+        const taughtSet = (selectedSectionObj.taught_subjects || []);
 
         // 1. All active subjects matching this section's grade level or assigned to this section
         let candidates = subjects.filter(s => {
@@ -79,17 +79,44 @@ export function TemporaryGradeSlipPage() {
 
         // 3. For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack, keeping Core subjects
         if (isSHS) {
-            if (taughtSet.size > 0) {
+            if (taughtSet.length > 0) {
+                // Ensure all explicitly taught subjects are present
+                for (const tName of taughtSet) {
+                    const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+                    if (!alreadyHas) {
+                        candidates.push({
+                            id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                            subject_name: tName,
+                            subject_code: '',
+                            grade_level: selectedSectionObj.section_grade_level,
+                            section_id: selectedSectionObj.id,
+                            term: 'all'
+                        });
+                    }
+                }
+
                 candidates = candidates.filter(s => {
-                    const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
-                    if (unitInfo.category === 'core') return true;
-                    const norm = normalizeSubjectName(s.subject_name) || s.subject_name.trim().toLowerCase();
-                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || taughtSet.has(norm);
+                    return taughtSet.some(t => isMatchingSubject(t, s.id, s.subject_name));
+                });
+
+                // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
+                const isExplicitSSHS = (selectedSectionObj?.track || '').toLowerCase().includes('sshs') || (selectedSectionObj?.track || '').toLowerCase().includes('cluster');
+                const isG12 = selectedSectionObj?.section_grade_level?.includes('12');
+                candidates = candidates.map(s => {
+                    const matchedTaught = taughtSet.find(t => isMatchingSubject(t, s.id, s.subject_name));
+                    let name = matchedTaught || s.subject_name;
+                    if (isG12 && !isExplicitSSHS) {
+                        name = normalizeGrade12PESubjectName(name, false);
+                    }
+                    if (name !== s.subject_name) {
+                        return { ...s, subject_name: name };
+                    }
+                    return s;
                 });
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
                     const unitInfo = getShsSubjectUnitInfo(s.subject_name, selectedSectionObj.section_grade_level);
-                    if (unitInfo.category === 'core') return true;
+                    if (unitInfo.category === 'core' && selectedSectionObj.section_grade_level.includes('11')) return true;
                     if (sectionTrack.includes('acad')) {
                         return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                     }
@@ -101,29 +128,71 @@ export function TemporaryGradeSlipPage() {
             }
         } else {
             // For JHS / Elementary: if taught_subjects is configured, filter candidates by taughtSet
-            if (taughtSet.size > 0) {
+            const intendedSubjects = getSubjectsForGrade(selectedSectionObj.section_grade_level, schoolProfile?.curriculum);
+            const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+                return taughtSet.some(t => {
+                    if (isMatchingSubject(t, subId, subName)) return true;
+                    const normT = normalizeSubjectName(t);
+                    const normSub = normalizeSubjectName(subName);
+                    if (normT === 'mapeh') {
+                        return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+                    }
+                    return false;
+                });
+            };
+
+            if (taughtSet.length > 1) {
+                candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+            } else {
                 candidates = candidates.filter(s => {
-                    const norm = normalizeSubjectName(s.subject_name);
-                    return taughtSet.has(s.subject_name.toLowerCase().trim()) || (norm ? taughtSet.has(norm) : false);
+                    const isIntended = intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+                    const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+                    return isIntended || isExplicitlyTaught;
                 });
             }
         }
 
-        // 4. Prioritize section-specific subjects over generic subjects
+        // 4. Prioritize clean standard names and section-specific subjects
         candidates.sort((a, b) => {
+            if (!isSHS) {
+                const aHasDigit = /\d+$/.test(a.subject_name.trim()) ? 1 : 0;
+                const bHasDigit = /\d+$/.test(b.subject_name.trim()) ? 1 : 0;
+                if (aHasDigit !== bHasDigit) return aHasDigit - bHasDigit;
+            }
             const aDirect = a.section_id === selectedSectionObj.id ? 1 : 0;
             const bDirect = b.section_id === selectedSectionObj.id ? 1 : 0;
             return bDirect - aDirect;
         });
 
-        // 5. Strictly deduplicate by normalized subject name
+        // 5. Strictly deduplicate by canonical subject name
         const seenNames = new Set<string>();
         const uniqueSubjects: Subject[] = [];
         for (const s of candidates) {
-            const norm = normalizeSubjectName(s.subject_name);
-            if (norm && seenNames.has(norm)) continue;
-            if (norm) seenNames.add(norm);
+            const canonical = getCanonicalSubjectKey(s.subject_name, selectedSectionObj.section_grade_level);
+            if (canonical && seenNames.has(canonical)) continue;
+            if (canonical) seenNames.add(canonical);
             uniqueSubjects.push(s);
+        }
+
+        // Ensure parent MAPEH header exists if components exist (for JHS and Elementary)
+        if (!isSHS) {
+            const hasMapehHeader = uniqueSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+            const hasMapehComponents = uniqueSubjects.some(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('musicandarts') || n.includes('musicarts') || 
+                       n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                       n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health';
+            });
+
+            if (hasMapehComponents && !hasMapehHeader) {
+                uniqueSubjects.push({
+                    id: `virtual-mapeh-${selectedSectionObj.id}`,
+                    subject_name: 'MAPEH',
+                    section_id: selectedSectionObj.id,
+                    grade_level: selectedSectionObj.section_grade_level,
+                    term: 'all'
+                } as Subject);
+            }
         }
 
         // 6. Fallback: If no subjects exist in DB for this grade level, load standard curriculum subjects
@@ -131,11 +200,11 @@ export function TemporaryGradeSlipPage() {
             const standardList = getSubjectsForGrade(selectedSectionObj.section_grade_level);
             for (const item of standardList) {
                 if (item.name && item.name.trim()) {
-                    const norm = normalizeSubjectName(item.name);
-                    if (!seenNames.has(norm)) {
-                        seenNames.add(norm);
+                    const canonical = getCanonicalSubjectKey(item.name, selectedSectionObj.section_grade_level);
+                    if (!seenNames.has(canonical)) {
+                        seenNames.add(canonical);
                         uniqueSubjects.push({
-                            id: `curriculum-${norm}`,
+                            id: `curriculum-${canonical}`,
                             subject_name: item.name,
                             grade_level: selectedSectionObj.section_grade_level,
                             term: 'all'
@@ -488,14 +557,42 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
     const dedupedSubjects = useMemo(() => {
         const seen = new Set<string>();
         const res: Subject[] = [];
-        for (const s of subjects) {
-            const norm = normalizeSubjectName(s.subject_name);
-            if (norm && seen.has(norm)) continue;
-            if (norm) seen.add(norm);
+        const sorted = [...subjects].sort((a, b) => {
+            const aHasDigit = /\d+$/.test(a.subject_name.trim()) ? 1 : 0;
+            const bHasDigit = /\d+$/.test(b.subject_name.trim()) ? 1 : 0;
+            return aHasDigit - bHasDigit;
+        });
+        for (const s of sorted) {
+            const canonical = getCanonicalSubjectKey(s.subject_name, section?.section_grade_level);
+            if (canonical && seen.has(canonical)) continue;
+            if (canonical) seen.add(canonical);
             res.push(s);
         }
-        return res;
-    }, [subjects]);
+
+        // Ensure parent MAPEH header exists if components exist (for JHS and Elementary)
+        const isSHS = section?.section_grade_level?.includes('11') || section?.section_grade_level?.includes('12');
+        if (!isSHS) {
+            const hasMapehHeader = res.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+            const hasMapehComponents = res.some(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('musicandarts') || n.includes('musicarts') || 
+                       n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') ||
+                       n === 'music' || n === 'arts' || n === 'physicaleducation' || n === 'health';
+            });
+
+            if (hasMapehComponents && !hasMapehHeader) {
+                res.push({
+                    id: `virtual-mapeh-${section?.id || 'temp'}`,
+                    subject_name: 'MAPEH',
+                    section_id: section?.id,
+                    grade_level: section?.section_grade_level,
+                    term: 'all'
+                } as Subject);
+            }
+        }
+
+        return sortSubjects(res, s => s.subject_name);
+    }, [subjects, section?.section_grade_level, section?.id]);
     
     // Extract grades for this student for all 3 terms
     const studentGrades = useMemo(() => {
@@ -512,11 +609,14 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
 
         const hasParentMapeh = dedupedSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
 
+        // First pass: compute grades for individual non-MAPEH subjects
         dedupedSubjects.forEach((subj: Subject) => {
+            const normName = normalizeSubjectName(subj.subject_name);
+            if (normName === 'mapeh') return; // Handled in second pass
+
             let q1 = '', q2 = '', q3 = '';
             let sTotal = 0, sCount = 0;
 
-            const normName = normalizeSubjectName(subj.subject_name);
             const isComponent = hasParentMapeh && (
                 normName.includes('musicandarts') || normName.includes('musicarts') ||
                 normName.includes('physicaleducationandhealth') || normName.includes('peandhealth') || normName.includes('pehealth') ||
@@ -564,6 +664,69 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
 
             subjectGrades[subj.id] = { q1, q2, q3, final: finalGrade, remarks };
         });
+
+        // Second pass: compute parent MAPEH grades
+        const mapehSubj = dedupedSubjects.find(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+        if (mapehSubj) {
+            const musicArtsSubj = dedupedSubjects.find(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('musicandarts') || n.includes('musicarts') || n === 'music' || n === 'arts';
+            });
+            const peHealthSubj = dedupedSubjects.find(s => {
+                const n = normalizeSubjectName(s.subject_name);
+                return n.includes('physicaleducationandhealth') || n.includes('peandhealth') || n.includes('pehealth') || n === 'physicaleducation' || n === 'health';
+            });
+
+            let q1 = '', q2 = '', q3 = '';
+            let sTotal = 0, sCount = 0;
+
+            for (let q = 1; q <= 3; q++) {
+                const qKey = `q${q}` as 'q1' | 'q2' | 'q3';
+                let g = resolveStudentQuarterGrade(
+                    student.lrn,
+                    mapehSubj.id,
+                    q,
+                    activeSchoolYear,
+                    classRecords,
+                    records,
+                    hpsRecords,
+                    section?.section_grade_level,
+                    section?.track
+                );
+
+                if (g === 0) {
+                    const maG = musicArtsSubj ? Number(subjectGrades[musicArtsSubj.id]?.[qKey] || 0) : 0;
+                    const peG = peHealthSubj ? Number(subjectGrades[peHealthSubj.id]?.[qKey] || 0) : 0;
+                    if (maG > 0 && peG > 0) {
+                        g = Math.round((maG + peG) / 2);
+                    } else if (maG > 0) {
+                        g = maG;
+                    } else if (peG > 0) {
+                        g = peG;
+                    }
+                }
+
+                if (g > 0) {
+                    if (q === 1) { q1 = g.toString(); termTotals.t1 += g; termCounts.t1++; }
+                    if (q === 2) { q2 = g.toString(); termTotals.t2 += g; termCounts.t2++; }
+                    if (q === 3) { q3 = g.toString(); termTotals.t3 += g; termCounts.t3++; }
+                    sTotal += g;
+                    sCount++;
+                }
+            }
+
+            let finalGrade = '';
+            let remarks = '';
+            if (sCount > 0) {
+                const avg = Math.round(sTotal / sCount);
+                finalGrade = avg.toString();
+                finalTotal += avg;
+                finalCount++;
+                remarks = avg >= 75 ? 'Passed' : 'Failed';
+            }
+
+            subjectGrades[mapehSubj.id] = { q1, q2, q3, final: finalGrade, remarks };
+        }
 
         const genAvg = finalCount > 0 ? Math.round(finalTotal / finalCount).toString() : '';
         const genRemarks = genAvg ? (Number(genAvg) >= 75 ? 'Passed' : 'Failed') : '';
@@ -681,26 +844,39 @@ function GradeSlipCard({ student, schoolProfile, section, subjects, records, act
                         </tr>
                     </thead>
                     <tbody>
-                        {dedupedSubjects.map((subj: Subject) => {
-                            const grades = studentGrades.subjectGrades[subj.id];
-                            const isSubComponent = normalizeSubjectName(subj.subject_name).includes('music') || 
-                                                   normalizeSubjectName(subj.subject_name).includes('arts') ||
-                                                   normalizeSubjectName(subj.subject_name).includes('physical') ||
-                                                   normalizeSubjectName(subj.subject_name).includes('health');
+                        {dedupedSubjects.filter((subj: Subject) => {
+                            const norm = normalizeSubjectName(subj.subject_name);
+                            if (norm.includes('arabic') || norm.includes('islamic')) {
+                                const grades = studentGrades.subjectGrades[subj.id];
+                                const hasAnyGrade = grades && (grades.q1 || grades.q2 || grades.q3 || grades.final);
+                                if (!hasAnyGrade) return false;
+                            }
+                            return true;
+                        }).map((subj: Subject) => {
+                            const grades = studentGrades.subjectGrades[subj.id] || { q1: '', q2: '', q3: '', final: '', remarks: '' };
+                            const norm = normalizeSubjectName(subj.subject_name);
+                            const isParentMapeh = norm === 'mapeh';
+                            const hasParentMapeh = dedupedSubjects.some(s => normalizeSubjectName(s.subject_name) === 'mapeh');
+                            const isSubComponent = hasParentMapeh && (
+                                norm.includes('music') || 
+                                norm.includes('arts') ||
+                                norm.includes('physical') ||
+                                norm.includes('health')
+                            );
                                                    
                             return (
                                 <tr key={subj.id}>
                                     <td 
-                                        className={`subject-col ${isSubComponent ? 'italic pl-3' : ''}`}
+                                        className={`subject-col ${isParentMapeh ? 'font-bold' : ''} ${isSubComponent ? 'italic pl-3' : ''}`}
                                         style={getSubjectFontSizeStyle(subj.subject_name)}
                                     >
                                         {subj.subject_name}
                                     </td>
-                                    <td className="q-col">{grades.q1 || '\u00A0'}</td>
-                                    <td className="q-col">{grades.q2 || '\u00A0'}</td>
-                                    <td className="q-col">{grades.q3 || '\u00A0'}</td>
-                                    <td className="final-col">{grades.final || '\u00A0'}</td>
-                                    <td className="remarks-col text-[6.5px] tracking-tighter uppercase">{grades.remarks || '\u00A0'}</td>
+                                    <td className={`q-col ${isParentMapeh ? 'font-bold' : ''}`}>{grades.q1 || '\u00A0'}</td>
+                                    <td className={`q-col ${isParentMapeh ? 'font-bold' : ''}`}>{grades.q2 || '\u00A0'}</td>
+                                    <td className={`q-col ${isParentMapeh ? 'font-bold' : ''}`}>{grades.q3 || '\u00A0'}</td>
+                                    <td className={`final-col ${isParentMapeh ? 'font-bold' : ''}`}>{grades.final || '\u00A0'}</td>
+                                    <td className={`remarks-col text-[6.5px] tracking-tighter uppercase ${isParentMapeh ? 'font-bold' : ''}`}>{grades.remarks || '\u00A0'}</td>
                                 </tr>
                             );
                         })}

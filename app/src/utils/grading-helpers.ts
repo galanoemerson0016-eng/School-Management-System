@@ -4,6 +4,7 @@
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 import { ACTIVE_TERMS } from '../lib/terms';
 import { isDescriptiveGrading, getSubjectCluster, getWeights, computeExamsWeightedScore, transmuteGrade, normalizeScores } from '../lib/grading';
+import { getCanonicalSubjectKey } from '../lib/subjectConfig';
 import { useAppStore } from '../stores';
 
 function isQuarterMatch(recQuarter: unknown, targetQuarter: number): boolean {
@@ -45,53 +46,81 @@ export function isMatchingSubject(
     const cleanedId = cleanSubjectQuery(recordSubId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const normResolved = (resolvedSubjectName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+    // 1. Direct and resolved name matches
     if (normName && (normName === normTarget || normName === normResolved)) return true;
     if (normId && (normId === normTarget || normId === normResolved)) return true;
     if (cleanedId && (cleanedId === normTarget || cleanedId === normResolved)) return true;
 
-    // Substring containment check
-    if (normName && normTarget && (normName.includes(normTarget) || normTarget.includes(normName))) return true;
-    if (cleanedId && normTarget && (cleanedId.includes(normTarget) || normTarget.includes(cleanedId))) return true;
+    // 2. Canonical key match (handles Grade suffix variants e.g. "filipino4" vs "filipino")
+    const canonicalTarget = getCanonicalSubjectKey(targetQuery);
+    const canonicalName = recordSubName ? getCanonicalSubjectKey(recordSubName) : '';
+    const canonicalId = cleanedId ? getCanonicalSubjectKey(cleanedId) : '';
+    if (canonicalTarget && ((canonicalName && canonicalName === canonicalTarget) || (canonicalId && canonicalId === canonicalTarget))) return true;
 
-    // 1. Filipino
+    // 3. Specific Learning Area Aliases (Avoid false cross-contamination between components)
+    // 3.1 Filipino
     const isFilipino = (s: string) => s.includes('filipino') || s.includes('wikangfilipino') || s === 'fil' || s.includes('panitikan');
     if (isFilipino(normTarget) && (isFilipino(normName) || isFilipino(cleanedId))) return true;
 
-    // 2. English / Language / Reading & Literacy
+    // 3.2 English / Language / Reading & Literacy
     const isEnglish = (s: string) => s.includes('english') || s === 'eng' || s.includes('readingandliteracy') || s.includes('readingliteracy') || s === 'language';
     if (isEnglish(normTarget) && (isEnglish(normName) || isEnglish(cleanedId))) return true;
 
-    // 3. Mathematics / Gen Math
-    const isMath = (s: string) => s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath');
+    // 3.3 Mathematics / Gen Math
+    const isMath = (s: string) => (s.includes('mathematics') || s.includes('math') || s.includes('genmath') || s.includes('generalmath')) && !s.includes('businessmath');
     if (isMath(normTarget) && (isMath(normName) || isMath(cleanedId))) return true;
 
-    // 4. Science / General Science
-    const isScience = (s: string) => s.includes('science') || s.includes('gensci') || s.includes('generalscience') || s.includes('earthandlife') || s.includes('physicalscience');
+    // 3.4 Science / General Science (Standard JHS/Elem Science)
+    const isScience = (s: string) => (s === 'science' || s.includes('gensci') || s.includes('generalscience') || s.startsWith('science')) && !s.includes('earthandlife') && !s.includes('physicalscience') && !s.includes('socialscience');
     if (isScience(normTarget) && (isScience(normName) || isScience(cleanedId))) return true;
 
-    // 5. Araling Panlipunan (AP) / Makabansa / Kasaysayan / Social Studies
+    // 3.5 Araling Panlipunan (AP) / Makabansa / Kasaysayan / Social Studies
     const isAP = (s: string) => s === 'ap' || s.includes('aralingpanlipunan') || s.includes('kasaysayan') || s.includes('socialstudies');
     if (isAP(normTarget) && (isAP(normName) || isAP(cleanedId))) return true;
 
-    // 6. Values Education / ESP / GMRC / Makabansa / Character Education
-    const isValues = (s: string) => s.includes('values') || s === 'esp' || s.includes('edukasyonsapagpapakatao') || s.includes('gmrc') || s.includes('goodmanner') || s.includes('goodmoral') || s.includes('makabansa') || s.includes('charactereducation');
-    if (isValues(normTarget) && (isValues(normName) || isValues(cleanedId))) return true;
+    // 3.6 Values Education / ESP / GMRC (Exclude Islamic Values unless specified)
+    const isValues = (s: string) => (s.includes('values') || s === 'esp' || s.includes('edukasyonsapagpapakatao') || s.includes('gmrc') || s.includes('goodmanner') || s.includes('goodmoral') || s.includes('makabansa') || s.includes('charactereducation')) && !s.includes('islamic');
+    if (isValues(normTarget) && !normTarget.includes('islamic') && (isValues(normName) || isValues(cleanedId))) return true;
 
-    // 7. EPP / TLE / TVL / Technology & Livelihood Education
+    // 3.7 EPP / TLE / TVL / Technology & Livelihood Education
     const isTLE = (s: string) => s === 'tle' || s.includes('technologyandlivelihood') || s.includes('epp') || s.includes('edukasyongpantahanan') || s === 'tvl';
     if (isTLE(normTarget) && (isTLE(normName) || isTLE(cleanedId))) return true;
 
-    // 8. MAPEH / Music / Arts / PE / Health
+    // 3.8 MAPEH - Full Subject Header
+    const isMAPEH = (s: string) => s === 'mapeh' || s === 'musicartspehealth' || s.includes('musicartsphysicaleducation');
+    if (isMAPEH(normTarget) && (isMAPEH(normName) || isMAPEH(cleanedId))) return true;
+
+    // 3.9 Music and Arts (Dual Component)
     const isMA = (s: string) => s.includes('musicandarts') || s.includes('musicarts');
     if (isMA(normTarget) && (isMA(normName) || isMA(cleanedId))) return true;
 
-    const isPEH = (s: string) => s.includes('physicaleducationandhealth') || s.includes('peandhealth') || s.includes('pehealth') || (s.includes('physicaleducation') && s.includes('health'));
-    if (isPEH(normTarget) && (isPEH(normName) || isPEH(cleanedId))) return true;
+    // 3.10 Physical Education and Health (Dual Component & SHS PEH / HOPE / SSHS PE)
+    const isPEH = (s: string) => s.includes('physicaleducation') || s.includes('peandhealth') || s.includes('pehealth') || /^pe[1-4]?$/.test(s) || s.startsWith('hope') || s.includes('healthoptimizing');
+    if (isPEH(normTarget) && (isPEH(normName) || isPEH(cleanedId))) {
+        const compareTarget = normTarget;
+        const compareOther = normName || cleanedId;
 
-    const isMAPEH = (s: string) => s === 'mapeh' || s.includes('musicartsphysicaleducation');
-    if (isMAPEH(normTarget) && (isMAPEH(normName) || isMAPEH(cleanedId))) return true;
+        // Check number suffixes (1, 2, 3, 4)
+        const targetNum = compareTarget.match(/[1-4]/)?.[0] || '';
+        const otherNum = compareOther.match(/[1-4]/)?.[0] || '';
+        if (targetNum || otherNum) {
+            if (targetNum !== otherNum) return false;
+        }
 
-    // 9. SHS Core / Applied
+        // Distinct SSHS sports electives protection (e.g. Physical Education 1 (Fitness and Recreation))
+        const isFitness1 = (s: string) => s.includes('fitness') || s.includes('recreation');
+        const isDance2 = (s: string) => s.includes('dance') || s.includes('sportsanddance');
+        if (isFitness1(compareTarget) !== isFitness1(compareOther)) return false;
+        if (isDance2(compareTarget) !== isDance2(compareOther)) return false;
+
+        return true;
+    }
+
+    // 3.11 ALIVE subjects
+    if (normTarget.includes('arabic') && (normName.includes('arabic') || cleanedId.includes('arabic'))) return true;
+    if (normTarget.includes('islamic') && (normName.includes('islamic') || cleanedId.includes('islamic'))) return true;
+
+    // 3.12 SHS Core / Applied
     const shsKeys = [
         'contemporaryphilippinearts', 'practicalresearch1', 'practicalresearch2', 'practicalresearch',
         'oralcommunication', 'readingandwriting', 'komunikasyon', 'pagbasaatpagsusuri',
@@ -112,6 +141,40 @@ export function isMatchingSubject(
  * Performs live dynamic calculation from classRecords + hpsRecords matching EClassRecord.tsx / ConsolidatedGradesPage.tsx,
  * with fallback to pre-stored classRecord.final_grade and gradingSheetRecord.final_grade.
  */
+const resolvedSubjectNameCache = new Map<string, string>();
+
+function getCachedSubjectName(
+    subjectIdOrName: string,
+    classRecords: ClassRecord[],
+    gradingSheetRecords: ClassRecord[]
+): string {
+    if (resolvedSubjectNameCache.has(subjectIdOrName)) {
+        return resolvedSubjectNameCache.get(subjectIdOrName)!;
+    }
+
+    let name = '';
+    try {
+        const allDbSubjects = useAppStore.getState().subjects || [];
+        const dbSub = allDbSubjects.find(s => s.id === subjectIdOrName || isMatchingSubject(subjectIdOrName, s.id, s.subject_name));
+        if (dbSub?.subject_name) name = dbSub.subject_name;
+    } catch {
+        // safe fallback
+    }
+
+    if (!name) {
+        const rec = classRecords.find(r => r.subject_name && (r.subject_id === subjectIdOrName || isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name))) ||
+                    gradingSheetRecords.find(r => r.subject_name && (r.subject_id === subjectIdOrName || isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name)));
+        if (rec?.subject_name) name = rec.subject_name;
+    }
+
+    if (!name) {
+        name = cleanSubjectQuery(subjectIdOrName);
+    }
+
+    resolvedSubjectNameCache.set(subjectIdOrName, name);
+    return name;
+}
+
 export function resolveStudentQuarterGrade(
     studentLrn: string,
     subjectIdOrName: string,
@@ -128,18 +191,40 @@ export function resolveStudentQuarterGrade(
     const cleanedTarget = cleanSubjectQuery(subjectIdOrName);
     const normTarget = cleanedTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    const allRecords = [...classRecords, ...gradingSheetRecords];
-    const recWithName = allRecords.find(r =>
-        (r.subject_id === subjectIdOrName || isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name)) && r.subject_name
+    const normLrn = String(studentLrn).trim();
+
+    // Student-specific records (typically 5 to 15 items)
+    const studentClassRecords = classRecords.filter(r => r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn);
+    const studentGradingRecords = gradingSheetRecords.filter(r => r.student_lrn === studentLrn || String(r.student_lrn).trim() === normLrn);
+
+    // Fast exit if student has no records and not a composite parent
+    const isCompositeCandidate = depth === 0 && (
+        normTarget === 'mapeh' ||
+        normTarget.includes('musicandarts') || normTarget === 'musicarts' ||
+        normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth' ||
+        (normTarget.includes('effectivecommunication') && normTarget.includes('mabisangkomunikasyon'))
     );
-    let resolvedSubjectName = recWithName?.subject_name || '';
+
+    if (studentClassRecords.length === 0 && studentGradingRecords.length === 0 && !isCompositeCandidate) {
+        return 0;
+    }
+
+    // 1. Fast path: Check student's own classRecords for exact subject_id match
+    let cRecord = studentClassRecords.find(r =>
+        r.subject_id === subjectIdOrName &&
+        isQuarterMatch(r.quarter, quarter) &&
+        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
+    );
+
+    let resolvedSubjectName = cRecord?.subject_name || '';
+
     if (!resolvedSubjectName) {
-        try {
-            const allDbSubjects = useAppStore.getState().subjects || [];
-            const dbSub = allDbSubjects.find(s => s.id === subjectIdOrName || isMatchingSubject(subjectIdOrName, s.id, s.subject_name));
-            if (dbSub) resolvedSubjectName = dbSub.subject_name;
-        } catch {
-            // safe fallback
+        const studentMatchingRec = studentClassRecords.find(r => r.subject_name && isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name)) ||
+                                   studentGradingRecords.find(r => r.subject_name && isMatchingSubject(subjectIdOrName, r.subject_id, r.subject_name));
+        if (studentMatchingRec?.subject_name) {
+            resolvedSubjectName = studentMatchingRec.subject_name;
+        } else {
+            resolvedSubjectName = getCachedSubjectName(subjectIdOrName, classRecords, gradingSheetRecords);
         }
     }
 
@@ -147,13 +232,14 @@ export function resolveStudentQuarterGrade(
         return isMatchingSubject(subjectIdOrName, rSubId, rSubName, resolvedSubjectName);
     };
 
-    // 1. Check primary classRecords
-    const cRecord = classRecords.find(r =>
-        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name) &&
-        isQuarterMatch(r.quarter, quarter) &&
-        (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
-    );
+    // Priority B: If no exact match for this student, check matching subject name on student's own records
+    if (!cRecord) {
+        cRecord = studentClassRecords.find(r =>
+            isSubjectMatch(r.subject_id, r.subject_name) &&
+            isQuarterMatch(r.quarter, quarter) &&
+            (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
+        );
+    }
 
     if (cRecord) {
         // Collect all possible section identifiers for this record
@@ -283,13 +369,20 @@ export function resolveStudentQuarterGrade(
         }
     }
 
-    // 2. Check gradingSheetRecords
-    const gRecord = gradingSheetRecords.find(r =>
-        (r.student_lrn === studentLrn || String(r.student_lrn).trim() === String(studentLrn).trim()) &&
-        isSubjectMatch(r.subject_id, r.subject_name) &&
+    // 2. Check gradingSheetRecords (using student-scoped records)
+    let gRecord = studentGradingRecords.find(r =>
+        r.subject_id === subjectIdOrName &&
         isQuarterMatch(r.quarter, quarter) &&
         (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
     );
+
+    if (!gRecord) {
+        gRecord = studentGradingRecords.find(r =>
+            isSubjectMatch(r.subject_id, r.subject_name) &&
+            isQuarterMatch(r.quarter, quarter) &&
+            (!schoolYear || !r.school_year || r.school_year === schoolYear || r.school_year.includes(schoolYear) || schoolYear.includes(r.school_year || ''))
+        );
+    }
 
     if (gRecord && gRecord.final_grade && Number(gRecord.final_grade) > 0) {
         return Number(gRecord.final_grade);
@@ -325,8 +418,9 @@ export function resolveStudentQuarterGrade(
             if (a > 0) return a;
         }
 
-        // Physical Education and Health composite from individual PE and Health
-        if (normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth') {
+        // Physical Education and Health composite from individual PE and Health (Elementary / JHS MAPEH only)
+        const isSHSPEH = normTarget.includes('healthoptimizing') || normTarget.startsWith('hope') || /[1-4]$/.test(normTarget);
+        if (!isSHSPEH && (normTarget.includes('physicaleducationandhealth') || normTarget === 'peandhealth' || normTarget === 'pehealth')) {
             const p = resolveStudentQuarterGrade(studentLrn, 'Physical Education', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
             const h = resolveStudentQuarterGrade(studentLrn, 'Health', quarter, schoolYear, classRecords, gradingSheetRecords, hpsRecords, sectionGradeLevel, sectionTrack, 1);
             if (p > 0 && h > 0) return Math.round((p + h) / 2);
@@ -780,3 +874,34 @@ export function getStudentAbsences(
 
     return count;
 }
+
+/**
+ * Normalizes Senior High School Grade 12 Physical Education subject names for Old K-12 Curriculum
+ * to the official standard: "Health Optimizing Physical Education and Health 1-4".
+ * Leaves SSHS electives (e.g. Fitness and Recreation) and SSHS sections untouched.
+ */
+export function normalizeGrade12PESubjectName(name: string, isSSHS: boolean = false): string {
+    if (!name || isSSHS) return name;
+    const norm = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const num = name.match(/[1-4]/)?.[0];
+    if (!num) return name;
+
+    // Preserve distinct specialized SSHS sports electives
+    if (norm.includes('fitness') || norm.includes('dance') || norm.includes('recreation')) {
+        return name;
+    }
+
+    // Check if it's an Old K-12 PEH / HOPE subject variation
+    const isPEH = norm.includes('physicaleducation') || 
+                  norm.includes('peandhealth') || 
+                  norm.includes('pehealth') || 
+                  /^pe[1-4]$/.test(norm) || 
+                  norm.startsWith('hope') || 
+                  norm.includes('healthoptimizing');
+
+    if (isPEH) {
+        return `Health Optimizing Physical Education and Health ${num}`;
+    }
+    return name;
+}
+

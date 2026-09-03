@@ -1,4 +1,5 @@
 import type { Section, Subject, User, UserRole } from '../types';
+import { isMatchingSubject } from '../utils/grading-helpers';
 
 export type AppView =
     | 'dashboard'
@@ -186,10 +187,11 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
 
     // If teaching load subjects or subject_name are configured, strictly filter to those subjects
     if (registeredNames.size > 0) {
-        const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id && registeredNames.has(subject.subject_name));
+        const isRegistered = (s: Subject) => registeredNames.has(s.subject_name) || Array.from(registeredNames).some(rn => isMatchingSubject(rn, s.id, s.subject_name));
+        const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id && isRegistered(subject));
         const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 
-            registeredNames.has(s.subject_name)
+            isRegistered(s)
         );
 
         const combined = [...directlyLinked, ...gradeMatches];
@@ -204,7 +206,7 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
             }
         }
         
-        return unique.filter(s => registeredNames.has(s.subject_name));
+        return unique.filter(s => isRegistered(s));
     }
 
     // If marked purely as a teaching load but 0 subjects selected: return empty

@@ -992,6 +992,19 @@ export async function populateGrade11AcademicTemplateBuffer(
 
     let sXml = await sFile.async('text');
 
+    // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
+    sXml = sXml.replace(
+      /ROUND\(\([A-Z0-9\+]+?\)\/7,0\)/g,
+      (match) => {
+        const rowMatch = match.match(/[A-Z](\d+)/);
+        if (rowMatch) {
+          const r = rowMatch[1];
+          return `ROUND(AVERAGE(K${r}:Q${r}),0)`;
+        }
+        return match;
+      }
+    );
+
     // Adjust column 17 width and row 13 height so Q13 ("AE 1") fits and wraps nicely
     sXml = sXml.replace(
       /<col min="16" max="17" width="9.44140625" style="232" customWidth="1"\/>/g,

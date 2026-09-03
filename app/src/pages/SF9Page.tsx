@@ -17,7 +17,7 @@ try {
 import { useAppStore, useAuthStore } from '../stores';
 import type { Student, User, Section, Subject, ClassRecord, ObservedValues, SF2Sheet, SchoolProfile, CalendarEvent, SF9SignatureSettings, AttendanceRecord } from '../types';
 import { db } from '../services/database';
-import { resolveStudentQuarterGrade } from '../utils/grading-helpers';
+import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Printer, FileText, Layout, Download, Edit3, Settings, Settings2, X, Volume2, VolumeX, ChevronDown, Clock3, FileSpreadsheet, Bug } from 'lucide-react';
@@ -56,7 +56,7 @@ const getDescriptor = (grade: number, gradeLevel: string) => {
     return 'Emerging';
 };
 
-import { getSF9SubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
+import { getSF9SubjectsForGrade, getSubjectsForGrade, normalizeSubjectName, getCanonicalSubjectKey, sortSubjects } from '../lib/subjectConfig';
 
 // Print mode type for term-specific printing
 type SF9PrintMode = 'full' | 'term1' | 'term2' | 'term3';
@@ -575,21 +575,44 @@ function computeStudentGrades(
     });
 
     if (isSHS) {
-        if (taughtSet.size > 0) {
-            candidates = candidates.filter(s => {
-                const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                if (unitInfo.category === 'core') return true;
-                const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (taughtSet.has(sNorm)) return true;
-                for (const t of taughtSet) {
-                    if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+        if (taughtRaw.length > 0) {
+            // Ensure all explicitly taught subjects are present
+            for (const tName of taughtRaw) {
+                const alreadyHas = candidates.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+                if (!alreadyHas) {
+                    candidates.push({
+                        id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                        subject_name: tName,
+                        subject_code: '',
+                        grade_level: sectionObj.section_grade_level,
+                        section_id: sectionObj.id,
+                        term: 'all'
+                    });
                 }
-                return false;
+            }
+
+            // Filter to only match explicitly taught subjects
+            candidates = candidates.filter(s => {
+                return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+            });
+
+            // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
+            const isExplicitSSHS = (sectionObj?.track || '').toLowerCase().includes('sshs') || (sectionObj?.track || '').toLowerCase().includes('cluster');
+            candidates = candidates.map(s => {
+                const matchedTaught = taughtRaw.find(t => isMatchingSubject(t, s.id, s.subject_name));
+                let name = matchedTaught || s.subject_name;
+                if (gradeLevelNum === 12 && !isExplicitSSHS) {
+                    name = normalizeGrade12PESubjectName(name, false);
+                }
+                if (name !== s.subject_name) {
+                    return { ...s, subject_name: name };
+                }
+                return s;
             });
         } else if (sectionTrack) {
             candidates = candidates.filter(s => {
                 const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-                if (unitInfo.category === 'core') return true;
+                if (unitInfo.category === 'core' && gradeLevelNum === 11) return true;
                 if (sectionTrack.includes('acad')) {
                     return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
                 }
@@ -599,10 +622,38 @@ function computeStudentGrades(
                 return true;
             });
         }
+    } else {
+        const intendedSubjects = getSubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+        const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+            return taughtRaw.some(t => {
+                if (isMatchingSubject(t, subId, subName)) return true;
+                const normT = normalizeSubjectName(t);
+                const normSub = normalizeSubjectName(subName);
+                if (normT === 'mapeh') {
+                    return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+                }
+                return false;
+            });
+        };
+
+        if (taughtRaw.length > 1) {
+            candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+        } else {
+            candidates = candidates.filter(s => {
+                const isIntended = intendedSubjects.some((intended: { name: string }) => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+                const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+                return isIntended || isExplicitlyTaught;
+            });
+        }
     }
 
-    // Prioritize direct section subjects over generic ones, then deduplicate by normalized name
+    // Prioritize clean standard names and direct section subjects, then deduplicate by canonical name
     candidates.sort((a, b) => {
+        if (!isSHS) {
+            const aHasDigit = /\d+$/.test(a.subject_name.trim()) ? 1 : 0;
+            const bHasDigit = /\d+$/.test(b.subject_name.trim()) ? 1 : 0;
+            if (aHasDigit !== bHasDigit) return aHasDigit - bHasDigit;
+        }
         const aDirect = a.section_id === sectionObj.id ? 1 : 0;
         const bDirect = b.section_id === sectionObj.id ? 1 : 0;
         return bDirect - aDirect;
@@ -611,9 +662,9 @@ function computeStudentGrades(
     const seenSubjectNames = new Set<string>();
     const uniqueDbSubjects: Subject[] = [];
     for (const sub of candidates) {
-        const norm = normalizeSubjectName(sub.subject_name);
-        if (norm && seenSubjectNames.has(norm)) continue;
-        if (norm) seenSubjectNames.add(norm);
+        const canonical = getCanonicalSubjectKey(sub.subject_name, gradeLevelNum);
+        if (canonical && seenSubjectNames.has(canonical)) continue;
+        if (canonical) seenSubjectNames.add(canonical);
         uniqueDbSubjects.push(sub);
     }
     const sectionDbSubjects = uniqueDbSubjects;
@@ -691,6 +742,18 @@ function computeStudentGrades(
                     "physical education and health 2",
                     "physical education and health 3",
                     "physical education and health 4",
+                    "health optimizing physical education and health 1",
+                    "health optimizing physical education and health 2",
+                    "health optimizing physical education and health 3",
+                    "health optimizing physical education and health 4",
+                    "health optimizing physical education 1",
+                    "health optimizing physical education 2",
+                    "health optimizing physical education 3",
+                    "health optimizing physical education 4",
+                    "hope 1",
+                    "hope 2",
+                    "hope 3",
+                    "hope 4",
                     "physical science",
                     "reading and writing skills",
                     "statistics and probability",
@@ -698,8 +761,18 @@ function computeStudentGrades(
                     "understanding culture, society and politics",
                     "21st century literature",
                     "contemporary philippine arts",
+                    "pe and health 1",
+                    "pe and health 2",
                     "pe and health 3",
-                    "pe and health 4"
+                    "pe and health 4",
+                    "physical education 1",
+                    "physical education 2",
+                    "physical education 3",
+                    "physical education 4",
+                    "pe 1",
+                    "pe 2",
+                    "pe 3",
+                    "pe 4"
                 ];
 
                 // 2. Applied Subjects
@@ -855,9 +928,9 @@ function computeStudentGrades(
         const seenInBase = new Set<string>();
         const uniqueBase: typeof baseSubjects = [];
         for (const s of baseSubjects) {
-            const norm = normalizeSubjectName(s.name);
-            if (norm && seenInBase.has(norm)) continue;
-            if (norm) seenInBase.add(norm);
+            const canonical = getCanonicalSubjectKey(s.name, gradeLevelNum);
+            if (canonical && seenInBase.has(canonical)) continue;
+            if (canonical) seenInBase.add(canonical);
             uniqueBase.push(s);
         }
         const sortedBase = sortSubjects(uniqueBase, s => s.name);
@@ -895,11 +968,14 @@ function computeStudentGrades(
 
     const getSubjectGrades = (subjectName: string) => {
         const normalizedTarget = normalizeSubjectName(subjectName);
+        const canonicalTarget = getCanonicalSubjectKey(subjectName, gradeLevelNum);
         
         // Find ALL matching subjects and average them (to handle potential duplicates or components)
         const matchingSubjects = sectionDbSubjects.filter(s => {
             const normalizedDb = normalizeSubjectName(s.subject_name);
             if (normalizedDb === normalizedTarget) return true;
+            const canonicalDb = getCanonicalSubjectKey(s.subject_name, gradeLevelNum);
+            if (canonicalDb && canonicalTarget && canonicalDb === canonicalTarget) return true;
             
             // Fuzzy matches (using normalized strings for comparison)
             if (normalizedTarget.includes('aralingpanlipunan') && (normalizedDb === 'ap' || normalizedDb.includes('panlipunan'))) return true;
@@ -1744,7 +1820,16 @@ function SF9Pages({
                                         <View style={[styles.singleLpHeaderCell, { width: '14%', borderBottomWidth: 0 }, isValuesOnly ? { borderRightColor: transparentBorder } : {}]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Final Grade</Text></View>
                                         <View style={[styles.singleLpHeaderCell, { width: '20%', borderBottomWidth: 0, borderRightWidth: 0 }]}><Text style={isValuesOnly ? { color: transparentBorder, fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 } : { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8.5 }}>Remarks</Text></View>
                                     </View>
-                                    {currentSubjects.filter(subj => !subj.isReserved).map((subj, idx) => {
+                                    {currentSubjects.filter(subj => {
+                                        if (subj.isReserved) return false;
+                                        const norm = normalizeSubjectName(subj.name);
+                                        if (norm.includes('arabic') || norm.includes('islamic')) {
+                                            const row = grades[subj.name] || [0, 0, 0];
+                                            const hasAnyGrade = row.some(g => g > 0);
+                                            if (!hasAnyGrade) return false;
+                                        }
+                                        return true;
+                                    }).map((subj, idx) => {
                                         const gradeRow = grades[subj.name] || [0, 0, 0];
                                         const dbSubjects = useAppStore.getState().subjects;
                                         const dbSubj = subj.id 

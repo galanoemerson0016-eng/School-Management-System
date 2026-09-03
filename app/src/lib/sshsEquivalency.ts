@@ -274,13 +274,23 @@ export const SSHS_EQUIVALENCY_MATRIX: EquivalencyRule[] = [
         remarks: 'CREDITED'
     },
     {
-        k12Subjects: ['Physical Education and Health 1', 'Physical Education and Health 2'],
+        k12Subjects: [
+            'Physical Education and Health 1', 'Physical Education and Health 2',
+            'Health Optimizing Physical Education 1', 'Health Optimizing Physical Education 2',
+            'Health Optimizing Physical Education and Health 1', 'Health Optimizing Physical Education and Health 2',
+            'Physical Education 1', 'Physical Education 2'
+        ],
         sshsElectives: ['Physical Education 1 (Fitness and Recreation)'],
         cluster: 'Sports, Health, and Wellness',
         remarks: 'CREDITED'
     },
     {
-        k12Subjects: ['Physical Education and Health 3', 'Physical Education and Health 4'],
+        k12Subjects: [
+            'Physical Education and Health 3', 'Physical Education and Health 4',
+            'Health Optimizing Physical Education 3', 'Health Optimizing Physical Education 4',
+            'Health Optimizing Physical Education and Health 3', 'Health Optimizing Physical Education and Health 4',
+            'Physical Education 3', 'Physical Education 4'
+        ],
         sshsElectives: ['Physical Education 2 (Sports and Dance)'],
         cluster: 'Sports, Health, and Wellness',
         remarks: 'CREDITED'

@@ -97,6 +97,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "physical education and health 2",
             "physical education and health 3",
             "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
             "physical science",
             "reading and writing skills",
             "statistics and probability",
@@ -104,8 +116,18 @@ const getSubjectCategory = (subjectName: string, gradeLevel: string): string => 
             "understanding culture, society and politics",
             "21st century literature",
             "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
             "pe and health 3",
-            "pe and health 4"
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
         ];
         if (cores.some(c => {
             const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2413,7 +2435,8 @@ export function EClassRecord() {
                                 }
                             }}
                             disabled={isGrade1Section || !selectedSubject || sectionStudents.length === 0 || (typeof quarter === 'string' && quarter.startsWith('summary'))}
-                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap"
+                            className="h-8 px-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap"
+                            title={!selectedSubject ? "Please select a subject first to publish grades" : "Publish grades to Grade Management"}
                         >
                             <CloudUpload className="w-3.5 h-3.5" /> Publish
                         </button>

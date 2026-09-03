@@ -23,6 +23,8 @@ import {
   getSubjectAwardees,
   getStudentAbsences,
   resolveStudentQuarterGrade,
+  isMatchingSubject,
+  normalizeGrade12PESubjectName,
 } from './grading-helpers';
 import type { ClassRecord, Student, Subject, Section, AttendanceRecord, SF2Sheet, HPSRecord } from '../types';
 
@@ -560,4 +562,70 @@ describe('Grading Helpers', () => {
       expect(gmrcGrade).toBe(95);
     });
   });
+
+  describe('isMatchingSubject — Physical Education & Health vs Health Optimizing Physical Education (HOPE)', () => {
+    it('matches HOPE subjects with valid aliases', () => {
+      expect(isMatchingSubject('Health Optimizing Physical Education and Health 1', undefined, 'HOPE 1')).toBe(true);
+      expect(isMatchingSubject('Health Optimizing Physical Education 2', undefined, 'Health Optimizing Physical Education and Health 2')).toBe(true);
+      expect(isMatchingSubject('HOPE 3', undefined, 'Health Optimizing Physical Education and Health 3')).toBe(true);
+      expect(isMatchingSubject('HOPE 4', undefined, 'Health Optimizing Physical Education 4')).toBe(true);
+    });
+
+    it('matches Physical Education and Health numbered sequence with PE aliases', () => {
+      expect(isMatchingSubject('Physical Education and Health 1', undefined, 'PE and Health 1')).toBe(true);
+      expect(isMatchingSubject('Physical Education and Health 2', undefined, 'PE & Health 2')).toBe(true);
+      expect(isMatchingSubject('Physical Education and Health 3', undefined, 'PE and Health 3')).toBe(true);
+      expect(isMatchingSubject('Physical Education and Health 4', undefined, 'PE & Health 4')).toBe(true);
+    });
+
+    it('does NOT cross-match different semester sequence numbers', () => {
+      expect(isMatchingSubject('Physical Education and Health 1', undefined, 'Physical Education and Health 2')).toBe(false);
+      expect(isMatchingSubject('Health Optimizing Physical Education and Health 1', undefined, 'Health Optimizing Physical Education and Health 2')).toBe(false);
+      expect(isMatchingSubject('HOPE 1', undefined, 'HOPE 3')).toBe(false);
+    });
+
+    it('safely matches semester sequence numbers across naming flavors to protect teacher records', () => {
+      expect(isMatchingSubject('Health Optimizing Physical Education and Health 1', undefined, 'Physical Education and Health 1')).toBe(true);
+      expect(isMatchingSubject('HOPE 2', undefined, 'Physical Education and Health 2')).toBe(true);
+      expect(isMatchingSubject('Physical Education and Health 3', undefined, 'Health Optimizing Physical Education and Health 3')).toBe(true);
+      expect(isMatchingSubject('Health Optimizing Physical Education 3', undefined, 'Health Optimizing Physical Education and Health 3')).toBe(true);
+      expect(isMatchingSubject('Physical Education 3', undefined, 'Health Optimizing Physical Education and Health 3')).toBe(true);
+      expect(isMatchingSubject('PE and Health 4', undefined, 'Health Optimizing Physical Education and Health 4')).toBe(true);
+    });
+
+    it('does NOT cross-match different semester sequences', () => {
+      expect(isMatchingSubject('Health Optimizing Physical Education and Health 3', undefined, 'Physical Education 4')).toBe(false);
+      expect(isMatchingSubject('Physical Education and Health 3', undefined, 'Physical Education 4')).toBe(false);
+      expect(isMatchingSubject('PE and Health 3', undefined, 'HOPE 4')).toBe(false);
+    });
+
+    it('keeps specialized sports electives distinct from general physical education', () => {
+      expect(isMatchingSubject('Physical Education 1 (Fitness and Recreation)', undefined, 'Health Optimizing Physical Education and Health 1')).toBe(false);
+      expect(isMatchingSubject('Physical Education 1 (Fitness and Recreation)', undefined, 'Physical Education 1')).toBe(false);
+      expect(isMatchingSubject('Physical Education 2 (Sports and Dance)', undefined, 'Health Optimizing Physical Education and Health 2')).toBe(false);
+    });
+  });
+
+  describe('normalizeGrade12PESubjectName', () => {
+    it('normalizes Old K-12 PE variations to official Health Optimizing Physical Education and Health 1-4', () => {
+      expect(normalizeGrade12PESubjectName('Physical Education and Health 3')).toBe('Health Optimizing Physical Education and Health 3');
+      expect(normalizeGrade12PESubjectName('Health Optimizing Physical Education 3')).toBe('Health Optimizing Physical Education and Health 3');
+      expect(normalizeGrade12PESubjectName('PE and Health 3')).toBe('Health Optimizing Physical Education and Health 3');
+      expect(normalizeGrade12PESubjectName('HOPE 3')).toBe('Health Optimizing Physical Education and Health 3');
+      expect(normalizeGrade12PESubjectName('Physical Education 3')).toBe('Health Optimizing Physical Education and Health 3');
+      expect(normalizeGrade12PESubjectName('Physical Education and Health 1')).toBe('Health Optimizing Physical Education and Health 1');
+      expect(normalizeGrade12PESubjectName('Health Optimizing Physical Education and Health 4')).toBe('Health Optimizing Physical Education and Health 4');
+    });
+
+    it('preserves SSHS specialized sports electives without alteration', () => {
+      expect(normalizeGrade12PESubjectName('Physical Education 1 (Fitness and Recreation)')).toBe('Physical Education 1 (Fitness and Recreation)');
+      expect(normalizeGrade12PESubjectName('Physical Education 2 (Sports and Dance)')).toBe('Physical Education 2 (Sports and Dance)');
+    });
+
+    it('leaves SSHS tracks untouched when isSSHS is true', () => {
+      expect(normalizeGrade12PESubjectName('Physical Education 3', true)).toBe('Physical Education 3');
+      expect(normalizeGrade12PESubjectName('Physical Education 1', true)).toBe('Physical Education 1');
+    });
+  });
 });
+

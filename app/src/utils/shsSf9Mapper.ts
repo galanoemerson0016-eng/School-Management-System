@@ -1,6 +1,7 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject } from '../types';
 import { formatLearnerName } from './student-name';
 import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { isMatchingSubject, normalizeGrade12PESubjectName } from './grading-helpers';
 
 interface ShsSf9MapperParams {
   student: Student;
@@ -29,8 +30,6 @@ export function mapStudentToShsSf9Data({
   const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
   const sectionTrack = (sectionObj.track || student.track || '').toLowerCase();
   const taughtRaw = sectionObj.taught_subjects || [];
-  const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-  const taughtSet = new Set(taughtNorms);
 
   // Filter subjects taught in this Grade 11 or 12 section
   let candidateSubjects = subjects.filter(
@@ -44,21 +43,44 @@ export function mapStudentToShsSf9Data({
     return bDirect - aDirect;
   });
 
-  if (taughtSet.size > 0) {
-    candidateSubjects = candidateSubjects.filter(s => {
-      const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-      if (unitInfo.category === 'core') return true;
-      const sNorm = s.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (taughtSet.has(sNorm)) return true;
-      for (const t of taughtSet) {
-        if (sNorm === t || sNorm.includes(t) || t.includes(sNorm)) return true;
+  if (taughtRaw.length > 0) {
+    // If taught_subjects are explicitly defined on sectionObj, ensure every taught subject is present
+    for (const tName of taughtRaw) {
+      const alreadyHas = candidateSubjects.some(s => isMatchingSubject(tName, s.id, s.subject_name));
+      if (!alreadyHas) {
+        candidateSubjects.push({
+          id: `virtual_${tName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+          subject_name: tName,
+          subject_code: '',
+          grade_level: sectionObj.section_grade_level,
+          section_id: sectionObj.id,
+          term: 'all'
+        });
       }
-      return false;
+    }
+
+    // Filter to only match explicitly taught subjects
+    candidateSubjects = candidateSubjects.filter(s => {
+      return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+    });
+
+    // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
+    const isExplicitSSHS = (sectionObj?.track || '').toLowerCase().includes('sshs') || (sectionObj?.track || '').toLowerCase().includes('cluster');
+    candidateSubjects = candidateSubjects.map(s => {
+      const matchedTaught = taughtRaw.find(t => isMatchingSubject(t, s.id, s.subject_name));
+      let name = matchedTaught || s.subject_name;
+      if (gradeLevelNum === 12 && !isExplicitSSHS) {
+        name = normalizeGrade12PESubjectName(name, false);
+      }
+      if (name !== s.subject_name) {
+        return { ...s, subject_name: name };
+      }
+      return s;
     });
   } else if (isSHS && sectionTrack) {
     candidateSubjects = candidateSubjects.filter(s => {
       const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
-      if (unitInfo.category === 'core') return true;
+      if (unitInfo.category === 'core' && gradeLevelNum === 11) return true;
       if (sectionTrack.includes('acad')) {
         return unitInfo.category === 'academic_elective' || unitInfo.category === 'arts_elective';
       }

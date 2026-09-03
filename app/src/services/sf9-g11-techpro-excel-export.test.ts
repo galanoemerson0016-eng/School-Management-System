@@ -275,4 +275,54 @@ describe('SF9 Grade 11 Technical-Professional (Tech-Pro) Excel Export Service', 
     expect(sheet8Xml).not.toContain('>Retained<');
     expect(sheet8Xml).not.toMatch(/<c\s+r="I43"[^>]*><f[^>]*>[^<]+<\/f><v>\d+<\/v><\/c>/);
   }, 30000);
+
+  it('replaces hardcoded division by 7 in term summary sheets with dynamic AVERAGE formula', async () => {
+    const student: Student = {
+      lrn: '119282140004',
+      first_name: 'John Michael',
+      last_name: 'Malinac',
+      gender: 'Male',
+      birthday: '2009-10-02',
+      age: 16,
+      address: 'Tarlac',
+      grade_level: 'Grade 11',
+      student_section: 'Amethyst'
+    };
+
+    const singleSubjectGrade: SF9Grade11TechProExportOptions['grades'] = {
+      'techpro-ae1': {
+        q1: 67
+      }
+    };
+
+    const subjects: Subject[] = [
+      { id: 'techpro-ae1', subject_name: 'Applied Economics (AE 1)', grade_level: 'Grade 11' }
+    ];
+
+    const opts: SF9Grade11TechProExportOptions = {
+      schoolYear: '2026-2027',
+      section: 'Amethyst',
+      adviser: 'JAMES KING ALAJID MONTERDE',
+      student,
+      track: 'TECHPRO',
+      grades: singleSubjectGrade,
+      subjects,
+      gradeLevel: 'Grade 11',
+      learners: [student]
+    };
+
+    const templatePath = path.resolve(__dirname, '../../public/templates/G11 TechPro School Form 9 (SY 26-27).xlsx');
+    const templateBuf = fs.readFileSync(templatePath);
+
+    const resultBuffer = await populateGrade11TechProTemplateBuffer(templateBuf, opts);
+    const zip = await JSZip.loadAsync(resultBuffer);
+    const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
+
+    // Verify cell R15 does NOT contain /7 and contains AVERAGE
+    expect(sheet3Xml).not.toContain('/7,0');
+    expect(sheet3Xml).toContain('ROUND(AVERAGE(K15:Q15),0)');
+    expect(sheet3Xml).toContain('ROUND(AVERAGE(K16:Q16),0)');
+    expect(sheet3Xml).toContain('ROUND(AVERAGE(K66:Q66),0)');
+    expect(sheet3Xml).toContain('ROUND(AVERAGE(K67:Q67),0)');
+  }, 30000);
 });
