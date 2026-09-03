@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.3.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.3.1';
       const api = window.electronAPI;
 
       try {
@@ -402,10 +402,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "🔍 Added Live Grade Sync Inspector & Root-Cause Debugger tool with 5-module cross-system comparison and 1-click sync.",
-              "✉️ Integrated Client Diagnostic Reporter for automatic bug and error logging directly to Developer Emerson.",
-              "🛡️ Established strict E-Class Record (ECR) primary source-of-truth grade flow into Advisory Grade Management.",
-              "✨ Fixed subject deduplication in Temporary Grade Slips and optimized cross-module grade resolution.",
+              "📊 Fixed Grade 11 TechPro & Academic term summary formula (/7 replaced with dynamic AVERAGE to prevent 10/9 mismatches when only 1 subject graded).",
+              "📋 Restored student names, headers, and eliminated cascading #VALUE! formula failures in SSHS Grade 11 E-Class Record.",
+              "🎵 Restored parent MAPEH in Temporary Grade Slip and E-Class Record with dynamic 2-pass averaging and hierarchical sorting.",
+              "⚡ Enhanced section tracking, curriculum loading, and live grade sync inspector modal.",
               "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],
             timestamp: Date.now(),

@@ -1,5 +1,26 @@
 # Version History
 
+## v3.3.1 (2026-09-03)
+
+### 🚀 New Features & Enhancements
+
+- **Direct OpenXML Learner Name & Header Injection**: Implemented robust direct-write injection of student names and section metadata into SSHS Grade 11 E-Class Record term sheets and Final Grades sheets, guaranteeing complete rosters on all spreadsheet viewers.
+
+### ⚡ Improvements
+
+- **Dynamic Term Summary Averaging**: Upgraded Grade 11 TechPro and Academic School Form 9 summary calculation to dynamically average only active graded subjects using `ROUND(AVERAGE(K..:Q..),0)`, eliminating hardcoded division by 7 and preventing partial term score distortion.
+- **Robust OpenXML Cell Matcher**: Upgraded Excel sheet cell replacers with precise pattern matching that strictly separates self-closing cell tags (`<c .../>`) from full element pairs (`<c>...</c>`), preventing XML tag corruption.
+- **Parent MAPEH Dynamic 2-Pass Hierarchy**: Restored parent MAPEH composite grade calculation with 2-pass averaging and hierarchical sorting in Temporary Grade Slips and E-Class Record views.
+
+### 🐞 Bug Fixes
+
+- **Grade 11 TechPro Final Grade Calculation Mismatch**: Resolved issue where students with only 1 graded subject showed mismatched final averages of `10` and `9` instead of their true subject grades (`67`, `62`, `64`, `65`).
+- **SSHS Grade 11 ECR Missing Learner Names & Headers**: Resolved cascading `#VALUE!` formula failures in cell `B8` and helper sheets that caused the learner names column and headers to evaluate to blank in exported workbooks.
+
+### 📝 Notes
+
+- Fully backward compatible update with zero risk of data loss.
+
 ## v3.3.0 (2026-09-02)
 
 ### 🚀 New Features & Enhancements

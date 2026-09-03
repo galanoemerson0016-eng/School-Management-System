@@ -3351,12 +3351,27 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.3.0 */}
+                                {/* Version 3.3.1 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.0</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.1</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 3, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>📊 <strong>Dynamic Term Summary Averaging</strong>: Upgraded Grade 11 TechPro and Academic SF9 summary formulas to dynamically average graded subjects using <code>AVERAGE</code>, eliminating hardcoded division by 7.</li>
+                                        <li>📋 <strong>SSHS Grade 11 ECR Roster & Header Injection</strong>: Injected student names, LRNs, and section metadata directly into term and final grade worksheets, resolving blank names and <code>#VALUE!</code> cascading errors.</li>
+                                        <li>🎵 <strong>Parent MAPEH 2-Pass Hierarchy</strong>: Restored composite parent MAPEH grade calculation with dynamic 2-pass averaging and hierarchical sorting in Temporary Grade Slips and E-Class Record views.</li>
+                                        <li>⚡ <strong>Robust OpenXML Tag Processing</strong>: Enhanced spreadsheet XML updater with precise matching distinguishing self-closing tags from element pairs to prevent XML tag corruption.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.3.0 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.0</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 2, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
