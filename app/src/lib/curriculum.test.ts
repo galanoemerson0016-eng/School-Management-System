@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getShsSubjectUnitInfo, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS } from './curriculum';
+import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS, STANDARD_SUBJECTS, SPECIAL_SUBJECTS } from './curriculum';
+import { isThreeTermSchoolYear } from './terms';
 import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
 import type { Student, SchoolProfile, Section, Subject, ClassRecord } from '../types';
 
@@ -134,5 +135,90 @@ describe('mapStudentToShsSf9Data with DO 017 Annex E Unit Weighting', () => {
     // Total Year Units = 6 + 6 + 3 = 15 units.
     // GWA = 1275 / 15 = 85.00 -> 85
     expect(result.generalAverage.final).toBe(85);
+  });
+});
+
+describe('DepEd School Calendar Term System (3 Terms vs 4 Quarters)', () => {
+  it('identifies SY 2026-2027 onwards as 3-Term system', () => {
+    expect(isThreeTermSchoolYear('2026-2027')).toBe(true);
+    expect(isThreeTermSchoolYear('2027-2028')).toBe(true);
+    expect(isThreeTermSchoolYear('2030-2031')).toBe(true);
+    expect(isThreeTermSchoolYear()).toBe(true); // default to current
+  });
+
+  it('identifies SY 2025-2026 and prior historical years as 4-Quarter system', () => {
+    expect(isThreeTermSchoolYear('2025-2026')).toBe(false);
+    expect(isThreeTermSchoolYear('2024-2025')).toBe(false);
+    expect(isThreeTermSchoolYear('2023-2024')).toBe(false);
+    expect(isThreeTermSchoolYear('2020-2021')).toBe(false);
+  });
+});
+
+describe('Special Curricular Programs (Grade 1 - 10)', () => {
+  it('generates STE program subjects for Grade 7', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 7', 'STE');
+    const steOnly = templates.filter(t => t.isSpecialProgram);
+    expect(steOnly.length).toBeGreaterThanOrEqual(2);
+    const names = steOnly.map(t => t.name);
+    expect(names.some(n => n.includes('Research') || n.includes('Scientific'))).toBe(true);
+    expect(names.some(n => n.includes('Environmental'))).toBe(true);
+    expect(steOnly.every(t => t.isSpecialProgram === true)).toBe(true);
+  });
+
+  it('generates SPA program subjects with selected disciplines/majors', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 7', 'SPA', ['Visual Arts', 'Dance']);
+    const names = templates.map(t => t.name);
+    expect(names.some(n => n.includes('Visual Arts'))).toBe(true);
+    expect(names.some(n => n.includes('Dance'))).toBe(true);
+    expect(names.some(n => n.includes('Theater Arts'))).toBe(false);
+  });
+
+  it('generates SPJ program subjects for Grade 8', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 8', 'SPJ');
+    const names = templates.map(t => t.name);
+    expect(names.some(n => n.includes('Journalism'))).toBe(true);
+  });
+
+  it('generates SPS program subjects for Grade 9', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 9', 'SPS');
+    const names = templates.map(t => t.name);
+    expect(names.some(n => n.includes('Sports'))).toBe(true);
+  });
+
+  it('generates ALIVE program subjects for elementary (K-6) with countsInGeneralAverage = false and excludes from JHS (G7-10)', () => {
+    const elementaryTemplates = getCurriculumTemplatesForSection('Grade 4', 'ALIVE');
+    const aliveOnly = elementaryTemplates.filter(t => t.program === 'ALIVE');
+    expect(aliveOnly.length).toBe(2);
+    aliveOnly.forEach(t => {
+      expect(t.countsInGeneralAverage).toBe(false);
+    });
+
+    const jhsTemplates = getCurriculumTemplatesForSection('Grade 7', 'ALIVE');
+    const jhsAlive = jhsTemplates.filter(t => t.program === 'ALIVE');
+    expect(jhsAlive.length).toBe(0);
+  });
+
+  it('generates SSES program subjects for elementary science', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 3', 'SSES');
+    const ssesOnly = templates.filter(t => t.program === 'SSES');
+    expect(ssesOnly.length).toBeGreaterThan(0);
+    expect(ssesOnly.some(t => t.name.includes('Science'))).toBe(true);
+  });
+
+  it('strictly excludes ALIVE subjects from standard curriculum across all grades and from JHS special offerings', () => {
+    // Check all grades in STANDARD_SUBJECTS: no Arabic or Islamic
+    Object.entries(STANDARD_SUBJECTS).forEach(([, subjects]) => {
+      const names = subjects.map(s => s.name.toLowerCase());
+      expect(names.some(n => n.includes('arabic'))).toBe(false);
+      expect(names.some(n => n.includes('islamic'))).toBe(false);
+    });
+
+    // Check Grade 7-10 in SPECIAL_SUBJECTS: no Arabic or Islamic
+    ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].forEach(grade => {
+      const specialList = SPECIAL_SUBJECTS[grade] || [];
+      const names = specialList.map(s => s.name.toLowerCase());
+      expect(names.some(n => n.includes('arabic'))).toBe(false);
+      expect(names.some(n => n.includes('islamic'))).toBe(false);
+    });
   });
 });

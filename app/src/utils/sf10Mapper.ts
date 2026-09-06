@@ -1,8 +1,8 @@
 import type { Student, SchoolProfile, Section, ClassRecord, Subject, User, SchoolCurriculum, CurriculumSubject } from '../types';
 import { normalizeSubjectName, getSF10RowsForGrade, sortSubjects, getSubjectsForGrade } from '../lib/subjectConfig';
-import { getShsSubjectUnitInfo } from '../lib/curriculum';
 import { formatLearnerName } from './student-name';
 import { resolveStudentQuarterGrade, isMatchingSubject } from './grading-helpers';
+import { isThreeTermSchoolYear } from '../lib/terms';
 import { useAppStore } from '../stores';
 
 /**
@@ -206,14 +206,14 @@ export function mapStudentToSpecData({
           };
 
           if (taughtRaw.length > 1) {
-            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+            dbSubjectsForGrade = dbSubjectsForGrade.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name) || s.section_id === studentSection.id || s.is_special_program);
           } else {
             dbSubjectsForGrade = dbSubjectsForGrade.filter(s => {
               const isGeneric = !s.section_id;
               const isDirect = s.section_id === studentSection.id;
               const isIntended = intendedSubjects.some((intended: { name: string }) => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
               const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
-              return (isGeneric || isDirect) && (isIntended || isExplicitlyTaught);
+              return (isGeneric || isDirect) && (isIntended || isExplicitlyTaught || isDirect || s.is_special_program);
             });
           }
         }
@@ -360,13 +360,20 @@ export function mapStudentToSpecData({
     const subjectsData = blankSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
     const standardSubjectsForGrade = getStandardJhsSubjects(gradeLevel, effectiveCurriculum, oldCurrOptions);
 
+    const currentSyMatch = (schoolYear || '').match(/(\d{4})/);
+    const currentStartYear = currentSyMatch ? parseInt(currentSyMatch[1], 10) : 2026;
+    const yearDiff = currentGradeNum - gradeLevel;
+    const blockStartYear = currentStartYear - yearDiff;
+    const inferredSchoolYear = `${blockStartYear}-${blockStartYear + 1}`;
+
     // If we have actual grading sheet records or class records for this student, try to fill in real grades
     const classRecords = useAppStore.getState().classRecords || [];
     const hpsRecords = useAppStore.getState().hpsRecords || [];
     const allRecords = [...classRecords, ...gradingSheetRecords];
 
+    let studentRecords: ClassRecord[] = [];
     if (allRecords.length > 0) {
-      const studentRecords = allRecords.filter(r => {
+      studentRecords = allRecords.filter(r => {
         if (r.student_lrn !== student.lrn) return false;
         
         const dbSubject = dbSubjects.find(s => s.id === r.subject_id);
@@ -386,6 +393,12 @@ export function mapStudentToSpecData({
         
         return true;
       });
+    }
+
+    const blockSchoolYear = isCurrentGrade ? (schoolYear || inferredSchoolYear) : (studentRecords[0]?.school_year || inferredSchoolYear);
+    const is3Term = isThreeTermSchoolYear(blockSchoolYear);
+
+    if (studentRecords.length > 0) {
 
       // Group records by subject for each term
       for (const record of studentRecords) {
@@ -488,7 +501,6 @@ export function mapStudentToSpecData({
         const sub = getSubjectGradeEntry(subjectsData, s.key);
         if (!sub) continue;
 
-        const is3Term = gradeLevel >= currentGradeNum;
         const terms = is3Term 
             ? [sub.q1, sub.q2, sub.q3].map(Number).filter(v => v > 0)
             : [sub.q1, sub.q2, sub.q3, sub.q4].map(Number).filter(v => v > 0);
@@ -523,7 +535,11 @@ export function mapStudentToSpecData({
       }
 
       // Compute per-term General Averages
-      ['q1', 'q2', 'q3', 'q4'].forEach(qKey => {
+      const activeTermKeys = is3Term ? ['q1', 'q2', 'q3'] : ['q1', 'q2', 'q3', 'q4'];
+      if (is3Term) {
+        subjectsData.generalAverageQ4 = '';
+      }
+      activeTermKeys.forEach(qKey => {
           const q = qKey as 'q1' | 'q2' | 'q3' | 'q4';
           let totalTerm = 0;
           let countTerm = 0;
@@ -571,11 +587,11 @@ export function mapStudentToSpecData({
       gradeLevel: isCurrentGrade ? String(gradeLevel) : '',
       gradeLevelNum: gradeLevel,
       section: isCurrentGrade ? (resolvedSectionName || '') : '',
-      schoolYear: isCurrentGrade ? schoolYear : '',
+      schoolYear: blockSchoolYear,
       adviserTeacher: isCurrentGrade ? adviserName : '',
       signature: '',
       subjects: subjectsData,
-      is3Term: gradeLevel >= currentGradeNum,
+      is3Term: is3Term,
       remedial: {
         fromDate: '',
         toDate: '',

@@ -1,7 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, useAuthStore } from '../../stores';
 import type { Section } from '../../types';
-import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, findElectiveInCatalog, getClustersForGrade11Track, type GradeLevel } from '../../lib/curriculum';
+import { 
+    STANDARD_SUBJECTS, 
+    SPECIAL_SUBJECTS, 
+    SPA_MAJORS,
+    getCurriculumTemplatesForSection,
+    findElectiveInCatalog, 
+    getClustersForGrade11Track, 
+    type GradeLevel 
+} from '../../lib/curriculum';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from '../../utils/grading-helpers';
 import { motion } from 'framer-motion';
 import { X, Save, Shield, BookOpen, AlertCircle, ChevronRight, Check } from 'lucide-react';
@@ -311,7 +319,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         is_advisory: false,
         track: '',
         strand: '',
-        cluster: ''
+        cluster: '',
+        program: 'Regular',
+        spa_majors: []
     });
 
     // Handle initial role defaults for NEW sections
@@ -381,6 +391,12 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         const special = SPECIAL_SUBJECTS[grade as keyof typeof SPECIAL_SUBJECTS] || [];
         special.forEach(s => addToList(s.name, s.code || ''));
 
+        // 5. Special Curricular Programs (STE, SPA, SPJ, SPS, SPFL, SPTVE, SSES, ALIVE)
+        if (formData.program && formData.program !== 'Regular') {
+            const programTemplates = getCurriculumTemplatesForSection(grade, formData.program, formData.spa_majors);
+            programTemplates.forEach(s => addToList(s.name, s.code || ''));
+        }
+
         // Sort them according to standard DepEd order if possible, otherwise alphabetical
         const standardOrder = [
             'Language', 'Reading and Literacy', 'Filipino', 'English', 
@@ -401,7 +417,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 if (indexB !== -1) return 1;
                 return a.name.localeCompare(b.name);
             });
-    }, [formData.section_grade_level, formData.id, subjects]);
+    }, [formData.section_grade_level, formData.id, formData.program, formData.spa_majors, subjects]);
 
     const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
@@ -479,6 +495,32 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
         return filtered;
     }, [availableSubjects, formData.section_grade_level]);
 
+    const isElementary = useMemo(() => {
+        const grade = formData.section_grade_level || '';
+        return ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].includes(grade);
+    }, [formData.section_grade_level]);
+
+    const isJHS = useMemo(() => {
+        const grade = formData.section_grade_level || '';
+        return ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].includes(grade);
+    }, [formData.section_grade_level]);
+
+    const handleGradeLevelChange = (newGrade: string) => {
+        const isNewElem = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].includes(newGrade);
+        let newProgram = formData.program || 'Regular';
+        if (isNewElem && ['STE', 'SPA', 'SPJ', 'SPS', 'SPFL', 'SPTVE'].includes(newProgram)) {
+            newProgram = 'Regular';
+        } else if (!isNewElem && newProgram === 'SSES') {
+            newProgram = 'Regular';
+        }
+        setFormData({
+            ...formData,
+            section_grade_level: newGrade,
+            program: newProgram,
+            spa_majors: newProgram === 'SPA' ? (formData.spa_majors || []) : []
+        });
+    };
+
     const handleAdvisoryChange = (checked: boolean) => {
         setFormData(prev => ({ 
             ...prev, 
@@ -527,7 +569,9 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                 teaching_subjects: teachingSubjs,
                 track: section.track || '',
                 strand: section.strand || '',
-                cluster: section.cluster || (section.section_grade_level?.includes('Grade 11') ? section.strand || '' : '')
+                cluster: section.cluster || (section.section_grade_level?.includes('Grade 11') ? section.strand || '' : ''),
+                program: section.program || 'Regular',
+                spa_majors: section.spa_majors || []
             });
         }
     }, [section, schoolProfile?.adviser_name]);
@@ -590,6 +634,12 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                     : undefined,
                 cluster: isG11
                     ? formData.cluster || formData.strand || ''
+                    : undefined,
+                program: (!isG11 && !isG12)
+                    ? (formData.program || 'Regular')
+                    : undefined,
+                spa_majors: (!isG11 && !isG12 && formData.program === 'SPA')
+                    ? (formData.spa_majors || [])
                     : undefined
             };
 
@@ -667,7 +717,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 required
                                 className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
                                 value={formData.section_grade_level}
-                                onChange={(e) => setFormData({ ...formData, section_grade_level: e.target.value })}
+                                onChange={(e) => handleGradeLevelChange(e.target.value)}
                             >
                                 {GRADE_LEVELS.map(g => <option key={g} value={g} className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">{g}</option>)}
                             </select>
@@ -685,6 +735,84 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                 onChange={(e) => setFormData({ ...formData, section_name: e.target.value })}
                             />
                         </div>
+
+                        {/* Curricular Program Selection (G1-G10) */}
+                        {(isElementary || isJHS) && (
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="block text-[9px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest mb-2.5 ml-1">
+                                    Curricular Program
+                                </label>
+                                <select 
+                                    className="w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white border-2 border-transparent focus:border-blue-500/20 focus:bg-white dark:focus:bg-[#0d1225] rounded-2xl px-5 py-3.5 text-sm font-bold transition-all outline-none cursor-pointer"
+                                    value={formData.program || 'Regular'}
+                                    onChange={(e) => {
+                                        const p = e.target.value;
+                                        setFormData({
+                                            ...formData,
+                                            program: p,
+                                            spa_majors: p === 'SPA' ? (formData.spa_majors && formData.spa_majors.length > 0 ? formData.spa_majors : Object.keys(SPA_MAJORS)) : []
+                                        });
+                                    }}
+                                >
+                                    {isElementary ? (
+                                        <>
+                                            <option value="Regular" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Regular Basic Education (MATATAG)</option>
+                                            <option value="SSES" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Special Science Elementary School (SSES)</option>
+                                            <option value="ALIVE" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Madrasah / ALIVE Program</option>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <option value="Regular" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Regular Basic Education (MATATAG)</option>
+                                            <option value="STE" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Science, Technology, and Engineering (STE)</option>
+                                            <option value="SPA" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Special Program in the Arts (SPA)</option>
+                                            <option value="SPJ" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Special Program in Journalism (SPJ)</option>
+                                            <option value="SPS" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Special Program in Sports (SPS)</option>
+                                            <option value="SPFL" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Special Program in Foreign Language (SPFL)</option>
+                                            <option value="SPTVE" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Technical-Vocational Education (SPTVE)</option>
+                                        </>
+                                    )}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* SPA Majors Selection (If SPA program is selected) */}
+                        {(isJHS && formData.program === 'SPA') && (
+                            <div className="col-span-2 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-800/30 rounded-2xl p-4">
+                                <label className="block text-[9px] font-black text-purple-700 dark:text-purple-300 uppercase tracking-widest mb-1.5">
+                                    Offered SPA Art Majors / Disciplines
+                                </label>
+                                <p className="text-[10px] text-purple-600/80 dark:text-purple-300/80 mb-3">
+                                    Select which art specializations are offered in this section. Students will be enrolled in their specific major elective.
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {Object.keys(SPA_MAJORS).map((major) => {
+                                        const isSelected = (formData.spa_majors || []).includes(major);
+                                        return (
+                                            <div 
+                                                key={major}
+                                                onClick={() => {
+                                                    const current = formData.spa_majors || [];
+                                                    const next = isSelected 
+                                                        ? current.filter(m => m !== major)
+                                                        : [...current, major];
+                                                    setFormData({ ...formData, spa_majors: next });
+                                                }}
+                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                                    isSelected 
+                                                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs' 
+                                                        : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-purple-300'
+                                                }`}
+                                            >
+                                                <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white/20' : 'border-slate-300 dark:border-white/20'}`}>
+                                                    {isSelected && <Check className="w-3 h-3 text-white stroke-3" />}
+                                                </div>
+                                                <span className="truncate text-[11px]">{major}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Track Selection (SHS only: Grade 11 or Grade 12) */}
                         {(formData.section_grade_level?.includes('Grade 11') || formData.section_grade_level?.includes('Grade 12')) && (

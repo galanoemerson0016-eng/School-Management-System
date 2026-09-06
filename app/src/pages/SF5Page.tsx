@@ -94,7 +94,7 @@ export function SF5Page() {
         }
 
         if (taughtRaw.length > 0) {
-            candidates = candidates.filter(s => taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name)));
+            candidates = candidates.filter(s => taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name)) || s.section_id === currentSectionInfo.id || s.is_special_program);
         } else if (isSHS && sectionTrack) {
             candidates = candidates.filter(s => {
                 const unitInfo = getShsSubjectUnitInfo(s.subject_name, currentSectionInfo.section_grade_level);

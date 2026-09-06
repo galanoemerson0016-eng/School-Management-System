@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects } from '../lib/subjectConfig';
-import { getDefaultTermForSubject, getShsSubjectUnitInfo } from '../lib/curriculum';
+import { getDefaultTermForSubject, getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SPECIAL_SUBJECTS } from '../lib/curriculum';
 import { resolveStudentQuarterGrade, isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
 import type { Subject, ClassRecord } from '../types';
 
@@ -1113,7 +1113,16 @@ const groupedSections = useMemo(() => {
         if (!sectionObj) return [];
 
         // 1. Get the official list of subjects for this grade level from the curriculum
-        const intendedSubjects = getSubjectsForGrade(sectionObj.section_grade_level, schoolProfile.curriculum);
+        const standardTemplates = getSubjectsForGrade(sectionObj.section_grade_level, schoolProfile.curriculum);
+        const programTemplates = getCurriculumTemplatesForSection(
+            sectionObj.section_grade_level,
+            sectionObj.program,
+            sectionObj.spa_majors
+        );
+        const intendedSubjects = [
+            ...standardTemplates,
+            ...programTemplates.filter(pt => !standardTemplates.some(st => normalizeSubjectName(st.name) === normalizeSubjectName(pt.name)))
+        ];
         
         // 2. Get all actual subject records for this section or grade level from the database
         const sectionGradeNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
@@ -1131,8 +1140,33 @@ const groupedSections = useMemo(() => {
             const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
             const isMatchingGrade = subjectGradeNum === sectionGradeNum;
             const isMatchingSection = s.section_id === sectionObj.id;
-            return (isMatchingGrade || isMatchingSection) && getEffectiveTerm(s) !== 'none';
+            if (!isMatchingGrade && !isMatchingSection) return false;
+
+            const effTerm = getEffectiveTerm(s);
+            if (effTerm === 'none') {
+                const isExplicitlyTaught = taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+                const isDirectOrSpecial = s.section_id === sectionObj.id || s.is_special_program || Boolean(s.program_type);
+                return isExplicitlyTaught || isDirectOrSpecial;
+            }
+            return true;
         });
+
+        // Helper: Check if a subject is section-specific, an imported special program offering, or has grades in this section
+        const isSpecialOrImported = (s: Subject) => {
+            if (s.section_id === sectionObj.id) return true;
+            if (s.is_special_program || Boolean(s.program_type)) return true;
+            const specialTemplates = SPECIAL_SUBJECTS[sectionObj.section_grade_level] || [];
+            if (specialTemplates.some(t => isMatchingSubject(t.name, s.id, s.subject_name) || normalizeSubjectName(t.name) === normalizeSubjectName(s.subject_name))) {
+                return true;
+            }
+            if (intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name))) {
+                return true;
+            }
+            const hasGrades = gradingSheetRecords.some(r => (r.subject_id === s.id || isMatchingSubject(r.subject_id, s.id, s.subject_name)) && r.section_id === sectionObj.id) ||
+                              classRecords.some(r => (r.subject_id === s.id || isMatchingSubject(r.subject_id, s.id, s.subject_name)) && (r as any).section_id === sectionObj.id);
+            if (hasGrades) return true;
+            return false;
+        };
 
         // For SHS (Grades 11 & 12): filter electives based on taughtSet or sectionTrack
         if (isSHS) {
@@ -1152,9 +1186,9 @@ const groupedSections = useMemo(() => {
                     }
                 }
 
-                // Filter to only match explicitly taught subjects
+                // Filter to match explicitly taught subjects OR section-specific / special program subjects
                 candidates = candidates.filter(s => {
-                    return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name));
+                    return taughtRaw.some(t => isMatchingSubject(t, s.id, s.subject_name)) || isSpecialOrImported(s);
                 });
 
                 // Use the exact subject name from taught_subjects, normalizing Old K-12 PE
@@ -1172,6 +1206,7 @@ const groupedSections = useMemo(() => {
                 });
             } else if (sectionTrack) {
                 candidates = candidates.filter(s => {
+                    if (isSpecialOrImported(s)) return true;
                     const unitInfo = getShsSubjectUnitInfo(s.subject_name, sectionObj.section_grade_level);
                     if (unitInfo.category === 'core' && sectionGradeNum === 11) return true;
                     if (sectionTrack.includes('acad')) {
@@ -1205,14 +1240,15 @@ const groupedSections = useMemo(() => {
             };
 
             if (taughtRaw.length > 1) {
-                // If an explicit subject roster was selected in the Subjects tab, strictly respect it
-                candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+                // If an explicit subject roster was selected in the Subjects tab, strictly respect it,
+                // while always preserving section-specific subjects and imported special program offerings
+                candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name) || isSpecialOrImported(s));
             } else {
-                // If taught_subjects is not explicitly set (or single legacy pollution), only allow standard intended curriculum subjects
+                // If taught_subjects is not explicitly set (or single legacy pollution), allow standard intended curriculum subjects or special/imported subjects
                 candidates = candidates.filter(s => {
                     const isIntended = intendedSubjects.some(intended => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
                     const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
-                    return isIntended || isExplicitlyTaught;
+                    return isIntended || isExplicitlyTaught || isSpecialOrImported(s);
                 });
             }
         }
@@ -1265,7 +1301,7 @@ const groupedSections = useMemo(() => {
             if (!isSHS && normalizeSubjectName(intended.name) === 'specialization') {
                 return false;
             }
-            // If explicit subject roster is configured (> 1), don't inject unselected subjects
+            // If explicit subject roster is configured (> 1), don't inject unselected subjects unless they are special program offerings
             if (!isSHS && taughtRaw.length > 1) {
                 const isAllowed = taughtRaw.some(t => {
                     if (isMatchingSubject(t, '', intended.name)) return true;
@@ -1276,7 +1312,12 @@ const groupedSections = useMemo(() => {
                     }
                     return false;
                 });
-                if (!isAllowed) return false;
+                const isSpecialIntended = Boolean(
+                    (intended as any).is_special_program ||
+                    (intended as any).program ||
+                    (sectionObj.program && sectionObj.program !== 'Regular')
+                );
+                if (!isAllowed && !isSpecialIntended) return false;
             }
             const defaultTerm = getDefaultTermForSubject(intended.name, sectionObj.section_grade_level);
             if (defaultTerm === 'none') return false;

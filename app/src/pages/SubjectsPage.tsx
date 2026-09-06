@@ -234,6 +234,101 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
         return getShsCategoryForSubject(subjectName, gradeLevel);
     }
 
+    // 1. Madrasah / ALIVE Program
+    if (
+        normalized.startsWith('*arabic') || 
+        normalized.startsWith('*islamic') || 
+        normalized.includes('arabic language') || 
+        normalized.includes('islamic values') ||
+        normalized.startsWith('alive')
+    ) {
+        return 'Madrasah / ALIVE Program';
+    }
+
+    // 2. Science, Technology & Engineering (STE)
+    const steKeywords = [
+        'ste -', 'ste-', 'environmental science', 'scientific investigation', 'research i', 
+        'research ii', 'research iii', 'research iv', 'biotechnology', 'advanced statistics', 
+        'consumer chemistry', 'advanced physics', 'advanced chemistry', 'robotics and digital electronics',
+        'sip defense', 'capstone'
+    ];
+    if (steKeywords.some(k => normalized.includes(k))) {
+        return 'Science, Technology & Engineering (STE)';
+    }
+
+    // 3. Special Program in the Arts (SPA)
+    if (
+        normalized.startsWith('spa') || 
+        normalized.includes('malikhaing pagsulat') ||
+        normalized.includes('creative writing') ||
+        normalized.includes('media arts') ||
+        normalized.includes('theater arts')
+    ) {
+        return 'Special Program in the Arts (SPA)';
+    }
+
+    // 4. Special Program in Journalism (SPJ)
+    if (normalized.startsWith('spj') || normalized.includes('journalism')) {
+        return 'Special Program in Journalism (SPJ)';
+    }
+
+    // 5. Special Program in Sports (SPS)
+    if (
+        normalized.startsWith('sps') || 
+        normalized.includes('sports officiating') || 
+        normalized.includes('sports management') ||
+        normalized.includes('sports science') || 
+        normalized.includes('biomechanics') ||
+        normalized.includes('foundations of sports')
+    ) {
+        return 'Special Program in Sports (SPS)';
+    }
+
+    // 6. Special Program in Foreign Language (SPFL)
+    if (
+        normalized.startsWith('spfl') ||
+        normalized.includes('spanish') ||
+        normalized.includes('nihongo') ||
+        normalized.includes('japanese') ||
+        normalized.includes('mandarin') ||
+        normalized.includes('french') ||
+        normalized.includes('german') ||
+        normalized.includes('korean')
+    ) {
+        return 'Special Program in Foreign Language (SPFL)';
+    }
+
+    // 7. Technical-Vocational Education (SPTVE)
+    if (normalized.startsWith('sptve') || normalized.startsWith('stvep')) {
+        return 'Technical-Vocational Education (SPTVE)';
+    }
+
+    // 8. Special Science Elementary School (SSES)
+    const isES = gradeLevel.includes('Grade 1') || gradeLevel.includes('Grade 2') || gradeLevel.includes('Grade 3') || gradeLevel.includes('Grade 4') || gradeLevel.includes('Grade 5') || gradeLevel.includes('Grade 6');
+    if (
+        normalized.startsWith('sses') ||
+        (isES && (
+            normalized.includes('investigative science') ||
+            normalized.includes('advanced mathematics') ||
+            normalized.includes('enriched mathematics') ||
+            normalized === 'science and health' ||
+            normalized.includes('robotics & ict')
+        ))
+    ) {
+        return 'Special Science Elementary School (SSES)';
+    }
+
+    // 9. ICT & Computer Education
+    if (
+        normalized.includes('computer education') || 
+        normalized.includes('computer science') ||
+        normalized === 'ict' ||
+        normalized.includes('computer education / ict')
+    ) {
+        return 'ICT & Computer Education';
+    }
+
+    // 10. DepEd Standard Core Curriculum
     const isJHS = gradeLevel.includes('Grade 7') || gradeLevel.includes('Grade 8') || gradeLevel.includes('Grade 9') || gradeLevel.includes('Grade 10');
 
     if (isJHS) {
@@ -261,11 +356,11 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
     if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
         return 'Core Academic Subjects';
     }
-    const values = ['gmrc', 'good manners', 'values education', 'islamic values'];
+    const values = ['gmrc', 'good manners', 'values education'];
     if (values.some(v => normalized.includes(v))) {
         return 'Values / Character Education';
     }
-    const languages = ['language', 'reading', 'literacy', 'arabic language', 'mother tongue'];
+    const languages = ['language', 'reading and literacy', 'reading', 'literacy', 'mother tongue'];
     if (languages.some(l => normalized.includes(l))) {
         return 'Languages & Literacy';
     }
@@ -281,7 +376,37 @@ const getCategoryForSubject = (subjectName: string, gradeLevel: string): string 
     return 'Other Subjects';
 };
 
-import { STANDARD_SUBJECTS, SPECIAL_SUBJECTS, getDefaultTermForSubject, GRADE_11_CORE_SUBJECTS, isGrade11CoreSubject } from '../lib/curriculum';
+import { 
+    STANDARD_SUBJECTS, 
+    SPECIAL_SUBJECTS, 
+    STE_SUBJECTS,
+    SPA_MAJORS,
+    SPJ_SUBJECTS,
+    SPS_SUBJECTS,
+    SPFL_LANGUAGES,
+    SSES_SUBJECTS,
+    SPTVE_SPECIALIZATIONS,
+    ALIVE_SUBJECTS,
+    type SpecialSubjectItem,
+    getCurriculumTemplatesForSection,
+    getDefaultTermForSubject, 
+    GRADE_11_CORE_SUBJECTS, 
+    isGrade11CoreSubject 
+} from '../lib/curriculum';
+
+export type CurriculumChoiceType = 
+    | 'standard' 
+    | 'special' 
+    | 'core_only' 
+    | 'program' 
+    | 'program_ste' 
+    | 'program_spa' 
+    | 'program_spj' 
+    | 'program_sps' 
+    | 'program_spfl' 
+    | 'program_sptve' 
+    | 'program_sses' 
+    | 'program_alive';
 
 export function SubjectsPage() {
     const { schoolProfile, subjects, sections, students, addSubject, deleteSubject, deleteSubjectsBulk, updateSubject, updateSection, setCurrentView, showNotification } = useAppStore(); 
@@ -310,9 +435,9 @@ export function SubjectsPage() {
     const [draggedSubjectId, setDraggedSubjectId] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
     const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
-    const [curriculumChoice, setCurriculumChoice] = useState<'standard' | 'special' | 'core_only' | null>(null);
+    const [curriculumChoice, setCurriculumChoice] = useState<CurriculumChoiceType | null>(null);
     const [showCurriculumChoice, setShowCurriculumChoice] = useState(false);
-    const [lastLoadedCurriculumType, setLastLoadedCurriculumType] = useState<'standard' | 'special' | 'core_only' | null>(null);
+    const [lastLoadedCurriculumType, setLastLoadedCurriculumType] = useState<CurriculumChoiceType | null>(null);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
     const [showAutoLoadConfirm, setShowAutoLoadConfirm] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<'Elementary' | 'JHS' | 'SHS' | null>(null);
@@ -321,7 +446,7 @@ export function SubjectsPage() {
 
     // Import Wizard states
     const [wizardStep, setWizardStep] = useState<'choice' | 'select' | null>(null);
-    const [pendingWizardSubjects, setPendingWizardSubjects] = useState<{ name: string; code: string }[]>([]);
+    const [pendingWizardSubjects, setPendingWizardSubjects] = useState<SpecialSubjectItem[]>([]);
     const [selectedWizardSubjects, setSelectedWizardSubjects] = useState<Set<string>>(new Set());
     const [wizardIncludeCrossTrack, setWizardIncludeCrossTrack] = useState(false);
     const [wizardSearch, setWizardSearch] = useState('');
@@ -400,25 +525,60 @@ export function SubjectsPage() {
         }));
     };
 
-    const startImportWizard = (type: 'standard' | 'special' | 'core_only') => {
+    const startImportWizard = (type: CurriculumChoiceType) => {
         if (!selectedGrade) return;
 
-        let templates = type === 'standard' 
-            ? STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS]
-            : SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
+        let templates: SpecialSubjectItem[] | { name: string; code: string }[] | undefined;
 
-        if (type === 'core_only') {
+        if (type === 'standard') {
+            templates = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS];
+        } else if (type === 'special') {
+            templates = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
+        } else if (type === 'program_ste') {
+            templates = STE_SUBJECTS[selectedGrade] || [];
+        } else if (type === 'program_spa') {
+            templates = Object.values(SPA_MAJORS).flat();
+        } else if (type === 'program_spj') {
+            templates = SPJ_SUBJECTS[selectedGrade] || [];
+        } else if (type === 'program_sps') {
+            templates = SPS_SUBJECTS[selectedGrade] || [];
+        } else if (type === 'program_spfl') {
+            templates = SPFL_LANGUAGES;
+        } else if (type === 'program_sptve') {
+            templates = SPTVE_SPECIALIZATIONS;
+        } else if (type === 'program_sses') {
+            templates = SSES_SUBJECTS[selectedGrade] || [];
+        } else if (type === 'program_alive') {
+            templates = ALIVE_SUBJECTS;
+        } else if (type === 'core_only') {
             const allStandard = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS] || [];
             templates = allStandard.filter(s => getShsCategoryForSubject(s.name, selectedGrade) === 'Core Subject (All Tracks)');
+        } else if (type === 'program') {
+            templates = getCurriculumTemplatesForSection(selectedGrade, selectedSection?.program, selectedSection?.spa_majors);
         }
 
-        if (!templates) {
-            showNotification(`No subjects defined for ${selectedGrade}`, 'info');
+        if (!templates || templates.length === 0) {
+            showNotification(`No subjects defined for this offering in ${selectedGrade}`, 'info');
             return;
         }
 
+        // Determine which subjects are already existing in this section/grade
+        const existingSectionSubjects = subjects.filter((subject) => {
+            if (selectedSectionId) return subject.section_id === selectedSectionId;
+            return subject.grade_level === selectedGrade && !subject.section_id;
+        });
+        const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
+
+        // Pre-select ONLY the subjects that are NOT yet added!
+        const initialSelected = new Set<string>();
+        templates.forEach(s => {
+            if (!existingNames.has(normalizeSubjectLabel(s.name))) {
+                initialSelected.add(s.name);
+            }
+        });
+
         setPendingWizardSubjects(templates.map(s => ({ ...s })));
-        setSelectedWizardSubjects(new Set(templates.map(s => s.name)));
+        setSelectedWizardSubjects(initialSelected);
         setCurriculumChoice(type);
         setWizardStep('select');
         setWizardIncludeCrossTrack(false);
@@ -447,7 +607,7 @@ export function SubjectsPage() {
 
         if (wizardSearch.trim()) {
             const query = wizardSearch.toLowerCase().trim();
-            baseList = baseList.filter(s => s.name.toLowerCase().includes(query) || s.code.toLowerCase().includes(query));
+            baseList = baseList.filter(s => s.name.toLowerCase().includes(query) || (s.code && s.code.toLowerCase().includes(query)));
         }
 
         return baseList;
@@ -456,21 +616,51 @@ export function SubjectsPage() {
     const groupedWizardSubjects = useMemo(() => {
         if (!selectedGrade) return {};
         const isSHS = selectedGrade.includes('11') || selectedGrade.includes('12');
-        if (!isSHS) {
-            return { '': wizardDisplaySubjects };
-        }
+        const isJHS = selectedGrade.includes('Grade 7') || selectedGrade.includes('Grade 8') || selectedGrade.includes('Grade 9') || selectedGrade.includes('Grade 10');
 
-        const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
-        const catOrder = gradeNum === 11 ? [
-            'Core Subject (All Tracks)',
-            'Academic Elective (All Other Electives)',
-            'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
-            'TechPro Elective (All Other Elective)'
-        ] : [
-            'Core Subjects',
-            'Applied Subjects',
-            'Specialized Subjects'
-        ];
+        let catOrder: string[] = [];
+        if (isSHS) {
+            const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
+            catOrder = gradeNum === 11 ? [
+                'Core Subject (All Tracks)',
+                'Academic Elective (All Other Electives)',
+                'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
+                'TechPro Elective (All Other Elective)'
+            ] : [
+                'Core Subjects',
+                'Applied Subjects',
+                'Specialized Subjects'
+            ];
+        } else if (isJHS) {
+            catOrder = [
+                'Core Academic Subjects',
+                'MAPEH (Music, Arts, PE, Health)',
+                'Technology & Livelihood (TLE)',
+                'Values / Character Education',
+                'Science, Technology & Engineering (STE)',
+                'Special Program in the Arts (SPA)',
+                'Special Program in Journalism (SPJ)',
+                'Special Program in Sports (SPS)',
+                'Special Program in Foreign Language (SPFL)',
+                'Technical-Vocational Education (SPTVE)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
+                'Other Subjects'
+            ];
+        } else {
+            // Elementary
+            catOrder = [
+                'Core Academic Subjects',
+                'Languages & Literacy',
+                'Livelihood & Makabansa',
+                'MAPEH (Music, Arts, PE, Health)',
+                'Values / Character Education',
+                'Special Science Elementary School (SSES)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
+                'Other Subjects'
+            ];
+        }
 
         const groups: Record<string, typeof wizardDisplaySubjects> = {};
         
@@ -479,14 +669,21 @@ export function SubjectsPage() {
         });
 
         wizardDisplaySubjects.forEach((subject) => {
-            const cat = getShsCategoryForSubject(subject.name, selectedGrade);
+            const cat = isSHS 
+                ? getShsCategoryForSubject(subject.name, selectedGrade) 
+                : getCategoryForSubject(subject.name, selectedGrade);
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(subject);
         });
 
         const filteredGroups: Record<string, typeof wizardDisplaySubjects> = {};
+        catOrder.forEach(cat => {
+            if (groups[cat] && groups[cat].length > 0) {
+                filteredGroups[cat] = groups[cat];
+            }
+        });
         Object.entries(groups).forEach(([cat, list]) => {
-            if (list.length > 0) {
+            if (list.length > 0 && !filteredGroups[cat]) {
                 filteredGroups[cat] = list;
             }
         });
@@ -530,17 +727,11 @@ export function SubjectsPage() {
         const targetSection = selectedSection || null;
         const sectionId = targetSection?.id;
         const gradeLevel = selectedGrade;
+        const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
+        const isSHS = gradeNum === 11 || gradeNum === 12;
 
-        const standardTemplates = STANDARD_SUBJECTS[gradeLevel as keyof typeof STANDARD_SUBJECTS] || [];
-        const specialTemplates = SPECIAL_SUBJECTS[gradeLevel as keyof typeof SPECIAL_SUBJECTS] || [];
-        const allTemplates = [...standardTemplates];
-        specialTemplates.forEach(item => {
-            if (!allTemplates.some(s => s.name.toLowerCase().trim() === item.name.toLowerCase().trim())) {
-                allTemplates.push(item);
-            }
-        });
-
-        const templatesToLoad = allTemplates.filter(t => selectedWizardSubjects.has(t.name));
+        const candidateTemplates = (isSHS && wizardIncludeCrossTrack) ? wizardDisplaySubjects : pendingWizardSubjects;
+        const templatesToLoad = candidateTemplates.filter(t => selectedWizardSubjects.has(t.name));
 
         try {
             const existingSectionSubjects = subjects.filter((subject) => {
@@ -552,6 +743,16 @@ export function SubjectsPage() {
             const missingTemplates = templatesToLoad.filter((template) => !existingNames.has(normalizeSubjectLabel(template.name)));
 
             if (missingTemplates.length === 0) {
+                if (targetSection) {
+                    const existingTaught = targetSection.taught_subjects || [];
+                    const namesToAdd = templatesToLoad.map(t => t.name).filter(n => !existingTaught.some(et => isMatchingSubject(et, undefined, n)));
+                    if (namesToAdd.length > 0) {
+                        await updateSection({
+                            ...targetSection,
+                            taught_subjects: [...existingTaught, ...namesToAdd]
+                        });
+                    }
+                }
                 showNotification(`All selected subjects are already loaded for ${targetSection?.section_name || gradeLevel}.`, 'info');
                 setShowCurriculumChoice(false);
                 setWizardStep(null);
@@ -559,20 +760,39 @@ export function SubjectsPage() {
             }
 
             for (let i = 0; i < missingTemplates.length; i++) {
-                const template = missingTemplates[i];
+                const template = missingTemplates[i] as SpecialSubjectItem;
                 const subjectId = `subject-${timestamp}-${String(i).padStart(2, '0')}-${Math.random().toString(36).substr(2, 5)}`;
                 
+                const isComponent = template.is_component ?? template.isComponent ?? (['music and arts', 'physical education and health'].some(c => template.name.toLowerCase().includes(c)));
+                const countsInGenAvg = (template.counts_in_general_average ?? template.countsInGeneralAverage) !== false && !isComponent && !template.name.startsWith('*');
+                const templateTerm = (template as any).term;
+
                 const newSubject: Subject = {
                     id: subjectId,
                     subject_name: template.name,
-                    subject_code: template.code,
+                    subject_code: template.code || '',
                     grade_level: gradeLevel,
                     section_id: sectionId,
-                    term: getDefaultTermForSubject(template.name, gradeLevel),
-                    order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name))
+                    term: templateTerm !== undefined ? templateTerm : (isSHS ? 'all' : getDefaultTermForSubject(template.name, gradeLevel)),
+                    order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name)),
+                    is_special_program: Boolean(template.program || template.is_special_program || (template as any).isSpecialProgram),
+                    program_type: template.program,
+                    is_component: isComponent,
+                    counts_in_general_average: countsInGenAvg
                 };
                 
                 await addSubject(newSubject);
+            }
+
+            if (targetSection) {
+                const existingTaught = targetSection.taught_subjects || [];
+                const namesToAdd = templatesToLoad.map(t => t.name).filter(n => !existingTaught.some(et => isMatchingSubject(et, undefined, n)));
+                if (namesToAdd.length > 0) {
+                    await updateSection({
+                        ...targetSection,
+                        taught_subjects: [...existingTaught, ...namesToAdd]
+                    });
+                }
             }
 
             showNotification(`Successfully imported ${missingTemplates.length} subjects!`, 'success');
@@ -630,29 +850,374 @@ export function SubjectsPage() {
         }
     };
 
+    const selectedSection = useMemo(() => {
+        return sections.find(s => s.id === selectedSectionId);
+    }, [sections, selectedSectionId]);
+
+    const existingSectionSubjectNames = useMemo(() => {
+        if (!selectedGrade) return new Set<string>();
+        const list = subjects.filter((s) => {
+            if (selectedSectionId) return s.section_id === selectedSectionId;
+            return s.grade_level === selectedGrade && !s.section_id;
+        });
+        return new Set(list.map((s) => normalizeSubjectLabel(s.subject_name)));
+    }, [subjects, selectedSectionId, selectedGrade]);
+
     const templateMeta = useMemo(() => {
         if (!selectedGrade) return null;
         
+        const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
+        const isES = gradeNum >= 1 && gradeNum <= 6;
+        const isJHS = gradeNum >= 7 && gradeNum <= 10;
+        const isSHS = gradeNum === 11 || gradeNum === 12;
+
         const standard = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS] || [];
         const special = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS] || [];
+        const hasProgram = Boolean(selectedSection?.program && selectedSection.program !== 'Regular');
+        const programTemplates = hasProgram 
+            ? getCurriculumTemplatesForSection(selectedGrade, selectedSection!.program, selectedSection!.spa_majors)
+            : [];
         
-        const getPreview = (list: { name: string; code: string }[]) => {
+        const getPreview = (list: { name: string; code?: string }[]) => {
             const names = list.slice(0, 3).map(s => `✓ ${s.name}`);
             if (list.length > 3) names.push(`+ ${list.length - 3} more...`);
             return names;
         };
 
-        const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
+        interface CurriculumCardDef {
+            id: CurriculumChoiceType;
+            title: string;
+            subtitle: string;
+            description: string;
+            badge: string;
+            badgeStyle: string;
+            borderColor: string;
+            bgColor: string;
+            hoverBorder: string;
+            hoverBg: string;
+            ringColor: string;
+            emoji: string;
+            count: number;
+            preview: string[];
+            isSectionAssigned?: boolean;
+        }
+
+        const cards: CurriculumCardDef[] = [];
+
+        // If Section has an assigned special program preset (e.g. STE, SPA, SPS, etc.)
+        if (hasProgram && selectedSection) {
+            cards.push({
+                id: 'program',
+                title: `${selectedSection.program} Preset`,
+                subtitle: 'Assigned Section Program',
+                description: `Official preset curriculum for this section (${selectedSection.program}), pre-configured with core and specialized subjects.`,
+                badge: '★ Section Preset',
+                badgeStyle: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60',
+                borderColor: 'border-purple-300 dark:border-purple-800/50',
+                bgColor: 'bg-purple-50/50 dark:bg-purple-950/20',
+                hoverBorder: 'hover:border-purple-500',
+                hoverBg: 'hover:bg-purple-50 dark:hover:bg-purple-950/40',
+                ringColor: 'ring-purple-200/50',
+                emoji: '🎓',
+                count: programTemplates.length,
+                preview: getPreview(programTemplates),
+                isSectionAssigned: true
+            });
+        }
+
+        if (isJHS) {
+            // Card 1: Normal / Standard (MATATAG / Core)
+            cards.push({
+                id: 'standard',
+                title: 'Normal / Standard Curriculum',
+                subtitle: 'MATATAG & DepEd Core',
+                description: 'Official DepEd junior high core learning areas (English, Filipino, Math, Science, AP, Values Ed, TLE, MAPEH).',
+                badge: 'DepEd Core',
+                badgeStyle: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60',
+                borderColor: 'border-emerald-200 dark:border-emerald-800/40',
+                bgColor: 'bg-emerald-50/40 dark:bg-emerald-950/20',
+                hoverBorder: 'hover:border-emerald-500',
+                hoverBg: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
+                ringColor: 'ring-emerald-200/50',
+                emoji: '📚',
+                count: standard.length,
+                preview: getPreview(standard)
+            });
+
+            // Card 2: Science, Technology & Engineering (STE)
+            const steList = STE_SUBJECTS[selectedGrade] || [];
+            cards.push({
+                id: 'program_ste',
+                title: 'Science, Tech & Engineering',
+                subtitle: 'STE Program',
+                description: 'Specialized STEM curriculum: Scientific Research I–IV, Biotechnology, Advanced Statistics, and Robotics.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60',
+                borderColor: 'border-cyan-200 dark:border-cyan-800/40',
+                bgColor: 'bg-cyan-50/40 dark:bg-cyan-950/20',
+                hoverBorder: 'hover:border-cyan-500',
+                hoverBg: 'hover:bg-cyan-50 dark:hover:bg-cyan-950/30',
+                ringColor: 'ring-cyan-200/50',
+                emoji: '🔬',
+                count: steList.length,
+                preview: getPreview(steList)
+            });
+
+            // Card 3: Special Program in the Arts (SPA)
+            const spaList = Object.values(SPA_MAJORS).flat();
+            cards.push({
+                id: 'program_spa',
+                title: 'Special Program in the Arts',
+                subtitle: 'SPA Majors',
+                description: 'DepEd arts specialization: Visual Arts, Vocal Music, Instrumental Music, Dance, Theater Arts, Creative Writing, Media Arts.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800/60',
+                borderColor: 'border-fuchsia-200 dark:border-fuchsia-800/40',
+                bgColor: 'bg-fuchsia-50/40 dark:bg-fuchsia-950/20',
+                hoverBorder: 'hover:border-fuchsia-500',
+                hoverBg: 'hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30',
+                ringColor: 'ring-fuchsia-200/50',
+                emoji: '🎭',
+                count: spaList.length,
+                preview: getPreview(spaList)
+            });
+
+            // Card 4: Special Program in Journalism (SPJ)
+            const spjList = SPJ_SUBJECTS[selectedGrade] || [];
+            cards.push({
+                id: 'program_spj',
+                title: 'Special Program in Journalism',
+                subtitle: 'SPJ Program',
+                description: 'Journalism electives: Print Journalism, Radio Broadcast, TV Broadcast & Photojournalism, Online Journalism.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60',
+                borderColor: 'border-indigo-200 dark:border-indigo-800/40',
+                bgColor: 'bg-indigo-50/40 dark:bg-indigo-950/20',
+                hoverBorder: 'hover:border-indigo-500',
+                hoverBg: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30',
+                ringColor: 'ring-indigo-200/50',
+                emoji: '📰',
+                count: spjList.length,
+                preview: getPreview(spjList)
+            });
+
+            // Card 5: Special Program in Sports (SPS)
+            const spsList = SPS_SUBJECTS[selectedGrade] || [];
+            cards.push({
+                id: 'program_sps',
+                title: 'Special Program in Sports',
+                subtitle: 'SPS Program',
+                description: 'Sports specialization: Foundations of Sports, Team Sports, Sports Science & Nutrition, Sports Officiating.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60',
+                borderColor: 'border-amber-200 dark:border-amber-800/40',
+                bgColor: 'bg-amber-50/40 dark:bg-amber-950/20',
+                hoverBorder: 'hover:border-amber-500',
+                hoverBg: 'hover:bg-amber-50 dark:hover:bg-amber-950/30',
+                ringColor: 'ring-amber-200/50',
+                emoji: '🏃',
+                count: spsList.length,
+                preview: getPreview(spsList)
+            });
+
+            // Card 6: Special Program in Foreign Language (SPFL)
+            const spflList = SPFL_LANGUAGES;
+            cards.push({
+                id: 'program_spfl',
+                title: 'Foreign Language (SPFL)',
+                subtitle: 'SPFL Languages',
+                description: 'Global language electives: Spanish, Japanese (Nihongo), French, German, Mandarin Chinese, and Korean.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60',
+                borderColor: 'border-blue-200 dark:border-blue-800/40',
+                bgColor: 'bg-blue-50/40 dark:bg-blue-950/20',
+                hoverBorder: 'hover:border-blue-500',
+                hoverBg: 'hover:bg-blue-50 dark:hover:bg-blue-950/30',
+                ringColor: 'ring-blue-200/50',
+                emoji: '🌍',
+                count: spflList.length,
+                preview: getPreview(spflList)
+            });
+
+            // Card 7: Technical-Vocational Education (SPTVE)
+            const sptveList = SPTVE_SPECIALIZATIONS;
+            cards.push({
+                id: 'program_sptve',
+                title: 'Technical-Vocational (SPTVE)',
+                subtitle: 'STVEP Specializations',
+                description: 'Technical drafting, Computer Systems Servicing (CSS), Electrical (EIM), SMAW welding, Automotive, Cookery.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60',
+                borderColor: 'border-violet-200 dark:border-violet-800/40',
+                bgColor: 'bg-violet-50/40 dark:bg-violet-950/20',
+                hoverBorder: 'hover:border-violet-500',
+                hoverBg: 'hover:bg-violet-50 dark:hover:bg-violet-950/30',
+                ringColor: 'ring-violet-200/50',
+                emoji: '⚙️',
+                count: sptveList.length,
+                preview: getPreview(sptveList)
+            });
+
+            // Card 8: All Specialized Offerings (Combined)
+            cards.push({
+                id: 'special',
+                title: 'All Specialized Offerings',
+                subtitle: 'Complete Catalog',
+                description: 'Combined catalog of all specialized electives, programs (STE, SPA, SPJ, SPS, SPFL, SPTVE) and ICT.',
+                badge: 'All Offerings',
+                badgeStyle: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60',
+                borderColor: 'border-purple-200 dark:border-purple-800/40',
+                bgColor: 'bg-purple-50/40 dark:bg-purple-950/20',
+                hoverBorder: 'hover:border-purple-500',
+                hoverBg: 'hover:bg-purple-50 dark:hover:bg-purple-950/30',
+                ringColor: 'ring-purple-200/50',
+                emoji: '⭐',
+                count: special.length,
+                preview: getPreview(special)
+            });
+        } else if (isES) {
+            // Card 1: Normal / MATATAG Curriculum
+            cards.push({
+                id: 'standard',
+                title: 'Normal / MATATAG Curriculum',
+                subtitle: 'DepEd Primary Standard',
+                description: 'Official DepEd elementary curriculum (Language, Reading, Math, Makabansa, GMRC, Science, AP, EPP, MAPEH).',
+                badge: 'DepEd Standard',
+                badgeStyle: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60',
+                borderColor: 'border-emerald-200 dark:border-emerald-800/40',
+                bgColor: 'bg-emerald-50/40 dark:bg-emerald-950/20',
+                hoverBorder: 'hover:border-emerald-500',
+                hoverBg: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30',
+                ringColor: 'ring-emerald-200/50',
+                emoji: '📚',
+                count: standard.length,
+                preview: getPreview(standard)
+            });
+
+            // Card 2: Special Science Elementary School (SSES)
+            const ssesList = SSES_SUBJECTS[selectedGrade] || [];
+            cards.push({
+                id: 'program_sses',
+                title: 'Special Science Elementary (SSES)',
+                subtitle: 'SSES Program',
+                description: 'Enriched mathematics, science and health, investigative science, and elementary robotics & ICT.',
+                badge: 'Special Program',
+                badgeStyle: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60',
+                borderColor: 'border-cyan-200 dark:border-cyan-800/40',
+                bgColor: 'bg-cyan-50/40 dark:bg-cyan-950/20',
+                hoverBorder: 'hover:border-cyan-500',
+                hoverBg: 'hover:bg-cyan-50 dark:hover:bg-cyan-950/30',
+                ringColor: 'ring-cyan-200/50',
+                emoji: '🔬',
+                count: ssesList.length,
+                preview: getPreview(ssesList)
+            });
+
+            // Card 3: Madrasah / ALIVE Program
+            const aliveList = ALIVE_SUBJECTS;
+            cards.push({
+                id: 'program_alive',
+                title: 'Madrasah / ALIVE Program',
+                subtitle: 'Arabic & Islamic Values',
+                description: 'Official DepEd Madrasah curriculum: Arabic Language and Islamic Values Education for Muslim learners.',
+                badge: 'DepEd Madrasah',
+                badgeStyle: 'bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60',
+                borderColor: 'border-teal-200 dark:border-teal-800/40',
+                bgColor: 'bg-teal-50/40 dark:bg-teal-950/20',
+                hoverBorder: 'hover:border-teal-500',
+                hoverBg: 'hover:bg-teal-50 dark:hover:bg-teal-950/30',
+                ringColor: 'ring-teal-200/50',
+                emoji: '🌙',
+                count: aliveList.length,
+                preview: getPreview(aliveList)
+            });
+
+            // Card 4: All Specialized Offerings (Combined)
+            cards.push({
+                id: 'special',
+                title: 'All Specialized Offerings',
+                subtitle: 'Combined Catalog',
+                description: 'Combined catalog of elementary special offerings: SSES science/math, ALIVE Arabic/Islamic values, and ICT.',
+                badge: 'All Offerings',
+                badgeStyle: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60',
+                borderColor: 'border-purple-200 dark:border-purple-800/40',
+                bgColor: 'bg-purple-50/40 dark:bg-purple-950/20',
+                hoverBorder: 'hover:border-purple-500',
+                hoverBg: 'hover:bg-purple-50 dark:hover:bg-purple-950/30',
+                ringColor: 'ring-purple-200/50',
+                emoji: '⭐',
+                count: special.length,
+                preview: getPreview(special)
+            });
+        } else if (isSHS) {
+            // Card 1: SSHS Academic Track
+            cards.push({
+                id: 'standard',
+                title: 'Academic Track',
+                subtitle: 'SSHS Academic Track',
+                description: 'Standard core subjects plus Academic Track electives (STEM, ABM, HUMSS, Sports & Arts).',
+                badge: 'Academic Track',
+                badgeStyle: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60',
+                borderColor: 'border-amber-200 dark:border-amber-800/40',
+                bgColor: 'bg-amber-50/40 dark:bg-amber-950/20',
+                hoverBorder: 'hover:border-amber-500',
+                hoverBg: 'hover:bg-amber-50 dark:hover:bg-amber-950/30',
+                ringColor: 'ring-amber-200/50',
+                emoji: '🎓',
+                count: standard.length,
+                preview: getPreview(standard)
+            });
+
+            // Card 2: SSHS TechPro Track
+            cards.push({
+                id: 'special',
+                title: 'TechPro Track',
+                subtitle: 'Technical-Professional',
+                description: 'Standard core subjects plus TechPro electives (Agri-Fishery, Industrial Arts, ICT, Home Economics).',
+                badge: 'TechPro Track',
+                badgeStyle: 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60',
+                borderColor: 'border-blue-200 dark:border-blue-800/40',
+                bgColor: 'bg-blue-50/40 dark:bg-blue-950/20',
+                hoverBorder: 'hover:border-blue-500',
+                hoverBg: 'hover:bg-blue-50 dark:hover:bg-blue-950/30',
+                ringColor: 'ring-blue-200/50',
+                emoji: '🛠️',
+                count: special.length,
+                preview: getPreview(special)
+            });
+
+            // Card 3: SSHS Core Only
+            const coreOnly = standard.filter(s => getShsCategoryForSubject(s.name, selectedGrade) === 'Core Subject (All Tracks)');
+            cards.push({
+                id: 'core_only',
+                title: 'Core Subjects Only',
+                subtitle: 'Required Core (All Tracks)',
+                description: 'Load only the 6 official Core Subjects required across all senior high school tracks without electives.',
+                badge: 'Core Only',
+                badgeStyle: 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60',
+                borderColor: 'border-indigo-200 dark:border-indigo-800/40',
+                bgColor: 'bg-indigo-50/40 dark:bg-indigo-950/20',
+                hoverBorder: 'hover:border-indigo-500',
+                hoverBg: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30',
+                ringColor: 'ring-indigo-200/50',
+                emoji: '🧠',
+                count: coreOnly.length,
+                preview: getPreview(coreOnly)
+            });
+        }
 
         return {
+            cards,
             standardCount: standard.length,
             specialCount: special.length,
-            standardPreview: getPreview(standard),
-            specialPreview: getPreview(special),
-            isES: gradeNum >= 1 && gradeNum <= 6,
-            isSHS: gradeNum === 11 || gradeNum === 12
+            programCount: programTemplates.length,
+            hasProgram,
+            programName: selectedSection?.program || '',
+            isES,
+            isJHS,
+            isSHS
         };
-    }, [selectedGrade]);
+    }, [selectedGrade, selectedSection]);
 
     const shsSubjectSuggestions = useMemo(() => {
         if (!selectedGrade) return [];
@@ -678,10 +1243,6 @@ export function SubjectsPage() {
         'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
         'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
     ];
-
-    const selectedSection = useMemo(() => {
-        return sections.find(s => s.id === selectedSectionId);
-    }, [sections, selectedSectionId]);
 
     const totalGradeSubjectsCount = useMemo(() => {
         if (!selectedGrade) return 0;
@@ -722,24 +1283,36 @@ export function SubjectsPage() {
             uniqueList.push(s);
         }
 
-        let result = uniqueList;
-        if (subjectSearchQuery.trim()) {
-            const q = subjectSearchQuery.trim().toLowerCase();
-            result = result.filter(s => 
-                s.subject_name.toLowerCase().includes(q) || 
-                (s.subject_code && s.subject_code.toLowerCase().includes(q))
-            );
-        }
+        const query = subjectSearchQuery.toLowerCase().trim();
+        return uniqueList
+            .filter((s) => {
+                if (!query) return true;
+                return (
+                    s.subject_name.toLowerCase().includes(query) ||
+                    (s.subject_code && s.subject_code.toLowerCase().includes(query)) ||
+                    getCategoryForSubject(s.subject_name, selectedGrade).toLowerCase().includes(query)
+                );
+            })
+            .sort((a, b) => {
+                // If searching, keep standard order
+                if (query) {
+                    const orderA = a.order ?? getPreferredSubjectOrder(a.subject_name);
+                    const orderB = b.order ?? getPreferredSubjectOrder(b.subject_name);
+                    if (orderA !== orderB) return orderA - orderB;
+                    return a.subject_name.localeCompare(b.subject_name);
+                }
 
-        return result.sort((a, b) => {
-                const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
-                const isSHS = gradeNum === 11 || gradeNum === 12;
+                // If categorized view, sort primarily by category order
+                const catA = getCategoryForSubject(a.subject_name, selectedGrade);
+                const catB = getCategoryForSubject(b.subject_name, selectedGrade);
                 
+                const isSHS = selectedGrade.includes('11') || selectedGrade.includes('12');
+                const isJHS = selectedGrade.includes('Grade 7') || selectedGrade.includes('Grade 8') || selectedGrade.includes('Grade 9') || selectedGrade.includes('Grade 10');
+
+                let catOrder: string[] = [];
                 if (isSHS) {
-                    const catA = getShsCategoryForSubject(a.subject_name, selectedGrade);
-                    const catB = getShsCategoryForSubject(b.subject_name, selectedGrade);
-                    
-                    const catOrder = gradeNum === 11 ? [
+                    const gradeNum = parseInt(selectedGrade.replace(/\D/g, '')) || 0;
+                    catOrder = gradeNum === 11 ? [
                         'Core Subject (All Tracks)',
                         'Academic Elective (All Other Electives)',
                         'Academic Elective (Field Experience/ Exposure, and Sports and Arts)',
@@ -749,13 +1322,42 @@ export function SubjectsPage() {
                         'Applied Subjects',
                         'Specialized Subjects'
                     ];
-                    
+                } else if (isJHS) {
+                    catOrder = [
+                        'Core Academic Subjects',
+                        'MAPEH (Music, Arts, PE, Health)',
+                        'Technology & Livelihood (TLE)',
+                        'Values / Character Education',
+                        'Science, Technology & Engineering (STE)',
+                        'Special Program in the Arts (SPA)',
+                        'Special Program in Journalism (SPJ)',
+                        'Special Program in Sports (SPS)',
+                        'Special Program in Foreign Language (SPFL)',
+                        'Technical-Vocational Education (SPTVE)',
+                        'Madrasah / ALIVE Program',
+                        'ICT & Computer Education',
+                        'Other Subjects'
+                    ];
+                } else {
+                    catOrder = [
+                        'Core Academic Subjects',
+                        'Languages & Literacy',
+                        'Livelihood & Makabansa',
+                        'MAPEH (Music, Arts, PE, Health)',
+                        'Values / Character Education',
+                        'Special Science Elementary School (SSES)',
+                        'Madrasah / ALIVE Program',
+                        'ICT & Computer Education',
+                        'Other Subjects'
+                    ];
+                }
+
+                if (catA !== catB) {
                     const idxA = catOrder.indexOf(catA);
                     const idxB = catOrder.indexOf(catB);
-                    
-                    if (idxA !== idxB) {
-                        return idxA - idxB;
-                    }
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
                 }
 
                 const orderA = a.order ?? getPreferredSubjectOrder(a.subject_name);
@@ -789,6 +1391,14 @@ export function SubjectsPage() {
                 'MAPEH (Music, Arts, PE, Health)',
                 'Technology & Livelihood (TLE)',
                 'Values / Character Education',
+                'Science, Technology & Engineering (STE)',
+                'Special Program in the Arts (SPA)',
+                'Special Program in Journalism (SPJ)',
+                'Special Program in Sports (SPS)',
+                'Special Program in Foreign Language (SPFL)',
+                'Technical-Vocational Education (SPTVE)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
                 'Other Subjects'
             ];
         } else {
@@ -799,6 +1409,9 @@ export function SubjectsPage() {
                 'Livelihood & Makabansa',
                 'MAPEH (Music, Arts, PE, Health)',
                 'Values / Character Education',
+                'Special Science Elementary School (SSES)',
+                'Madrasah / ALIVE Program',
+                'ICT & Computer Education',
                 'Other Subjects'
             ];
         }
@@ -1254,76 +1867,6 @@ export function SubjectsPage() {
         }
     };
 
-    const handleLoadStandardSubjects = async () => {
-        if (!selectedGrade) return;
-        
-        const isSHS = selectedGrade.includes('11') || selectedGrade.includes('12');
-        if (isSHS) {
-            setIsLoadingTemplate(true);
-            const timestamp = Date.now();
-            const targetSection = selectedSection || null;
-            const sectionId = targetSection?.id;
-            const gradeLevel = selectedGrade;
-
-            const grade = selectedGrade as 'Grade 11' | 'Grade 12';
-            const standardList = STANDARD_SUBJECTS[grade] || [];
-            const specialList = SPECIAL_SUBJECTS[grade] || [];
-            
-            // Merge Academic and TechPro subjects into a complete unified list
-            const merged: { name: string; code: string }[] = [...standardList];
-            specialList.forEach((item) => {
-                if (!merged.some(s => s.name.toLowerCase().trim() === item.name.toLowerCase().trim())) {
-                    merged.push(item);
-                }
-            });
-            const templatesToUse = merged;
-
-            try {
-                const existingSectionSubjects = subjects.filter((subject) => {
-                    if (sectionId) return subject.section_id === sectionId;
-                    return subject.grade_level === gradeLevel && !subject.section_id;
-                });
-                const existingNames = new Set(existingSectionSubjects.map((subject) => normalizeSubjectLabel(subject.subject_name)));
-                
-                const missingTemplates = templatesToUse.filter((template) => !existingNames.has(normalizeSubjectLabel(template.name)));
-
-                if (missingTemplates.length === 0) {
-                    showNotification(`All standard subjects are already loaded for ${targetSection?.section_name || gradeLevel}.`, 'info');
-                    return;
-                }
-
-                for (let i = 0; i < missingTemplates.length; i++) {
-                    const template = missingTemplates[i];
-                    const subjectId = `subject-${timestamp}-${String(i).padStart(2, '0')}-${Math.random().toString(36).substr(2, 5)}`;
-                    
-                    const newSubject: Subject = {
-                        id: subjectId,
-                        subject_name: template.name,
-                        subject_code: template.code,
-                        grade_level: gradeLevel,
-                        section_id: sectionId,
-                        term: getDefaultTermForSubject(template.name, gradeLevel),
-                        order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name))
-                    };
-                    
-                    await addSubject(newSubject);
-                }
-
-                showNotification(`Successfully loaded all unified ${missingTemplates.length} subjects!`, 'success');
-                setLastLoadedCurriculumType('standard');
-            } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                console.error("[SUBJECTS AUTOMATIC] Failed to commit:", errorMsg);
-                showNotification(`Failed to load subjects: ${errorMsg}`, 'error');
-            } finally {
-                setIsLoadingTemplate(false);
-            }
-        } else {
-            setWizardStep('choice');
-            setShowCurriculumChoice(true);
-        }
-    };
-
     const handleDragStart = (subjectId: string) => {
         setDraggedSubjectId(subjectId);
     };
@@ -1427,6 +1970,17 @@ export function SubjectsPage() {
                     )}
                     {viewMode === 'subjects' && canEdit && (
                         <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => {
+                                    setWizardStep('choice');
+                                    setShowCurriculumChoice(true);
+                                }}
+                                className="h-8 px-3.5 bg-linear-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider hover:from-emerald-700 hover:to-teal-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
+                                title="Choose from MATATAG, Standard, STE, SPA, and Specialized Subject Offerings"
+                            >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                Choose Offerings
+                            </button>
                             <button 
                                 onClick={handleCleanDuplicates}
                                 className="h-8 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-xl font-bold text-xs hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 active:scale-95 cursor-pointer"
@@ -1899,11 +2453,15 @@ export function SubjectsPage() {
                                     <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">This grade doesn't have any subjects yet. You can add them manually or use the level template.</p>
                                     {canEdit && (
                                         <button 
-                                            onClick={handleLoadStandardSubjects} 
+                                            onClick={() => {
+                                                setWizardStep('choice');
+                                                setShowCurriculumChoice(true);
+                                            }} 
                                             disabled={isLoadingTemplate}
-                                            className="mt-8 h-12 px-8 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-all active:scale-95 shadow-xl"
+                                            className="mt-8 h-12 px-8 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl flex items-center gap-2 mx-auto cursor-pointer"
                                         >
-                                            {isLoadingTemplate ? 'Loading...' : 'Load Level Template'}
+                                            <Sparkles className="w-4 h-4 text-amber-300" />
+                                            {isLoadingTemplate ? 'Loading...' : 'Choose Curriculum / Offerings'}
                                         </button>
                                     )}
                                     {!selectedSection && (
@@ -1970,7 +2528,6 @@ export function SubjectsPage() {
                                                             </tr>
                                                         )}
                                                         {!isCollapsed && categorySubjects.map((subject, idx) => {
-                                                            const norm = subject.subject_name.trim().toLowerCase();
                                                             const isG11 = selectedGrade?.includes('11');
                                                             const isG11Core = isG11 && isGrade11CoreSubject(subject.subject_name);
                                                             const hasExplicitTaught = (activeAdvisorySection?.taught_subjects?.length || 0) > 0;
@@ -2170,166 +2727,109 @@ export function SubjectsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
                     onClick={() => {}}
                 >
                     <motion.div 
-                        initial={{ scale: 0.9, y: 20 }}
+                        initial={{ scale: 0.92, y: 20 }}
                         animate={{ scale: 1, y: 0 }}
-                        className={`bg-white rounded-3xl shadow-2xl w-full overflow-hidden transition-all duration-300 ${
-                            wizardStep === 'select' ? 'max-w-5xl max-h-[90vh] flex flex-col' : 'max-w-3xl'
-                        }`}
+                        className="bg-white dark:bg-[#0d1225] rounded-3xl shadow-2xl w-full overflow-hidden transition-all duration-300 max-w-5xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-white/10"
                     >
                         {wizardStep === 'choice' && (
                             <>
-                                <div className={`px-8 py-8 ${
+                                <div className={`px-8 py-6 shrink-0 ${
                                     templateMeta?.isES 
                                         ? 'bg-linear-to-r from-emerald-500 to-teal-600' 
                                         : templateMeta?.isSHS 
                                             ? 'bg-linear-to-r from-amber-500 to-orange-600' 
-                                            : 'bg-linear-to-r from-indigo-500 to-blue-600'
-                                }`}>
-                                    <h2 className="text-2xl font-black text-white">
-                                        {templateMeta?.isSHS ? 'Select Track Curriculum' : 'Choose Curriculum Type'}
-                                    </h2>
-                                    <p className={`${
-                                        templateMeta?.isES 
-                                            ? 'text-emerald-100' 
-                                            : templateMeta?.isSHS 
-                                                ? 'text-orange-100' 
-                                                : 'text-indigo-100'
-                                    } text-sm mt-2`}>
-                                        {templateMeta?.isSHS 
-                                            ? `Select which Senior High School track to load for ${selectedGrade}` 
-                                            : `Select which subject template to load for ${selectedGrade}`}
-                                    </p>
-                                </div>
-                                
-                                <div className={`p-8 grid gap-6 ${templateMeta?.isSHS ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-                                    {/* Standard Option */}
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => {
-                                            startImportWizard('standard');
-                                        }}
-                                        className={`p-6 rounded-2xl border-2 transition-all text-left flex flex-col justify-between ${
-                                            templateMeta?.isSHS
-                                                ? 'border-amber-200 bg-amber-50/30 hover:border-amber-500 hover:bg-amber-50 ring-2 ring-amber-100/50'
-                                                : 'border-slate-200 hover:border-emerald-500 hover:bg-emerald-50'
-                                        }`}
-                                    >
-                                        <div>
-                                            <div className="text-3xl mb-3">📚</div>
-                                            <h3 className={`text-lg font-black mb-2 ${templateMeta?.isSHS ? 'text-amber-950' : 'text-slate-900'}`}>
-                                                {templateMeta?.isES ? 'Matatag / Standard' : templateMeta?.isSHS ? 'SSHS Academic Track' : 'Standard'}
-                                            </h3>
-                                            <p className={`text-sm mb-4 ${templateMeta?.isSHS ? 'text-amber-800' : 'text-slate-600'}`}>
-                                                {templateMeta?.isES ? 'Official DepEd Primary curriculum' : templateMeta?.isSHS ? 'Standard core + academic electives' : 'DepEd standard curriculum'}
-                                            </p>
+                                            : 'bg-linear-to-r from-indigo-500 via-purple-600 to-blue-600'
+                                } text-white flex items-center justify-between`}>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-2xl font-black text-white tracking-tight">
+                                                {templateMeta?.isSHS ? 'Select Track Curriculum' : 'Choose Curriculum & Specialized Offerings'}
+                                            </h2>
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30">
+                                                {selectedGrade}
+                                            </span>
                                         </div>
-                                        <div>
-                                            <div className="flex items-center justify-between mb-3">
-                                                <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                                                    templateMeta?.isSHS 
-                                                        ? 'text-amber-700 bg-amber-100' 
-                                                        : 'text-emerald-600 bg-emerald-100'
-                                                }`}>
-                                                    {templateMeta?.standardCount} Subjects
-                                                </span>
-                                                <span className={templateMeta?.isSHS ? 'text-amber-600 font-bold' : 'text-emerald-600 font-bold'}>→</span>
-                                            </div>
-                                            <div className={`text-[11px] space-y-1 ${templateMeta?.isSHS ? 'text-amber-700/80' : 'text-slate-500'}`}>
-                                                {templateMeta?.standardPreview.map((line, i) => (
-                                                    <div key={i}>{line}</div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </motion.button>
-         
-                                    {/* Special Option */}
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => {
-                                            startImportWizard('special');
-                                        }}
-                                        className={`p-6 rounded-2xl border-2 transition-all text-left flex flex-col justify-between ${
-                                            templateMeta?.isSHS
-                                                ? 'border-blue-200 bg-blue-50/30 hover:border-blue-500 hover:bg-blue-50 ring-2 ring-blue-100/50'
-                                                : 'border-blue-300 bg-blue-50 hover:border-blue-500 hover:bg-blue-100 ring-2 ring-blue-200'
-                                        }`}
-                                    >
-                                        <div>
-                                            <div className="text-3xl mb-3">⭐</div>
-                                            <h3 className={`text-lg font-black mb-2 ${templateMeta?.isSHS ? 'text-blue-950' : 'text-blue-900'}`}>
-                                                {templateMeta?.isES ? 'Enhanced / Special' : templateMeta?.isSHS ? 'SSHS TechPro Track' : 'Special'}
-                                            </h3>
-                                            <p className={`text-sm mb-4 ${templateMeta?.isSHS ? 'text-blue-800' : 'text-blue-700'}`}>
-                                                {templateMeta?.isES ? 'Curriculum with extra electives' : templateMeta?.isSHS ? 'Standard core + TechPro electives' : 'Extra subject included'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center justify-between mb-3">
-                                                <span className="text-xs font-bold text-blue-600 bg-blue-200 px-3 py-1 rounded-full">
-                                                    {templateMeta?.specialCount} Subjects
-                                                </span>
-                                                <span className="text-blue-600 font-bold">→</span>
-                                            </div>
-                                            <div className="text-[11px] text-blue-700 space-y-1">
-                                                {templateMeta?.specialPreview.map((line, i) => (
-                                                    <div key={i}>{line}</div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </motion.button>
-
-                                    {/* SSHS Core Only Option (Only for SHS inside modal) */}
-                                    {templateMeta?.isSHS && (
-                                        <motion.button
-                                            whileHover={{ scale: 1.02 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={() => {
-                                                startImportWizard('core_only');
-                                            }}
-                                            className="p-6 rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 hover:border-indigo-500 hover:bg-indigo-50 ring-2 ring-indigo-100/50 text-left transition-all flex flex-col justify-between"
-                                        >
-                                            <div>
-                                                <div className="text-3xl mb-3">🧠</div>
-                                                <h3 className="text-lg font-black mb-2 text-indigo-950">
-                                                    SSHS Core Only
-                                                </h3>
-                                                <p className="text-sm mb-4 text-indigo-800 leading-relaxed">
-                                                    Load only the 6 official Core Subjects required for all tracks (no electives)
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full">
-                                                        6 Subjects
-                                                    </span>
-                                                    <span className="text-indigo-600 font-bold">→</span>
-                                                </div>
-                                                <div className="text-[11px] text-indigo-700/80 space-y-1">
-                                                    <div>✓ Effective Communication</div>
-                                                    <div>✓ Mabisang Komunikasyon</div>
-                                                    <div>✓ General Mathematics</div>
-                                                </div>
-                                            </div>
-                                        </motion.button>
-                                    )}
-                                </div>
-
-                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-6 border-t border-slate-200 dark:border-white/10 flex justify-end">
+                                        <p className="text-xs opacity-90 mt-1 font-medium text-white/90">
+                                            {templateMeta?.isSHS 
+                                                ? `Select Senior High School track or core subjects to import for ${selectedGrade}` 
+                                                : `Choose from DepEd standard core or special curricular programs (STE, SPA, SPJ, etc.)`}
+                                        </p>
+                                    </div>
                                     <button
                                         onClick={() => {
                                             setShowCurriculumChoice(false);
                                             setCurriculumChoice(null);
                                             setWizardStep(null);
                                         }}
-                                        className="px-6 py-2 rounded-xl text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
                                     >
-                                        Cancel
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                
+                                <div className="p-6 md:p-8 overflow-y-auto max-h-[calc(90vh-140px)] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 bg-slate-50/40 dark:bg-black/10">
+                                    {templateMeta?.cards.map((card) => (
+                                        <motion.button
+                                            key={card.id}
+                                            whileHover={{ scale: 1.02, y: -2 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => startImportWizard(card.id)}
+                                            className={`p-5 rounded-2xl border-2 transition-all text-left flex flex-col justify-between cursor-pointer shadow-xs hover:shadow-md ${card.borderColor} ${card.bgColor} ${card.hoverBorder} ${card.hoverBg} ring-2 ${card.ringColor}`}
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <span className="text-3xl">{card.emoji}</span>
+                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${card.badgeStyle}`}>
+                                                        {card.badge}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-base font-black text-slate-900 dark:text-white mb-0.5 leading-snug">
+                                                    {card.title}
+                                                </h3>
+                                                <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">
+                                                    {card.subtitle}
+                                                </div>
+                                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                                                    {card.description}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2 pt-3 border-t border-slate-200/60 dark:border-white/10">
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                        {card.count} {card.count === 1 ? 'Subject' : 'Subjects'}
+                                                    </span>
+                                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center gap-1">
+                                                        <span>Choose</span>
+                                                        <ArrowRight className="w-3.5 h-3.5" />
+                                                    </span>
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+                                                    {card.preview.map((line, i) => (
+                                                        <div key={i} className="truncate">{line}</div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </motion.button>
+                                    ))}
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
+                                    <span className="text-xs text-slate-400">
+                                        💡 You can import Normal subjects first, then import specialized programs anytime without conflicts.
+                                    </span>
+                                    <button
+                                        onClick={() => {
+                                            setShowCurriculumChoice(false);
+                                            setCurriculumChoice(null);
+                                            setWizardStep(null);
+                                        }}
+                                        className="px-6 py-2 rounded-xl text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-xs"
+                                    >
+                                        Close
                                     </button>
                                 </div>
                             </>
@@ -2338,19 +2838,32 @@ export function SubjectsPage() {
                         {wizardStep === 'select' && (
                             <div className="flex flex-col h-[85vh] md:h-[80vh] overflow-hidden">
                                 {/* Wizard Header */}
-                                <div className={`px-8 py-6 flex items-center justify-between shrink-0 ${
+                                <div className={`px-8 py-5 flex items-center justify-between shrink-0 ${
                                     templateMeta?.isES 
                                         ? 'bg-linear-to-r from-emerald-500 to-teal-600' 
                                         : templateMeta?.isSHS 
                                             ? 'bg-linear-to-r from-amber-500 to-orange-600' 
-                                            : 'bg-linear-to-r from-indigo-500 to-blue-600'
+                                            : 'bg-linear-to-r from-indigo-500 via-purple-600 to-blue-600'
                                 } text-white`}>
                                     <div>
                                         <h2 className="text-2xl font-black tracking-tight">
                                             Select Subjects to Import
                                         </h2>
-                                        <p className="text-xs opacity-90 mt-1 uppercase tracking-wider font-bold">
-                                            {selectedGrade} | Template: {curriculumChoice === 'standard' ? 'Academic Track' : curriculumChoice === 'special' ? 'TechPro Track' : 'Core Subjects Only'}
+                                        <p className="text-xs opacity-90 mt-0.5 uppercase tracking-wider font-bold">
+                                            {selectedGrade} | Offering: {
+                                                curriculumChoice === 'standard' ? 'Normal / MATATAG / Standard Core' :
+                                                curriculumChoice === 'program_ste' ? 'Science, Technology & Engineering (STE)' :
+                                                curriculumChoice === 'program_spa' ? 'Special Program in the Arts (SPA)' :
+                                                curriculumChoice === 'program_spj' ? 'Special Program in Journalism (SPJ)' :
+                                                curriculumChoice === 'program_sps' ? 'Special Program in Sports (SPS)' :
+                                                curriculumChoice === 'program_spfl' ? 'Special Program in Foreign Language (SPFL)' :
+                                                curriculumChoice === 'program_sptve' ? 'Technical-Vocational (SPTVE)' :
+                                                curriculumChoice === 'program_sses' ? 'Special Science Elementary (SSES)' :
+                                                curriculumChoice === 'program_alive' ? 'Madrasah / ALIVE Program' :
+                                                curriculumChoice === 'special' ? 'All Specialized Offerings (Combined)' :
+                                                curriculumChoice === 'program' ? `${templateMeta?.programName || 'Special Program'} Preset` :
+                                                'Core Subjects Only'
+                                            }
                                         </p>
                                     </div>
                                     <div className="text-right">
@@ -2360,14 +2873,14 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Search and Options Bar */}
-                                <div className="px-8 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-[#0f172a] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+                                <div className="px-8 py-3.5 border-b border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-[#0f172a] flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                                     <div className="relative flex-1 max-w-md">
                                         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                                         <input
                                             type="text"
                                             value={wizardSearch}
                                             onChange={(e) => setWizardSearch(e.target.value)}
-                                            placeholder="Search template subjects..."
+                                            placeholder="Search offerings by name or code..."
                                             className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all text-slate-800 dark:text-white font-medium"
                                         />
                                         {wizardSearch && (
@@ -2400,7 +2913,7 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Scrollable Subjects Checklist */}
-                                <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/30 dark:bg-black/20">
+                                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 bg-slate-50/30 dark:bg-black/20">
                                     {Object.keys(groupedWizardSubjects).length === 0 ? (
                                         <div className="p-16 text-center text-slate-400 dark:text-slate-500">
                                             <BookText className="w-12 h-12 mx-auto mb-3 opacity-40" />
@@ -2413,14 +2926,14 @@ export function SubjectsPage() {
                                             return (
                                                 <div key={category} className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200/60 dark:border-white/10 shadow-xs overflow-hidden">
                                                     {/* Category Header */}
-                                                    <div className="px-6 py-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 flex items-center justify-between">
+                                                    <div className="px-6 py-3.5 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 flex items-center justify-between">
                                                         <div 
                                                             className="flex items-center gap-2 cursor-pointer select-none"
                                                             onClick={() => toggleWizardCategory(category)}
                                                         >
                                                             <ChevronRight className={`w-4 h-4 text-slate-400 transform transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`} />
                                                             <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest">
-                                                                {category || 'Standard Subjects'}
+                                                                {category || 'Offerings'}
                                                             </span>
                                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300">
                                                                 {list.length}
@@ -2445,9 +2958,10 @@ export function SubjectsPage() {
 
                                                     {/* Category Grid */}
                                                     {!isCollapsed && (
-                                                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                                             {list.map((subject) => {
                                                                 const isChecked = selectedWizardSubjects.has(subject.name);
+                                                                const isAlreadySaved = existingSectionSubjectNames.has(normalizeSubjectLabel(subject.name));
                                                                 
                                                                 // Category based tag
                                                                 const isSHS = selectedGrade?.includes('11') || selectedGrade?.includes('12');
@@ -2477,10 +2991,12 @@ export function SubjectsPage() {
                                                                     <div 
                                                                         key={subject.name}
                                                                         onClick={() => toggleWizardSubject(subject.name)}
-                                                                        className={`flex items-start gap-4 p-4 rounded-xl border transition-all cursor-pointer select-none ${
+                                                                        className={`flex items-start gap-3.5 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
                                                                             isChecked 
                                                                                 ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20' 
-                                                                                : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/5'
+                                                                                : isAlreadySaved
+                                                                                    ? 'border-emerald-200/80 dark:border-emerald-800/30 bg-emerald-50/20 dark:bg-emerald-950/10'
+                                                                                    : 'border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/5'
                                                                         }`}
                                                                     >
                                                                         <div className="pt-0.5">
@@ -2495,11 +3011,24 @@ export function SubjectsPage() {
                                                                             <div className="font-bold text-slate-800 dark:text-white text-sm leading-snug uppercase tracking-tight wrap-break-word">
                                                                                 {subject.name}
                                                                             </div>
-                                                                            {tagText && (
-                                                                                <span className={`inline-block text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border mt-2 ${tagStyle}`}>
-                                                                                    {tagText}
-                                                                                </span>
-                                                                            )}
+                                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                                                {isAlreadySaved && (
+                                                                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                                                                                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
+                                                                                        Already Saved
+                                                                                    </span>
+                                                                                )}
+                                                                                {tagText && (
+                                                                                    <span className={`inline-block text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${tagStyle}`}>
+                                                                                        {tagText}
+                                                                                    </span>
+                                                                                )}
+                                                                                {subject.code && (
+                                                                                    <span className="text-[10px] font-mono text-slate-400">
+                                                                                        {subject.code}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -2513,16 +3042,14 @@ export function SubjectsPage() {
                                 </div>
 
                                 {/* Wizard Footer */}
-                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-5 border-t border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
-                                    {!templateMeta?.isSHS && (
-                                        <button
-                                            onClick={() => setWizardStep('choice')}
-                                            className="h-11 px-5 border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-600 dark:text-slate-200 font-bold text-sm hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-2 cursor-pointer"
-                                        >
-                                            <ArrowLeft className="w-4 h-4" />
-                                            Back
-                                        </button>
-                                    )}
+                                <div className="bg-slate-50 dark:bg-[#0f172a] px-8 py-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
+                                    <button
+                                        onClick={() => setWizardStep('choice')}
+                                        className="h-10 px-5 border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-slate-600 dark:text-slate-200 font-bold text-xs hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+                                    >
+                                        <ArrowLeft className="w-3.5 h-3.5" />
+                                        Back to Offerings
+                                    </button>
                                     
                                     <div className="flex items-center gap-3">
                                         <button
@@ -2531,14 +3058,14 @@ export function SubjectsPage() {
                                                 setCurriculumChoice(null);
                                                 setWizardStep(null);
                                             }}
-                                            className="px-6 py-2 text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                            className="px-5 py-2 text-slate-600 dark:text-slate-200 font-bold hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-xs"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             onClick={handleWizardImport}
                                             disabled={isLoadingTemplate || selectedWizardSubjects.size === 0}
-                                            className="h-11 px-8 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none cursor-pointer"
+                                            className="h-10 px-6 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-md shadow-indigo-100 dark:shadow-none cursor-pointer"
                                         >
                                             {isLoadingTemplate ? 'Importing...' : `Import Selected (${selectedWizardSubjects.size})`}
                                         </button>

@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { X, Save, History, Trash2, Info } from 'lucide-react';
+import { useAppStore } from '../stores';
 import { useSF10Store } from '../stores/sf10-store';
 import type { SF10Version } from '../stores/sf10-store';
 import type { Student, SchoolProfile } from '../types';
 import { getSF10RowsForGrade } from '../lib/subjectConfig';
+import { isThreeTermSchoolYear } from '../lib/terms';
 
 interface SF10HistoricalDataModalProps {
     student: Student;
@@ -53,7 +55,14 @@ export function SF10HistoricalDataModal({
     const overrideKey = `${student.lrn}_page_${pageNum}`;
     const currentOverrides = useMemo(() => overrides[overrideKey] || {}, [overrides, overrideKey]);
 
-    const is3Term = selectedBlockGrade >= gradeNum;
+    const activeSchoolYear = useAppStore(state => state.activeSchoolYear);
+    const currentSy = activeSchoolYear || '2026-2027';
+    const currentSyMatch = currentSy.match(/(\d{4})/);
+    const currentStartYear = currentSyMatch ? parseInt(currentSyMatch[1], 10) : 2026;
+    const yearDiff = gradeNum - selectedBlockGrade;
+    const inferredSy = `${currentStartYear - yearDiff}-${currentStartYear - yearDiff + 1}`;
+    const blockSy = currentOverrides[`scholasticRecords[${blockIdx}].schoolYear`] || inferredSy;
+    const is3Term = isThreeTermSchoolYear(blockSy);
 
     const getVal = useCallback((path: string) => currentOverrides[path] || '', [currentOverrides]);
 

@@ -305,6 +305,9 @@ export interface Section {
     track?: string; // Track for SHS (Academic or TechPro)
     strand?: string; // Strand for SHS (STEM, ABM, HUMSS, GAS, etc.)
     cluster?: string; // SSHS Curriculum Cluster under DepEd Order No. 017, s. 2026 (Grade 11)
+    program?: 'Regular' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'SSES' | 'ALIVE' | string;
+    curriculum_type?: 'MATATAG' | 'K-12' | string;
+    spa_majors?: string[]; // Specific art disciplines active in this section (e.g. Visual Arts, Dance)
     section_metadata?: {
         sf9SubjectSelections?: Record<number, string>;
         sf9SignatureSettings?: SF9SignatureSettings;
@@ -325,6 +328,11 @@ export interface Subject {
     performance_weight?: number;
     exam_weight?: number;
     enrolled_student_lrns?: string[]; // Optional list of LRNs of enrolled students
+    is_special_program?: boolean; // True for STE, SPA, SPS, SPJ, SPFL, etc.
+    program_type?: string; // e.g. 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SSES' | 'ALIVE'
+    counts_in_general_average?: boolean; // Default true, false for non-averaged subjects like *Arabic Language
+    is_component?: boolean; // True for sub-components (Music and Arts, PE and Health)
+    parent_subject_id?: string; // e.g. MAPEH
 }
 
 export interface ClassRecord {
@@ -334,7 +342,7 @@ export interface ClassRecord {
     subject_id: string;
     subject_name?: string;
     school_year: string;
-    quarter: 1 | 2 | 3; // Strictly 3-term system
+    quarter: 1 | 2 | 3 | 4; // 1-3 for 3-Term (SY 2026-2027+), 1-4 for Historical Quarters
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;
@@ -411,7 +419,7 @@ export interface ObservedValues {
     id: string;
     student_lrn: string;
     school_year: string; // To track year
-    quarter: 1 | 2 | 3; // Strictly 3-term system
+    quarter: 1 | 2 | 3 | 4; // 1-3 for 3-term, 1-4 for historical
     // Key: Core Value ID (e.g., 'Maka-Diyos'), Value: Rating (AO, SO, RO, NO)
     values: Record<string, string>;
 }
@@ -420,7 +428,7 @@ export interface HPSRecord {
     id: string;
     subject_id: string; // Unique per section in this system
     school_year: string;
-    quarter: 1 | 2 | 3; // Strictly 3-term system
+    quarter: 1 | 2 | 3 | 4; // 1-3 for 3-term, 1-4 for historical
     written_works: (number | string)[];
     performance_tasks: (number | string)[];
     quarterly_exam: number | string;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { filterSubjectsForSection } from './rbac';
 import { getSubjectsForGrade, normalizeSubjectName, sortSubjects, getCanonicalSubjectKey } from './subjectConfig';
+import { SPECIAL_SUBJECTS, getCurriculumTemplatesForSection } from './curriculum';
 import type { Section, Subject, User } from '../types';
 
 describe('Grade Management & E-Class Record Advisory Subject Integration', () => {
@@ -400,5 +401,118 @@ describe('Grade Management & E-Class Record Advisory Subject Integration', () =>
         expect(mapehIdx).toBeLessThan(pehIdx);
         expect(maIdx).toBe(mapehIdx + 1);
         expect(pehIdx).toBe(mapehIdx + 2);
+    });
+
+    it('Grade Management: Preserves imported special program subjects (STE, SPJ, SPA) even when section taught_subjects only lists standard subjects', () => {
+        const mockG7AdvisorySection: Section = {
+            id: 'sec-g7-diamond',
+            section_name: 'Diamond',
+            section_grade_level: 'Grade 7',
+            is_advisory: true,
+            program: 'Regular',
+            taught_subjects: [
+                'Filipino',
+                'English',
+                'Mathematics',
+                'Science',
+                'Araling Panlipunan (AP)',
+                'Values Education',
+                'Technology and Livelihood Education (TLE)',
+                'MAPEH'
+            ]
+        };
+
+        const mockG7SubjectsWithImportedSpecials: Subject[] = [
+            { id: 'sub-g7-fil', subject_name: 'Filipino', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-eng', subject_name: 'English', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-math', subject_name: 'Mathematics', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-sci', subject_name: 'Science', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-ap', subject_name: 'Araling Panlipunan (AP)', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-ve', subject_name: 'Values Education', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-tle', subject_name: 'Technology and Livelihood Education (TLE)', grade_level: 'Grade 7', term: 'all' },
+            { id: 'sub-g7-mapeh', subject_name: 'MAPEH', grade_level: 'Grade 7', term: 'all' },
+            // Imported STE subjects from wizard:
+            { id: 'sub-g7-ste-res1', subject_name: 'Research I (Scientific Investigation)', grade_level: 'Grade 7', term: 'all', is_special_program: true, program_type: 'STE' },
+            { id: 'sub-g7-ste-es', subject_name: 'Environmental Science', grade_level: 'Grade 7', term: 'all', is_special_program: true, program_type: 'STE' },
+            // Imported SPJ subject assigned to this section:
+            { id: 'sub-g7-spj-1', subject_name: 'Journalism I (Print Journalism)', grade_level: 'Grade 7', term: 'all', section_id: 'sec-g7-diamond', is_special_program: true, program_type: 'SPJ' },
+            // Ghost unassigned subject from SHS:
+            { id: 'sub-g7-ghost', subject_name: 'Entrepreneurship', grade_level: 'Grade 7', term: 'all' }
+        ];
+
+        const sectionObj = mockG7AdvisorySection;
+        const subjects = mockG7SubjectsWithImportedSpecials;
+        const sectionGradeNum = 7;
+        const taughtRaw = sectionObj.taught_subjects || [];
+
+        const standardTemplates = getSubjectsForGrade(sectionObj.section_grade_level);
+        const programTemplates = getCurriculumTemplatesForSection(
+            sectionObj.section_grade_level,
+            sectionObj.program,
+            sectionObj.spa_majors
+        );
+        const intendedSubjects = [
+            ...standardTemplates,
+            ...programTemplates.filter(pt => !standardTemplates.some(st => normalizeSubjectName(st.name) === normalizeSubjectName(pt.name)))
+        ];
+
+        let candidates = subjects.filter(s => {
+            const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
+            const isMatchingGrade = subjectGradeNum === sectionGradeNum;
+            const isMatchingSection = s.section_id === sectionObj.id;
+            return (isMatchingGrade || isMatchingSection) && s.term !== 'none';
+        });
+
+        const isSpecialOrImported = (s: Subject) => {
+            if (s.section_id === sectionObj.id) return true;
+            if (s.is_special_program || Boolean(s.program_type)) return true;
+            const specialTemplates = SPECIAL_SUBJECTS[sectionObj.section_grade_level] || [];
+            if (specialTemplates.some(t => normalizeSubjectName(t.name) === normalizeSubjectName(s.subject_name))) {
+                return true;
+            }
+            if (intendedSubjects.some(intended => normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name))) {
+                return true;
+            }
+            return false;
+        };
+
+        const isSubjectAllowedInTaught = (subId: string, subName: string) => {
+            return taughtRaw.some(t => {
+                const normT = normalizeSubjectName(t);
+                const normSub = normalizeSubjectName(subName);
+                if (normT === normSub || normT.includes(normSub) || normSub.includes(normT)) return true;
+                if (normT === 'mapeh') {
+                    return normSub.includes('music') || normSub.includes('arts') || normSub.includes('pe') || normSub.includes('health') || normSub.includes('physical');
+                }
+                return false;
+            });
+        };
+
+        if (taughtRaw.length > 1) {
+            candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name) || isSpecialOrImported(s));
+        } else {
+            candidates = candidates.filter(s => {
+                const isIntended = intendedSubjects.some(intended => normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
+                const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
+                return isIntended || isExplicitlyTaught || isSpecialOrImported(s);
+            });
+        }
+
+        const candidateNames = candidates.map(c => c.subject_name);
+
+        // Core subjects preserved
+        expect(candidateNames).toContain('Filipino');
+        expect(candidateNames).toContain('English');
+        expect(candidateNames).toContain('Mathematics');
+        expect(candidateNames).toContain('Science');
+        expect(candidateNames).toContain('MAPEH');
+
+        // Imported special program subjects MUST be preserved!
+        expect(candidateNames).toContain('Research I (Scientific Investigation)');
+        expect(candidateNames).toContain('Environmental Science');
+        expect(candidateNames).toContain('Journalism I (Print Journalism)');
+
+        // Ghost subjects still excluded!
+        expect(candidateNames).not.toContain('Entrepreneurship');
     });
 });

@@ -27,7 +27,7 @@ import type { SF9ExcelExportOptions } from '../services/sf9-excel-export';
 import { filterSF9Sections } from '../lib/rbac';
 import { formatGradeForDisplay } from '../lib/grading';
 import { formatLearnerName } from '../utils/student-name';
-import { getShsSubjectUnitInfo } from '../lib/curriculum';
+import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection } from '../lib/curriculum';
 const isKeyStage1 = (gradeLevel: string) => {
     const gl = (gradeLevel || '').toLowerCase();
     if (gl.includes('grade')) {
@@ -562,12 +562,16 @@ function computeStudentGrades(
     const gradeLevelNum = parseInt(sectionObj.section_grade_level.replace(/\D/g, '')) || 0;
     const isSHS = gradeLevelNum === 11 || gradeLevelNum === 12;
     const taughtRaw = sectionObj.taught_subjects || [];
-    const taughtNorms = taughtRaw.map(s => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);
-    const taughtSet = new Set(taughtNorms);
     const sectionTrack = (sectionObj.track || student.track || '').toLowerCase();
 
     // Determine candidate subjects for this section/grade
     let candidates = subjects.filter(s => {
+        // If subject has specific enrolled students (e.g. elective/major in SPA/SPTVE/SPFL/etc.), only include if current student is enrolled
+        if (s.enrolled_student_lrns && s.enrolled_student_lrns.length > 0) {
+            if (!s.enrolled_student_lrns.includes(student.lrn)) {
+                return false;
+            }
+        }
         const subjectGradeNum = parseInt(s.grade_level?.toString().replace(/\D/g, '') || '0');
         const isMatchingGrade = subjectGradeNum === gradeLevelNum;
         const isMatchingSection = s.section_id === sectionObj.id;
@@ -623,7 +627,13 @@ function computeStudentGrades(
             });
         }
     } else {
-        const intendedSubjects = getSubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+        const standardTemplates = getSubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+        const programTemplates = getCurriculumTemplatesForSection(
+            sectionObj.section_grade_level,
+            sectionObj.program,
+            sectionObj.spa_majors
+        );
+        const intendedSubjects = [...standardTemplates, ...programTemplates];
         const isSubjectAllowedInTaught = (subId: string, subName: string) => {
             return taughtRaw.some(t => {
                 if (isMatchingSubject(t, subId, subName)) return true;
@@ -637,12 +647,13 @@ function computeStudentGrades(
         };
 
         if (taughtRaw.length > 1) {
-            candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name));
+            candidates = candidates.filter(s => isSubjectAllowedInTaught(s.id, s.subject_name) || s.section_id === sectionObj.id || s.is_special_program);
         } else {
             candidates = candidates.filter(s => {
                 const isIntended = intendedSubjects.some((intended: { name: string }) => isMatchingSubject(intended.name, s.id, s.subject_name) || normalizeSubjectName(intended.name) === normalizeSubjectName(s.subject_name));
                 const isExplicitlyTaught = isSubjectAllowedInTaught(s.id, s.subject_name);
-                return isIntended || isExplicitlyTaught;
+                const isSectionDirectOrSpecial = s.section_id === sectionObj.id || s.is_special_program;
+                return isIntended || isExplicitlyTaught || isSectionDirectOrSpecial;
             });
         }
     }
@@ -688,7 +699,17 @@ function computeStudentGrades(
         }
     } else {
         // Fallback to Curriculum
-        baseSubjects = getSF9SubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+        const standardBase = getSF9SubjectsForGrade(gradeLevelNum, schoolProfile?.curriculum);
+        const programTemplates = getCurriculumTemplatesForSection(
+            sectionObj.section_grade_level,
+            sectionObj.program,
+            sectionObj.spa_majors
+        );
+        const programBase: SF9SubjectItem[] = programTemplates.map(p => ({
+            name: p.name,
+            isComponent: p.is_component || p.isComponent
+        }));
+        baseSubjects = [...standardBase, ...programBase];
     }
 
     // Build the final order for SF9 display
@@ -1114,6 +1135,7 @@ function calculateGeneralAverage(grades: Record<string, number[]>, currentSubjec
                 : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
             const term = dbSubj?.term;
             if (term === 'none') return;
+            if (dbSubj?.counts_in_general_average === false || dbSubj?.is_component) return;
 
             const finalGrade = calculateFinalGrade(gradeRow, term, key);
             if (finalGrade > 0) {
@@ -1248,6 +1270,7 @@ function getGeneralAverageRemarks(
                     : dbSubjects.find(s => s.subject_name.toLowerCase().trim() === key.toLowerCase().trim());
                 const term = dbSubj?.term;
                 if (term === 'none') return;
+                if (dbSubj?.counts_in_general_average === false || dbSubj?.is_component) return;
 
                 const finalGrade = calculateFinalGrade(gradeRow, term, key);
                 if (finalGrade > 0) {

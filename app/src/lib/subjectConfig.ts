@@ -13,18 +13,14 @@ const STANDARD_SUBJECTS = {
     { name: 'Reading and Literacy', code: '' },
     { name: 'Mathematics', code: '' },
     { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
-    { name: 'Makabansa', code: '' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Makabansa', code: '' }
   ] as CurriculumSubject[],
   Grade2: [
     { name: 'Filipino', code: '' },
     { name: 'English', code: '' },
     { name: 'Mathematics', code: '' },
     { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
-    { name: 'Makabansa', code: '' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Makabansa', code: '' }
   ] as CurriculumSubject[],
   Grade3: [
     { name: 'Filipino', code: '' },
@@ -32,9 +28,7 @@ const STANDARD_SUBJECTS = {
     { name: 'Mathematics', code: '' },
     { name: 'Science', code: '' },
     { name: 'GMRC (Good Manners and Right Conduct)', code: '' },
-    { name: 'Makabansa', code: '' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Makabansa', code: '' }
   ] as CurriculumSubject[],
   Grade4: [
     { name: 'Filipino', code: '' },
@@ -46,9 +40,7 @@ const STANDARD_SUBJECTS = {
     { name: 'EPP', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade5: [
     { name: 'Filipino', code: '' },
@@ -60,9 +52,7 @@ const STANDARD_SUBJECTS = {
     { name: 'EPP', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade6: [
     { name: 'Filipino', code: '' },
@@ -74,9 +64,7 @@ const STANDARD_SUBJECTS = {
     { name: 'EPP', code: '' },
     { name: 'MAPEH', code: '' },
     { name: 'Music and Arts', code: 'MAPEH' },
-    { name: 'Physical Education and Health', code: 'MAPEH' },
-    { name: '*Arabic Language', code: '' },
-    { name: '*Islamic Values Education', code: '' }
+    { name: 'Physical Education and Health', code: 'MAPEH' }
   ] as CurriculumSubject[],
   Grade7: [
     { name: 'Filipino', code: '' },
