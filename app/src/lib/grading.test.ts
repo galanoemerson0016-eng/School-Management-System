@@ -38,10 +38,10 @@ describe('transmuteGrade — SY 2026-2027 adjusted table', () => {
     expect(transmuteGrade(71.18, TRANSITION_SY)).toBe(76);
   });
 
-  it('maps the top of the table: 99.50 → 100, 99.49 → 99', () => {
+  it('maps the top of the table: 100.00 → 100, 98.32–99.99 → 99', () => {
     expect(transmuteGrade(100, TRANSITION_SY)).toBe(100);
-    expect(transmuteGrade(99.5, TRANSITION_SY)).toBe(100);
-    expect(transmuteGrade(99.49, TRANSITION_SY)).toBe(99);
+    expect(transmuteGrade(99.99, TRANSITION_SY)).toBe(99);
+    expect(transmuteGrade(98.32, TRANSITION_SY)).toBe(99);
   });
 
   it('maps the floor: 0 → 60, 4.67 → 60, 4.68 → 61', () => {

@@ -16,6 +16,9 @@ macOS_Installers/
 
 # App release folder
 app/release/
+release/
+*.exe
+*.blockmap
 node_modules/
 dist/
 
@@ -34,3 +37,9 @@ app/scratch/
 scratch/
 test_*.xlsx
 app/public/templates/test_*.xlsx
+app/scripts/check_*
+app/scripts/inspect_*
+app/scripts/study_*
+app/scripts/compare_*
+app/scripts/test_*
+app/scripts/extract_sshs_catalog.js

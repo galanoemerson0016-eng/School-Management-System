@@ -13,6 +13,7 @@ import { canEditClassesAndSubjects } from '../lib/rbac';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isMatchingSubject, normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 
 const GRADE_METADATA: Record<string, { icon: LucideIcon; color: string; description: string; bg: string }> = {
     'Grade 1': { icon: BookOpen, color: 'from-pink-500 to-rose-600', bg: 'bg-pink-50', description: 'Emerging Learners - Focus on literacy and numeracy foundations.' },
@@ -87,299 +88,10 @@ const sectionMatchesGrade = (section: { section_grade_level?: string; section_na
     return fromSectionName === wanted;
 };
 
-const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
-    const normalized = subjectName.trim().toLowerCase();
-    const isG11 = gradeLevel.includes('11');
-    const isG12 = gradeLevel.includes('12');
-
-    if (isG11) {
-        // Core Subject (All Tracks)
-        const cores = [
-            'effective communication',
-            'mabisang komunikasyon',
-            'general mathematics',
-            'general science',
-            'life and career skills',
-            'pag-aaral ng kasaysayan at lipunang pilipino',
-            'kasaysayan at lipunang pilipino'
-        ];
-        if (cores.some(c => normalized.includes(c))) {
-            return 'Core Subject (All Tracks)';
-        }
-
-        // Academic Elective (Field Experience/ Exposure, and Sports and Arts)
-        if (normalized.startsWith('field exposure') || normalized.startsWith('field experience') || normalized.includes('apprenticeship')) {
-            return 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)';
-        }
-
-        // TechPro Elective (All Other Elective)
-        const techPros = [
-            'aesthetic services', 'aesthethic services', 'aesthetic', 'aesthethic', 'beauty care', 'barbering services', 'caregiving', 'hairdressing', 'wellness services', 'hilot',
-            'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
-            'organic agriculture', 'poultry production', 'ruminants production', 'swine production', 'garments artisanry',
-            'handicrafts', 'weaving', 'automotive servicing', 'electrical repair', 'engine and chassis', 'driving',
-            'motorcycle', 'small engine', 'carpentry', 'construction operation', 'manual metal arc welding', 'welding',
-            'technical drafting', 'animation', 'illustration', 'visual graphics', 'visual graphic', 'bakery operation',
-            'events management', 'food and beverage', 'hotel operation', 'front office', 'housekeeping', 'kitchen operations',
-            'kitchen operation', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
-            'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic systems', 'broadband installation',
-            'computer programming', 'java', '.net', 'oracle', 'computer systems servicing', 'contact center', 'marine engineering',
-            'marine transportation', 'support level', 'ships catering'
-        ];
-        if (techPros.some(tp => normalized.includes(tp))) {
-            return 'TechPro Elective (All Other Elective)';
-        }
-
-        // Academic Elective (All Other Electives)
-        return 'Academic Elective (All Other Electives)';
-    }
-
-    if (isG12) {
-        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        // 1. Core Subjects
-        const cores = [
-            "21st century literature from the philippines and the world",
-            "contemporary philippine arts from the regions",
-            "disaster readiness and risk reduction",
-            "earth and life science",
-            "earth science",
-            "general mathematics",
-            "introduction to philosophy of the human person",
-            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
-            "media and information literacy",
-            "oral communication in context",
-            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
-            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
-            "personal development",
-            "physical education and health 1",
-            "physical education and health 2",
-            "physical education and health 3",
-            "physical education and health 4",
-            "health optimizing physical education and health 1",
-            "health optimizing physical education and health 2",
-            "health optimizing physical education and health 3",
-            "health optimizing physical education and health 4",
-            "health optimizing physical education 1",
-            "health optimizing physical education 2",
-            "health optimizing physical education 3",
-            "health optimizing physical education 4",
-            "hope 1",
-            "hope 2",
-            "hope 3",
-            "hope 4",
-            "physical science",
-            "reading and writing skills",
-            "statistics and probability",
-            "understanding culture society and politics",
-            "understanding culture, society and politics",
-            "21st century literature",
-            "contemporary philippine arts",
-            "pe and health 1",
-            "pe and health 2",
-            "pe and health 3",
-            "pe and health 4",
-            "physical education 1",
-            "physical education 2",
-            "physical education 3",
-            "physical education 4",
-            "pe 1",
-            "pe 2",
-            "pe 3",
-            "pe 4"
-        ];
-        if (cores.some(c => {
-            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
-        })) {
-            return 'Core Subjects';
-        }
-
-        // 2. Applied Subjects
-        const applied = [
-            "empowerment technologies",
-            "english for academic and professional purposes",
-            "entrepreneurship",
-            "filipino sa piling larang akademik",
-            "filipino sa piling larang akademiko",
-            "filipino sa piling larang isports",
-            "filipino sa piling larang sining at disenyo",
-            "filipino sa piling larang teknikal bokasyunal",
-            "filipino sa piling larang teknikal-bokasyunal",
-            "filipino sa piling larang",
-            "inquiries investigations and immersion",
-            "inquiries, investigations and immersion",
-            "practical research 1",
-            "practical research 2"
-        ];
-        if (applied.some(a => {
-            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
-        })) {
-            return 'Applied Subjects';
-        }
-
-        // 3. Specialized Subjects
-        return 'Specialized Subjects';
-    }
-
-    return '';
-};
-
-const getCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
-    const normalized = subjectName.trim().toLowerCase();
-    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
-
-    if (isSHS) {
-        return getShsCategoryForSubject(subjectName, gradeLevel);
-    }
-
-    // 1. Madrasah / ALIVE Program
-    if (
-        normalized.startsWith('*arabic') || 
-        normalized.startsWith('*islamic') || 
-        normalized.includes('arabic language') || 
-        normalized.includes('islamic values') ||
-        normalized.startsWith('alive')
-    ) {
-        return 'Madrasah / ALIVE Program';
-    }
-
-    // 2. Science, Technology & Engineering (STE)
-    const steKeywords = [
-        'ste -', 'ste-', 'environmental science', 'scientific investigation', 'research i', 
-        'research ii', 'research iii', 'research iv', 'biotechnology', 'advanced statistics', 
-        'consumer chemistry', 'advanced physics', 'advanced chemistry', 'robotics and digital electronics',
-        'sip defense', 'capstone'
-    ];
-    if (steKeywords.some(k => normalized.includes(k))) {
-        return 'Science, Technology & Engineering (STE)';
-    }
-
-    // 3. Special Program in the Arts (SPA)
-    if (
-        normalized.startsWith('spa') || 
-        normalized.includes('malikhaing pagsulat') ||
-        normalized.includes('creative writing') ||
-        normalized.includes('media arts') ||
-        normalized.includes('theater arts')
-    ) {
-        return 'Special Program in the Arts (SPA)';
-    }
-
-    // 4. Special Program in Journalism (SPJ)
-    if (normalized.startsWith('spj') || normalized.includes('journalism')) {
-        return 'Special Program in Journalism (SPJ)';
-    }
-
-    // 5. Special Program in Sports (SPS)
-    if (
-        normalized.startsWith('sps') || 
-        normalized.includes('sports officiating') || 
-        normalized.includes('sports management') ||
-        normalized.includes('sports science') || 
-        normalized.includes('biomechanics') ||
-        normalized.includes('foundations of sports')
-    ) {
-        return 'Special Program in Sports (SPS)';
-    }
-
-    // 6. Special Program in Foreign Language (SPFL)
-    if (
-        normalized.startsWith('spfl') ||
-        normalized.includes('spanish') ||
-        normalized.includes('nihongo') ||
-        normalized.includes('japanese') ||
-        normalized.includes('mandarin') ||
-        normalized.includes('french') ||
-        normalized.includes('german') ||
-        normalized.includes('korean')
-    ) {
-        return 'Special Program in Foreign Language (SPFL)';
-    }
-
-    // 7. Technical-Vocational Education (SPTVE)
-    if (normalized.startsWith('sptve') || normalized.startsWith('stvep')) {
-        return 'Technical-Vocational Education (SPTVE)';
-    }
-
-    // 8. Special Science Elementary School (SSES)
-    const isES = gradeLevel.includes('Grade 1') || gradeLevel.includes('Grade 2') || gradeLevel.includes('Grade 3') || gradeLevel.includes('Grade 4') || gradeLevel.includes('Grade 5') || gradeLevel.includes('Grade 6');
-    if (
-        normalized.startsWith('sses') ||
-        (isES && (
-            normalized.includes('investigative science') ||
-            normalized.includes('advanced mathematics') ||
-            normalized.includes('enriched mathematics') ||
-            normalized === 'science and health' ||
-            normalized.includes('robotics & ict')
-        ))
-    ) {
-        return 'Special Science Elementary School (SSES)';
-    }
-
-    // 9. ICT & Computer Education
-    if (
-        normalized.includes('computer education') || 
-        normalized.includes('computer science') ||
-        normalized === 'ict' ||
-        normalized.includes('computer education / ict')
-    ) {
-        return 'ICT & Computer Education';
-    }
-
-    // 10. DepEd Standard Core Curriculum
-    const isJHS = gradeLevel.includes('Grade 7') || gradeLevel.includes('Grade 8') || gradeLevel.includes('Grade 9') || gradeLevel.includes('Grade 10');
-
-    if (isJHS) {
-        const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
-        if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
-            return 'Core Academic Subjects';
-        }
-        const values = ['values education', 'gmrc', 'good manners'];
-        if (values.some(v => normalized.includes(v))) {
-            return 'Values / Character Education';
-        }
-        const livelihood = ['technology and livelihood', 'tle', 'specialization', 'e.p.p.', 'epp'];
-        if (livelihood.some(l => normalized.includes(l))) {
-            return 'Technology & Livelihood (TLE)';
-        }
-        const mapeh = ['music', 'arts', 'physical education', 'health', 'mapeh', 'pe '];
-        if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
-            return 'MAPEH (Music, Arts, PE, Health)';
-        }
-        return 'Other Subjects';
-    }
-
-    // Elementary (Grade 1 - 6)
-    const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
-    if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
-        return 'Core Academic Subjects';
-    }
-    const values = ['gmrc', 'good manners', 'values education'];
-    if (values.some(v => normalized.includes(v))) {
-        return 'Values / Character Education';
-    }
-    const languages = ['language', 'reading and literacy', 'reading', 'literacy', 'mother tongue'];
-    if (languages.some(l => normalized.includes(l))) {
-        return 'Languages & Literacy';
-    }
-    const livelihood = ['makabansa', 'e.p.p.', 'epp', 'tle', 'technology and livelihood', 'specialization'];
-    if (livelihood.some(l => normalized.includes(l))) {
-        return 'Livelihood & Makabansa';
-    }
-    const mapeh = ['mapeh', 'music', 'arts', 'physical education', 'health', 'pe '];
-    if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
-        return 'MAPEH (Music, Arts, PE, Health)';
-    }
-
-    return 'Other Subjects';
-};
-
 import { 
     STANDARD_SUBJECTS, 
     SPECIAL_SUBJECTS, 
-    STE_SUBJECTS,
+    SPSTEM_SUBJECTS,
     SPA_MAJORS,
     SPJ_SUBJECTS,
     SPS_SUBJECTS,
@@ -391,7 +103,9 @@ import {
     getCurriculumTemplatesForSection,
     getDefaultTermForSubject, 
     GRADE_11_CORE_SUBJECTS, 
-    isGrade11CoreSubject 
+    isGrade11CoreSubject,
+    getShsCategoryForSubject,
+    getCategoryForSubject
 } from '../lib/curriculum';
 
 export type CurriculumChoiceType = 
@@ -400,6 +114,7 @@ export type CurriculumChoiceType =
     | 'core_only' 
     | 'program' 
     | 'program_ste' 
+    | 'program_spstem' 
     | 'program_spa' 
     | 'program_spj' 
     | 'program_sps' 
@@ -489,6 +204,24 @@ export function SubjectsPage() {
             return !isCore;
         });
 
+        // Auto-heal any Elementary or JHS subjects corrupted with term: 'none'
+        const elemOrJhsHiddenToFix = subjects.filter(subject => {
+            const grade = subject.grade_level || '';
+            const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
+            const isElemOrJhs = (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
+            return isElemOrJhs && subject.term === 'none';
+        });
+
+        if (elemOrJhsHiddenToFix.length > 0) {
+            console.log(`[SUBJECTS HEALING] Restoring ${elemOrJhsHiddenToFix.length} Elementary/JHS subjects corrupted to 'none' back to 'all'...`);
+            elemOrJhsHiddenToFix.forEach(sub => {
+                void updateSubject({
+                    ...sub,
+                    term: 'all'
+                });
+            });
+        }
+
         if (shsSubjectsToFix.length > 0) {
             console.log(`[SUBJECTS MIGRATION] Migrating ${shsSubjectsToFix.length} SHS subjects to 'none' (Not Offered)...`);
             const runMigration = async () => {
@@ -534,8 +267,8 @@ export function SubjectsPage() {
             templates = STANDARD_SUBJECTS[selectedGrade as keyof typeof STANDARD_SUBJECTS];
         } else if (type === 'special') {
             templates = SPECIAL_SUBJECTS[selectedGrade as keyof typeof SPECIAL_SUBJECTS];
-        } else if (type === 'program_ste') {
-            templates = STE_SUBJECTS[selectedGrade] || [];
+        } else if (type === 'program_ste' || type === 'program_spstem') {
+            templates = SPSTEM_SUBJECTS[selectedGrade] || [];
         } else if (type === 'program_spa') {
             templates = Object.values(SPA_MAJORS).flat();
         } else if (type === 'program_spj') {
@@ -723,7 +456,6 @@ export function SubjectsPage() {
         if (!selectedGrade || selectedWizardSubjects.size === 0) return;
 
         setIsLoadingTemplate(true);
-        const timestamp = Date.now();
         const targetSection = selectedSection || null;
         const sectionId = targetSection?.id;
         const gradeLevel = selectedGrade;
@@ -761,11 +493,11 @@ export function SubjectsPage() {
 
             for (let i = 0; i < missingTemplates.length; i++) {
                 const template = missingTemplates[i] as SpecialSubjectItem;
-                const subjectId = `subject-${timestamp}-${String(i).padStart(2, '0')}-${Math.random().toString(36).substr(2, 5)}`;
+                const subjectId = generateDeterministicSubjectId(gradeLevel, template.name, sectionId);
                 
                 const isComponent = template.is_component ?? template.isComponent ?? (['music and arts', 'physical education and health'].some(c => template.name.toLowerCase().includes(c)));
                 const countsInGenAvg = (template.counts_in_general_average ?? template.countsInGeneralAverage) !== false && !isComponent && !template.name.startsWith('*');
-                const templateTerm = (template as any).term;
+                const templateTerm = template.term;
 
                 const newSubject: Subject = {
                     id: subjectId,
@@ -775,7 +507,7 @@ export function SubjectsPage() {
                     section_id: sectionId,
                     term: templateTerm !== undefined ? templateTerm : (isSHS ? 'all' : getDefaultTermForSubject(template.name, gradeLevel)),
                     order: UNIVERSAL_SUBJECT_ORDER.findIndex((name) => normalizeSubjectLabel(name) === normalizeSubjectLabel(template.name)),
-                    is_special_program: Boolean(template.program || template.is_special_program || (template as any).isSpecialProgram),
+                    is_special_program: Boolean(template.program || template.is_special_program || template.isSpecialProgram),
                     program_type: template.program,
                     is_component: isComponent,
                     counts_in_general_average: countsInGenAvg
@@ -944,13 +676,13 @@ export function SubjectsPage() {
                 preview: getPreview(standard)
             });
 
-            // Card 2: Science, Technology & Engineering (STE)
-            const steList = STE_SUBJECTS[selectedGrade] || [];
+            // Card 2: Science, Technology & Engineering / STEM (STE / SPSTEM)
+            const steList = SPSTEM_SUBJECTS[selectedGrade] || [];
             cards.push({
                 id: 'program_ste',
-                title: 'Science, Tech & Engineering',
-                subtitle: 'STE Program',
-                description: 'Specialized STEM curriculum: Scientific Research I–IV, Biotechnology, Advanced Statistics, and Robotics.',
+                title: 'Science, Tech & STEM',
+                subtitle: 'STE / SPSTEM Program',
+                description: 'Specialized STEM curriculum: Enhanced Science, Enhanced Math, Creative Technology, Research MIM/SIP, Scientific Investigation, and Robotics.',
                 badge: 'Special Program',
                 badgeStyle: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60',
                 borderColor: 'border-cyan-200 dark:border-cyan-800/40',
@@ -1045,7 +777,7 @@ export function SubjectsPage() {
                 id: 'program_sptve',
                 title: 'Technical-Vocational (SPTVE)',
                 subtitle: 'STVEP Specializations',
-                description: 'Technical drafting, Computer Systems Servicing (CSS), Electrical (EIM), SMAW welding, Automotive, Cookery.',
+                description: 'Applied Technical Drawing, Applied Entrepreneurship, TVE Specialization, Technical drafting, CSS, EIM, SMAW, Automotive, Cookery.',
                 badge: 'Special Program',
                 badgeStyle: 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60',
                 borderColor: 'border-violet-200 dark:border-violet-800/40',
@@ -1100,7 +832,7 @@ export function SubjectsPage() {
                 id: 'program_sses',
                 title: 'Special Science Elementary (SSES)',
                 subtitle: 'SSES Program',
-                description: 'Enriched mathematics, science and health, investigative science, and elementary robotics & ICT.',
+                description: 'Enhanced Science, Enhanced Math, Creative Technology, Research MIM/SIP, Investigative Science, and elementary robotics & ICT.',
                 badge: 'Special Program',
                 badgeStyle: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60',
                 borderColor: 'border-cyan-200 dark:border-cyan-800/40',
@@ -1699,6 +1431,14 @@ export function SubjectsPage() {
     };
 
     const handleToggleOffered = async (subject: Subject) => {
+        const grade = subject.grade_level || '';
+        const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
+        const isElemOrJhs = (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
+        if (isElemOrJhs) {
+            showNotification('Elementary and Junior High School subjects are offered full-year and cannot be disabled.', 'info');
+            return;
+        }
+
         const isCurrentlyNotOffered = subject.term === 'none';
         const newTerm = isCurrentlyNotOffered ? 'all' : 'none';
         
@@ -1755,6 +1495,11 @@ export function SubjectsPage() {
             examVal = ex / 100;
         }
 
+        const grade = formData.grade_level || selectedGrade || '';
+        const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
+        const isElemOrJhs = (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
+        const finalTerm = isElemOrJhs ? 'all' : (formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3));
+
         const subjectData: Subject = {
             id: editingSubjectId || `subject-${Date.now()}`,
             subject_name: formData.subject_name,
@@ -1762,7 +1507,7 @@ export function SubjectsPage() {
             grade_level: formData.grade_level,
             section_id: formData.section_id || undefined,
             teacher_id: formData.teacher_id || undefined,
-            term: formData.term === 'all' ? 'all' : (formData.term === 'none' ? 'none' : Number(formData.term) as 1 | 2 | 3),
+            term: finalTerm,
             written_weight: writtenVal,
             performance_weight: performanceVal,
             exam_weight: examVal
@@ -1824,7 +1569,6 @@ export function SubjectsPage() {
         setShowAutoLoadConfirm(false);
         setIsLoadingTemplate(true);
         let totalAdded = 0;
-        const timestamp = Date.now();
         
         try {
             for (const grade of grades) {
@@ -1838,7 +1582,7 @@ export function SubjectsPage() {
                 
                 for (let i = 0; i < templatesToCreate.length; i++) {
                     const template = templatesToCreate[i];
-                    const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
+                    const subjectId = generateDeterministicSubjectId(grade, template.name);
                     
                     const newSubject: Subject = {
                         id: subjectId,
@@ -2667,20 +2411,26 @@ export function SubjectsPage() {
                                                                         </td>
                                                                     )}
 
-                                                                    {canEdit && (
+                                                                    {canEdit && (() => {
+                                                                        const g = subject.grade_level || '';
+                                                                        const gn = parseInt(g.replace(/\D/g, '')) || 0;
+                                                                        const isSHS = gn === 11 || gn === 12;
+                                                                        return (
                                                                         <td className="px-6 py-6 text-right">
                                                                             <div className="flex items-center justify-end gap-2">
-                                                                                <button
-                                                                                    onClick={() => handleToggleOffered(subject)}
-                                                                                    title={subject.term === 'none' ? "Mark as Offered" : "Mark as Not Offered"}
-                                                                                    className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                                                                                        subject.term === 'none'
-                                                                                            ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
-                                                                                            : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
-                                                                                    }`}
-                                                                                >
-                                                                                    {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                                                </button>
+                                                                                {isSHS && (
+                                                                                    <button
+                                                                                        onClick={() => handleToggleOffered(subject)}
+                                                                                        title={subject.term === 'none' ? "Mark as Offered" : "Mark as Not Offered"}
+                                                                                        className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                                                                                            subject.term === 'none'
+                                                                                                ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-200'
+                                                                                                : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {subject.term === 'none' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                                    </button>
+                                                                                )}
                                                                                 {subject.section_id && (
                                                                                     <button
                                                                                         onClick={() => setEnrollmentSubject(subject)}
@@ -2704,7 +2454,8 @@ export function SubjectsPage() {
                                                                                 </button>
                                                                             </div>
                                                                         </td>
-                                                                    )}
+                                                                        );
+                                                                    })()}
                                                                 </motion.tr>
                                                             );
                                                         })}
@@ -2852,7 +2603,7 @@ export function SubjectsPage() {
                                         <p className="text-xs opacity-90 mt-0.5 uppercase tracking-wider font-bold">
                                             {selectedGrade} | Offering: {
                                                 curriculumChoice === 'standard' ? 'Normal / MATATAG / Standard Core' :
-                                                curriculumChoice === 'program_ste' ? 'Science, Technology & Engineering (STE)' :
+                                                curriculumChoice === 'program_ste' || curriculumChoice === 'program_spstem' ? 'Science, Technology & Engineering (STE / SPSTEM)' :
                                                 curriculumChoice === 'program_spa' ? 'Special Program in the Arts (SPA)' :
                                                 curriculumChoice === 'program_spj' ? 'Special Program in Journalism (SPJ)' :
                                                 curriculumChoice === 'program_sps' ? 'Special Program in Sports (SPS)' :
@@ -3115,24 +2866,32 @@ export function SubjectsPage() {
                                     className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Term Offered</label>
-                                <select
-                                    value={formData.term}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const parsed = val === 'all' ? 'all' : (val === 'none' ? 'none' : Number(val) as 1 | 2 | 3);
-                                        setFormData({ ...formData, term: parsed });
-                                    }}
-                                    className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
-                                >
-                                    <option value="all" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All Terms</option>
-                                    <option value="1" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 1 Only</option>
-                                    <option value="2" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 2 Only</option>
-                                    <option value="3" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 3 Only</option>
-                                    <option value="none" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Not Offered</option>
-                                </select>
-                            </div>
+                            {(() => {
+                                const g = formData.grade_level || selectedGrade || '';
+                                const gn = parseInt(g.replace(/\D/g, '')) || 0;
+                                const isSHS = gn === 11 || gn === 12;
+                                if (!isSHS) return null;
+                                return (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Term Offered</label>
+                                        <select
+                                            value={formData.term}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                const parsed = val === 'all' ? 'all' : (val === 'none' ? 'none' : Number(val) as 1 | 2 | 3);
+                                                setFormData({ ...formData, term: parsed });
+                                            }}
+                                            className="form-input mt-1 block w-full bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white rounded-xl border border-slate-200 dark:border-white/10"
+                                        >
+                                            <option value="all" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">All Terms</option>
+                                            <option value="1" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 1 Only</option>
+                                            <option value="2" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 2 Only</option>
+                                            <option value="3" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Term 3 Only</option>
+                                            <option value="none" className="bg-white dark:bg-[#0d1225] text-slate-800 dark:text-white">Not Offered</option>
+                                        </select>
+                                    </div>
+                                );
+                            })()}
                             <div className="border-t border-slate-100 dark:border-white/10 pt-4">
                                 <h4 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-3">Custom Grading Weights (Optional)</h4>
                                 <div className="grid grid-cols-3 gap-3">

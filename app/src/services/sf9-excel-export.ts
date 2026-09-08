@@ -158,13 +158,13 @@ async function populateTemplate(buffer: ArrayBuffer, opts: SF9ExcelExportOptions
   
   const rawDivision = schoolProfile?.division || '';
   const cleanDivision = rawDivision.replace(/schools division office of/i, '').replace(/schools division of/i, '').trim().toUpperCase();
-  ws.getCell('D5').value = `SCHOOLS DIVISION OFFICE OF ${cleanDivision || '_________________'}`;
+  ws.getCell('D5').value = `${cleanDivision || '_________________'}`;
   
   ws.getCell('D6').value = schoolProfile?.district || 'District';
   
-  const muniCity = schoolProfile?.municipality || schoolProfile?.city || '';
-  const prov = schoolProfile?.province || '';
-  let locationText = muniCity || prov || 'Municipality/City, Province';
+  const muniCity = (schoolProfile?.municipality || schoolProfile?.city || '').trim().toUpperCase();
+  const prov = (schoolProfile?.province || '').trim().toUpperCase();
+  let locationText = muniCity || prov || 'MUNICIPALITY/CITY, PROVINCE';
   if (muniCity && prov) {
       locationText = `${muniCity}, ${prov}`;
   }

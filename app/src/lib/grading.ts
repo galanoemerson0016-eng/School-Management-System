@@ -124,11 +124,13 @@ export const EXS_SUBWEIGHTS = {
     te:  0.40, // Term Examination
 } as const;
 
-/**
- * Clusters where EXs consists ONLY of TE (no STs), so TE carries 100% of EXs weight.
- * Applies to: SHS Field Exposure, Arts Apprenticeship, Creative Production and Innovation.
- */
-export const EXS_TE_ONLY_CLUSTERS: SubjectCluster[] = ['shs_field_exposure'];
+export const EXS_TE_ONLY_CLUSTERS: SubjectCluster[] = [
+    'shs_field_exposure',
+    'g12_core',
+    'g12_academic_other',
+    'g12_academic_immersion_research',
+    'g12_tvl_all'
+];
 
 /**
  * Clusters that have NO EXs component (weight is already 0).
@@ -486,8 +488,8 @@ export function transmuteGrade(initialGrade: number, schoolYear?: string): numbe
     if (isTransitionSY) {
         // Table 4: Adjusted Transmutation Table (only for SY 2026-2027)
         const transmutationRanges = [
-            { min: 99.50, max: 100.00, grade: 100 },
-            { min: 98.32, max: 99.49, grade: 99 },
+            { min: 100.00, max: 100.00, grade: 100 },
+            { min: 98.32, max: 99.99, grade: 99 },
             { min: 97.14, max: 98.31, grade: 98 },
             { min: 95.96, max: 97.13, grade: 97 },
             { min: 94.78, max: 95.95, grade: 96 },

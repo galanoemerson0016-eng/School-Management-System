@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { getShsSubjectUnitInfo, getCurriculumTemplatesForSection, SSHS_ACADEMIC_CLUSTERS, SSHS_TECHPRO_CLUSTERS, STANDARD_SUBJECTS, SPECIAL_SUBJECTS } from './curriculum';
+import { 
+  getShsSubjectUnitInfo, 
+  getCurriculumTemplatesForSection, 
+  SSHS_ACADEMIC_CLUSTERS, 
+  SSHS_TECHPRO_CLUSTERS, 
+  STANDARD_SUBJECTS, 
+  SPECIAL_SUBJECTS,
+  SPECIAL_CURRICULAR_PROGRAMS,
+  getCategoryForSubject
+} from './curriculum';
 import { isThreeTermSchoolYear } from './terms';
 import { mapStudentToShsSf9Data } from '../utils/shsSf9Mapper';
 import type { Student, SchoolProfile, Section, Subject, ClassRecord } from '../types';
@@ -221,4 +230,128 @@ describe('Special Curricular Programs (Grade 1 - 10)', () => {
       expect(names.some(n => n.includes('islamic'))).toBe(false);
     });
   });
+
+  it('includes all 10 DepEd Special Curricular Programs', () => {
+    const ids = SPECIAL_CURRICULAR_PROGRAMS.map(p => p.id);
+    expect(ids).toContain('Regular');
+    expect(ids).toContain('STE');
+    expect(ids).toContain('SPSTEM');
+    expect(ids).toContain('SPA');
+    expect(ids).toContain('SPJ');
+    expect(ids).toContain('SPS');
+    expect(ids).toContain('SPFL');
+    expect(ids).toContain('SPTVE');
+    expect(ids).toContain('SSES');
+    expect(ids).toContain('ALIVE');
+    expect(ids.length).toBe(10);
+  });
+
+  it('generates SPSTEM program subjects with Enhanced Science, Math, Creative Tech, and Research MIM/SIP', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 7', 'SPSTEM');
+    const names = templates.map(t => t.name);
+    expect(names).toContain('Enhanced Science');
+    expect(names).toContain('Enhanced Mathematics');
+    expect(names).toContain('Creative Technology');
+    expect(names).toContain('Research MIM/SIP');
+  });
+
+  it('generates SPTVE program subjects with official DepEd specializations', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 8', 'SPTVE');
+    const names = templates.map(t => t.name);
+    expect(names).toContain('Applied Technical Drawing');
+    expect(names).toContain('Applied Entrepreneurship');
+    expect(names).toContain('TVE Specialization');
+  });
+
+  it('generates SPFL program subjects with language electives', () => {
+    const templates = getCurriculumTemplatesForSection('Grade 7', 'SPFL');
+    const names = templates.map(t => t.name);
+    expect(names.some(n => n.includes('Spanish'))).toBe(true);
+    expect(names.some(n => n.includes('Japanese'))).toBe(true);
+    expect(names.some(n => n.includes('French'))).toBe(true);
+    expect(names.some(n => n.includes('German'))).toBe(true);
+    expect(names.some(n => n.includes('Chinese'))).toBe(true);
+    expect(names.some(n => n.includes('Korean'))).toBe(true);
+  });
 });
+
+describe('Universal Subject Categorization (getCategoryForSubject)', () => {
+  it('correctly categorizes Elementary (Grades 1-6) subjects', () => {
+    expect(getCategoryForSubject('English', 'Grade 4')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Mathematics', 'Grade 5')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Science', 'Grade 3')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Araling Panlipunan', 'Grade 6')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Language', 'Grade 1')).toBe('Languages & Literacy');
+    expect(getCategoryForSubject('Reading and Literacy', 'Grade 2')).toBe('Languages & Literacy');
+    expect(getCategoryForSubject('GMRC', 'Grade 4')).toBe('Values / Character Education');
+    expect(getCategoryForSubject('Makabansa', 'Grade 3')).toBe('Livelihood & Makabansa');
+    expect(getCategoryForSubject('E.P.P.', 'Grade 5')).toBe('Livelihood & Makabansa');
+    expect(getCategoryForSubject('MAPEH', 'Grade 6')).toBe('MAPEH (Music, Arts, PE, Health)');
+    expect(getCategoryForSubject('Music and Arts', 'Grade 4')).toBe('MAPEH (Music, Arts, PE, Health)');
+    expect(getCategoryForSubject('Computer Education', 'Grade 4')).toBe('ICT & Computer Education');
+    expect(getCategoryForSubject('*Arabic Language', 'Grade 4')).toBe('Madrasah / ALIVE Program');
+    expect(getCategoryForSubject('*Islamic Values Education', 'Grade 4')).toBe('Madrasah / ALIVE Program');
+    expect(getCategoryForSubject('Enhanced Science', 'Grade 4')).toBe('Special Science Elementary School (SSES)');
+    expect(getCategoryForSubject('Enhanced Mathematics', 'Grade 5')).toBe('Special Science Elementary School (SSES)');
+    expect(getCategoryForSubject('Creative Technology', 'Grade 6')).toBe('Special Science Elementary School (SSES)');
+    expect(getCategoryForSubject('Research MIM/SIP', 'Grade 6')).toBe('Special Science Elementary School (SSES)');
+  });
+
+  it('correctly categorizes Junior High School (Grades 7-10) subjects', () => {
+    // Core & Standard
+    expect(getCategoryForSubject('English', 'Grade 7')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Mathematics', 'Grade 8')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Science', 'Grade 9')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Filipino', 'Grade 10')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Araling Panlipunan', 'Grade 7')).toBe('Core Academic Subjects');
+    expect(getCategoryForSubject('Values Education', 'Grade 8')).toBe('Values / Character Education');
+    expect(getCategoryForSubject('Technology and Livelihood Education', 'Grade 9')).toBe('Technology & Livelihood (TLE)');
+    expect(getCategoryForSubject('MAPEH', 'Grade 10')).toBe('MAPEH (Music, Arts, PE, Health)');
+
+    // STE / SPSTEM
+    expect(getCategoryForSubject('Enhanced Science', 'Grade 7')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Enhanced Mathematics', 'Grade 8')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Creative Technology', 'Grade 9')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Research MIM/SIP', 'Grade 10')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Environmental Science', 'Grade 7')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Research I (Scientific Investigation)', 'Grade 7')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Biotechnology', 'Grade 8')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+    expect(getCategoryForSubject('Advanced Chemistry', 'Grade 10')).toBe('Science, Technology & Engineering (STE / SPSTEM)');
+
+    // SPA
+    expect(getCategoryForSubject('Special Program in the Arts (SPA)', 'Grade 7')).toBe('Special Program in the Arts (SPA)');
+    expect(getCategoryForSubject('SPA - Visual Arts', 'Grade 7')).toBe('Special Program in the Arts (SPA)');
+    expect(getCategoryForSubject('SPA - Dance (Folk & Contemporary)', 'Grade 8')).toBe('Special Program in the Arts (SPA)');
+    expect(getCategoryForSubject('SPA - Creative Writing (Malikhaing Pagsulat)', 'Grade 9')).toBe('Special Program in the Arts (SPA)');
+
+    // SPJ
+    expect(getCategoryForSubject('Special Program in Journalism (Journalism)', 'Grade 7')).toBe('Special Program in Journalism (SPJ)');
+    expect(getCategoryForSubject('Special Program in Journalism (Pamamahayag)', 'Grade 8')).toBe('Special Program in Journalism (SPJ)');
+    expect(getCategoryForSubject('Journalism I (Print Journalism)', 'Grade 7')).toBe('Special Program in Journalism (SPJ)');
+    expect(getCategoryForSubject('Pamamahayag I (Pamamahayag na Nakalimbag)', 'Grade 7')).toBe('Special Program in Journalism (SPJ)');
+
+    // SPS
+    expect(getCategoryForSubject('Special Program in Sports (SPS)', 'Grade 7')).toBe('Special Program in Sports (SPS)');
+    expect(getCategoryForSubject('SPS - Foundations of Sports & Individual/Dual Sports', 'Grade 7')).toBe('Special Program in Sports (SPS)');
+
+    // SPFL
+    expect(getCategoryForSubject('Special Program in Foreign Language - Spanish', 'Grade 7')).toBe('Special Program in Foreign Language (SPFL)');
+    expect(getCategoryForSubject('SPFL - Japanese (Nihongo)', 'Grade 8')).toBe('Special Program in Foreign Language (SPFL)');
+
+    // SPTVE
+    expect(getCategoryForSubject('Applied Technical Drawing', 'Grade 7')).toBe('Technical-Vocational Education (SPTVE)');
+    expect(getCategoryForSubject('Applied Entrepreneurship', 'Grade 8')).toBe('Technical-Vocational Education (SPTVE)');
+    expect(getCategoryForSubject('TVE Specialization', 'Grade 9')).toBe('Technical-Vocational Education (SPTVE)');
+    expect(getCategoryForSubject('SPTVE - Technical Drafting', 'Grade 7')).toBe('Technical-Vocational Education (SPTVE)');
+  });
+
+  it('correctly delegates SHS (Grades 11-12) to SHS category rules', () => {
+    expect(getCategoryForSubject('General Mathematics', 'Grade 11')).toBe('Core Subject (All Tracks)');
+    expect(getCategoryForSubject('Effective Communication', 'Grade 11')).toBe('Core Subject (All Tracks)');
+    expect(getCategoryForSubject('General Biology 1', 'Grade 11')).toBe('Academic Elective (All Other Electives)');
+    expect(getCategoryForSubject('Beauty Care Services', 'Grade 11')).toBe('TechPro Elective (All Other Elective)');
+    expect(getCategoryForSubject('21st Century Literature from the Philippines and the World', 'Grade 12')).toBe('Core Subjects');
+    expect(getCategoryForSubject('Practical Research 1', 'Grade 12')).toBe('Applied Subjects');
+  });
+});
+

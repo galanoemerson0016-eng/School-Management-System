@@ -168,8 +168,22 @@ export function filterSectionsForUser(user: User | null | undefined, sections: S
 export function filterSubjectsForSection(user: User | null | undefined, section: Section | null | undefined, subjects: Subject[]): Subject[] {
     if (!user || !section) return [];
     
-    // Exclude subjects marked as 'none' (Not Offered)
-    const activeSubjects = subjects.filter(s => s.term !== 'none');
+    // Elementary (Grades 1-10, Kinder) subjects never have terms and should never be hidden by term: 'none'
+    const isElemOrJhs = (grade: string | undefined) => {
+        if (!grade) return false;
+        const gNum = parseInt(grade.replace(/\D/g, '')) || 0;
+        return (gNum >= 1 && gNum <= 10) || grade.toLowerCase().includes('kinder');
+    };
+
+    const isSectionElemOrJhs = isElemOrJhs(section.section_grade_level);
+
+    // Exclude subjects marked as 'none' (Not Offered) - strictly for SHS offerings
+    const activeSubjects = subjects.filter(s => {
+        if (isSectionElemOrJhs || isElemOrJhs(s.grade_level)) {
+            return true;
+        }
+        return s.term !== 'none';
+    });
 
     // Determine the teacher's explicit teaching load subjects
     let teachingList: string[] = [];
@@ -185,9 +199,26 @@ export function filterSubjectsForSection(user: User | null | undefined, section:
         section.subject_name.split(',').forEach(s => registeredNames.add(s.trim()));
     }
 
+    // MAPEH component helper: if MAPEH is taught, both Music & Arts and PE & Health must be accessible
+    const isMapehRelated = (name: string) => {
+        const n = (name || '').toLowerCase().trim();
+        return n === 'mapeh' ||
+               (n.includes('music') && n.includes('arts')) || 
+               ((n.includes('pe') || n.includes('physical')) && n.includes('health')) ||
+               n === 'music' || n === 'arts' || n === 'physical education' || n === 'pe' || n === 'health';
+    };
+
+    const hasMapehInTeaching = Array.from(registeredNames).some(rn => isMapehRelated(rn));
+
     // If teaching load subjects or subject_name are configured, strictly filter to those subjects
     if (registeredNames.size > 0) {
-        const isRegistered = (s: Subject) => registeredNames.has(s.subject_name) || Array.from(registeredNames).some(rn => isMatchingSubject(rn, s.id, s.subject_name));
+        const isRegistered = (s: Subject) => {
+            if (registeredNames.has(s.subject_name)) return true;
+            if (Array.from(registeredNames).some(rn => isMatchingSubject(rn, s.id, s.subject_name))) return true;
+            if (hasMapehInTeaching && (isMapehRelated(s.subject_name) || s.subject_code === 'MAPEH' || s.is_component)) return true;
+            return false;
+        };
+
         const directlyLinked = activeSubjects.filter((subject) => subject.section_id === section.id && isRegistered(subject));
         const gradeMatches = activeSubjects.filter(s => 
             s.grade_level === section.section_grade_level && 

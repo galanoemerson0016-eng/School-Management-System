@@ -76,9 +76,12 @@ export function SectionsPage() {
                 const isStale = currentName !== profileName;
                 const isPlaceholder = currentName.toLowerCase().includes('juan') ||
                                     currentName.toLowerCase().includes('recovered') ||
+                                    currentName.toLowerCase().includes('maria') ||
+                                    currentName.toLowerCase().includes('santos') ||
                                     currentName.toLowerCase() === 'tba' ||
                                     currentName === '';
-                if (isStale && (isPlaceholder || !section.adviser_id)) {
+                const isMockId = !section.adviser_id || section.adviser_id.startsWith('adv-');
+                if (isStale && (isPlaceholder || isMockId)) {
                     void updateSection({ ...section, adviser_name: profileName });
                 }
             } else {

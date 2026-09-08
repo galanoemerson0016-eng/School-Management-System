@@ -24,9 +24,70 @@ const MAX_STUDENTS_PER_GENDER = 50;
 export const TEMPLATE_ACADEMIC = '[Grades 2-10] 3Term E-Class Record (for Science, Math, English, Filipino, Araling Panlipunan).xlsx';
 export const TEMPLATE_GMRC_VE = '[Grades 2-10] 3Term E-Class Record (for GMRC - Values Education).xlsx';
 export const TEMPLATE_EPP_TLE = '[Grades 2-10] 3Term E-Class Record (for EPP-TLE).xlsx';
-export const TEMPLATE_MAPEH = '[Grades 2-10] 3Term E-Class Record (for Music and Arts, P.E. and Health).xlsx';
+export const TEMPLATE_EPP_TLE_COMPONENTS = 'UPDATED [Grades 2-10] 3Term E-Class Record (for EPP-TLE) - per component.xlsx';
+export const TEMPLATE_MAPEH = '[Grades 2-10] 3Term E-Class Record (for Music and Arts, Physical Education and Health).xlsx';
+export const TEMPLATE_MAPEH_LEGACY = '[Grades 2-10] 3Term E-Class Record (for Music and Arts, P.E. and Health).xlsx';
+export const TEMPLATE_SPFL = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SPFL).xlsx';
+export const TEMPLATE_SPJ = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SPJ).xlsx';
+export const TEMPLATE_SPA = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SPA).xlsx';
+export const TEMPLATE_SPS = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SPS).xlsx';
+export const TEMPLATE_SPTVE = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SPTVE).xlsx';
+export const TEMPLATE_SSES_SPSTEM = 'UPDATED [Grades 4-10] 3Term E-Class Record (for SSES and SPSTEM).xlsx';
 
-export type ECRTemplateType = 'academic' | 'gmrc_ve' | 'epp_tle' | 'mapeh';
+export const SPFL_SUBJECTS = [
+  'Special Program in Foreign Language - Spanish',
+  'Special Program in Foreign Language - Japanese',
+  'Special Program in Foreign Language - French',
+  'Special Program in Foreign Language - German',
+  'Special Program in Foreign Language - Chinese',
+  'Special Program in Foreign Language - Korean',
+] as const;
+
+export const SPJ_SUBJECTS = [
+  'Special Program in Journalism (Journalism)',
+  'Special Program in Journalism (Pamamahayag)',
+] as const;
+
+export const SPA_SUBJECTS = [
+  'Special Program in the Arts (SPA)',
+  'Special Program in the Arts',
+  'SPA - Visual Arts',
+  'SPA - Music (Vocal)',
+  'SPA - Music (Instrumental)',
+  'SPA - Dance (Folk & Contemporary)',
+  'SPA - Theater Arts',
+  'SPA - Creative Writing (Malikhaing Pagsulat)',
+  'SPA - Media Arts',
+] as const;
+
+export const SPS_SUBJECTS = [
+  'Special Program in Sports (SPS)',
+  'Special Program in Sports',
+  'SPS - Foundations of Sports & Individual/Dual Sports',
+  'SPS - Team Sports & Biomechanics',
+  'SPS - Sports Science, Physiology & Nutrition',
+  'SPS - Sports Officiating & Sports Management',
+] as const;
+
+export const SPTVE_SUBJECTS = [
+  'Applied Technical Drawing',
+  'Applied Entrepreneurship',
+  'TVE Specialization',
+  'Special Program in Technical-Vocational Education (SPTVE)',
+  'Special Program in Technical-Vocational Education',
+] as const;
+
+export const SSES_SPSTEM_SUBJECTS = [
+  'Enhanced Science',
+  'Enhanced Mathematics',
+  'Creative Technology',
+  'Research MIM/SIP',
+  'Special Science Elementary Schools (SSES)',
+  'Special Program in STEM (SPSTEM)',
+  'Special Program in Science, Technology, Engineering, and Mathematics',
+] as const;
+
+export type ECRTemplateType = 'academic' | 'gmrc_ve' | 'epp_tle' | 'epp_tle_components' | 'mapeh' | 'spfl' | 'spj' | 'spa' | 'sps' | 'sptve' | 'sses_spstem';
 
 export interface ECRExcelExportOptions {
   schoolProfile: SchoolProfile | null;
@@ -38,6 +99,7 @@ export interface ECRExcelExportOptions {
   students: Student[];
   classRecords: ClassRecord[];
   hpsRecords: HPSRecord[];
+  templateOverride?: ECRTemplateType;
 }
 
 /**
@@ -118,21 +180,247 @@ export function isEppTleSubject(subjectName: string): boolean {
   );
 }
 
+export function isIctComponent(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('ict') ||
+    norm.includes('informationandcommunication') ||
+    norm.includes('informationtechnology') ||
+    norm.includes('computer') ||
+    norm.includes('css') ||
+    norm.includes('programming') ||
+    norm.includes('animation') ||
+    norm.includes('technicaldrafting')
+  );
+}
+
+export function isAfaComponent(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('afa') ||
+    norm.includes('agri') ||
+    norm.includes('fishery') ||
+    norm.includes('agriculture') ||
+    norm.includes('crop') ||
+    norm.includes('horticulture') ||
+    norm.includes('aquaculture') ||
+    norm.includes('animal') ||
+    norm.includes('poultry') ||
+    norm.includes('swine') ||
+    norm.includes('organic')
+  );
+}
+
+export function isFcsComponent(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('fcs') ||
+    norm.includes('homeeconomics') ||
+    norm.includes('he') ||
+    norm.includes('cookery') ||
+    norm.includes('bread') ||
+    norm.includes('pastry') ||
+    norm.includes('food') ||
+    norm.includes('beverage') ||
+    norm.includes('caregiving') ||
+    norm.includes('beauty') ||
+    norm.includes('dressmaking') ||
+    norm.includes('tailoring') ||
+    norm.includes('frontoffice') ||
+    norm.includes('housekeeping') ||
+    norm.includes('bartending')
+  );
+}
+
+export function isIaComponent(subjectName?: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('ia') ||
+    norm.includes('industrialarts') ||
+    norm.includes('carpentry') ||
+    norm.includes('electrical') ||
+    norm.includes('electronics') ||
+    norm.includes('eim') ||
+    norm.includes('welding') ||
+    norm.includes('smaw') ||
+    norm.includes('automotive') ||
+    norm.includes('masonry') ||
+    norm.includes('plumbing') ||
+    norm.includes('refrigeration')
+  );
+}
+
+export function isEppTleComponent(subjectName?: string): boolean {
+  return isIctComponent(subjectName) || isAfaComponent(subjectName) || isFcsComponent(subjectName) || isIaComponent(subjectName);
+}
+
+export function isSpflSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('spfl') ||
+    norm.includes('foreignlanguage') ||
+    norm.includes('spanish') ||
+    norm.includes('espanol') ||
+    norm.includes('nihongo') ||
+    norm.includes('japanese') ||
+    norm.includes('french') ||
+    norm.includes('francais') ||
+    norm.includes('german') ||
+    norm.includes('deutsch') ||
+    norm.includes('mandarin') ||
+    norm.includes('chinese') ||
+    norm.includes('korean') ||
+    norm.includes('hangul')
+  );
+}
+
+export function isSpjSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return (
+    norm.includes('journalism') ||
+    norm.includes('pamamahayag') ||
+    norm.includes('spj')
+  );
+}
+
+export function isSpaSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim();
+  const stripped = norm.replace(/[^a-z0-9]/g, '');
+  if (
+    stripped === 'spa' ||
+    stripped.startsWith('spa') ||
+    stripped.includes('specialprograminthearts') ||
+    stripped.includes('specialprogramarts') ||
+    norm.includes('special program in the arts')
+  ) {
+    return true;
+  }
+  // Standalone SPA disciplines (excluding standard core subjects)
+  if (
+    norm.includes('theater arts') ||
+    norm.includes('media arts') ||
+    norm.includes('visual arts') ||
+    norm.includes('malikhaing pagsulat') ||
+    norm.includes('creative writing') ||
+    norm.includes('dulaan') ||
+    norm.includes('sayaw')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isSpsSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim();
+  const stripped = norm.replace(/[^a-z0-9]/g, '');
+  if (
+    stripped === 'sps' ||
+    stripped.startsWith('sps') ||
+    stripped.includes('specialprograminsports') ||
+    stripped.includes('specialprogramsports') ||
+    norm.includes('special program in sports')
+  ) {
+    return true;
+  }
+  if (
+    norm.includes('sports officiating') ||
+    norm.includes('sports management') ||
+    norm.includes('sports science') ||
+    norm.includes('biomechanics') ||
+    norm.includes('foundations of sports')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isSptveSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim();
+  const stripped = norm.replace(/[^a-z0-9]/g, '');
+  if (
+    stripped === 'sptve' ||
+    stripped.startsWith('sptve') ||
+    stripped.includes('specialprogramintechnicalvocationaleducation') ||
+    stripped.includes('specialprogramtechnicalvocationaleducation') ||
+    norm.includes('special program in technical-vocational education') ||
+    norm.includes('special program in technical vocational education')
+  ) {
+    return true;
+  }
+  if (
+    norm.includes('technical-vocational education') ||
+    norm.includes('technical vocational education') ||
+    norm.includes('applied technical drawing') ||
+    norm.includes('applied entrepreneurship') ||
+    norm.includes('tve specialization') ||
+    norm.startsWith('tve ') ||
+    norm.startsWith('tve-') ||
+    norm === 'tve'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isSsesSpstemSubject(subjectName: string): boolean {
+  const norm = String(subjectName || '').toLowerCase().trim();
+  const stripped = norm.replace(/[^a-z0-9]/g, '');
+  if (
+    stripped === 'sses' ||
+    stripped.startsWith('sses') ||
+    stripped === 'spstem' ||
+    stripped.startsWith('spstem') ||
+    stripped.includes('specialscienceelementaryschool') ||
+    stripped.includes('specialprograminstem') ||
+    stripped.includes('specialprograminscience') ||
+    norm.includes('special science elementary schools') ||
+    norm.includes('special program in stem')
+  ) {
+    return true;
+  }
+  if (
+    norm.includes('enhanced science') ||
+    norm.includes('enhanced math') ||
+    norm.includes('creative technology') ||
+    norm.includes('research mim') ||
+    norm.includes('research sip') ||
+    norm.includes('mim/sip') ||
+    norm.includes('science investigatory project')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function getECRTemplateType(subjectName: string, _gradeLevel?: string): ECRTemplateType {
+  if (isSsesSpstemSubject(subjectName)) return 'sses_spstem';
+  if (isSptveSubject(subjectName)) return 'sptve';
+  if (isSpsSubject(subjectName)) return 'sps';
+  if (isSpaSubject(subjectName)) return 'spa';
+  if (isSpflSubject(subjectName)) return 'spfl';
+  if (isSpjSubject(subjectName)) return 'spj';
   if (isGmrcVeSubject(subjectName)) return 'gmrc_ve';
   if (isMapehSubject(subjectName)) return 'mapeh';
   if (isEppTleSubject(subjectName)) return 'epp_tle';
   return 'academic';
 }
 
-export function getECRTemplateFilename(subjectName: string, gradeLevel?: string): string {
+export function getECRTemplateFilename(subjectName: string, gradeLevel?: string, templateOverride?: ECRTemplateType): string {
   if (gradeLevel && !isGrade2To10(gradeLevel)) {
     throw new Error(`Official DepEd 3-Term E-Class Record templates are only available for Grades 2 to 10 (received "${gradeLevel}").`);
   }
-  const type = getECRTemplateType(subjectName, gradeLevel);
+  if (templateOverride === 'epp_tle_components') return TEMPLATE_EPP_TLE_COMPONENTS;
+  const type = templateOverride || getECRTemplateType(subjectName, gradeLevel);
+  if (type === 'sses_spstem') return TEMPLATE_SSES_SPSTEM;
+  if (type === 'sptve') return TEMPLATE_SPTVE;
+  if (type === 'sps') return TEMPLATE_SPS;
+  if (type === 'spa') return TEMPLATE_SPA;
+  if (type === 'spfl') return TEMPLATE_SPFL;
+  if (type === 'spj') return TEMPLATE_SPJ;
   if (type === 'gmrc_ve') return TEMPLATE_GMRC_VE;
   if (type === 'mapeh') return TEMPLATE_MAPEH;
   if (type === 'epp_tle') return TEMPLATE_EPP_TLE;
+  if (type === 'epp_tle_components') return TEMPLATE_EPP_TLE_COMPONENTS;
   return TEMPLATE_ACADEMIC;
 }
 
@@ -142,11 +430,31 @@ export async function fetchECRTemplateBuffer(templateFilename: string): Promise<
   const timestamp = Date.now();
 
   let aliasFilename = 'ECR_Template_Academic_G2_G10.xlsx';
-  if (templateFilename.includes('GMRC') || templateFilename.includes('Values Education') || templateFilename.includes('GMRC_VE')) {
+  if (templateFilename.includes('component') || templateFilename.includes('Components')) {
+    aliasFilename = 'ECR_Template_EPP_TLE_Components_G2_G10.xlsx';
+  } else if (templateFilename.includes('SPFL') || templateFilename.includes('Foreign Language')) {
+    aliasFilename = 'ECR_Template_SPFL_G4_G10.xlsx';
+  } else if (templateFilename.includes('SPJ') || templateFilename.includes('Journalism') || templateFilename.includes('Pamamahayag')) {
+    aliasFilename = 'ECR_Template_SPJ_G4_G10.xlsx';
+  } else if (templateFilename.includes('(for SPA)') || templateFilename.includes('SPA_G4_G10') || templateFilename.includes('Special Program in the Arts')) {
+    aliasFilename = 'ECR_Template_SPA_G4_G10.xlsx';
+  } else if (templateFilename.includes('(for SPS)') || templateFilename.includes('SPS_G4_G10') || templateFilename.includes('Special Program in Sports')) {
+    aliasFilename = 'ECR_Template_SPS_G4_G10.xlsx';
+  } else if (templateFilename.includes('(for SPTVE)') || templateFilename.includes('SPTVE_G4_G10') || templateFilename.includes('SPTVE') || templateFilename.includes('Technical-Vocational Education')) {
+    aliasFilename = 'ECR_Template_SPTVE_G4_G10.xlsx';
+  } else if (
+    templateFilename.includes('(for SSES and SPSTEM)') ||
+    templateFilename.includes('SSES_SPSTEM_G4_G10') ||
+    templateFilename.includes('SSES') ||
+    templateFilename.includes('SPSTEM') ||
+    templateFilename.includes('Special Science')
+  ) {
+    aliasFilename = 'ECR_Template_SSES_SPSTEM_G4_G10.xlsx';
+  } else if (templateFilename.includes('GMRC') || templateFilename.includes('Values Education') || templateFilename.includes('GMRC_VE')) {
     aliasFilename = 'ECR_Template_GMRC_VE_G2_G10.xlsx';
   } else if (templateFilename.includes('EPP-TLE') || templateFilename.includes('EPP_TLE')) {
     aliasFilename = 'ECR_Template_EPP_TLE_G2_G10.xlsx';
-  } else if (templateFilename.includes('Music and Arts') || templateFilename.includes('MAPEH')) {
+  } else if (templateFilename.includes('Music and Arts') || templateFilename.includes('MAPEH') || templateFilename.includes('Physical Education') || templateFilename.includes('PE and Health') || templateFilename.includes('P.E.')) {
     aliasFilename = 'ECR_Template_MAPEH_G2_G10.xlsx';
   }
 
@@ -308,7 +616,58 @@ export function normalizeSubjectForECR(
     return 'MAPEH';
   }
 
-  if (templateType === 'gmrc_ve') {
+  if (actualType === 'spfl') {
+    if (norm.includes('span') || norm.includes('espanol')) return 'Special Program in Foreign Language - Spanish';
+    if (norm.includes('japan') || norm.includes('nihon')) return 'Special Program in Foreign Language - Japanese';
+    if (norm.includes('french') || norm.includes('francais')) return 'Special Program in Foreign Language - French';
+    if (norm.includes('german') || norm.includes('deutsch')) return 'Special Program in Foreign Language - German';
+    if (norm.includes('chin') || norm.includes('mandarin')) return 'Special Program in Foreign Language - Chinese';
+    if (norm.includes('korean') || norm.includes('hangul')) return 'Special Program in Foreign Language - Korean';
+
+    const exact = SPFL_SUBJECTS.find(s => s.toLowerCase() === norm);
+    if (exact) return exact;
+    return 'Special Program in Foreign Language - Spanish';
+  }
+
+  if (actualType === 'spj') {
+    if (norm.includes('pamamahayag') || norm.includes('filipino') || norm.includes('tagalog')) {
+      return 'Special Program in Journalism (Pamamahayag)';
+    }
+    return 'Special Program in Journalism (Journalism)';
+  }
+
+  if (actualType === 'spa') {
+    return 'Special Program in the Arts (SPA)';
+  }
+
+  if (actualType === 'sps') {
+    return 'Special Program in Sports (SPS)';
+  }
+
+  if (actualType === 'sptve') {
+    if (norm.includes('drawing') || norm.includes('drafting')) {
+      return 'Applied Technical Drawing';
+    }
+    if (norm.includes('entrepreneur') || norm.includes('entrep')) {
+      return 'Applied Entrepreneurship';
+    }
+    return 'TVE Specialization';
+  }
+
+  if (actualType === 'sses_spstem') {
+    if (norm.includes('math')) {
+      return 'Enhanced Mathematics';
+    }
+    if (norm.includes('creat') || norm.includes('tech')) {
+      return 'Creative Technology';
+    }
+    if (norm.includes('research') || norm.includes('mim') || norm.includes('sip') || norm.includes('investigat')) {
+      return 'Research MIM/SIP';
+    }
+    return 'Enhanced Science';
+  }
+
+  if (actualType === 'gmrc_ve') {
     // Data validation dropdown in E24: "GMRC, Values Education"
     return gradeNum >= 7 ? 'Values Education' : 'GMRC';
   }
@@ -596,7 +955,7 @@ export async function populateECRWorkbookZip(
   } = opts;
 
   const zip = await JSZip.loadAsync(templateBuffer);
-  const templateType = getECRTemplateType(subject.subject_name, section.section_grade_level);
+  const templateType = opts.templateOverride || getECRTemplateType(subject.subject_name, section.section_grade_level);
 
   // Filter students for section & subject
   let sectionStudents = students.filter(
@@ -628,7 +987,7 @@ export async function populateECRWorkbookZip(
     sheet1Xml = updateCellInXml(sheet1Xml, 'E15', schoolYear || '', 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E16', (schoolProfile?.head_name || '').toUpperCase(), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E23', (teacherName || section.adviser_name || schoolProfile?.adviser_name || '').toUpperCase(), 'string');
-    sheet1Xml = updateCellInXml(sheet1Xml, 'E24', normalizeSubjectForECR(subject.subject_name, templateType, section.section_grade_level), 'string');
+    sheet1Xml = updateCellInXml(sheet1Xml, 'E24', normalizeSubjectForECR(subject.subject_name, templateType === 'epp_tle_components' ? 'epp_tle' : templateType, section.section_grade_level), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E25', normalizeGradeLevelForECR(section.section_grade_level), 'string');
     sheet1Xml = updateCellInXml(sheet1Xml, 'E26', section.section_name.toUpperCase(), 'string');
 
@@ -726,8 +1085,151 @@ export async function populateECRWorkbookZip(
         zip.file(peSheetPath, xml);
       }
     }
+  } else if (templateType === 'epp_tle_components') {
+    // EPP/TLE Per-Component Template has 6 grading sheets:
+    // sheet2.xml: TERM 1 ICT, sheet3.xml: TERM 1 AFA
+    // sheet4.xml: TERM 2 ICT, sheet5.xml: TERM 2 FCS
+    // sheet6.xml: TERM 3 ICT, sheet7.xml: TERM 3 IA
+
+    const sectionScopedSubjects = (allSubjects || []).filter(s =>
+      s.section_id === section.id ||
+      s.section_id === section.section_name ||
+      s.grade_level === section.section_grade_level ||
+      (s.grade_level && normalizeGradeLevelForECR(s.grade_level) === normalizeGradeLevelForECR(section.section_grade_level))
+    );
+
+    const pool = sectionScopedSubjects.length > 0
+      ? sectionScopedSubjects
+      : (allSubjects && allSubjects.length > 0 ? allSubjects : [subject]);
+
+    const ictSubject = pool.find(s => isIctComponent(s.subject_name)) ||
+      (allSubjects || []).find(s => isIctComponent(s.subject_name)) ||
+      subject;
+
+    const afaSubject = pool.find(s => isAfaComponent(s.subject_name)) ||
+      (allSubjects || []).find(s => isAfaComponent(s.subject_name)) ||
+      subject;
+
+    const fcsSubject = pool.find(s => isFcsComponent(s.subject_name)) ||
+      (allSubjects || []).find(s => isFcsComponent(s.subject_name)) ||
+      subject;
+
+    const iaSubject = pool.find(s => isIaComponent(s.subject_name)) ||
+      (allSubjects || []).find(s => isIaComponent(s.subject_name)) ||
+      subject;
+
+    const ictCandidateIds = new Set<string>();
+    pool.filter(s => isIctComponent(s.subject_name)).forEach(s => {
+      ictCandidateIds.add(s.id);
+      ictCandidateIds.add(s.subject_name);
+    });
+    if (ictSubject?.id) ictCandidateIds.add(ictSubject.id);
+    if (ictSubject?.subject_name) ictCandidateIds.add(ictSubject.subject_name);
+    if (ictSubject === subject) {
+      ictCandidateIds.add(subject.id);
+      ictCandidateIds.add(subject.subject_name);
+    }
+    ictCandidateIds.add('ICT');
+    ictCandidateIds.add('Information and Communications Technology');
+    ictCandidateIds.add('Information & Communications Technology');
+    ictCandidateIds.add('Computer');
+
+    const afaCandidateIds = new Set<string>();
+    pool.filter(s => isAfaComponent(s.subject_name)).forEach(s => {
+      afaCandidateIds.add(s.id);
+      afaCandidateIds.add(s.subject_name);
+    });
+    if (afaSubject?.id) afaCandidateIds.add(afaSubject.id);
+    if (afaSubject?.subject_name) afaCandidateIds.add(afaSubject.subject_name);
+    if (afaSubject === subject) {
+      afaCandidateIds.add(subject.id);
+      afaCandidateIds.add(subject.subject_name);
+    }
+    afaCandidateIds.add('AFA');
+    afaCandidateIds.add('Agri-Fishery Arts');
+    afaCandidateIds.add('Agriculture and Fishery Arts');
+    afaCandidateIds.add('Agriculture');
+
+    const fcsCandidateIds = new Set<string>();
+    pool.filter(s => isFcsComponent(s.subject_name)).forEach(s => {
+      fcsCandidateIds.add(s.id);
+      fcsCandidateIds.add(s.subject_name);
+    });
+    if (fcsSubject?.id) fcsCandidateIds.add(fcsSubject.id);
+    if (fcsSubject?.subject_name) fcsCandidateIds.add(fcsSubject.subject_name);
+    if (fcsSubject === subject) {
+      fcsCandidateIds.add(subject.id);
+      fcsCandidateIds.add(subject.subject_name);
+    }
+    fcsCandidateIds.add('FCS');
+    fcsCandidateIds.add('Family and Consumer Science');
+    fcsCandidateIds.add('Family and Consumer Sciences');
+    fcsCandidateIds.add('Home Economics');
+    fcsCandidateIds.add('HE');
+
+    const iaCandidateIds = new Set<string>();
+    pool.filter(s => isIaComponent(s.subject_name)).forEach(s => {
+      iaCandidateIds.add(s.id);
+      iaCandidateIds.add(s.subject_name);
+    });
+    if (iaSubject?.id) iaCandidateIds.add(iaSubject.id);
+    if (iaSubject?.subject_name) iaCandidateIds.add(iaSubject.subject_name);
+    if (iaSubject === subject) {
+      iaCandidateIds.add(subject.id);
+      iaCandidateIds.add(subject.subject_name);
+    }
+    iaCandidateIds.add('IA');
+    iaCandidateIds.add('Industrial Arts');
+
+    // TERM 1 ICT (sheet2.xml)
+    const s2File = zip.file('xl/worksheets/sheet2.xml');
+    if (s2File) {
+      let xml = await s2File.async('text');
+      xml = populateTermGradingXml(xml, ictSubject, 1, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', ictCandidateIds);
+      zip.file('xl/worksheets/sheet2.xml', xml);
+    }
+
+    // TERM 1 AFA (sheet3.xml)
+    const s3File = zip.file('xl/worksheets/sheet3.xml');
+    if (s3File) {
+      let xml = await s3File.async('text');
+      xml = populateTermGradingXml(xml, afaSubject, 1, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', afaCandidateIds);
+      zip.file('xl/worksheets/sheet3.xml', xml);
+    }
+
+    // TERM 2 ICT (sheet4.xml)
+    const s4File = zip.file('xl/worksheets/sheet4.xml');
+    if (s4File) {
+      let xml = await s4File.async('text');
+      xml = populateTermGradingXml(xml, ictSubject, 2, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', ictCandidateIds);
+      zip.file('xl/worksheets/sheet4.xml', xml);
+    }
+
+    // TERM 2 FCS (sheet5.xml)
+    const s5File = zip.file('xl/worksheets/sheet5.xml');
+    if (s5File) {
+      let xml = await s5File.async('text');
+      xml = populateTermGradingXml(xml, fcsSubject, 2, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', fcsCandidateIds);
+      zip.file('xl/worksheets/sheet5.xml', xml);
+    }
+
+    // TERM 3 ICT (sheet6.xml)
+    const s6File = zip.file('xl/worksheets/sheet6.xml');
+    if (s6File) {
+      let xml = await s6File.async('text');
+      xml = populateTermGradingXml(xml, ictSubject, 3, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', ictCandidateIds);
+      zip.file('xl/worksheets/sheet6.xml', xml);
+    }
+
+    // TERM 3 IA (sheet7.xml)
+    const s7File = zip.file('xl/worksheets/sheet7.xml');
+    if (s7File) {
+      let xml = await s7File.async('text');
+      xml = populateTermGradingXml(xml, iaSubject, 3, schoolYear, section, maleStudents, femaleStudents, classRecords, hpsRecords, 'academic', iaCandidateIds);
+      zip.file('xl/worksheets/sheet7.xml', xml);
+    }
   } else {
-    // Academic, GMRC/VE & EPP/TLE Templates:
+    // Academic, GMRC/VE & standard EPP/TLE Templates:
     // sheet2.xml: TERM 1, sheet3.xml: TERM 2, sheet4.xml: TERM 3
     const candidateIds = new Set<string>();
     candidateIds.add(subject.id);
@@ -773,7 +1275,8 @@ export async function exportECRToExcel(opts: ECRExcelExportOptions): Promise<voi
     throw new Error(`Official DepEd 3-Term E-Class Record export is only available for Grades 2 to 10. Grade Level "${gradeLevel || 'unknown'}" is not supported.`);
   }
 
-  const templateName = getECRTemplateFilename(opts.subject.subject_name, opts.section.section_grade_level);
+  const templateType = opts.templateOverride || getECRTemplateType(opts.subject.subject_name, opts.section.section_grade_level);
+  const templateName = getECRTemplateFilename(opts.subject.subject_name, opts.section.section_grade_level, opts.templateOverride);
   const templateBuffer = await fetchECRTemplateBuffer(templateName);
   const zip = await populateECRWorkbookZip(templateBuffer, opts);
 
@@ -784,9 +1287,13 @@ export async function exportECRToExcel(opts: ECRExcelExportOptions): Promise<voi
   });
 
   const isMapeh = isMapehSubject(opts.subject.subject_name);
+  const isPerComp = templateType === 'epp_tle_components';
   const cleanGrade = (opts.section.section_grade_level || 'Grade').replace(/[^a-zA-Z0-9]/g, '_');
   const cleanSection = (opts.section.section_name || 'Section').replace(/[^a-zA-Z0-9]/g, '_');
-  const cleanSubject = isMapeh ? 'MAPEH' : (opts.subject.subject_name || 'Subject').replace(/[^a-zA-Z0-9]/g, '_');
+  let cleanSubject = isMapeh ? 'MAPEH' : (opts.subject.subject_name || 'Subject').replace(/[^a-zA-Z0-9]/g, '_');
+  if (isPerComp) {
+    cleanSubject = 'EPP_TLE_PerComponent';
+  }
   const cleanSY = (opts.schoolYear || '').replace(/[^a-zA-Z0-9-]/g, '_');
 
   const filename = `ECR_${cleanGrade}_${cleanSection}_${cleanSubject}_${cleanSY}.xlsx`;
@@ -817,8 +1324,15 @@ export async function exportECRBatchToZip(
   }
 
   const academicTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_ACADEMIC).catch(() => null);
+  const ssesSpstemTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SSES_SPSTEM).catch(() => null);
+  const sptveTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SPTVE).catch(() => null);
+  const spsTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SPS).catch(() => null);
+  const spaTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SPA).catch(() => null);
+  const spflTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SPFL).catch(() => null);
+  const spjTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_SPJ).catch(() => null);
   const gmrcVeTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_GMRC_VE).catch(() => null);
   const eppTleTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_EPP_TLE).catch(() => null);
+  const eppTleComponentsTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_EPP_TLE_COMPONENTS).catch(() => null);
   const mapehTemplateBuffer = await fetchECRTemplateBuffer(TEMPLATE_MAPEH).catch(() => null);
 
   const mainZip = new JSZip();
@@ -851,13 +1365,27 @@ export async function exportECRBatchToZip(
 
   for (let i = 0; i < total; i++) {
     const opts = finalExportList[i];
-    const templateType = getECRTemplateType(opts.subject.subject_name, opts.section.section_grade_level);
+    const templateType = opts.templateOverride || getECRTemplateType(opts.subject.subject_name, opts.section.section_grade_level);
     
     let templateBuffer: ArrayBuffer | null = null;
-    if (templateType === 'gmrc_ve') {
+    if (templateType === 'sses_spstem') {
+      templateBuffer = ssesSpstemTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SSES_SPSTEM));
+    } else if (templateType === 'sptve') {
+      templateBuffer = sptveTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SPTVE));
+    } else if (templateType === 'sps') {
+      templateBuffer = spsTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SPS));
+    } else if (templateType === 'spa') {
+      templateBuffer = spaTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SPA));
+    } else if (templateType === 'spfl') {
+      templateBuffer = spflTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SPFL));
+    } else if (templateType === 'spj') {
+      templateBuffer = spjTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_SPJ));
+    } else if (templateType === 'gmrc_ve') {
       templateBuffer = gmrcVeTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_GMRC_VE));
     } else if (templateType === 'mapeh') {
       templateBuffer = mapehTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_MAPEH));
+    } else if (templateType === 'epp_tle_components') {
+      templateBuffer = eppTleComponentsTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_EPP_TLE_COMPONENTS));
     } else if (templateType === 'epp_tle') {
       templateBuffer = eppTleTemplateBuffer || (await fetchECRTemplateBuffer(TEMPLATE_EPP_TLE));
     } else {
@@ -872,9 +1400,14 @@ export async function exportECRBatchToZip(
     });
 
     const isMapeh = templateType === 'mapeh';
+    const isPerComp = templateType === 'epp_tle_components';
     const cleanGrade = (opts.section.section_grade_level || 'Grade').replace(/[^a-zA-Z0-9]/g, '_');
     const cleanSection = (opts.section.section_name || 'Section').replace(/[^a-zA-Z0-9]/g, '_');
-    const cleanSubject = isMapeh ? 'MAPEH' : (opts.subject.subject_name || 'Subject').replace(/[^a-zA-Z0-9]/g, '_');
+    const cleanSubject = isMapeh
+      ? 'MAPEH'
+      : isPerComp
+      ? 'EPP_TLE_PerComponent'
+      : (opts.subject.subject_name || 'Subject').replace(/[^a-zA-Z0-9]/g, '_');
     const cleanSY = (opts.schoolYear || '').replace(/[^a-zA-Z0-9-]/g, '_');
 
     const fileName = `ECR_${cleanGrade}_${cleanSection}_${cleanSubject}_${cleanSY}.xlsx`;

@@ -548,6 +548,16 @@ export async function populateGrade2TemplateBuffer(
   const cleanAdviser = adviser || '';
   const cleanHead = schoolProfile?.head_name || '';
 
+  let cleanMuniCity = (schoolProfile?.municipality || schoolProfile?.city || '').trim();
+  if (!cleanMuniCity && schoolProfile?.district) {
+    const extracted = schoolProfile.district.replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '').trim();
+    if (extracted) cleanMuniCity = extracted;
+  }
+  if (!cleanMuniCity && schoolProfile?.province) {
+    cleanMuniCity = schoolProfile.province.trim();
+  }
+  cleanMuniCity = (cleanMuniCity || 'VICTORIA').toUpperCase();
+
   // -------------------------------------------------------------------------
   // 3. Sheet 2: INPUT DATA (xl/worksheets/sheet2.xml)
   // -------------------------------------------------------------------------
@@ -558,7 +568,7 @@ export async function populateGrade2TemplateBuffer(
     const inputCells: Record<string, string | number> = {
       'F10': cleanRegion,
       'F11': cleanDivision,
-      'F12': schoolProfile?.city || schoolProfile?.municipality || '',
+      'F12': cleanMuniCity,
       'F13': schoolProfile?.district || '',
       'F15': cleanSchoolId,
       'F16': cleanSchoolName,

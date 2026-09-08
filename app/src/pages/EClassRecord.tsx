@@ -7,7 +7,9 @@ import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
-import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject } from '../services/ecr-excel-export';
+import { exportECRToExcel, exportECRBatchToZip, isGrade2To10, isGmrcVeSubject, normalizeSubjectForECR, isMapehSubject, isEppTleSubject, isEppTleComponent } from '../services/ecr-excel-export';
+import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
+import { isMatchingSubject } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
@@ -770,7 +772,20 @@ export function EClassRecord() {
     const onSectionChange = (val: string) => {
         setSelectedSection(val);
         setGlobalSection(val);
-        setSelectedSubject(''); // Reset subject when section changes
+        const targetSec = sections.find(s => s.id === val || s.section_name === val);
+        if (targetSec) {
+            const secSubjects = filterSubjectsForSection(user, targetSec, subjects);
+            const valid = secSubjects.filter(s => {
+                const n = s.subject_name.toLowerCase();
+                return !((n.includes('music') && n.includes('arts')) || ((n.includes('pe') || n.includes('physical')) && n.includes('health')));
+            });
+            if (valid.length > 0) {
+                setSelectedSubject(valid[0].id);
+                setGlobalSubject(valid[0].id);
+                return;
+            }
+        }
+        setSelectedSubject('');
         setGlobalSubject('');
     };
 
@@ -783,28 +798,55 @@ export function EClassRecord() {
     const mapehComponents = useMemo(() => {
         if (!selectedSectionObj) return [];
         
-        // Use the same filtering logic as the main dropdown to find components
-        // This ensures generic subjects assigned to the section are also caught
-        const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
+        // 1. Primary: Use RBAC-filtered section subjects
+        const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects);
         
-        return sectionSubjects.filter(s => {
-            const n = s.subject_name.toLowerCase();
+        const isMapehComp = (s: Subject) => {
+            const n = s.subject_name.toLowerCase().trim();
             return (n.includes('music') && n.includes('arts')) || 
-                   ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
-        }).sort((a, b) => a.subject_name.localeCompare(b.subject_name));
+                   ((n.includes('pe') || n.includes('physical')) && n.includes('health')) ||
+                   n === 'music' || n === 'arts' || n === 'physical education' || n === 'pe' || n === 'health' ||
+                   s.is_component || s.subject_code === 'MAPEH';
+        };
+
+        const comps = sectionSubjects.filter(isMapehComp);
+
+        // Fallback: If both components ("Music and Arts" AND "PE & Health") aren't found in sectionSubjects,
+        // search raw subjects for this grade level directly
+        const hasMusicArts = comps.some(s => s.subject_name.toLowerCase().includes('music') && s.subject_name.toLowerCase().includes('arts'));
+        const hasPeHealth = comps.some(s => (s.subject_name.toLowerCase().includes('pe') || s.subject_name.toLowerCase().includes('physical')) && s.subject_name.toLowerCase().includes('health'));
+
+        if (!hasMusicArts || !hasPeHealth) {
+            const secGradeNum = parseInt((selectedSectionObj.section_grade_level || '').replace(/\D/g, '')) || 0;
+            const fallbackComps = subjects.filter(s => {
+                const sGradeNum = parseInt((s.grade_level || '').replace(/\D/g, '')) || 0;
+                if (sGradeNum !== secGradeNum && s.grade_level !== selectedSectionObj.section_grade_level) return false;
+                if (s.section_id && s.section_id !== selectedSectionObj.id) return false;
+                return isMapehComp(s);
+            });
+            for (const fc of fallbackComps) {
+                if (!comps.some(c => c.id === fc.id || c.subject_name.trim().toLowerCase() === fc.subject_name.trim().toLowerCase())) {
+                    comps.push(fc);
+                }
+            }
+        }
+
+        return comps.sort((a, b) => a.subject_name.localeCompare(b.subject_name));
     }, [subjects, selectedSectionObj, user]);
 
     // Filter & Sort Subjects: Hide components, ensure MAPEH is present
     const filteredSubjects = useMemo(() => {
         if (!selectedSectionObj) return [];
 
-        let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)].filter(s => s.term !== 'none');
+        let base = [...filterSubjectsForSection(user, selectedSectionObj, subjects)];
         
         // Remove individual components from main dropdown
         base = base.filter(s => {
-            const n = s.subject_name.toLowerCase();
+            const n = s.subject_name.toLowerCase().trim();
             const isComponent = (n.includes('music') && n.includes('arts')) || 
-                                ((n.includes('pe') || n.includes('physical')) && n.includes('health'));
+                                ((n.includes('pe') || n.includes('physical')) && n.includes('health')) ||
+                                n === 'music' || n === 'arts' || n === 'physical education' || n === 'pe' || n === 'health' ||
+                                s.is_component || s.subject_code === 'MAPEH';
             return !isComponent;
         });
 
@@ -890,45 +932,50 @@ export function EClassRecord() {
         }
     }, [filteredSubjects, sectionGradeLevel]);
 
-    // Reset selected subject if it's no longer offered in the current term
+    // Auto-select first available subject if no subject is currently selected or if the selected subject is invalid
     useEffect(() => {
-        if (selectedSubject && selectedSubject !== 'virtual_mapeh' && filteredSubjects.length > 0) {
-            const exists = filteredSubjects.some(s => s.id === selectedSubject);
-            if (!exists) {
-                setSelectedSubject('');
-                setGlobalSubject('');
+        if (selectedSection && filteredSubjects.length > 0) {
+            const isValid = selectedSubject && (selectedSubject === 'virtual_mapeh' || filteredSubjects.some(s => s.id === selectedSubject));
+            if (!isValid) {
+                const firstSub = filteredSubjects[0].id;
+                setSelectedSubject(firstSub);
+                setGlobalSubject(firstSub);
             }
         }
-    }, [quarter, filteredSubjects, selectedSubject, setGlobalSubject]);
+    }, [selectedSection, filteredSubjects, selectedSubject, setGlobalSubject]);
+
+    // Check if the currently selected subject is MAPEH (virtual or registered database subject)
+    const isMapehSelected = useMemo(() => {
+        if (selectedSubject === 'virtual_mapeh') return true;
+        const s = subjects.find(sub => sub.id === selectedSubject);
+        if (!s) return false;
+        const n = s.subject_name.trim().toUpperCase();
+        return n === 'MAPEH' || n.includes('MAPEH');
+    }, [selectedSubject, subjects]);
 
     // Determine the actual subject ID to use for grading/fetching
     const effectiveSubjectId = useMemo(() => {
-        const isMapeh = (selectedSubject === 'virtual_mapeh' || 
-                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
-                       mapehComponents.length > 0;
-        
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
-        if (isMapeh && !isSummaryMode) {
+        if (isMapehSelected && mapehComponents.length > 0 && !isSummaryMode) {
             return selectedMapehComponentId || mapehComponents[0]?.id || '';
         }
         return selectedSubject;
-    }, [selectedSubject, selectedMapehComponentId, quarter, subjects, mapehComponents]);
+    }, [selectedSubject, isMapehSelected, selectedMapehComponentId, quarter, mapehComponents]);
 
     const subjectName = useMemo(() => {
-        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (selectedSubject === 'virtual_mapeh' ? 'MAPEH' : '');
-    }, [subjects, effectiveSubjectId, selectedSubject]);
+        return subjects.find(s => s.id === effectiveSubjectId)?.subject_name || (isMapehSelected ? 'MAPEH' : '');
+    }, [subjects, effectiveSubjectId, isMapehSelected]);
 
     useEffect(() => {
-        const isMapeh = (selectedSubject === 'virtual_mapeh' || 
-                       subjects.find(s => s.id === selectedSubject)?.subject_name.toUpperCase() === 'MAPEH') &&
-                       mapehComponents.length > 0;
         const isSummaryMode = typeof quarter === 'string' && quarter.startsWith('summary');
-        if (isMapeh && mapehComponents.length > 0 && !selectedMapehComponentId && !isSummaryMode) {
-            setSelectedMapehComponentId(mapehComponents[0].id);
-        } else if (!isMapeh || isSummaryMode) {
+        if (isMapehSelected && mapehComponents.length > 0 && !isSummaryMode) {
+            if (!selectedMapehComponentId || !mapehComponents.some(c => c.id === selectedMapehComponentId)) {
+                setSelectedMapehComponentId(mapehComponents[0].id);
+            }
+        } else if (!isMapehSelected || isSummaryMode) {
             setSelectedMapehComponentId('');
         }
-    }, [selectedSubject, mapehComponents, selectedMapehComponentId, subjects, quarter]);
+    }, [selectedSubject, isMapehSelected, mapehComponents, selectedMapehComponentId, quarter]);
 
     const sectionStudents = useMemo(() => {
         if (!selectedSection) return [];
@@ -962,7 +1009,7 @@ export function EClassRecord() {
         const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
         const record = hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             (
@@ -974,7 +1021,7 @@ export function EClassRecord() {
                 (secName && r.id.includes(secName))
             )
         ) || hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -997,7 +1044,7 @@ export function EClassRecord() {
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, isGMRCSubject]);
 
 
     // Get current subject and its weight cluster
@@ -1110,7 +1157,7 @@ export function EClassRecord() {
 
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
             Number(r.quarter) === quarter
         );
 
@@ -1274,7 +1321,7 @@ export function EClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
+    }, [classRecords, effectiveSubjectId, subjectName, quarter, hps, currentWeights, currentCluster, activeSchoolYear, isGMRCSubject]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1282,7 +1329,7 @@ export function EClassRecord() {
     }, [sectionGradeLevel, activeSchoolYear]);
 
     const getSummaryGrades = useCallback((student: typeof students[0]) => {
-        const isMapeh = subjectName.toUpperCase() === 'MAPEH' && mapehComponents.length > 0;
+        const isMapeh = (isMapehSelected || subjectName.toUpperCase() === 'MAPEH') && mapehComponents.length > 0;
         
         const targetSubjectObj = subjects.find(s => s.id === selectedSubject);
         const isTermOffered = (subj: typeof targetSubjectObj | undefined, q: number) => {
@@ -1311,7 +1358,7 @@ export function EClassRecord() {
 
                 const record = classRecords.find(r =>
                     r.student_lrn === student.lrn &&
-                    r.subject_id === subjId &&
+                    (r.subject_id === subjId || (subj && isMatchingSubject(subj.subject_name, r.subject_id, r.subject_name))) &&
                     (r.quarter === q || Number(r.quarter) === q) &&
                     r.school_year === activeSchoolYear
                 );
@@ -1369,7 +1416,7 @@ export function EClassRecord() {
             }
             const record = classRecords.find(r =>
                 r.student_lrn === student.lrn &&
-                r.subject_id === selectedSubject &&
+                (r.subject_id === selectedSubject || (targetSubjectObj && isMatchingSubject(targetSubjectObj.subject_name, r.subject_id, r.subject_name))) &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1391,7 +1438,7 @@ export function EClassRecord() {
             descriptor,
             isMapeh: false
         };
-    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects]);
+    }, [classRecords, subjectName, selectedSubject, activeSchoolYear, quarter, mapehComponents, getGradeDescriptor, subjects, isMapehSelected]);
 
     const proficiencyDataCalc = useMemo(() => {
         const levels = [
@@ -1574,7 +1621,7 @@ export function EClassRecord() {
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
-                r.subject_id === effectiveSubjectId &&
+                (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
                 Number(r.quarter) === Number(quarter)
             );
             if (!cr) return;
@@ -1656,15 +1703,18 @@ export function EClassRecord() {
 
             const updatedCr: ClassRecord = {
                 ...cr,
+                subject_id: effectiveSubjectId,
+                subject_name: subjectName || cr.subject_name,
                 final_grade: newFinalGrade
             };
             updateClassRecord(updatedCr);
 
             const { updateGradingSheetRecord } = useAppStore.getState();
             updateGradingSheetRecord({
-                id: `${cr.student_lrn}_${cr.subject_id}_${cr.quarter}_${cr.school_year}`,
+                id: `${cr.student_lrn}_${effectiveSubjectId}_${cr.quarter}_${cr.school_year}`,
                 student_lrn: cr.student_lrn,
-                subject_id: cr.subject_id,
+                subject_id: effectiveSubjectId,
+                subject_name: cr.subject_name || subjectName || '',
                 section_id: cr.section_id,
                 quarter: cr.quarter as 1|2|3,
                 school_year: cr.school_year,
@@ -1674,7 +1724,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
+    }, [effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, isGMRCSubject]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1688,15 +1738,20 @@ export function EClassRecord() {
         const stateClassRecords = useAppStore.getState().classRecords;
         const existingRecord = stateClassRecords.find(r =>
             r.student_lrn === lrn &&
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
             Number(r.quarter) === (quarter as number)
         );
 
-        const record: ClassRecord = existingRecord ? { ...existingRecord } : {
+        const record: ClassRecord = existingRecord ? {
+            ...existingRecord,
+            subject_id: effectiveSubjectId,
+            subject_name: subjectName || existingRecord.subject_name
+        } : {
             id: `grade_${lrn}_${effectiveSubjectId}_Q${quarter}`,
             student_lrn: lrn,
             section_id: selectedSectionObj?.id || sections.find(s => s.id === selectedSection || s.section_name === selectedSection)?.id || '',
             subject_id: effectiveSubjectId,
+            subject_name: subjectName,
             school_year: activeSchoolYear,
             quarter: quarter as any,
             written_works: Array(activeWwCount).fill(''),
@@ -1817,12 +1872,23 @@ export function EClassRecord() {
 
         if (!hasScores) {
             deleteClassRecord(record.id);
+            if (existingRecord && existingRecord.id !== record.id) {
+                deleteClassRecord(existingRecord.id);
+            }
             
             // Clear Sync from Grading Sheet
             const { deleteGradingSheetRecord } = useAppStore.getState();
             deleteGradingSheetRecord(`${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`);
+            if (existingRecord && existingRecord.subject_id !== record.subject_id) {
+                deleteGradingSheetRecord(`${existingRecord.student_lrn}_${existingRecord.subject_id}_${existingRecord.quarter}_${existingRecord.school_year}`);
+            }
         } else {
             record.final_grade = transmuteGrade(initialGrade, record.school_year);
+            record.subject_id = effectiveSubjectId;
+            record.subject_name = subjectName;
+            if (existingRecord && existingRecord.id !== record.id) {
+                deleteClassRecord(existingRecord.id);
+            }
             updateClassRecord(record);
             
             // Live Sync to Grading Sheet (Official Records)
@@ -1831,6 +1897,7 @@ export function EClassRecord() {
                 id: `${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`,
                 student_lrn: record.student_lrn,
                 subject_id: record.subject_id,
+                subject_name: record.subject_name || subjectName || '',
                 section_id: record.section_id,
                 quarter: record.quarter as 1|2|3,
                 school_year: record.school_year,
@@ -1840,7 +1907,7 @@ export function EClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, isGMRCSubject]);
+    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, isGMRCSubject]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1989,7 +2056,7 @@ export function EClassRecord() {
         }
     };
 
-    const handleExportExcel = async (exportAll: boolean = false) => {
+    const handleExportExcel = async (exportAll: boolean = false, templateOverride?: 'academic' | 'gmrc_ve' | 'epp_tle' | 'epp_tle_components' | 'mapeh') => {
         if (!selectedSectionObj || sectionStudents.length === 0) {
             showNotification('Please select a section with enrolled students first.', 'error');
             return;
@@ -2006,7 +2073,7 @@ export function EClassRecord() {
         try {
             if (exportAll) {
                 // Collect subjects taught in this section
-                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
+                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects);
                 
                 // Expand composite MAPEH into its official components if needed
                 const targetSubjects: Subject[] = [];
@@ -2081,7 +2148,7 @@ export function EClassRecord() {
                     return;
                 }
 
-                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects).filter(s => s.term !== 'none');
+                const sectionSubjects = filterSubjectsForSection(user, selectedSectionObj, subjects);
                 const candidateSubjects = [
                     ...(mapehComponents.length > 0 ? mapehComponents : []),
                     ...(sectionSubjects.length > 0 ? sectionSubjects : []),
@@ -2097,10 +2164,14 @@ export function EClassRecord() {
                     teacherName: teacherName || selectedSectionObj.adviser_name || schoolProfile?.adviser_name,
                     students,
                     classRecords,
-                    hpsRecords
+                    hpsRecords,
+                    templateOverride
                 });
 
-                showNotification(`Official DepEd E-Class Record exported for ${targetSubjectObj.subject_name}!`, 'success');
+                const exportDesc = templateOverride === 'epp_tle_components'
+                    ? 'Official DepEd EPP/TLE Per-Component E-Class Record exported!'
+                    : `Official DepEd E-Class Record exported for ${targetSubjectObj.subject_name}!`;
+                showNotification(exportDesc, 'success');
             }
         } catch (err) {
             console.error('Failed to export ECR to Excel:', err);
@@ -2110,6 +2181,10 @@ export function EClassRecord() {
             setIsExportingExcel(false);
         }
     };
+
+    const isEppTleAvailable = isEppTleSubject(selectedSubjectObj?.subject_name || '') ||
+        isEppTleComponent(selectedSubjectObj?.subject_name || '') ||
+        filteredSubjects.some(s => isEppTleSubject(s.subject_name) || isEppTleComponent(s.subject_name));
 
     const proficiencyData = proficiencyDataCalc;
     
@@ -2208,7 +2283,7 @@ export function EClassRecord() {
                     </div>
 
                     {/* Sub-Subject Dropdown for MAPEH components */}
-                    {(selectedSubject === 'virtual_mapeh' || subjectName.toUpperCase() === 'MAPEH') && (typeof quarter !== 'string' || !quarter.startsWith('summary')) && mapehComponents.length > 0 && (
+                    {isMapehSelected && (typeof quarter !== 'string' || !quarter.startsWith('summary')) && mapehComponents.length > 0 && (
                         <div className="w-full lg:w-35 shrink-0">
                             <label className="block text-[11px] font-semibold mb-1 text-deped-blue whitespace-nowrap">MAPEH Component</label>
                             <select
@@ -2331,10 +2406,16 @@ export function EClassRecord() {
                             <div className="relative inline-block text-left shrink-0">
                                 <div className="inline-flex rounded-xl shadow-lg shadow-emerald-500/20">
                                     <button
-                                        onClick={() => handleExportExcel(false)}
-                                        disabled={isExportingExcel || !selectedSubject || sectionStudents.length === 0}
+                                        onClick={() => {
+                                            if (selectedSubject) {
+                                                handleExportExcel(false);
+                                            } else if (filteredSubjects.length > 0) {
+                                                handleExportExcel(true);
+                                            }
+                                        }}
+                                        disabled={isExportingExcel || sectionStudents.length === 0 || (!selectedSubject && filteredSubjects.length === 0)}
                                         className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-l-xl transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:grayscale whitespace-nowrap cursor-pointer"
-                                        title="Export Official DepEd E-Class Record (.xlsx)"
+                                        title={selectedSubject ? "Export Official DepEd E-Class Record (.xlsx)" : "Export All Section Subjects (.zip)"}
                                     >
                                         {isExportingExcel ? (
                                             <>
@@ -2375,7 +2456,7 @@ export function EClassRecord() {
                                             </div>
                                             <button
                                                 onClick={() => handleExportExcel(false)}
-                                                disabled={!selectedSubject}
+                                                disabled={!selectedSubject && filteredSubjects.length === 0}
                                                 className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-400 flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                                             >
                                                 <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -2384,6 +2465,18 @@ export function EClassRecord() {
                                                     <div className="text-[10px] text-slate-500 font-normal">All 3 terms for {selectedSubjectObj?.subject_name || 'selected subject'}</div>
                                                 </div>
                                             </button>
+                                            {isEppTleAvailable && (
+                                                <button
+                                                    onClick={() => handleExportExcel(false, 'epp_tle_components')}
+                                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800/80"
+                                                >
+                                                    <FileSpreadsheet className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                    <div>
+                                                        <div className="font-bold">EPP/TLE - Per Component (.xlsx)</div>
+                                                        <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80 font-normal">6 component tabs (ICT, AFA, FCS, IA) + Final Grades</div>
+                                                    </div>
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleExportExcel(true)}
                                                 className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-400 flex items-center gap-2 transition-colors cursor-pointer"
@@ -2392,6 +2485,30 @@ export function EClassRecord() {
                                                 <div>
                                                     <div className="font-bold">All Section Subjects (.zip)</div>
                                                     <div className="text-[10px] text-slate-500 font-normal">Export complete ECRs for all subjects</div>
+                                                </div>
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    setShowExportMenu(false);
+                                                    try {
+                                                        showNotification('Extracting complete DepEd database from local storage...', 'info');
+                                                        const res = await exportDirectDatabaseToExcel();
+                                                        if (res.totalRecords > 0) {
+                                                            showNotification(`Rescued ${res.totalRecords} DepEd records to Master Excel!`, 'success');
+                                                        } else {
+                                                            showNotification('No records found in local FormEaseDB. Check if entered in another browser.', 'info');
+                                                        }
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                        showNotification('Failed to export database rescue file.', 'error');
+                                                    }
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800/80"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                <div>
+                                                    <div className="font-bold">Complete Database Rescue (.xlsx)</div>
+                                                    <div className="text-[10px] text-slate-500 font-normal">All ECRs, HPS, SF2, & DepEd tables (bypasses all filters)</div>
                                                 </div>
                                             </button>
                                         </div>
@@ -2458,6 +2575,29 @@ export function EClassRecord() {
                             <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             <span className="hidden xl:inline">Inspect Sync</span>
                         </button>
+
+                        {/* Emergency Database Rescue Excel Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    showNotification('Extracting complete DepEd database from local storage...', 'info');
+                                    const res = await exportDirectDatabaseToExcel();
+                                    if (res.totalRecords > 0) {
+                                        showNotification(`Rescued ${res.totalRecords} DepEd records to Master Excel!`, 'success');
+                                    } else {
+                                        showNotification('No records found in local FormEaseDB. Check if entered in another browser.', 'info');
+                                    }
+                                } catch (err) {
+                                    console.error(err);
+                                    showNotification('Failed to export database rescue file.', 'error');
+                                }
+                            }}
+                            className="h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            title="Download Complete Database to Excel (.xlsx) - Bypasses all filters & includes all DepEd records"
+                        >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span className="hidden xl:inline">Excel Rescue</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2466,7 +2606,7 @@ export function EClassRecord() {
                 <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
-                        className="eclass-zoom-shell origin-top transition-all duration-300"
+                        className="eclass-zoom-shell origin-top transition-all duration-300 m-auto"
                         style={{ transform: `scale(${zoom})` }}
                     >
                     {isGrade1Section ? (
@@ -3069,7 +3209,7 @@ export function EClassRecord() {
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
                                             r.student_lrn === student.lrn &&
-                                            r.subject_id === effectiveSubjectId &&
+                                            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (

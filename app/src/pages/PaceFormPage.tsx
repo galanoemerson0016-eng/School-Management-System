@@ -1,10 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore } from '../stores';
 import { useAuthStore } from '../stores/auth-store';
 import { filterSF9Sections } from '../lib/rbac';
 import { isGrade1 } from '../services/sf9-g1-excel-export';
+import { SF9ExactDocument } from './SF9Page';
 import { PaceFormRenderer } from '../components/pace/PaceFormRenderer';
-import { exportGrade1FullWorkbookToExcel } from '../services/sf9-g1-excel-export';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import { motion, AnimatePresence } from 'framer-motion';
+import { exportGrade1AllInOneSectionMasterToExcel } from '../services/sf9-g1-excel-export';
 import { computeStudentAttendance } from '../utils/sf9-attendance';
 import { PACE_DESCRIPTORS } from '../services/pace-template-config';
 import type { PaceFormData, PaceRatingDescriptor, PaceDescriptorInfo } from '../types/pace';
@@ -21,24 +24,60 @@ import {
   HeartHandshake, 
   Users, 
   CheckCircle2,
-  FileCheck,
-  Loader2
+  FileText,
+  Printer,
+  Download,
+  Loader2,
+  Edit3,
+  X
 } from 'lucide-react';
+
+export type PacePageFormType = 'reading' | 'language' | 'math' | 'gmrc-makabansa' | 'sf9';
 
 export function PaceFormPage() {
   const user = useAuthStore((s) => s.user);
   const sections = useAppStore((s) => s.sections);
   const students = useAppStore((s) => s.students);
+  const teachers = useAppStore((s) => s.teachers);
   const activeSchoolYear = useAppStore((s) => s.activeSchoolYear);
   const schoolProfile = useAppStore((s) => s.schoolProfile);
   const setCurrentView = useAppStore((s) => s.setCurrentView);
 
-  // Form Type Selection: 'reading' | 'language' | 'math' | 'gmrc-makabansa'
-  const [formType, setFormType] = useState<'reading' | 'language' | 'math' | 'gmrc-makabansa'>(() => {
-    return (localStorage.getItem('formease_pace_active_form_type') as 'reading' | 'language' | 'math' | 'gmrc-makabansa') || 'reading';
+  const resolveAdviserName = useCallback((sec?: typeof selectedSection) => {
+    const profileAdviser = (schoolProfile?.adviser_name || '').trim();
+    if (!sec) {
+      return profileAdviser || user?.displayName || '';
+    }
+    const fromSec = (sec.adviser_name || '').trim();
+    const isMock = !fromSec || 
+                   fromSec.toLowerCase().includes('maria') || 
+                   fromSec.toLowerCase().includes('santos') || 
+                   fromSec.toLowerCase().includes('juan') || 
+                   fromSec.toLowerCase().includes('recovered') || 
+                   fromSec.toLowerCase() === 'tba' ||
+                   (sec.adviser_id?.startsWith('adv-') && !teachers?.some(t => t.uid === sec.adviser_id));
+
+    if (isMock && profileAdviser && profileAdviser.toLowerCase() !== 'admin') {
+      return profileAdviser;
+    }
+
+    if (fromSec && !isMock) return fromSec;
+
+    const teacher = teachers?.find(t => t.uid === sec.adviser_id);
+    if (teacher?.displayName) return teacher.displayName;
+
+    if (user?.role === 'teacher' && (user.uid === sec.adviser_id || (!sec.adviser_id && !sec.adviser_name))) {
+      return user.displayName || '';
+    }
+    return profileAdviser || user?.displayName || '';
+  }, [schoolProfile?.adviser_name, user?.displayName, user?.role, user?.uid, teachers]);
+
+  // Form Type Selection: 'reading' | 'language' | 'math' | 'gmrc-makabansa' | 'sf9'
+  const [formType, setFormType] = useState<PacePageFormType>(() => {
+    return (localStorage.getItem('formease_pace_active_form_type') as PacePageFormType) || 'reading';
   });
 
-  const getStorageKey = (type: typeof formType) => {
+  const getStorageKey = (type: PacePageFormType) => {
     return type === 'gmrc-makabansa'
       ? 'formease_pace_gmrc_makabansa_ratings'
       : type === 'math' 
@@ -48,7 +87,8 @@ export function PaceFormPage() {
       : 'formease_pace_reading_ratings';
   };
 
-  const loadRatingsStore = (type: typeof formType): Record<string, PaceFormData> => {
+  const loadRatingsStore = (type: PacePageFormType): Record<string, PaceFormData> => {
+    if (type === 'sf9') return {};
     const key = getStorageKey(type);
     const saved = localStorage.getItem(key);
     if (saved) return JSON.parse(saved);
@@ -61,10 +101,12 @@ export function PaceFormPage() {
 
   const [ratingsStore, setRatingsStore] = useState<Record<string, PaceFormData>>(() => loadRatingsStore(formType));
 
-  const handleFormTypeChange = (type: 'reading' | 'language' | 'math' | 'gmrc-makabansa') => {
+  const handleFormTypeChange = (type: PacePageFormType) => {
     setFormType(type);
     localStorage.setItem('formease_pace_active_form_type', type);
-    setRatingsStore(loadRatingsStore(type));
+    if (type !== 'sf9') {
+      setRatingsStore(loadRatingsStore(type));
+    }
   };
 
   // GRADE 1 ONLY FILTER
@@ -136,6 +178,7 @@ export function PaceFormPage() {
   }, [students, selectedLrn]);
 
   const currentPaceData: PaceFormData = useMemo(() => {
+    const resolvedTeacher = resolveAdviserName(selectedSection) || schoolProfile.adviser_name || '';
     if (!selectedLrn) {
       return {
         lrn: '',
@@ -143,7 +186,7 @@ export function PaceFormPage() {
         gradeLevel: selectedSection?.section_grade_level || 'Grade 1',
         section: selectedSection?.section_name || '',
         schoolYear: activeSchoolYear,
-        teacherName: schoolProfile.adviser_name || '',
+        teacherName: resolvedTeacher,
         ratings: {}
       };
     }
@@ -153,15 +196,16 @@ export function PaceFormPage() {
       gradeLevel: selectedStudent?.grade_level || selectedSection?.section_grade_level || 'Grade 1',
       section: selectedSection?.section_name || '',
       schoolYear: activeSchoolYear,
-      teacherName: schoolProfile.adviser_name || '',
+      teacherName: resolvedTeacher,
       ratings: {}
     };
-  }, [selectedLrn, selectedStudent, selectedSection, activeSchoolYear, schoolProfile, ratingsStore]);
+  }, [selectedLrn, selectedStudent, selectedSection, activeSchoolYear, schoolProfile, ratingsStore, resolveAdviserName]);
 
   const setRating = (ratingId: string, term: 't1' | 't2' | 't3', value: PaceRatingDescriptor) => {
     if (!selectedLrn) return;
     setIsSaving(true);
     const storageKey = getStorageKey(formType);
+    const resolvedTeacher = resolveAdviserName(selectedSection) || schoolProfile.adviser_name || '';
     setRatingsStore(prev => {
       const studentPace = prev[selectedLrn] || {
         lrn: selectedLrn,
@@ -169,7 +213,7 @@ export function PaceFormPage() {
         gradeLevel: selectedStudent?.grade_level || selectedSection?.section_grade_level || 'Grade 1',
         section: selectedSection?.section_name || '',
         schoolYear: activeSchoolYear,
-        teacherName: schoolProfile.adviser_name || '',
+        teacherName: resolvedTeacher,
         ratings: {}
       };
 
@@ -197,134 +241,182 @@ export function PaceFormPage() {
     }, 300);
   };
 
-  const handleExcelExport = async () => {
-    if (!selectedStudent || !selectedSection) return;
+  const getPaceRatingsForStudent = (sLrn: string) => {
     try {
-      const getPaceRatingsForStudent = (sLrn: string) => {
-        try {
-          const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-          const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-          const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-          const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+      const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
+      const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
+      const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
+      const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
 
-          return {
-            reading: reading[sLrn]?.ratings || {},
-            language: language[sLrn]?.ratings || {},
-            math: math[sLrn]?.ratings || {},
-            gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
-          };
-        } catch {
-          return undefined;
-        }
+      return {
+        reading: reading[sLrn]?.ratings || {},
+        language: language[sLrn]?.ratings || {},
+        math: math[sLrn]?.ratings || {},
+        gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
       };
-
-      const getG1RemarksForStudent = (sLrn: string) => {
-        try {
-          const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
-          return stored ? JSON.parse(stored) : undefined;
-        } catch {
-          return undefined;
-        }
-      };
-
-      const attendance = computeStudentAttendance(
-        selectedStudent,
-        useAppStore.getState().sf2Sheets || [],
-        activeSchoolYear,
-        selectedSection,
-        useAppStore.getState().attendanceRecords || []
-      );
-
-      const opts = {
-        student: selectedStudent,
-        schoolProfile,
-        schoolYear: activeSchoolYear,
-        section: selectedSection.section_name,
-        gradeLevel: selectedSection.section_grade_level || 'Grade 1',
-        adviser: selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser',
-        principal: schoolProfile.head_name || 'School Principal',
-        principalTitle: schoolProfile.head_position || 'School Principal',
-        attendance,
-        g1Remarks: getG1RemarksForStudent(selectedStudent.lrn),
-        paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
-        sectionStudents,
-        getStudentRemarks: getG1RemarksForStudent,
-        paceSubjectFilter: formType
-      };
-
-      await exportGrade1FullWorkbookToExcel(opts);
-      const formTitle = formType === 'gmrc-makabansa' 
-        ? 'GMRC & Makabansa' 
-        : formType === 'math' 
-        ? 'Mathematics' 
-        : formType === 'language' 
-        ? 'Language' 
-        : 'Reading & Literacy';
-      useAppStore.getState().showNotification(`SF9 & PACE Form (${formTitle}) exported successfully!`, 'success');
-    } catch (err) {
-      console.error('Failed to export subject workbook:', err);
-      useAppStore.getState().showNotification('Export failed: ' + (err as Error).message, 'error');
+    } catch {
+      return undefined;
     }
   };
 
-  const handleFullExcelExport = async () => {
-    if (!selectedStudent || !selectedSection) return;
+  const getG1RemarksForStudent = useCallback((sLrn: string) => {
     try {
-      const getPaceRatingsForStudent = (sLrn: string) => {
-        try {
-          const reading = JSON.parse(localStorage.getItem('formease_pace_reading_ratings') || localStorage.getItem('formease_pace_ratings') || '{}');
-          const language = JSON.parse(localStorage.getItem('formease_pace_language_ratings') || '{}');
-          const math = JSON.parse(localStorage.getItem('formease_pace_math_ratings') || '{}');
-          const gmrcMakabansa = JSON.parse(localStorage.getItem('formease_pace_gmrc_makabansa_ratings') || '{}');
+      const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
+      return stored ? JSON.parse(stored) : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [activeSchoolYear]);
 
-          return {
-            reading: reading[sLrn]?.ratings || {},
-            language: language[sLrn]?.ratings || {},
-            math: math[sLrn]?.ratings || {},
-            gmrcMakabansa: gmrcMakabansa[sLrn]?.ratings || {},
-          };
-        } catch {
-          return undefined;
-        }
-      };
+  interface G1RemarksData {
+    term1CanDo?: string;
+    term1ToImprove?: string;
+    term2CanDo?: string;
+    term2ToImprove?: string;
+    term3CanDo?: string;
+    term3ToImprove?: string;
+  }
 
-      const getG1RemarksForStudent = (sLrn: string) => {
-        try {
-          const stored = localStorage.getItem(`g1_remarks_${sLrn}_${activeSchoolYear}`);
-          return stored ? JSON.parse(stored) : undefined;
-        } catch {
-          return undefined;
-        }
-      };
+  const [g1RemarksState, setG1RemarksState] = useState<G1RemarksData>(() => {
+    return selectedStudent ? getG1RemarksForStudent(selectedStudent.lrn) || {} : {};
+  });
+  const [isG1ModalOpen, setIsG1ModalOpen] = useState(false);
+  const [tempG1Remarks, setTempG1Remarks] = useState<G1RemarksData>(g1RemarksState);
 
-      const attendance = computeStudentAttendance(
-        selectedStudent,
-        useAppStore.getState().sf2Sheets || [],
-        activeSchoolYear,
-        selectedSection,
-        useAppStore.getState().attendanceRecords || []
-      );
+  useEffect(() => {
+    if (selectedStudent) {
+      const r = getG1RemarksForStudent(selectedStudent.lrn) || {};
+      setG1RemarksState(r);
+      setTempG1Remarks(r);
+    } else {
+      setG1RemarksState({});
+      setTempG1Remarks({});
+    }
+  }, [selectedStudent, activeSchoolYear, getG1RemarksForStudent]);
+
+  const handleSaveG1Progress = () => {
+    setG1RemarksState(tempG1Remarks);
+    if (selectedStudent) {
+      localStorage.setItem(`g1_remarks_${selectedStudent.lrn}_${activeSchoolYear}`, JSON.stringify(tempG1Remarks));
+    }
+    setIsG1ModalOpen(false);
+  };
+
+  const getStudentAttendance = useCallback((st: (typeof sectionStudents)[0]) => {
+    if (!selectedSection) return undefined;
+    return computeStudentAttendance(
+      st,
+      useAppStore.getState().sf2Sheets || [],
+      activeSchoolYear,
+      selectedSection,
+      useAppStore.getState().attendanceRecords || []
+    );
+  }, [selectedSection, activeSchoolYear]);
+
+  const singleDocument = useMemo(() => {
+    if (!selectedStudent || !selectedSection) return null;
+    const attendance = getStudentAttendance(selectedStudent) || {
+      months: ['JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'TOTAL'],
+      schoolDays: [],
+      daysPresent: [],
+      daysAbsent: []
+    };
+
+    const resolvedSectionName = selectedSection.section_name || '';
+
+    return (
+      <SF9ExactDocument
+        student={selectedStudent}
+        schoolName={schoolProfile.name}
+        schoolYear={activeSchoolYear}
+        section={resolvedSectionName}
+        region={schoolProfile.region}
+        division={schoolProfile.division}
+        district={schoolProfile.district}
+        adviser={resolveAdviserName(selectedSection)}
+        principal={schoolProfile.head_name || ''}
+        principalTitle={schoolProfile.head_position || 'School Head'}
+        grades={{}}
+        subjects={[]}
+        observedValues={{}}
+        comments={['', '', '']}
+        g1Remarks={g1RemarksState}
+        attendance={attendance}
+        pageSize="A4"
+        logoUrl={schoolProfile.logo_url || ''}
+        schoolProfile={schoolProfile}
+        printMode="full"
+        showAdviserSig={true}
+        showHeadSig={true}
+        adviserSigWidth={60}
+        adviserSigHeight={18}
+        adviserSigOffset={10}
+        headSigWidth={60}
+        headSigHeight={18}
+        headSigOffset={10}
+        hideLearnerInfo={false}
+        hideAttendance={false}
+        hideGrades={false}
+        hideAdviserName={false}
+        hideHeadName={false}
+      />
+    );
+  }, [selectedStudent, selectedSection, schoolProfile, activeSchoolYear, g1RemarksState, resolveAdviserName, getStudentAttendance]);
+
+  const handlePrint = async () => {
+    if (!selectedStudent || !singleDocument) return;
+    try {
+      const { pdf } = await import('@react-pdf/renderer');
+      const blob = await pdf(singleDocument).toBlob();
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        };
+      } else {
+        alert('Could not open print window. Please check if popups are blocked.');
+      }
+    } catch (err) {
+      console.error('Print failed:', err);
+      useAppStore.getState().showNotification('Failed to generate print document: ' + (err as Error).message, 'error');
+    }
+  };
+
+
+  const handleSectionMasterExcelExport = async () => {
+    if (!selectedSection || sectionStudents.length === 0) return;
+    try {
+      const baseStudent = selectedStudent || sectionStudents[0];
+      const attendance = getStudentAttendance(baseStudent);
+      const resolvedAdviser = resolveAdviserName(selectedSection);
+      const resolvedSectionName = selectedSection.section_name || selectedSection.id || '';
 
       const opts = {
-        student: selectedStudent,
+        student: baseStudent,
         schoolProfile,
         schoolYear: activeSchoolYear,
-        section: selectedSection.section_name,
+        section: resolvedSectionName,
         gradeLevel: selectedSection.section_grade_level || 'Grade 1',
-        adviser: selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser',
-        principal: schoolProfile.head_name || 'School Principal',
+        adviser: resolvedAdviser,
+        principal: schoolProfile.head_name || '',
         principalTitle: schoolProfile.head_position || 'School Principal',
         attendance,
-        g1Remarks: getG1RemarksForStudent(selectedStudent.lrn),
-        paceRatings: getPaceRatingsForStudent(selectedStudent.lrn),
+        g1Remarks: getG1RemarksForStudent(baseStudent.lrn),
+        paceRatings: getPaceRatingsForStudent(baseStudent.lrn),
         sectionStudents,
         getStudentRemarks: getG1RemarksForStudent,
+        getStudentAttendance,
+        getStudentPaceRatings: getPaceRatingsForStudent,
       };
 
-      await exportGrade1FullWorkbookToExcel(opts);
-      useAppStore.getState().showNotification('Full SF9 & PACE Form exported successfully!', 'success');
+      await exportGrade1AllInOneSectionMasterToExcel(opts);
+      useAppStore.getState().showNotification('All-In-One Master Workbook (.xlsx) exported successfully!', 'success');
     } catch (err) {
-      console.error('Failed to export full workbook:', err);
+      console.error('Failed to export section master workbook:', err);
       useAppStore.getState().showNotification('Export failed: ' + (err as Error).message, 'error');
     }
   };
@@ -417,6 +509,18 @@ export function PaceFormPage() {
               <HeartHandshake className="w-4 h-4" />
               <span>GMRC & MAKABANSA</span>
             </button>
+
+            <button
+              onClick={() => handleFormTypeChange('sf9')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-2 font-bold ${
+                formType === 'sf9'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 scale-[1.02]'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>School Form 9 (SF9)</span>
+            </button>
           </div>
         </div>
 
@@ -505,24 +609,53 @@ export function PaceFormPage() {
               )}
             </div>
 
-            <button
-              onClick={handleExcelExport}
-              disabled={!selectedStudent}
-              className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-              title="Export only the active subject PACE sheet"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>Export Subject (.xlsx)</span>
-            </button>
+            {formType === 'sf9' && (
+              <>
+                <button
+                  onClick={() => {
+                    setTempG1Remarks(g1RemarksState);
+                    setIsG1ModalOpen(true);
+                  }}
+                  disabled={!selectedStudent}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-purple-500/20 disabled:opacity-50"
+                  title="Edit Grade 1 Learner Progress"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Progress</span>
+                </button>
+
+                <button
+                  onClick={handlePrint}
+                  disabled={!selectedStudent || !singleDocument}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-blue-500/20 disabled:opacity-50"
+                  title="Print official Grade 1 SF9"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print SF9</span>
+                </button>
+
+                {singleDocument && (
+                  <PDFDownloadLink
+                    document={singleDocument}
+                    fileName={`SF9_${selectedSection?.section_name || 'Record'}_${selectedStudent?.last_name || 'Student'}_${activeSchoolYear}.pdf`}
+                    className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                    title="Download Grade 1 SF9 PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </PDFDownloadLink>
+                )}
+              </>
+            )}
 
             <button
-              onClick={handleFullExcelExport}
-              disabled={!selectedStudent}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-emerald-600/20 disabled:opacity-50"
-              title="Export complete official unified Grade 1 School Form 9 with PACE Form workbook"
+              onClick={handleSectionMasterExcelExport}
+              disabled={sectionStudents.length === 0}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-indigo-600/20 disabled:opacity-50"
+              title="Export official DepEd 17-sheet unified master workbook with all section learners, ECRs, attendance, and PACE forms"
             >
-              <FileCheck className="w-4 h-4" />
-              <span>Export Full SF9 + PACE (.xlsx)</span>
+              <FileSpreadsheet className="w-4 h-4 text-indigo-200" />
+              <span>Export Section Master (.xlsx)</span>
             </button>
           </div>
 
@@ -531,40 +664,76 @@ export function PaceFormPage() {
 
       {/* Main Full-Width Workspace */}
       <div className="flex-1 w-full mx-auto p-4 space-y-3">
-        {/* On-Form Editing Guide & Rating Key - Center Aligned */}
-        <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 px-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 text-xs">
-          <div className="flex items-center justify-center gap-2 text-amber-900 dark:text-amber-200 font-bold">
-            <MousePointerClick className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>
-              Type rating letters (A, B, C, D, E) directly into any rating cell on the {
-                formType === 'gmrc-makabansa' ? 'GMRC & MAKABANSA' : formType === 'math' ? 'Mathematics' : formType === 'language' ? 'Language' : 'Reading & Literacy'
-              } form below.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {PACE_DESCRIPTORS.map((desc: PaceDescriptorInfo) => (
-              <span key={desc.code} className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-black">
-                <strong className="text-amber-500 mr-1">{desc.code}:</strong> {desc.title}
+        {formType === 'sf9' ? (
+          <div className="bg-indigo-500/10 border border-indigo-500/30 p-2.5 px-4 rounded-2xl flex flex-col items-center justify-center text-center gap-1 text-xs">
+            <div className="flex items-center justify-center gap-2 text-indigo-900 dark:text-indigo-200 font-bold">
+              <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span>
+                Grade 1 School Form 9 (Learner's Progress Report Card)
               </span>
-            ))}
+            </div>
+            <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 font-medium">
+              Official DepEd Grade 1 Learner Progress Report Card. Click 'Progress' to edit qualitative remarks for Terms 1, 2, and 3. Attendance is automatically synchronized.
+            </p>
           </div>
-        </div>
+        ) : (
+          /* On-Form Editing Guide & Rating Key - Center Aligned */
+          <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 px-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 text-xs">
+            <div className="flex items-center justify-center gap-2 text-amber-900 dark:text-amber-200 font-bold">
+              <MousePointerClick className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>
+                Type rating letters (A, B, C, D, E) directly into any rating cell on the {
+                  formType === 'gmrc-makabansa' ? 'GMRC & MAKABANSA' : formType === 'math' ? 'Mathematics' : formType === 'language' ? 'Language' : 'Reading & Literacy'
+                } form below.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {PACE_DESCRIPTORS.map((desc: PaceDescriptorInfo) => (
+                <span key={desc.code} className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-black">
+                  <strong className="text-amber-500 mr-1">{desc.code}:</strong> {desc.title}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {selectedStudent ? (
           /* Direct Interactive Document Form Workspace */
-          <div className="bg-slate-200 dark:bg-slate-950 p-6 rounded-3xl overflow-auto custom-scrollbar shadow-inner flex justify-center w-full min-h-187.5">
+          <div className="w-full flex justify-center">
             {selectedSection && (
-              <PaceFormRenderer
-                student={selectedStudent}
-                schoolProfile={schoolProfile}
-                schoolYear={activeSchoolYear}
-                section={selectedSection.section_name}
-                adviser={selectedSection.adviser_name || schoolProfile.adviser_name || 'Class Adviser'}
-                paceData={currentPaceData}
-                formType={formType}
-                onSetRating={setRating}
-                editable={true}
-              />
+              formType === 'sf9' ? (
+                <div className="w-full h-[85vh] bg-white dark:bg-slate-900 rounded-3xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+                  {singleDocument ? (
+                    <PDFViewer
+                      key={`${selectedStudent.lrn}_${selectedSection.id || ''}_${activeSchoolYear}`}
+                      width="100%"
+                      height="100%"
+                      showToolbar={false}
+                      className="border-none w-full h-full flex-1"
+                    >
+                      {singleDocument}
+                    </PDFViewer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-400 font-bold">
+                      Loading Grade 1 SF9 Document...
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-slate-200 dark:bg-slate-950 p-6 rounded-3xl overflow-auto custom-scrollbar shadow-inner flex justify-center w-full min-h-187.5">
+                  <PaceFormRenderer
+                    student={selectedStudent}
+                    schoolProfile={schoolProfile}
+                    schoolYear={activeSchoolYear}
+                    section={selectedSection.section_name}
+                    adviser={resolveAdviserName(selectedSection)}
+                    paceData={currentPaceData}
+                    formType={formType}
+                    onSetRating={setRating}
+                    editable={true}
+                  />
+                </div>
+              )
             )}
           </div>
         ) : (
@@ -573,6 +742,91 @@ export function PaceFormPage() {
           </div>
         )}
       </div>
+
+      {/* Grade 1 Learner Progress Modal (Exact from SF9Page) */}
+      <AnimatePresence>
+        {isG1ModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
+                    <Edit3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Grade 1 Learner Progress</h3>
+                    <p className="text-xs font-semibold text-slate-500">{selectedStudent ? formatLearnerName(selectedStudent) : ''} — Progress Notes for Terms 1, 2, & 3</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsG1ModalOpen(false)} 
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { termNum: 1, title: 'TERM 1 (UNANG TERMINO)', canDoKey: 'term1CanDo', toImproveKey: 'term1ToImprove' },
+                  { termNum: 2, title: 'TERM 2 (IKALAWANG TERMINO)', canDoKey: 'term2CanDo', toImproveKey: 'term2ToImprove' },
+                  { termNum: 3, title: 'TERM 3 (IKATLONG TERMINO)', canDoKey: 'term3CanDo', toImproveKey: 'term3ToImprove' }
+                ].map((t) => (
+                  <div key={t.termNum} className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
+                    <h4 className="text-xs font-black uppercase text-purple-700 dark:text-purple-400 tracking-wider">{t.title}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          What Your Child Can Do (Mga Nagagawa)
+                        </label>
+                        <textarea
+                          value={tempG1Remarks[t.canDoKey as keyof typeof tempG1Remarks] || ''}
+                          onChange={(e) => setTempG1Remarks(prev => ({ ...prev, [t.canDoKey]: e.target.value }))}
+                          rows={3}
+                          placeholder="Enter learner's achievements and progress..."
+                          className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          What Your Child Is Learning to Improve (Dapat Linangin)
+                        </label>
+                        <textarea
+                          value={tempG1Remarks[t.toImproveKey as keyof typeof tempG1Remarks] || ''}
+                          onChange={(e) => setTempG1Remarks(prev => ({ ...prev, [t.toImproveKey]: e.target.value }))}
+                          rows={3}
+                          placeholder="Enter skills and areas needing guidance..."
+                          className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setIsG1ModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveG1Progress}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-500/20 active:scale-95 transition-all"
+                >
+                  Save Progress
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

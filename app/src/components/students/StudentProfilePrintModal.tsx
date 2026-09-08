@@ -615,7 +615,7 @@ export function StudentProfilePrintModal({ student, section, onClose }: Props) {
                                         {schoolProfile.region || 'Region / Regional Office'}
                                     </div>
                                     <div className="text-[9px] font-extrabold text-slate-800 uppercase leading-none mt-0.5">
-                                        {schoolProfile.division ? `Schools Division of ${schoolProfile.division}` : 'Schools Division Office'}
+                                        {schoolProfile.division ? `Schools Division of ${(schoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim().toUpperCase()}` : 'Schools Division Office'}
                                     </div>
                                     <div className="text-[9px] font-black text-slate-700 tracking-wide uppercase mt-1">
                                         <span className="text-slate-950 font-extrabold">{departmentLabel}</span>

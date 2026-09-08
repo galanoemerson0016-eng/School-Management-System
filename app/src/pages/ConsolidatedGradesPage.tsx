@@ -1446,7 +1446,7 @@ const groupedSections = useMemo(() => {
 
             return (!isMapehComponent || norm === 'mapeh') && !isEcOrMkComponent;
         });
-    }, [subjects, sectionObj, schoolProfile.curriculum, selectedTerm]);
+    }, [subjects, sectionObj, schoolProfile.curriculum, selectedTerm, classRecords, gradingSheetRecords]);
 
 
 

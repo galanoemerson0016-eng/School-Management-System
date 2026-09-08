@@ -861,7 +861,22 @@ export function InstitutePage() {
                                                     {sec.section_grade_level || displayGradeLevel} • {sec.section_name || displaySection}
                                                 </h5>
                                                 <p className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold leading-snug">
-                                                    Adviser: <strong className="text-slate-800 dark:text-slate-200">{sec.adviser_name || displayAdviserName || 'Not Assigned'}</strong>
+                                                    Adviser: <strong className="text-slate-800 dark:text-slate-200">
+                                                        {(() => {
+                                                            const raw = (sec.adviser_name || '').trim();
+                                                            const isMock = !raw || 
+                                                                           raw.toLowerCase().includes('maria') || 
+                                                                           raw.toLowerCase().includes('santos') || 
+                                                                           raw.toLowerCase().includes('juan') || 
+                                                                           raw.toLowerCase().includes('recovered') || 
+                                                                           raw.toLowerCase() === 'tba' ||
+                                                                           (sec.adviser_id && sec.adviser_id.startsWith('adv-'));
+                                                            if (isMock && displayAdviserName && displayAdviserName.toLowerCase() !== 'admin') {
+                                                                return displayAdviserName;
+                                                            }
+                                                            return raw || displayAdviserName || 'Not Assigned';
+                                                        })()}
+                                                    </strong>
                                                 </p>
                                             </div>
                                         </div>

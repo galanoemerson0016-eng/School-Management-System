@@ -6,11 +6,46 @@ import {
   TEMPLATE_SSHS_G11,
   getSSHSCategory,
   getSSHSCluster,
+  resolveSSHSMetadata,
   populateSSHSWorkbookZip
 } from './sshs-excel-export';
 import type { Section, Subject, Student, SchoolProfile, ClassRecord, HPSRecord } from '../types';
 
-describe('SSHS Grade 11 E-Class Record Export Service', () => {
+function validateXmlWellFormedness(xmlStr: string, sheetName: string): boolean {
+  const tagRegex = /<(\/?[a-zA-Z0-9_:]+)([^>]*?)(\/?)>/g;
+  const stack: { name: string; index: number }[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(xmlStr)) !== null) {
+    const fullTag = match[0];
+    const tagName = match[1];
+    const isSelfClosing = match[3] === '/' || fullTag.endsWith('/>');
+
+    if (tagName.startsWith('?')) continue;
+    if (tagName.startsWith('!--')) continue;
+
+    if (tagName.startsWith('/')) {
+      const closeName = tagName.slice(1);
+      if (stack.length === 0) {
+        throw new Error(`[${sheetName}] Unexpected closing tag </${closeName}> at index ${match.index}`);
+      }
+      const top = stack.pop()!;
+      if (top.name !== closeName) {
+        throw new Error(`[${sheetName}] Mismatched tag at index ${match.index}: expected </${top.name}>, got </${closeName}>.`);
+      }
+    } else if (!isSelfClosing) {
+      stack.push({ name: tagName, index: match.index });
+    }
+  }
+
+  if (stack.length > 0) {
+    const unclosed = stack.map(s => s.name).join(' -> ');
+    throw new Error(`[${sheetName}] Unclosed tags: ${unclosed}`);
+  }
+  return true;
+}
+
+describe('SSHS Electronic Class Record Export Service (Grade 11 & Grade 12)', () => {
   const templatesDir = path.resolve(__dirname, '../../public/templates');
   const templatePath = path.join(templatesDir, TEMPLATE_SSHS_G11);
 
@@ -25,7 +60,7 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     grade_levels_offered: 'Grade 11, Grade 12'
   };
 
-  const mockSection: Section = {
+  const mockSectionG11: Section = {
     id: 'sec-11-stem',
     section_name: 'STEM 11-A',
     section_grade_level: 'Grade 11',
@@ -34,10 +69,27 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     track: 'Academic'
   };
 
-  const mockSubject: Subject = {
+  const mockSectionG12: Section = {
+    id: 'sec-12-humss',
+    section_name: 'HUMSS 12-B',
+    section_grade_level: 'Grade 12',
+    adviser_name: 'Maria Santos',
+    strand: 'HUMSS',
+    track: 'Academic'
+  };
+
+  const mockSubjectG11: Subject = {
     id: 'sub-calculus',
     subject_name: 'Basic Calculus',
     grade_level: 'Grade 11',
+    category: 'ACADEMIC',
+    cluster: 'SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS'
+  } as any;
+
+  const mockSubjectG12: Subject = {
+    id: 'sub-bio-4',
+    subject_name: 'Biology 4',
+    grade_level: 'Grade 12',
     category: 'ACADEMIC',
     cluster: 'SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS'
   } as any;
@@ -71,29 +123,39 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     }
   ];
 
-  it('correctly maps category and cluster for SSHS subjects', () => {
-    expect(getSSHSCategory(mockSubject)).toBe('SSHS - ACADEMIC');
-    expect(getSSHSCluster(mockSubject)).toBe('SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS');
-
+  it('correctly maps category, cluster, and terms for SSHS Grade 11 and Grade 12 subjects', () => {
+    // Grade 11 Core
     const coreSubject: Subject = {
       id: 'sub-oral-comm',
       subject_name: 'Effective Communication',
       grade_level: 'Grade 11',
       category: 'CORE'
     } as any;
-    expect(getSSHSCategory(coreSubject)).toBe('SSHS - CORE');
-    expect(getSSHSCluster(coreSubject)).toBe('CORE');
+    const metaCore = resolveSSHSMetadata(coreSubject, 11);
+    expect(metaCore.category).toBe('SSHS - CORE');
+    expect(metaCore.cluster).toBe('CORE');
+    expect(metaCore.terms).toBe(3);
 
+    // Grade 11 Academic Elective
+    expect(getSSHSCategory(mockSubjectG11, 11)).toBe('SSHS - ACADEMIC');
+    expect(getSSHSCluster(mockSubjectG11, 11)).toBe('SCIENCE, TECHNOLOGY, ENGINEERING, AND MATHEMATICS');
+
+    // Grade 12 Elective
+    const metaG12 = resolveSSHSMetadata(mockSubjectG12, 12);
+    expect(metaG12.category).toBe('SSHS - ACADEMIC');
+    expect(metaG12.terms).toBe(1);
+
+    // Tech-Pro Subject
     const techProSubject: Subject = {
-      id: 'sub-welding',
-      subject_name: 'Manual Metal Arc Welding',
+      id: 'sub-caregiving',
+      subject_name: 'Caregiving (Adult Care)',
       grade_level: 'Grade 11',
       category: 'TECH-PRO'
     } as any;
-    expect(getSSHSCategory(techProSubject)).toBe('SSHS - TECH-PRO');
+    expect(getSSHSCategory(techProSubject, 11)).toBe('SSHS - TECH-PRO');
   });
 
-  it('populates SSHS Grade 11 template with valid OpenXML structure and student scores', async () => {
+  it('populates SSHS Grade 11 template with valid OpenXML structure, pre-calculated score caches, and zero XML errors', async () => {
     if (!fs.existsSync(templatePath)) return;
 
     const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
@@ -120,8 +182,8 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
         school_year: '2026-2027',
         written_works: [20, 20, 20, 20, 20, 20, 20, 20, 20, 20],
         performance_tasks: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
-        quarterly_exam: 48,
-        summative_tests: [30, 30, 48]
+        quarterly_exam: 50,
+        summative_tests: [30, 30, 50]
       } as any
     ];
 
@@ -141,8 +203,8 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     const zip = await populateSSHSWorkbookZip(templateBuffer, {
       schoolProfile: mockSchoolProfile,
       schoolYear: '2026-2027',
-      section: mockSection,
-      subject: mockSubject,
+      section: mockSectionG11,
+      subject: mockSubjectG11,
       students: mockStudents,
       classRecords: mockClassRecords,
       hpsRecords: mockHpsRecords,
@@ -151,14 +213,32 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
       numTerms: 3
     });
 
-    // 1. INPUT DATA (sheet2.xml)
+    // 1. Verify XML well-formedness of all 7 sheets
+    const sheetFiles = [
+      'xl/worksheets/sheet1.xml',
+      'xl/worksheets/sheet2.xml',
+      'xl/worksheets/sheet3.xml',
+      'xl/worksheets/sheet4.xml',
+      'xl/worksheets/sheet5.xml',
+      'xl/worksheets/sheet6.xml',
+      'xl/worksheets/sheet7.xml'
+    ];
+
+    for (const sheetPath of sheetFiles) {
+      const xml = await zip.file(sheetPath)!.async('text');
+      expect(validateXmlWellFormedness(xml, sheetPath)).toBe(true);
+      expect(xml).not.toContain('t="e"');
+      expect(xml).not.toContain('>#VALUE!<');
+    }
+
+    // 2. INPUT DATA (sheet2.xml)
     const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
     expect(sheet2Xml).toContain('CALIBUNGAN HIGH SCHOOL');
     expect(sheet2Xml).toContain('STEM 11-A');
     expect(sheet2Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
     expect(sheet2Xml).toContain('CLARA, MARIA DE LOS SANTOS');
 
-    // 2. Term 1 (sheet3.xml)
+    // 3. Term 1 (sheet3.xml) scores and pre-computed values
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
     expect(sheet3Xml).toContain('r="D14"');
     expect(sheet3Xml).toContain('r="Q14"');
@@ -170,12 +250,23 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     expect(sheet3Xml).toContain('r="Q17"');
     expect(sheet3Xml).toContain('r="AD17"');
 
-    // Female student 1 in row 68:
-    expect(sheet3Xml).toContain('r="D68"');
-    expect(sheet3Xml).toContain('r="Q68"');
-    expect(sheet3Xml).toContain('r="AD68"');
+    // Formula cached values are populated: N17 (WW Total), O17 (WW PS), P17 (WW WS)
+    expect(sheet3Xml).toMatch(/<c r="N17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
+    expect(sheet3Xml).toMatch(/<c r="AM17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
 
-    // 3. Workbook calculation mode and clean definedNames
+    // B8 is cleared and never #VALUE!
+    expect(sheet3Xml).not.toContain('>#VALUE!<');
+
+    // 4. FINAL GRADES (sheet6.xml)
+    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    expect(sheet6Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
+    expect(sheet6Xml).toContain('CLARA, MARIA DE LOS SANTOS');
+    // Learner rows have pre-computed values in E (Term 1)
+    expect(sheet6Xml).toMatch(/<c r="E17"[^>]*><f[^>]*>.*?<\/f><v>\d+<\/v><\/c>/);
+    // Final grade formula reflects DepEd's updated ROUND(AVERAGE(E17:G17),0)
+    expect(sheet6Xml).toContain('ROUND(AVERAGE(E17:G17),0)');
+
+    // 5. Workbook calculation mode and clean definedNames
     const wbXml = await zip.file('xl/workbook.xml')!.async('text');
     expect(wbXml).toContain('fullCalcOnLoad="1"');
     expect(wbXml).not.toContain('#REF!');
@@ -197,8 +288,8 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     const zip = await populateSSHSWorkbookZip(templateBuffer, {
       schoolProfile: mockSchoolProfile,
       schoolYear: '2026-2027',
-      section: mockSection,
-      subject: mockSubject,
+      section: mockSectionG11,
+      subject: mockSubjectG11,
       students: unsortedStudents,
       classRecords: [],
       hpsRecords: [],
@@ -206,9 +297,6 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     });
 
     const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
-    // Row 11: ABAD, AARON
-    // Row 12: BAUTISTA, BEN C
-    // Row 13: ZULUETA, ZACK
     const posAbad = sheet2Xml.indexOf('ABAD, AARON');
     const posBautista = sheet2Xml.indexOf('BAUTISTA, BEN C');
     const posZulueta = sheet2Xml.indexOf('ZULUETA, ZACK');
@@ -216,43 +304,141 @@ describe('SSHS Grade 11 E-Class Record Export Service', () => {
     expect(posBautista).toBeGreaterThan(posAbad);
     expect(posZulueta).toBeGreaterThan(posBautista);
 
-    // Female: Row 11 -> ALVAREZ, BEA before ZAMORA, ZARA
     const posAlvarez = sheet2Xml.indexOf('ALVAREZ, BEA');
     const posZamora = sheet2Xml.indexOf('ZAMORA, ZARA');
     expect(posAlvarez).toBeGreaterThan(-1);
     expect(posZamora).toBeGreaterThan(posAlvarez);
   });
 
-  it('populates student names, headers, and clean B8 in Term sheets and Final Grades sheet', async () => {
+  it('handles Grade 12 SSHS Elective and sets INCORRECT SHEET on inactive term sheets', async () => {
     if (!fs.existsSync(templatePath)) return;
     const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
 
+    // Biology 4 is a 1-term elective in Grade 12 (offered in Term 1)
     const zip = await populateSSHSWorkbookZip(templateBuffer, {
       schoolProfile: mockSchoolProfile,
       schoolYear: '2026-2027',
-      section: mockSection,
-      subject: mockSubject,
+      section: mockSectionG12,
+      subject: mockSubjectG12,
       students: mockStudents,
       classRecords: [],
       hpsRecords: [],
-      teacherName: 'EMERSON M. GALANO'
+      teacherName: 'MARIA SANTOS',
+      termBlock: 'FIRST TERM',
+      numTerms: 1
     });
 
+    // 1. INPUT DATA (sheet2.xml) reflects Grade 12
+    const sheet2Xml = await zip.file('xl/worksheets/sheet2.xml')!.async('text');
+    expect(sheet2Xml).toMatch(/<c r="F24"[^>]*><v>12<\/v><\/c>/);
+    expect(sheet2Xml).toContain('HUMSS 12-B');
+
+    // 2. Term 1 (active) has empty B8 cached value
     const sheet3Xml = await zip.file('xl/worksheets/sheet3.xml')!.async('text');
-    // Male student in row 17
-    expect(sheet3Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
-    // Female student in row 68
-    expect(sheet3Xml).toContain('CLARA, MARIA DE LOS SANTOS');
-    // B8 is cleared and never #VALUE!
-    expect(sheet3Xml).not.toContain('>#VALUE!<');
+    const b8InSheet3 = sheet3Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet3).not.toContain('<v>INCORRECT SHEET');
+    expect(b8InSheet3).toContain('<v/>');
 
-    // Headers in sheet 3
-    expect(sheet3Xml).toContain('STEM 11-A');
-    expect(sheet3Xml).toContain('EMERSON M. GALANO');
+    // 3. Term 2 & Term 3 (inactive) display official INCORRECT SHEET warning in B8 cached value
+    const sheet4Xml = await zip.file('xl/worksheets/sheet4.xml')!.async('text');
+    const b8InSheet4 = sheet4Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet4).toContain('<v>INCORRECT SHEET. Do not use this sheet to input data.</v>');
 
-    // Final Grades sheet (sheet6.xml)
-    const sheet6Xml = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
-    expect(sheet6Xml).toContain('DELA CRUZ, JUAN PROTACIO JR.');
-    expect(sheet6Xml).toContain('CLARA, MARIA DE LOS SANTOS');
+    const sheet5Xml = await zip.file('xl/worksheets/sheet5.xml')!.async('text');
+    const b8InSheet5 = sheet5Xml.match(/<c r="B8"[^>]*>[\s\S]*?<\/c>/)?.[0] || '';
+    expect(b8InSheet5).toContain('<v>INCORRECT SHEET. Do not use this sheet to input data.</v>');
+
+    // 4. HELPER sheet has F7 set to 12
+    const sheet7Xml = await zip.file('xl/worksheets/sheet7.xml')!.async('text');
+    expect(sheet7Xml).toMatch(/<c r="F7"[^>]*><v>12<\/v><\/c>/);
+    expect(sheet7Xml).not.toContain('t="e"');
+  });
+
+  it('inspects sheet6 rows when only 1 male and 1 female exist', async () => {
+    if (!fs.existsSync(templatePath)) return;
+    const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
+    const students: Student[] = [
+      { lrn: '101101202601', first_name: 'DAVID ALEXANDER', last_name: 'LICAUCO', middle_name: 'L', gender: 'Male' } as any,
+      { lrn: '101101202602', first_name: 'BARBARA', last_name: 'FORTEZA', middle_name: 'A', gender: 'Female' } as any
+    ];
+
+    const zip = await populateSSHSWorkbookZip(templateBuffer, {
+      schoolProfile: null,
+      schoolYear: '2026-2027',
+      section: { id: '1', section_name: 'STEM - NEWTON', section_grade_level: 'Grade 11' } as any,
+      subject: { id: '2', subject_name: 'Effective Communication', grade_level: 'Grade 11' } as any,
+      students,
+      classRecords: [],
+      hpsRecords: [],
+      teacherName: 'EMERSON M. GALANO',
+      numTerms: 3
+    });
+
+    const s6 = await zip.file('xl/worksheets/sheet6.xml')!.async('text');
+    
+    // Male row 17 (individual formula)
+    const r17 = s6.match(/<row[^>]*r="17"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r17).toContain('ROUND(AVERAGE(E17:G17),0)');
+    expect(r17).toContain('LICAUCO, DAVID ALEXANDER L');
+
+    // Male row 18 (shared formula master)
+    const r18 = s6.match(/<row[^>]*r="18"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r18).toContain('si="0"');
+    expect(r18).toContain('ROUND(AVERAGE(E18:G18),0)');
+
+    // Male row 19 (shared formula slave - must retain si="0" and not be stripped)
+    const r19 = s6.match(/<row[^>]*r="19"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r19).toContain('<f t="shared" si="0"/>');
+
+    // Female row 68 (individual formula)
+    const r68 = s6.match(/<row[^>]*r="68"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r68).toContain('ROUND(AVERAGE(E68:G68),0)');
+    expect(r68).toContain('FORTEZA, BARBARA A');
+
+    // Female row 69 (shared formula master)
+    const r69 = s6.match(/<row[^>]*r="69"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r69).toContain('si="2"');
+
+    // Female row 70 (shared formula slave)
+    const r70 = s6.match(/<row[^>]*r="70"[^>]*>[\s\S]*?<\/row>/)?.[0] || '';
+    expect(r70).toContain('<f t="shared" si="2"/>');
+  });
+
+  it('verifies updated DepEd weights for Humanities and Social Sciences (20/50/30) vs Studio Arts (20/60/20)', () => {
+    // Humanities & Social Sciences: 20/50/30
+    const humssSubj = { subject_name: 'Citizenship and Civic Engagement' } as Subject;
+    const humssMeta = resolveSSHSMetadata(humssSubj, 11);
+    expect(humssMeta.weights.ww).toBe(20);
+    expect(humssMeta.weights.pt).toBe(50);
+    expect(humssMeta.weights.ex).toBe(30);
+
+    const litSubj = { subject_name: 'Contemporary Literature 1' } as Subject;
+    const litMeta = resolveSSHSMetadata(litSubj, 11);
+    expect(litMeta.weights.pt).toBe(50);
+    expect(litMeta.weights.ex).toBe(30);
+
+    const filSubj = { subject_name: 'Filipino 1 (Wika at Komunikasyon sa Akademikong Filipino)' } as Subject;
+    const filMeta = resolveSSHSMetadata(filSubj, 11);
+    expect(filMeta.weights.pt).toBe(50);
+    expect(filMeta.weights.ex).toBe(30);
+
+    const philSubj = { subject_name: 'Introduction to the Philosophy of the Human Person' } as Subject;
+    const philMeta = resolveSSHSMetadata(philSubj, 11);
+    expect(philMeta.weights.pt).toBe(50);
+    expect(philMeta.weights.ex).toBe(30);
+
+    // Studio / Performance Arts: remain 20/60/20
+    const artSubj = { subject_name: 'Art Criticism and Creative Markets' } as Subject;
+    const artMeta = resolveSSHSMetadata(artSubj, 11);
+    expect(artMeta.weights.ww).toBe(20);
+    expect(artMeta.weights.pt).toBe(60);
+    expect(artMeta.weights.ex).toBe(20);
+
+    const danceSubj = { subject_name: 'Creative Industries - Dance' } as Subject;
+    const danceMeta = resolveSSHSMetadata(danceSubj, 11);
+    expect(danceMeta.weights.ww).toBe(20);
+    expect(danceMeta.weights.pt).toBe(60);
+    expect(danceMeta.weights.ex).toBe(20);
   });
 });
+

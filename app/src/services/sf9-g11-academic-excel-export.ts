@@ -868,6 +868,16 @@ export async function populateGrade11AcademicTemplateBuffer(
     return extractGrade11AcademicSubjectGrades(studentGradesRecord, subjects);
   };
 
+  let cleanMuniCity = (schoolProfile?.municipality || schoolProfile?.city || '').trim();
+  if (!cleanMuniCity && schoolProfile?.district) {
+    const extracted = schoolProfile.district.replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '').trim();
+    if (extracted) cleanMuniCity = extracted;
+  }
+  if (!cleanMuniCity && schoolProfile?.province) {
+    cleanMuniCity = schoolProfile.province.trim();
+  }
+  cleanMuniCity = (cleanMuniCity || 'VICTORIA').toUpperCase();
+
   // -------------------------------------------------------------------------
   // 1. Sheet 2: INPUT DATA (xl/worksheets/sheet2.xml)
   // -------------------------------------------------------------------------
@@ -878,7 +888,7 @@ export async function populateGrade11AcademicTemplateBuffer(
     const inputDataCells: Record<string, string | number> = {
       'F10': cleanRegion,
       'F11': cleanDivision,
-      'F12': (schoolProfile?.city || schoolProfile?.municipality || '').trim(),
+      'F12': cleanMuniCity,
       'F13': cleanDistrict,
       'F15': cleanSchoolId,
       'F16': cleanSchoolName,
@@ -994,7 +1004,7 @@ export async function populateGrade11AcademicTemplateBuffer(
 
     // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
     sXml = sXml.replace(
-      /ROUND\(\([A-Z0-9\+]+?\)\/7,0\)/g,
+      /ROUND\(\([A-Z0-9+]+?\)\/7,0\)/g,
       (match) => {
         const rowMatch = match.match(/[A-Z](\d+)/);
         if (rowMatch) {

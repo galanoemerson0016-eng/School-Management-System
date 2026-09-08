@@ -10,6 +10,7 @@ import JSZip from 'jszip';
 import type { Student, SchoolProfile } from '../types';
 import type { PaceRatingDescriptor } from '../types/pace';
 import { formatLearnerName } from '../utils/student-name';
+import { G1_PACE_LOOKUP_MAP } from './g1-pace-lookup-map';
 
 export interface SF9Grade1Remarks {
   term1CanDo?: string;
@@ -44,6 +45,18 @@ export interface SF9Grade1ExcelExportOptions {
   };
   sectionStudents?: Student[];
   getStudentRemarks?: (lrn: string) => SF9Grade1Remarks | undefined;
+  getStudentAttendance?: (student: Student) => {
+    months: string[];
+    schoolDays: number[];
+    daysPresent: number[];
+    daysAbsent: number[];
+  } | undefined;
+  getStudentPaceRatings?: (lrn: string) => {
+    reading?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    language?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    math?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+    gmrcMakabansa?: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }>;
+  } | undefined;
   paceSubjectFilter?: 'reading' | 'language' | 'math' | 'gmrc-makabansa' | 'all';
 }
 
@@ -103,6 +116,9 @@ export async function fetchGrade1TemplateBuffer(): Promise<ArrayBuffer> {
   const timestamp = Date.now();
   
   const templateUrls = [
+    `${cleanBase}templates/UPDATED%20[Grade%201]%20ECR,%20PACE%20Form,%20and%20SF9.xlsx?t=${timestamp}`,
+    `/templates/UPDATED%20[Grade%201]%20ECR,%20PACE%20Form,%20and%20SF9.xlsx?t=${timestamp}`,
+    `templates/UPDATED%20[Grade%201]%20ECR,%20PACE%20Form,%20and%20SF9.xlsx?t=${timestamp}`,
     `${cleanBase}templates/G1%20School%20Form%209%20with%20PACE%20Form%20(SY%2026-27).xlsx?t=${timestamp}`,
     `/templates/G1%20School%20Form%209%20with%20PACE%20Form%20(SY%2026-27).xlsx?t=${timestamp}`,
     `templates/G1%20School%20Form%209%20with%20PACE%20Form%20(SY%2026-27).xlsx?t=${timestamp}`,
@@ -132,18 +148,44 @@ export async function fetchGrade1TemplateBuffer(): Promise<ArrayBuffer> {
   throw new Error('Failed to fetch valid Grade 1 School Form 9 with PACE Form template.');
 }
 
+export const BOSY_DATE_2026 = new Date(2026, 5, 8); // June 8, 2026
+export const EOSY_DATE_2027 = new Date(2027, 3, 8); // April 8, 2027
+export const BOSY_EXCEL_DATE = 'DATE(2026,6,8)';
+export const EOSY_EXCEL_DATE = 'DATE(2027,4,8)';
+
+export function parseBirthDateParts(birthday?: string): { year: number; month: number; day: number } | null {
+  if (!birthday) return null;
+  const trimmed = birthday.trim();
+  const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymdMatch) {
+    return { year: parseInt(ymdMatch[1], 10), month: parseInt(ymdMatch[2], 10), day: parseInt(ymdMatch[3], 10) };
+  }
+  const mdyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (mdyMatch) {
+    return { year: parseInt(mdyMatch[3], 10), month: parseInt(mdyMatch[1], 10), day: parseInt(mdyMatch[2], 10) };
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
 /**
- * Helper to compute age in years and months
+ * Helper to compute age in years and months (defaulting to BoSY: June 8, 2026)
  */
-function calculateAge(birthday?: string, asOfDate: Date = new Date()): { years: number; months: number } {
-  if (!birthday) return { years: 0, months: 0 };
-  const bdate = new Date(birthday);
-  if (isNaN(bdate.getTime())) return { years: 0, months: 0 };
+function calculateAge(birthday?: string, asOfDate: Date = BOSY_DATE_2026): { years: number; months: number } {
+  const parts = parseBirthDateParts(birthday);
+  if (!parts) return { years: 0, months: 0 };
 
-  let years = asOfDate.getFullYear() - bdate.getFullYear();
-  let months = asOfDate.getMonth() - bdate.getMonth();
+  const asOfYear = asOfDate.getFullYear();
+  const asOfMonth = asOfDate.getMonth() + 1;
+  const asOfDay = asOfDate.getDate();
 
-  if (asOfDate.getDate() < bdate.getDate()) {
+  let years = asOfYear - parts.year;
+  let months = asOfMonth - parts.month;
+
+  if (asOfDay < parts.day) {
     months--;
   }
 
@@ -153,6 +195,99 @@ function calculateAge(birthday?: string, asOfDate: Date = new Date()): { years: 
   }
 
   return { years: Math.max(0, years), months: Math.max(0, months) };
+}
+
+export function birthDateToExcelSerial(birthday?: string): number | null {
+  const parts = parseBirthDateParts(birthday);
+  if (!parts) return null;
+  const epoch = new Date(Date.UTC(1899, 11, 30));
+  const utcDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  return Math.round((utcDate.getTime() - epoch.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function escapeFormulaXml(f: string): string {
+  return f.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+const getAgeFormula = (r: number, targetExcelDate: string, unit: 'Y' | 'YM') =>
+  `IF(H${r}="","",DATEDIF(IF(ISNUMBER(H${r}),H${r},DATE(IF(MID(H${r},3,1)="/",RIGHT(H${r},4),LEFT(H${r},4)),IF(MID(H${r},3,1)="/",LEFT(H${r},2),MID(H${r},6,2)),IF(MID(H${r},3,1)="/",MID(H${r},4,2),RIGHT(H${r},2)))),${targetExcelDate},"${unit}"))`;
+
+function colNumberToLetters(n: number): string {
+  let s = '';
+  while (n > 0) {
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - m) / 26);
+  }
+  return s;
+}
+
+function lettersToColNumber(letters: string): number {
+  let n = 0;
+  for (let i = 0; i < letters.length; i++) {
+    n = n * 26 + (letters.charCodeAt(i) - 64);
+  }
+  return n;
+}
+
+/**
+ * Update or insert a cell with an explicit formula and optional cached value in OpenXML
+ */
+function setCellFormulaInSheetXml(
+  sheetXml: string,
+  cellRef: string,
+  formula: string,
+  value?: number | string | null,
+  isNumeric = true,
+  defaultStyle = '704'
+): string {
+  const escapedFormula = escapeFormulaXml(formula);
+  let valTag = '<v/>';
+  let tAttr = '';
+  if (value !== undefined && value !== null && value !== '') {
+    if (isNumeric && typeof value === 'number' && !isNaN(value)) {
+      valTag = `<v>${value}</v>`;
+    } else {
+      tAttr = ' t="str"';
+      valTag = `<v>${escapeXml(value)}</v>`;
+    }
+  }
+
+  // 1. Self-closing cell
+  const selfClosingRegex = new RegExp(`<c\\s+r="${cellRef}"([^>]*?)\\/>`);
+  if (selfClosingRegex.test(sheetXml)) {
+    return sheetXml.replace(selfClosingRegex, (_match, attrs) => {
+      const styleMatch = attrs.match(/\s+s="(\d+)"/);
+      const styleId = styleMatch ? styleMatch[1] : defaultStyle;
+      const styleAttr = styleId ? ` s="${styleId}"` : '';
+      return `<c r="${cellRef}"${styleAttr}${tAttr}><f>${escapedFormula}</f>${valTag}</c>`;
+    });
+  }
+
+  // 2. Full cell
+  const fullCellRegex = new RegExp(`<c\\s+r="${cellRef}"[\\s\\S]*?<\\/c>`);
+  if (fullCellRegex.test(sheetXml)) {
+    return sheetXml.replace(fullCellRegex, (match) => {
+      const openTag = match.substring(0, match.indexOf('>') + 1);
+      const styleMatch = openTag.match(/\s+s="(\d+)"/);
+      const styleId = styleMatch ? styleMatch[1] : defaultStyle;
+      const styleAttr = styleId ? ` s="${styleId}"` : '';
+      return `<c r="${cellRef}"${styleAttr}${tAttr}><f>${escapedFormula}</f>${valTag}</c>`;
+    });
+  }
+
+  // 3. Row exists, cell absent
+  const rowNum = cellRef.replace(/\D/g, '');
+  const rowRegex = new RegExp(`(<row\\s+r="${rowNum}"[^>]*>)([\\s\\S]*?)(<\\/row>)`);
+  if (rowRegex.test(sheetXml)) {
+    return sheetXml.replace(rowRegex, (_m, p1, p2, p3) => {
+      const styleAttr = defaultStyle ? ` s="${defaultStyle}"` : '';
+      const cellTag = `<c r="${cellRef}"${styleAttr}${tAttr}><f>${escapedFormula}</f>${valTag}</c>`;
+      return `${p1}${p2}${cellTag}${p3}`;
+    });
+  }
+
+  return sheetXml;
 }
 
 /**
@@ -169,16 +304,28 @@ function escapeXml(str: unknown): string {
 }
 
 /**
- * Update or insert a cell value in an OpenXML worksheet string while preserving existing styles.
+ * Update or insert a cell value in an OpenXML worksheet string while preserving existing styles and formulas.
  */
-function updateCellInSheetXml(sheetXml: string, cellRef: string, value: string | number, isNumeric = false, forceStyle?: string): string {
+function updateCellInSheetXml(
+  sheetXml: string, 
+  cellRef: string, 
+  value: string | number, 
+  isNumeric = false, 
+  forceStyle?: string,
+  preserveExistingFormula = true
+): string {
   const formattedVal = escapeXml(value);
   let newInner = '';
   let newTag = '';
 
+  const isEmpty = value === '' || value === null || value === undefined;
+
   if (isNumeric && typeof value === 'number' && !isNaN(value)) {
     newTag = `<c r="${cellRef}"`;
     newInner = `<v>${value}</v>`;
+  } else if (isEmpty) {
+    newTag = `<c r="${cellRef}"`;
+    newInner = '';
   } else {
     newTag = `<c r="${cellRef}" t="inlineStr"`;
     newInner = `<is><t xml:space="preserve">${formattedVal}</t></is>`;
@@ -191,6 +338,9 @@ function updateCellInSheetXml(sheetXml: string, cellRef: string, value: string |
       const styleMatch = attrs.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
+      if (isEmpty) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
       return `${newTag}${styleAttr}>${newInner}</c>`;
     });
   }
@@ -203,7 +353,38 @@ function updateCellInSheetXml(sheetXml: string, cellRef: string, value: string |
       const styleMatch = openTag.match(/\s+s="(\d+)"/);
       const styleId = forceStyle || (styleMatch ? styleMatch[1] : '');
       const styleAttr = styleId ? ` s="${styleId}"` : '';
+
+      const formulaMatch = match.match(/<f[^>]*>([\s\S]*?)<\/f>/);
+      if (preserveExistingFormula && formulaMatch && formulaMatch[1] !== '#REF!') {
+        const formulaTag = formulaMatch[0];
+        if (isEmpty) {
+          return `<c r="${cellRef}"${styleAttr}>${formulaTag}<v/></c>`;
+        }
+        if (isNumeric && typeof value === 'number' && !isNaN(value)) {
+          return `<c r="${cellRef}"${styleAttr}>${formulaTag}<v>${value}</v></c>`;
+        }
+        return `<c r="${cellRef}" t="str"${styleAttr}>${formulaTag}<v>${formattedVal}</v></c>`;
+      }
+
+      if (isEmpty) {
+        return `<c r="${cellRef}"${styleAttr}/>`;
+      }
       return `${newTag}${styleAttr}>${newInner}</c>`;
+    });
+  }
+
+  // 3. Check if row exists but cell is absent: insert into <row r="num">
+  const rowNum = cellRef.replace(/\D/g, '');
+  const rowRegex = new RegExp(`(<row\\s+r="${rowNum}"[^>]*>)([\\s\\S]*?)(<\\/row>)`);
+  if (rowRegex.test(sheetXml)) {
+    return sheetXml.replace(rowRegex, (_m, p1, p2, p3) => {
+      const styleAttr = forceStyle ? ` s="${forceStyle}"` : '';
+      if (isEmpty) {
+        const cellTag = `<c r="${cellRef}"${styleAttr}/>`;
+        return `${p1}${p2}${cellTag}${p3}`;
+      }
+      const cellTag = `${newTag}${styleAttr}>${newInner}</c>`;
+      return `${p1}${p2}${cellTag}${p3}`;
     });
   }
 
@@ -496,6 +677,785 @@ const MAKABANSA_ROW_MAP: Record<string, number> = {
 };
 
 /**
+ * Helper to discover sheet mapping (e.g. "INPUT DATA" -> "xl/worksheets/sheet2.xml")
+ */
+async function getWorkbookSheetMap(zip: JSZip): Promise<Record<string, string>> {
+  const sheetMap: Record<string, string> = {};
+  const wbFile = zip.file('xl/workbook.xml');
+  const relFile = zip.file('xl/_rels/workbook.xml.rels');
+  if (!wbFile || !relFile) return sheetMap;
+
+  const wbXml = await wbFile.async('string');
+  const relXml = await relFile.async('string');
+  const sRegex = /<sheet\s+name="([^"]+)"\s+sheetId="(\d+)"\s+r:id="([^"]+)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = sRegex.exec(wbXml)) !== null) {
+    const [, name, , rId] = match;
+    const relMatch = relXml.match(new RegExp(`<Relationship\\s+Id="${rId}"[^>]*Target="([^"]+)"`));
+    if (relMatch) {
+      const target = ('xl/' + relMatch[1]).replace('xl/xl/', 'xl/');
+      const unescapedName = name.replace(/&amp;/g, '&');
+      sheetMap[unescapedName] = target;
+    }
+  }
+  return sheetMap;
+}
+
+/**
+ * Populate the newly released 17-sheet unified master workbook:
+ * "UPDATED [Grade 1] ECR, PACE Form, and SF9.xlsx"
+ * Preserving all formulas, formatting, password protection, and OpenXML layout.
+ */
+async function populateUpdatedAllInOneGrade1Workbook(
+  zip: JSZip,
+  opts: SF9Grade1ExcelExportOptions
+): Promise<ArrayBuffer> {
+  const sheetMap = await getWorkbookSheetMap(zip);
+
+  // 1. Remove stale calcChain & external links to prevent Excel repair popups
+  zip.remove('xl/calcChain.xml');
+  zip.remove('xl/externalLinks/externalLink1.xml');
+  zip.remove('xl/externalLinks/_rels/externalLink1.xml.rels');
+
+  const wbRel = zip.file('xl/_rels/workbook.xml.rels');
+  if (wbRel) {
+    let relXml = await wbRel.async('string');
+    relXml = relXml.replace(/<Relationship[^>]*Target="calcChain\.xml"[^>]*\/>/g, '');
+    relXml = relXml.replace(/<Relationship[^>]*Target="externalLinks\/[^"]*"[^>]*\/>/g, '');
+    zip.file('xl/_rels/workbook.xml.rels', relXml);
+  }
+
+  const ctFile = zip.file('[Content_Types].xml');
+  if (ctFile) {
+    let ctXml = await ctFile.async('string');
+    ctXml = ctXml.replace(/<Override[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, '');
+    ctXml = ctXml.replace(/<Override[^>]*PartName="\/xl\/externalLinks\/[^"]*"[^>]*\/>/g, '');
+    zip.file('[Content_Types].xml', ctXml);
+  }
+
+  // 1b. Force full calculation on load to ensure all formula linkages evaluate immediately
+  const wbFile = zip.file('xl/workbook.xml');
+  if (wbFile) {
+    let wbXml = await wbFile.async('string');
+    if (wbXml.includes('<calcPr')) {
+      wbXml = wbXml.replace(/<calcPr([^>]*?)(?:\/?>|>[\s\S]*?<\/calcPr>)/g, (_match, attrs) => {
+        // Remove existing attributes if they are already present to avoid duplication
+        const cleanAttrs = attrs.replace(/\s*fullCalcOnLoad="\d+"/g, '')
+                              .replace(/\s*forceFullCalc="\d+"/g, '');
+        return `<calcPr${cleanAttrs} fullCalcOnLoad="1" forceFullCalc="1"/>`;
+      });
+      // Fallback if <calcPr> was missing entirely (rare, but just in case)
+      if (!wbXml.includes('fullCalcOnLoad="1"')) {
+        wbXml = wbXml.replace('</workbook>', '<calcPr calcId="191029" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>');
+      }
+    }
+    zip.file('xl/workbook.xml', wbXml);
+  }
+
+  // 2. Fix DepEd Template Bug in TERM 1-3 MATHEMATICS (sheet14.xml):
+  // Female learners in rows 67-116 incorrectly referenced Q12..Q61 instead of Q11..Q60
+  const mathSheetPath = sheetMap['TERM 1-3 MATHEMATICS'] || 'xl/worksheets/sheet14.xml';
+  const mathFile = zip.file(mathSheetPath);
+  if (mathFile) {
+    let mXml = await mathFile.async('string');
+    mXml = mXml.replace(
+      /<c\s+r="C(\d+)"([^>]*)><f>IF\('INPUT DATA'!Q(\d+)=""\s*,\s*""\s*,\s*'INPUT DATA'!Q\d+\)<\/f>/g,
+      (orig, rowStr, attrs) => {
+        const rowNum = parseInt(rowStr, 10);
+        if (rowNum >= 67 && rowNum <= 116) {
+          const correctQ = rowNum - 56;
+          return `<c r="C${rowNum}"${attrs}><f>IF('INPUT DATA'!Q${correctQ}="","",'INPUT DATA'!Q${correctQ})</f>`;
+        }
+        return orig;
+      }
+    );
+    zip.file(mathSheetPath, mXml);
+  }
+
+  // 3. Prepare learners list: Males first, Females second, sorted alphabetically by Last Name
+  const sectionStudents = (opts.sectionStudents && opts.sectionStudents.length > 0)
+    ? opts.sectionStudents
+    : [opts.student];
+
+  const isMale = (s: Student) => {
+    const g = (s.gender || '').toUpperCase();
+    return g === 'MALE' || g === 'M';
+  };
+
+  const sortFn = (a: Student, b: Student) => {
+    const lastA = (a.last_name || '').toUpperCase();
+    const lastB = (b.last_name || '').toUpperCase();
+    if (lastA !== lastB) return lastA.localeCompare(lastB);
+    return (a.first_name || '').toUpperCase().localeCompare((b.first_name || '').toUpperCase());
+  };
+
+  const males = sectionStudents.filter(isMale).sort(sortFn);
+  const females = sectionStudents.filter(s => !isMale(s)).sort(sortFn);
+
+  const cleanDiv = (opts.schoolProfile.division || '')
+    .replace(/schools division office of/i, '')
+    .replace(/division of/i, '')
+    .replace(/schools division/i, '')
+    .trim().toUpperCase();
+
+  let distVal = (opts.schoolProfile.district || '').trim();
+  if (distVal) {
+    distVal = distVal.toUpperCase().includes('DISTRICT') ? distVal.toUpperCase() : `${distVal.toUpperCase()} DISTRICT`;
+  }
+  let muniCity = (opts.schoolProfile.municipality || opts.schoolProfile.city || '').trim();
+  if (!muniCity && opts.schoolProfile.district) {
+    const extracted = opts.schoolProfile.district
+      .replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '')
+      .trim();
+    if (extracted) {
+      muniCity = extracted;
+    }
+  }
+  muniCity = (muniCity || 'VICTORIA').toUpperCase();
+  let province = (opts.schoolProfile.province || '').trim();
+  if (!province && opts.schoolProfile.division) {
+    const extractedProv = opts.schoolProfile.division
+      .replace(/schools division office of/i, '')
+      .replace(/division of/i, '')
+      .replace(/schools division/i, '')
+      .replace(/\bprovince\b/i, '')
+      .trim();
+    if (extractedProv && extractedProv.toUpperCase() !== muniCity) {
+      province = extractedProv;
+    }
+  }
+  province = (province || 'TARLAC').toUpperCase();
+  const muniCityProv = [muniCity, province].filter(Boolean).join(', ') || muniCity;
+
+  const profileAdviser = (opts.schoolProfile?.adviser_name || '').trim();
+  let rawAdviser = (opts.adviser || '').trim();
+  const isMockAdviser = !rawAdviser || 
+                        rawAdviser.toLowerCase().includes('maria') || 
+                        rawAdviser.toLowerCase().includes('santos') || 
+                        rawAdviser.toLowerCase().includes('juan') || 
+                        rawAdviser.toLowerCase().includes('recovered') || 
+                        rawAdviser.toLowerCase() === 'tba';
+
+  if ((isMockAdviser || !rawAdviser) && profileAdviser && profileAdviser.toLowerCase() !== 'admin') {
+    rawAdviser = profileAdviser;
+  } else if (!rawAdviser) {
+    rawAdviser = profileAdviser;
+  }
+
+  const rawSection = (opts.section || opts.student?.student_section || 'MATATAG').trim();
+  const rawPrincipal = (opts.principal || opts.schoolProfile?.head_name || 'JUAN A. DELA CRUZ').trim();
+
+  // 4. Populate INPUT DATA (sheet2.xml)
+  const inputSheetPath = sheetMap['INPUT DATA'] || 'xl/worksheets/sheet2.xml';
+  const inputFile = zip.file(inputSheetPath);
+  if (inputFile) {
+    let inputXml = await inputFile.async('string');
+    const inputCells: Record<string, string | number> = {
+      'F10': opts.schoolProfile.region || '',
+      'F11': cleanDiv,
+      'F12': muniCity,
+      'F13': distVal,
+      'F15': opts.schoolProfile.school_id || '',
+      'F16': (opts.schoolProfile.name || '').toUpperCase(),
+      'F18': opts.schoolYear,
+      'F19': rawPrincipal.toUpperCase(),
+      'F26': rawAdviser.toUpperCase(),
+      'F27': (opts.gradeLevel || 'Grade 1'),
+      'F28': rawSection.toUpperCase()
+    };
+
+    // Males (Rows 11 to 60)
+    for (let i = 0; i < 50; i++) {
+      const r = 11 + i;
+      const st = males[i];
+      if (st) {
+        inputCells[`K${r}`] = i + 1;
+        inputCells[`L${r}`] = formatLearnerName(st).toUpperCase();
+        inputCells[`M${r}`] = st.lrn || '';
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        inputCells[`N${r}`] = bSerial !== null ? bSerial : formatDateToMMDDYYYY(st.birthday);
+      } else {
+        inputCells[`K${r}`] = '';
+        inputCells[`L${r}`] = '';
+        inputCells[`M${r}`] = '';
+        inputCells[`N${r}`] = '';
+      }
+    }
+
+    // Females (Rows 11 to 60)
+    for (let i = 0; i < 50; i++) {
+      const r = 11 + i;
+      const st = females[i];
+      if (st) {
+        inputCells[`P${r}`] = i + 1;
+        inputCells[`Q${r}`] = formatLearnerName(st).toUpperCase();
+        inputCells[`R${r}`] = st.lrn || '';
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        inputCells[`S${r}`] = bSerial !== null ? bSerial : formatDateToMMDDYYYY(st.birthday);
+      } else {
+        inputCells[`P${r}`] = '';
+        inputCells[`Q${r}`] = '';
+        inputCells[`R${r}`] = '';
+        inputCells[`S${r}`] = '';
+      }
+    }
+
+    inputXml = updateCellsBatch(inputXml, inputCells);
+    zip.file(inputSheetPath, inputXml);
+  }
+
+  // 5. Populate G1 - ATTENDANCE SUMMARY (sheet17.xml)
+  const attSheetPath = sheetMap['G1 - ATTENDANCE SUMMARY'] || 'xl/worksheets/sheet17.xml';
+  const attFile = zip.file(attSheetPath);
+  if (attFile) {
+    let attXml = await attFile.async('string');
+    const attCells: Record<string, string | number> = {};
+    const monthCols = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
+
+    const getAttendanceForStudent = (st: Student) => {
+      if (opts.getStudentAttendance) {
+        const res = opts.getStudentAttendance(st);
+        if (res) return res;
+      }
+      if (st.lrn === opts.student.lrn && opts.attendance) {
+        return opts.attendance;
+      }
+      return null;
+    };
+
+    const sampleAtt = opts.attendance || (opts.getStudentAttendance ? opts.getStudentAttendance(opts.student) : null);
+    if (sampleAtt && sampleAtt.schoolDays && sampleAtt.schoolDays.length > 0) {
+      const schoolDays12 = [
+        sampleAtt.schoolDays[0] || 16,
+        sampleAtt.schoolDays[1] || 23,
+        sampleAtt.schoolDays[2] || 19,
+        Math.ceil((sampleAtt.schoolDays[3] || 22) / 2),
+        Math.floor((sampleAtt.schoolDays[3] || 22) / 2),
+        sampleAtt.schoolDays[4] || 22,
+        sampleAtt.schoolDays[5] || 19,
+        sampleAtt.schoolDays[6] || 13,
+        sampleAtt.schoolDays[7] || 20,
+        sampleAtt.schoolDays[8] || 20,
+        sampleAtt.schoolDays[9] || 21,
+        sampleAtt.schoolDays[10] || 6
+      ];
+      monthCols.forEach((col, idx) => {
+        attCells[`${col}12`] = schoolDays12[idx];
+        attCells[`${col}116`] = schoolDays12[idx];
+      });
+    }
+
+    males.forEach((m, idx) => {
+      const r = 13 + idx;
+      const stAtt = getAttendanceForStudent(m);
+      if (stAtt && stAtt.daysPresent && stAtt.daysPresent.length > 0) {
+        const dp12 = [
+          stAtt.daysPresent[0] || 0,
+          stAtt.daysPresent[1] || 0,
+          stAtt.daysPresent[2] || 0,
+          Math.ceil((stAtt.daysPresent[3] || 0) / 2),
+          Math.floor((stAtt.daysPresent[3] || 0) / 2),
+          stAtt.daysPresent[4] || 0,
+          stAtt.daysPresent[5] || 0,
+          stAtt.daysPresent[6] || 0,
+          stAtt.daysPresent[7] || 0,
+          stAtt.daysPresent[8] || 0,
+          stAtt.daysPresent[9] || 0,
+          stAtt.daysPresent[10] || 0
+        ];
+        monthCols.forEach((col, mIdx) => {
+          attCells[`${col}${r}`] = dp12[mIdx];
+        });
+      }
+    });
+
+    females.forEach((f, idx) => {
+      const r = 64 + idx;
+      const stAtt = getAttendanceForStudent(f);
+      if (stAtt && stAtt.daysPresent && stAtt.daysPresent.length > 0) {
+        const dp12 = [
+          stAtt.daysPresent[0] || 0,
+          stAtt.daysPresent[1] || 0,
+          stAtt.daysPresent[2] || 0,
+          Math.ceil((stAtt.daysPresent[3] || 0) / 2),
+          Math.floor((stAtt.daysPresent[3] || 0) / 2),
+          stAtt.daysPresent[4] || 0,
+          stAtt.daysPresent[5] || 0,
+          stAtt.daysPresent[6] || 0,
+          stAtt.daysPresent[7] || 0,
+          stAtt.daysPresent[8] || 0,
+          stAtt.daysPresent[9] || 0,
+          stAtt.daysPresent[10] || 0
+        ];
+        monthCols.forEach((col, mIdx) => {
+          attCells[`${col}${r}`] = dp12[mIdx];
+        });
+      }
+    });
+
+    attXml = updateCellsBatch(attXml, attCells);
+    zip.file(attSheetPath, attXml);
+  }
+
+  // 6. Populate Term Summaries (sheet4.xml, sheet5.xml, sheet6.xml)
+  const termSummaryDefs = [
+    { key: 'TERM 1 SUMMARY', term: 'term1' as const, file: sheetMap['TERM 1 SUMMARY'] || 'xl/worksheets/sheet4.xml' },
+    { key: 'TERM 2 SUMMARY', term: 'term2' as const, file: sheetMap['TERM 2 SUMMARY'] || 'xl/worksheets/sheet5.xml' },
+    { key: 'TERM 3 SUMMARY', term: 'term3' as const, file: sheetMap['TERM 3 SUMMARY'] || 'xl/worksheets/sheet6.xml' }
+  ];
+
+  for (const { file, term } of termSummaryDefs) {
+    const sumFile = zip.file(file);
+    if (!sumFile) continue;
+
+    let sumXml = await sumFile.async('string');
+    const sumCells: Record<string, string | number> = {
+      'E5': opts.schoolProfile.region || '',
+      'M5': cleanDiv,
+      'E6': (opts.schoolProfile.name || '').toUpperCase(),
+      'M6': opts.schoolProfile.school_id || '',
+      'R6': opts.schoolYear,
+      'G9': (opts.gradeLevel || 'Grade 1'),
+      'P9': rawAdviser.toUpperCase(),
+      'G10': rawSection.toUpperCase()
+    };
+
+    // Males (rows 14 - 63)
+    for (let i = 0; i < 50; i++) {
+      const r = 14 + i;
+      const st = males[i];
+      const fH = `IF('INPUT DATA'!N${11 + i}="","",'INPUT DATA'!N${11 + i})`;
+      const fI = getAgeFormula(r, BOSY_EXCEL_DATE, 'Y');
+      const fJ = getAgeFormula(r, BOSY_EXCEL_DATE, 'YM');
+      const fK = getAgeFormula(r, EOSY_EXCEL_DATE, 'Y');
+      const fL = getAgeFormula(r, EOSY_EXCEL_DATE, 'YM');
+
+      if (st) {
+        const bosyAge = calculateAge(st.birthday, BOSY_DATE_2026);
+        const eosyAge = calculateAge(st.birthday, EOSY_DATE_2027);
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        const hasBday = Boolean(st.birthday && parseBirthDateParts(st.birthday));
+
+        sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, hasBday ? bSerial : null, true, '766');
+        sumXml = setCellFormulaInSheetXml(sumXml, `I${r}`, fI, hasBday ? bosyAge.years : null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `J${r}`, fJ, hasBday ? bosyAge.months : null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, hasBday ? eosyAge.years : null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, hasBday ? eosyAge.months : null, true, '698');
+
+        const rem = opts.getStudentRemarks ? opts.getStudentRemarks(st.lrn) : (st.lrn === opts.student.lrn ? opts.g1Remarks : undefined);
+        const canDo = rem ? (term === 'term1' ? rem.term1CanDo : term === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
+        const toImp = rem ? (term === 'term1' ? rem.term1ToImprove : term === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
+        sumCells[`N${r}`] = canDo || '';
+        sumCells[`Q${r}`] = toImp || '';
+      } else {
+        sumCells[`N${r}`] = '';
+        sumCells[`Q${r}`] = '';
+        sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, null, true, '766');
+        sumXml = setCellFormulaInSheetXml(sumXml, `I${r}`, fI, null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `J${r}`, fJ, null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, null, true, '698');
+        sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, null, true, '698');
+      }
+    }
+
+    // Females (rows 65 - 114)
+    for (let i = 0; i < 50; i++) {
+      const r = 65 + i;
+      const st = females[i];
+      const fH = `IF('INPUT DATA'!S${11 + i}="","",'INPUT DATA'!S${11 + i})`;
+      const fI = getAgeFormula(r, BOSY_EXCEL_DATE, 'Y');
+      const fJ = getAgeFormula(r, BOSY_EXCEL_DATE, 'YM');
+      const fK = getAgeFormula(r, EOSY_EXCEL_DATE, 'Y');
+      const fL = getAgeFormula(r, EOSY_EXCEL_DATE, 'YM');
+
+      if (st) {
+        const bosyAge = calculateAge(st.birthday, BOSY_DATE_2026);
+        const eosyAge = calculateAge(st.birthday, EOSY_DATE_2027);
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        const hasBday = Boolean(st.birthday && parseBirthDateParts(st.birthday));
+
+        sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, hasBday ? bSerial : null, true, '766');
+        sumXml = setCellFormulaInSheetXml(sumXml, `I${r}`, fI, hasBday ? bosyAge.years : null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `J${r}`, fJ, hasBday ? bosyAge.months : null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, hasBday ? eosyAge.years : null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, hasBday ? eosyAge.months : null, true, '704');
+
+        const rem = opts.getStudentRemarks ? opts.getStudentRemarks(st.lrn) : (st.lrn === opts.student.lrn ? opts.g1Remarks : undefined);
+        const canDo = rem ? (term === 'term1' ? rem.term1CanDo : term === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
+        const toImp = rem ? (term === 'term1' ? rem.term1ToImprove : term === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
+        sumCells[`N${r}`] = canDo || '';
+        sumCells[`Q${r}`] = toImp || '';
+      } else {
+        sumCells[`N${r}`] = '';
+        sumCells[`Q${r}`] = '';
+        sumXml = setCellFormulaInSheetXml(sumXml, `H${r}`, fH, null, true, '766');
+        sumXml = setCellFormulaInSheetXml(sumXml, `I${r}`, fI, null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `J${r}`, fJ, null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `K${r}`, fK, null, true, '704');
+        sumXml = setCellFormulaInSheetXml(sumXml, `L${r}`, fL, null, true, '704');
+      }
+    }
+
+    sumXml = updateCellsBatch(sumXml, sumCells);
+    zip.file(file, sumXml);
+  }
+
+  // 7. Populate Subject ECRs (sheet8.xml through sheet16.xml)
+  const subjectSheetNames = [
+    'TERM 1 READING & LITERACY', 'TERM 2 READING & LITERACY', 'TERM 3 READING & LITERACY',
+    'TERM 1 LANGUAGE', 'TERM 2 LANGUAGE', 'TERM 3 LANGUAGE',
+    'TERM 1-3 MATHEMATICS', 'TERM 1-3 GMRC', 'G1 PACE FORM MAKABANSA'
+  ];
+
+  const subjectSheetXmls: Record<string, { xml: string; path: string; cells: Record<string, string | number> }> = {};
+  for (const sName of subjectSheetNames) {
+    const p = sheetMap[sName];
+    if (p && zip.file(p)) {
+      subjectSheetXmls[sName] = {
+        xml: await zip.file(p)!.async('string'),
+        path: p,
+        cells: {}
+      };
+    }
+  }
+
+  const getStudentRatings = (st: Student) => {
+    if (opts.getStudentPaceRatings) {
+      const r = opts.getStudentPaceRatings(st.lrn);
+      if (r) return r;
+    }
+    if (st.lrn === opts.student.lrn && opts.paceRatings) {
+      return opts.paceRatings;
+    }
+    return null;
+  };
+
+  const allRoster = [
+    ...males.map((st, idx) => ({ st, isMale: true, idx })),
+    ...females.map((st, idx) => ({ st, isMale: false, idx }))
+  ];
+
+  for (const { st, isMale: maleFlag, idx } of allRoster) {
+    const ratings = getStudentRatings(st);
+    if (!ratings) continue;
+
+    const applyRatings = (
+      catRatings: Record<string, { t1?: PaceRatingDescriptor; t2?: PaceRatingDescriptor; t3?: PaceRatingDescriptor }> | undefined,
+      rowMap: Record<string, number>,
+      side: 'left' | 'right'
+    ) => {
+      if (!catRatings) return;
+      for (const [subId, r] of Object.entries(catRatings)) {
+        if (!r) continue;
+        const paceRow = rowMap[subId];
+        if (!paceRow) continue;
+
+        const terms: ('t1' | 't2' | 't3')[] = ['t1', 't2', 't3'];
+        for (const term of terms) {
+          const val = r[term];
+          if (!val) continue;
+
+          const key = `${paceRow}_${side}_${term}`;
+          const mapping = G1_PACE_LOOKUP_MAP[key];
+          if (mapping && subjectSheetXmls[mapping.s]) {
+            const sName = mapping.s;
+            const studentRow = (sName === 'TERM 1-3 MATHEMATICS')
+              ? (maleFlag ? (16 + idx) : (67 + idx))
+              : (maleFlag ? (15 + idx) : (66 + idx));
+
+            const cellRef = `${mapping.c}${studentRow}`;
+            subjectSheetXmls[sName].cells[cellRef] = val;
+          }
+        }
+      }
+    };
+
+    applyRatings(ratings.reading, READING_LEFT_ROW_MAP, 'left');
+    applyRatings(ratings.reading, READING_RIGHT_ROW_MAP, 'right');
+    applyRatings(ratings.language, LANGUAGE_LEFT_ROW_MAP, 'left');
+    applyRatings(ratings.language, LANGUAGE_RIGHT_ROW_MAP, 'right');
+    applyRatings(ratings.math, MATH_ROW_MAP, 'right');
+    applyRatings(ratings.gmrcMakabansa, GMRC_ROW_MAP, 'right');
+    applyRatings(ratings.gmrcMakabansa, MAKABANSA_ROW_MAP, 'right');
+  }
+
+  for (const sName of subjectSheetNames) {
+    const data = subjectSheetXmls[sName];
+    if (!data) continue;
+    if (sName.startsWith('TERM 1 READING') || sName.startsWith('TERM 2 READING') || sName.startsWith('TERM 3 READING')) {
+      data.cells['P9'] = rawAdviser.toUpperCase();
+      data.cells['G9'] = (opts.gradeLevel || 'Grade 1');
+      data.cells['G10'] = rawSection.toUpperCase();
+    } else if (sName.startsWith('TERM 1 LANGUAGE') || sName.startsWith('TERM 2 LANGUAGE') || sName.startsWith('TERM 3 LANGUAGE')) {
+      data.cells['P9'] = rawAdviser.toUpperCase();
+      data.cells['G9'] = (opts.gradeLevel || 'Grade 1');
+      data.cells['G10'] = rawSection.toUpperCase();
+    } else if (sName === 'TERM 1-3 MATHEMATICS') {
+      data.cells['N9'] = rawAdviser.toUpperCase();
+      data.cells['G9'] = (opts.gradeLevel || 'Grade 1');
+      data.cells['G10'] = rawSection.toUpperCase();
+    } else if (sName === 'TERM 1-3 GMRC') {
+      data.cells['N9'] = rawAdviser.toUpperCase();
+      data.cells['G9'] = (opts.gradeLevel || 'Grade 1');
+      data.cells['G10'] = rawSection.toUpperCase();
+    } else if (sName === 'G1 PACE FORM MAKABANSA') {
+      data.cells['K9'] = rawAdviser.toUpperCase();
+      data.cells['G9'] = (opts.gradeLevel || 'Grade 1');
+      data.cells['G10'] = rawSection.toUpperCase();
+    }
+  }
+
+  for (const [, data] of Object.entries(subjectSheetXmls)) {
+    if (Object.keys(data.cells).length > 0) {
+      const updated = updateCellsBatch(data.xml, data.cells);
+      zip.file(data.path, updated);
+    }
+  }
+
+  // 8. Set Active Student in SF9 - GRADE 1 (sheet3.xml) and PACE - GRADE 1 (sheet7.xml)
+  const activeName = formatLearnerName(opts.student).toUpperCase();
+
+  const sf9Path = sheetMap['SF9 - GRADE 1'] || 'xl/worksheets/sheet3.xml';
+  const sf9File = zip.file(sf9Path);
+  if (sf9File) {
+    let sf9Xml = await sf9File.async('string');
+
+    // Build region display value
+    let sf9Region = (opts.schoolProfile.region || '').trim();
+    if (sf9Region && !/^region/i.test(sf9Region)) {
+      sf9Region = `Region ${sf9Region}`;
+    }
+    // Build division display value
+    let sf9Div = (opts.schoolProfile.division || '').trim();
+    if (sf9Div) {
+      const stripped = sf9Div.replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
+      sf9Div = `SCHOOLS DIVISION OFFICE OF ${stripped}`;
+    }
+
+    const syDisplay = opts.schoolYear 
+      ? (opts.schoolYear.toLowerCase().includes('school year') ? opts.schoolYear : `School Year ${opts.schoolYear}`) 
+      : '';
+
+    const activeBosy = calculateAge(opts.student.birthday, BOSY_DATE_2026);
+    const activeEosy = calculateAge(opts.student.birthday, EOSY_DATE_2027);
+    const hasActiveBday = Boolean(opts.student.birthday && parseBirthDateParts(opts.student.birthday));
+
+    sf9Xml = updateCellsBatch(sf9Xml, {
+      // Front page header fields
+      'C5': sf9Region,
+      'C6': sf9Div,
+      'C7': distVal,
+      'C8': muniCityProv,
+      'C10': (opts.schoolProfile.name || '').toUpperCase(),
+      'C13': syDisplay,
+      // Active student
+      'D15': activeName,
+      'D16': rawSection.toUpperCase(),
+      'I16': rawAdviser.toUpperCase(),
+      'N15': opts.student.lrn || '',
+      'N16': formatDateToMMDDYYYY(opts.student.birthday),
+      'G17': hasActiveBday ? activeBosy.years : '',
+      'I17': hasActiveBday ? activeBosy.months : '',
+      'O17': hasActiveBday ? activeEosy.years : '',
+      'R17': hasActiveBday ? activeEosy.months : '',
+      'E13': opts.schoolYear,
+      'M72': rawAdviser.toUpperCase(),
+      'M75': rawPrincipal.toUpperCase()
+    });
+    zip.file(sf9Path, sf9Xml);
+  }
+
+  const pacePath = sheetMap['PACE - GRADE 1'] || 'xl/worksheets/sheet7.xml';
+  const paceFile = zip.file(pacePath);
+  if (paceFile) {
+    let paceXml = await paceFile.async('string');
+
+    // 1. Update all 4 subject headers in PACE - GRADE 1 (Rows 6, 91, 168, 250)
+    const replaceHeaderCell = (xml: string, cellRef: string, val: string) => {
+      const reg = new RegExp(`(<c\\s+r="${cellRef}"[^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/c>)`);
+      return xml.replace(reg, (_m, openTag) => {
+        const cleanOpen = openTag.replace(/\s+t="[^"]*"/g, '');
+        return `${cleanOpen} t="str"><v>${escapeXml(val)}</v></c>`;
+      });
+    };
+
+    paceXml = replaceHeaderCell(paceXml, 'D6', opts.student.lrn || '');
+    paceXml = replaceHeaderCell(paceXml, 'G6', activeName);
+    paceXml = replaceHeaderCell(paceXml, 'N6', rawSection.toUpperCase());
+    paceXml = replaceHeaderCell(paceXml, 'D91', opts.student.lrn || '');
+    paceXml = replaceHeaderCell(paceXml, 'G91', activeName);
+    paceXml = replaceHeaderCell(paceXml, 'N91', rawSection.toUpperCase());
+    paceXml = replaceHeaderCell(paceXml, 'D168', opts.student.lrn || '');
+    paceXml = replaceHeaderCell(paceXml, 'G168', activeName);
+    paceXml = replaceHeaderCell(paceXml, 'N168', rawSection.toUpperCase());
+    paceXml = replaceHeaderCell(paceXml, 'D250', opts.student.lrn || '');
+    paceXml = replaceHeaderCell(paceXml, 'G250', activeName);
+    paceXml = replaceHeaderCell(paceXml, 'N250', rawSection.toUpperCase());
+
+    const paceSubjectFilter = opts.paceSubjectFilter || 'all';
+    const isSingleSubject = paceSubjectFilter !== 'all';
+
+    const SUBJECT_RANGES: Record<string, { start: number; end: number; printArea: string; startRow: number }> = {
+      reading: { start: 1, end: 86, printArea: "'PACE - GRADE 1'!$A$1:$T$86", startRow: 1 },
+      language: { start: 87, end: 163, printArea: "'PACE - GRADE 1'!$A$87:$T$163", startRow: 87 },
+      math: { start: 164, end: 245, printArea: "'PACE - GRADE 1'!$A$164:$T$245", startRow: 164 },
+      'gmrc-makabansa': { start: 246, end: 312, printArea: "'PACE - GRADE 1'!$A$246:$T$312", startRow: 246 }
+    };
+    const targetRange = isSingleSubject ? SUBJECT_RANGES[paceSubjectFilter] : undefined;
+
+    // Active student row in subject sheets
+    const isMale = (opts.student.gender || '').toUpperCase() === 'MALE';
+    const maleIdx = males.findIndex(s => s.lrn === opts.student.lrn);
+    const femaleIdx = females.findIndex(s => s.lrn === opts.student.lrn);
+    const studentIndex = isMale
+      ? (maleIdx >= 0 ? maleIdx : 0)
+      : (femaleIdx >= 0 ? femaleIdx : 0);
+    const studentRow = isMale ? (15 + studentIndex) : (66 + studentIndex);
+    const mathStudentRow = isMale ? (16 + studentIndex) : (67 + studentIndex);
+
+    // 2. Pre-evaluate all VLOOKUP formula cells in PACE sheet
+    paceXml = paceXml.replace(
+      /(<c\s+r="([A-Z]+\d+)"[^>]*?)><f>([\s\S]*?)<\/f>(?:<v>[\s\S]*?<\/v>|<v\/>)?<\/c>/g,
+      (fullCell, openTag, cellRef, formula) => {
+        const vm = formula.match(/VLOOKUP\([^,]+,'([^']+)'!([A-Z]+)\d+:[A-Z]+\d+,\s*(\d+),\s*0\)/);
+        let evaluatedVal = '';
+        if (vm) {
+          const sheetName = vm[1];
+          const startCol = vm[2];
+          const colIdx = parseInt(vm[3], 10);
+          const targetColNum = lettersToColNumber(startCol) + colIdx - 1;
+          const targetCol = colNumberToLetters(targetColNum);
+          const targetRow = (sheetName === 'TERM 1-3 MATHEMATICS') ? mathStudentRow : studentRow;
+          const cellInSubject = `${targetCol}${targetRow}`;
+          evaluatedVal = (subjectSheetXmls[sheetName]?.cells[cellInSubject] || '') as string;
+        }
+
+        const cleanOpen = openTag.replace(/\s+t="[^"]*"/g, '');
+        if (isSingleSubject) {
+          if (evaluatedVal) {
+            return `${cleanOpen} t="str"><v>${escapeXml(evaluatedVal)}</v></c>`;
+          }
+          return `${cleanOpen}/>`;
+        } else {
+          if (evaluatedVal) {
+            return `${cleanOpen} t="str"><f>${formula}</f><v>${escapeXml(evaluatedVal)}</v></c>`;
+          }
+          return `${cleanOpen}><f>${formula}</f><v/></c>`;
+        }
+      }
+    );
+
+    // 3. Handle Single-Subject Isolation if requested
+    if (targetRange) {
+      // Filter rows
+      paceXml = paceXml.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (_match, rowsContent) => {
+        const rowRegex = /<row\s+r="(\d+)"[\s\S]*?<\/row>/g;
+        const keptRows: string[] = [];
+        let rm;
+        while ((rm = rowRegex.exec(rowsContent)) !== null) {
+          const oldR = parseInt(rm[1], 10);
+          if (oldR >= targetRange.start && oldR <= targetRange.end) {
+            keptRows.push(rm[0]);
+          }
+        }
+        return `<sheetData>${keptRows.join('')}</sheetData>`;
+      });
+
+      // Filter merges
+      paceXml = paceXml.replace(/<mergeCells\s+count="(\d+)">([\s\S]*?)<\/mergeCells>/, (_match, _count, mergeContent) => {
+        const mergeRegex = /<mergeCell\s+ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g;
+        const keptMerges: string[] = [];
+        let mm;
+        while ((mm = mergeRegex.exec(mergeContent)) !== null) {
+          const r1 = parseInt(mm[2], 10);
+          const r2 = parseInt(mm[4], 10);
+          if (r1 >= targetRange.start && r2 <= targetRange.end) {
+            keptMerges.push(mm[0]);
+          }
+        }
+        return `<mergeCells count="${keptMerges.length}">${keptMerges.join('')}</mergeCells>`;
+      });
+
+      // Remove row breaks
+      paceXml = paceXml.replace(/<rowBreaks[\s\S]*?<\/rowBreaks>/g, '');
+
+      // Set topLeftCell and active selection
+      const topCell = `A${targetRange.startRow}`;
+      paceXml = paceXml.replace(
+        /<sheetViews>[\s\S]*?<\/sheetViews>/,
+        `<sheetViews><sheetView tabSelected="1" view="normal" topLeftCell="${topCell}" workbookViewId="0"><selection activeCell="${topCell}" sqref="${topCell}"/></sheetView></sheetViews>`
+      );
+
+      // Strip any remaining cross-sheet formula cells
+      paceXml = paceXml.replace(/<c\s+r="([A-Z]+\d+)"([^>]*?)><f>[\s\S]*?<\/f>(?:<v>([^<]*)<\/v>|<v\/>)?<\/c>/g, (_m, cellRef, attrs, val) => {
+        const sMatch = attrs.match(/s="(\d+)"/);
+        const sAttr = sMatch ? ` s="${sMatch[1]}"` : '';
+        if (val) {
+          return `<c r="${cellRef}"${sAttr} t="str"><v>${val}</v></c>`;
+        }
+        return `<c r="${cellRef}"${sAttr}/>`;
+      });
+
+      zip.file(pacePath, paceXml);
+
+      // Remove all other 16 worksheets from zip
+      const otherSheets = [
+        'xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml', 'xl/worksheets/sheet3.xml',
+        'xl/worksheets/sheet4.xml', 'xl/worksheets/sheet5.xml', 'xl/worksheets/sheet6.xml',
+        'xl/worksheets/sheet8.xml', 'xl/worksheets/sheet9.xml', 'xl/worksheets/sheet10.xml',
+        'xl/worksheets/sheet11.xml', 'xl/worksheets/sheet12.xml', 'xl/worksheets/sheet13.xml',
+        'xl/worksheets/sheet14.xml', 'xl/worksheets/sheet15.xml', 'xl/worksheets/sheet16.xml',
+        'xl/worksheets/sheet17.xml',
+        'xl/calcChain.xml'
+      ];
+      otherSheets.forEach(f => zip.remove(f));
+
+      // Build clean 1-sheet workbook.xml
+      const singleWbXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <workbookPr defaultThemeVersion="166925"/>
+  <sheets>
+    <sheet name="PACE - GRADE 1" sheetId="1" r:id="rId1"/>
+  </sheets>
+  <definedNames>
+    <definedName name="_xlnm.Print_Area" localSheetId="0">${targetRange.printArea}</definedName>
+  </definedNames>
+</workbook>`;
+      zip.file('xl/workbook.xml', singleWbXml);
+
+      const singleWbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet7.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+</Relationships>`;
+      zip.file('xl/_rels/workbook.xml.rels', singleWbRels);
+
+      const ctFile = zip.file('[Content_Types].xml');
+      if (ctFile) {
+        let ctXml = await ctFile.async('string');
+        for (let i = 1; i <= 17; i++) {
+          if (i !== 7) {
+            ctXml = ctXml.replace(new RegExp(`<Override[^>]*PartName="\\/xl\\/worksheets\\/sheet${i}\\.xml"[^>]*\\/>`), '');
+          }
+        }
+        ctXml = ctXml.replace(/<Override[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, '');
+        zip.file('[Content_Types].xml', ctXml);
+      }
+
+      const cleanAppXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Microsoft Excel</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop><HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>PACE - GRADE 1</vt:lpstr></vt:vector></TitlesOfParts><Company></Company><LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion></Properties>`;
+      zip.file('docProps/app.xml', cleanAppXml);
+    } else {
+      zip.file(pacePath, paceXml);
+    }
+  }
+
+  return await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+
+/**
  * Populate the unified Grade 1 SF9 & PACE Form Excel Workbook directly via OpenXML
  * Returns an ArrayBuffer of the valid .xlsx file
  */
@@ -508,6 +1468,11 @@ export async function populateGrade1TemplateBuffer(
     throw new Error('Provided Grade 1 template buffer is not a valid zip/xlsx archive (0 bytes or corrupted).');
   }
   const zip = await JSZip.loadAsync(buffer);
+
+  // Check if this is the updated 17-sheet unified master workbook
+  if (zip.file('xl/worksheets/sheet17.xml') || zip.file('xl/worksheets/sheet8.xml')) {
+    return await populateUpdatedAllInOneGrade1Workbook(zip, opts);
+  }
 
   // 1. Remove stale calcChain & external links to prevent Excel repair popups
   zip.remove('xl/calcChain.xml');
@@ -700,66 +1665,132 @@ export async function populateGrade1TemplateBuffer(
   const fullName = formatLearnerName(student).toUpperCase();
   const sectionUpper = (section || '').toUpperCase();
   const syParts = (schoolYear || '2026-2027').split('-');
-  const startYear = parseInt(syParts[0], 10) || new Date().getFullYear();
+  const _startYear = parseInt(syParts[0], 10) || new Date().getFullYear();
 
-  const ageBoSY = calculateAge(student.birthday, new Date(startYear, 5, 1)); // June 1
+  const ageBoSY = calculateAge(student.birthday, BOSY_DATE_2026);
+  const ageEoSY = calculateAge(student.birthday, EOSY_DATE_2027);
+  const hasBdayLegacy = Boolean(student.birthday && parseBirthDateParts(student.birthday));
 
-  // -------------------------------------------------------------------------
-  // 1. SHEET: School Data (sheet3.xml in template)
-  // -------------------------------------------------------------------------
-  const sheet3File = zip.file('xl/worksheets/sheet3.xml');
-  if (sheet3File) {
-    let xml = await sheet3File.async('string');
-    const locAddr = [schoolProfile.municipality || schoolProfile.city, schoolProfile.province].filter(Boolean).join(', ');
-    let cleanDiv = (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
-    if (cleanDiv) cleanDiv = `SCHOOLS DIVISION OFFICE OF ${cleanDiv}`;
-
-    const dataCells: Record<string, string | number> = {
-      'C4': (schoolProfile.name || '').toUpperCase(),
-      'C5': schoolProfile.school_id || '',
-      'C6': locAddr,
-      'C7': schoolProfile.district || '',
-      'C8': cleanDiv,
-      'C9': schoolProfile.region || '',
-      'C10': locAddr,
-      'C12': (principal || schoolProfile.head_name || '').toUpperCase(),
-      'C13': schoolYear,
-      'C14': gradeLevel,
-      'C15': sectionUpper,
-      'C16': (adviser || schoolProfile.adviser_name || '').toUpperCase()
-    };
-    xml = updateCellsBatch(xml, dataCells);
-    zip.file('xl/worksheets/sheet3.xml', xml);
+  let regionVal = (schoolProfile.region || '').trim();
+  if (regionVal && !/^region/i.test(regionVal)) {
+    regionVal = `Region ${regionVal}`;
   }
 
-  // -------------------------------------------------------------------------
-  // 2. SHEET: SF9 - GRADE 1 (sheet2.xml in template)
-  // -------------------------------------------------------------------------
-  const sheet2File = zip.file('xl/worksheets/sheet2.xml');
-  if (sheet2File) {
-    let xml = await sheet2File.async('string');
+  const cleanDiv = (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
+  const divVal = cleanDiv ? cleanDiv : (schoolProfile.division || '').toUpperCase();
 
-    let regionVal = (schoolProfile.region || '').trim();
-    if (regionVal && !/^region/i.test(regionVal)) {
-      regionVal = `Region ${regionVal}`;
+  let distVal = (schoolProfile.district || '').trim();
+  if (distVal) {
+    if (!/district/i.test(distVal)) {
+      distVal = `${distVal.toUpperCase()} DISTRICT`;
+    } else {
+      distVal = distVal.toUpperCase();
     }
+  }
 
-    let divVal = (schoolProfile.division || '').trim();
-    if (divVal) {
-      const cleanDiv = divVal.replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
-      divVal = cleanDiv ? `SCHOOLS DIVISION OFFICE OF ${cleanDiv}` : divVal.toUpperCase();
-    }
+  let muniCityLegacy = (schoolProfile.municipality || schoolProfile.city || '').trim();
+  if (!muniCityLegacy && schoolProfile.district) {
+    const extracted = schoolProfile.district.replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '').trim();
+    if (extracted) muniCityLegacy = extracted;
+  }
+  muniCityLegacy = (muniCityLegacy || 'VICTORIA').toUpperCase();
 
-    let distVal = (schoolProfile.district || '').trim();
-    if (distVal) {
-      if (!/district/i.test(distVal)) {
-        distVal = `${distVal.toUpperCase()} DISTRICT`;
+  let provLegacy = (schoolProfile.province || '').trim();
+  if (!provLegacy && schoolProfile.division) {
+    const extractedProv = schoolProfile.division.replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').replace(/\bprovince\b/i, '').trim();
+    if (extractedProv && extractedProv.toUpperCase() !== muniCityLegacy) provLegacy = extractedProv;
+  }
+  provLegacy = (provLegacy || 'TARLAC').toUpperCase();
+  const muniProv = [muniCityLegacy, provLegacy].filter(Boolean).join(', ') || muniCityLegacy;
+
+  const profileAdviserLegacy = (schoolProfile.adviser_name || '').trim();
+  let rawAdviserLegacy = (adviser || '').trim();
+  const isMockLegacy = !rawAdviserLegacy || 
+                       rawAdviserLegacy.toLowerCase().includes('maria') || 
+                       rawAdviserLegacy.toLowerCase().includes('santos') || 
+                       rawAdviserLegacy.toLowerCase().includes('juan') || 
+                       rawAdviserLegacy.toLowerCase().includes('recovered') || 
+                       rawAdviserLegacy.toLowerCase() === 'tba';
+
+  if ((isMockLegacy || !rawAdviserLegacy) && profileAdviserLegacy && profileAdviserLegacy.toLowerCase() !== 'admin') {
+    rawAdviserLegacy = profileAdviserLegacy;
+  } else if (!rawAdviserLegacy) {
+    rawAdviserLegacy = profileAdviserLegacy;
+  }
+
+  const rawSectionLegacy = (section || student?.student_section || 'MATATAG').trim();
+  const rawPrincipalLegacy = (principal || schoolProfile.head_name || 'JUAN A. DELA CRUZ').trim();
+
+  // -------------------------------------------------------------------------
+  // 1. SHEET: INPUT DATA (sheet2.xml in template)
+  // -------------------------------------------------------------------------
+  const inputSheetFile = zip.file('xl/worksheets/sheet2.xml');
+  if (inputSheetFile) {
+    let inputXml = await inputSheetFile.async('string');
+    const inputCells: Record<string, string | number> = {
+      'F10': regionVal,
+      'F11': cleanDiv,
+      'F12': muniCityLegacy,
+      'F13': distVal,
+      'F15': schoolProfile.school_id || '',
+      'F16': (schoolProfile.name || '').toUpperCase(),
+      'F18': schoolYear,
+      'F19': rawPrincipalLegacy.toUpperCase(),
+      'F26': rawAdviserLegacy.toUpperCase(),
+      'F27': (gradeLevel || 'Grade 1'),
+      'F28': rawSectionLegacy.toUpperCase()
+    };
+
+    const males = sectionStudents.length > 0
+      ? sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'MALE')
+      : ((student.gender || '').toUpperCase() === 'MALE' ? [student] : []);
+    const females = sectionStudents.length > 0
+      ? sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'FEMALE')
+      : ((student.gender || '').toUpperCase() === 'FEMALE' ? [student] : []);
+
+    for (let i = 0; i < 50; i++) {
+      const r = 11 + i;
+      const m = males[i];
+      if (m) {
+        inputCells[`K${r}`] = i + 1;
+        inputCells[`L${r}`] = formatLearnerName(m).toUpperCase();
+        inputCells[`M${r}`] = m.lrn || '';
+        inputCells[`N${r}`] = formatDateToMMDDYYYY(m.birthday);
       } else {
-        distVal = distVal.toUpperCase();
+        inputCells[`K${r}`] = '';
+        inputCells[`L${r}`] = '';
+        inputCells[`M${r}`] = '';
+        inputCells[`N${r}`] = '';
       }
     }
 
-    const muniProv = [schoolProfile.municipality || schoolProfile.city, schoolProfile.province].filter(Boolean).join(', ');
+    for (let i = 0; i < 50; i++) {
+      const r = 11 + i;
+      const f = females[i];
+      if (f) {
+        inputCells[`P${r}`] = i + 1;
+        inputCells[`Q${r}`] = formatLearnerName(f).toUpperCase();
+        inputCells[`R${r}`] = f.lrn || '';
+        inputCells[`S${r}`] = formatDateToMMDDYYYY(f.birthday);
+      } else {
+        inputCells[`P${r}`] = '';
+        inputCells[`Q${r}`] = '';
+        inputCells[`R${r}`] = '';
+        inputCells[`S${r}`] = '';
+      }
+    }
+
+    inputXml = updateCellsBatch(inputXml, inputCells);
+    zip.file('xl/worksheets/sheet2.xml', inputXml);
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. SHEET: SF9 - GRADE 1 (sheet3.xml in template)
+  // -------------------------------------------------------------------------
+  const sf9SheetPath = 'xl/worksheets/sheet3.xml';
+  const sheet2File = zip.file(sf9SheetPath);
+  if (sheet2File) {
+    let xml = await sheet2File.async('string');
 
     const sf9Cells: Record<string, string | number> = {
       // Header Information
@@ -768,20 +1799,20 @@ export async function populateGrade1TemplateBuffer(
       'C7': distVal,
       'C8': muniProv,
       'C10': (schoolProfile.name || '').toUpperCase(),
-      'L13': schoolYear,
+      'C13': schoolYear,
 
       // Learner Details
       'D15': fullName,
       'N15': student.lrn || '',
       'D16': sectionUpper,
-      'I16': (adviser || schoolProfile.adviser_name || '').toUpperCase(),
+      'I16': rawAdviserLegacy.toUpperCase(),
       'N16': formatDateToMMDDYYYY(student.birthday), // MM/DD/YYYY format
 
-      // Age BoSY (Font Size 10) / EoSY (Left empty as requested)
-      'G17': ageBoSY.years || 0,
-      'I17': ageBoSY.months || 0,
-      'O17': '',
-      'R17': '',
+      // Age BoSY / EoSY (June 8, 2026 / April 8, 2027)
+      'G17': hasBdayLegacy ? ageBoSY.years : '',
+      'I17': hasBdayLegacy ? ageBoSY.months : '',
+      'O17': hasBdayLegacy ? ageEoSY.years : '',
+      'R17': hasBdayLegacy ? ageEoSY.months : '',
 
       // 3-Term Descriptive Progress
       'E23': g1Remarks?.term1CanDo || '',
@@ -792,7 +1823,7 @@ export async function populateGrade1TemplateBuffer(
       'E71': g1Remarks?.term3ToImprove || '',
 
       // Signatures
-      'M72': (adviser || schoolProfile.adviser_name || '').toUpperCase(),
+      'M72': rawAdviserLegacy.toUpperCase(),
       'M75': (principal || schoolProfile.head_name || '').toUpperCase()
     };
 
@@ -890,7 +1921,7 @@ export async function populateGrade1TemplateBuffer(
     xml = xml.replace(/<dataValidations[\s\S]*?<\/dataValidations>/g, '');
 
     xml = updateCellsBatch(xml, sf9Cells, sf9Styles);
-    zip.file('xl/worksheets/sheet2.xml', xml);
+    zip.file(sf9SheetPath, xml);
   }
 
   // -------------------------------------------------------------------------
@@ -1140,16 +2171,19 @@ export async function populateGrade1TemplateBuffer(
     { sheetFile: 'xl/worksheets/sheet7.xml', termKey: 'term3' as const }
   ];
 
-  const males = sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'MALE');
-  const females = sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'FEMALE');
+  const males = sectionStudents.length > 0
+    ? sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'MALE')
+    : ((student.gender || '').toUpperCase() === 'MALE' ? [student] : []);
+  const females = sectionStudents.length > 0
+    ? sectionStudents.filter(s => (s.gender || '').toUpperCase() === 'FEMALE')
+    : ((student.gender || '').toUpperCase() === 'FEMALE' ? [student] : []);
 
   for (const { sheetFile, termKey } of summarySheets) {
     const sFile = zip.file(sheetFile);
     if (!sFile) continue;
 
     let xml = await sFile.async('string');
-    let cleanDiv = (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
-    if (cleanDiv) cleanDiv = `SCHOOLS DIVISION OFFICE OF ${cleanDiv}`;
+    const cleanDiv = (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/division of/i, '').replace(/schools division/i, '').trim().toUpperCase();
 
     const sumCells: Record<string, string | number> = {
       'E5': schoolProfile.region || '',
@@ -1158,7 +2192,7 @@ export async function populateGrade1TemplateBuffer(
       'M6': schoolProfile.school_id || '',
       'R6': schoolYear,
       'G9': gradeLevel,
-      'P9': (adviser || schoolProfile.adviser_name || '').toUpperCase(),
+      'P9': rawAdviserLegacy.toUpperCase(),
       'G10': sectionUpper
     };
 
@@ -1166,29 +2200,42 @@ export async function populateGrade1TemplateBuffer(
     for (let i = 0; i < 50; i++) {
       const rowNum = 14 + i;
       const st = males[i];
+      const fI = getAgeFormula(rowNum, BOSY_EXCEL_DATE, 'Y');
+      const fJ = getAgeFormula(rowNum, BOSY_EXCEL_DATE, 'YM');
+      const fK = getAgeFormula(rowNum, EOSY_EXCEL_DATE, 'Y');
+      const fL = getAgeFormula(rowNum, EOSY_EXCEL_DATE, 'YM');
+
       if (st) {
         sumCells[`C${rowNum}`] = formatLearnerName(st).toUpperCase();
         sumCells[`F${rowNum}`] = st.lrn || '';
-        sumCells[`H${rowNum}`] = formatDateToMMDDYYYY(st.birthday);
-
-        const stAgeBoSY = calculateAge(st.birthday, new Date(startYear, 5, 1));
-        sumCells[`I${rowNum}`] = stAgeBoSY.years || '';
-        sumCells[`J${rowNum}`] = stAgeBoSY.months || 0;
-        sumCells[`K${rowNum}`] = ''; // Left blank for EoSY until end of school year
-        sumCells[`L${rowNum}`] = ''; // Left blank for EoSY until end of school year
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        sumCells[`H${rowNum}`] = bSerial !== null ? bSerial : formatDateToMMDDYYYY(st.birthday);
         sumCells[`M${rowNum}`] = 'M';
 
+        const stAgeBoSY = calculateAge(st.birthday, BOSY_DATE_2026);
+        const stAgeEoSY = calculateAge(st.birthday, EOSY_DATE_2027);
+        const hasBday = Boolean(st.birthday && parseBirthDateParts(st.birthday));
+
+        xml = setCellFormulaInSheetXml(xml, `I${rowNum}`, fI, hasBday ? stAgeBoSY.years : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `J${rowNum}`, fJ, hasBday ? stAgeBoSY.months : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `K${rowNum}`, fK, hasBday ? stAgeEoSY.years : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `L${rowNum}`, fL, hasBday ? stAgeEoSY.months : null, true, '18');
+
         const rem = getStudentRemarks ? getStudentRemarks(st.lrn) : (st.lrn === student.lrn ? g1Remarks : undefined);
-        if (rem) {
-          const canDo = termKey === 'term1' ? rem.term1CanDo : termKey === 'term2' ? rem.term2CanDo : rem.term3CanDo;
-          const toImp = termKey === 'term1' ? rem.term1ToImprove : termKey === 'term2' ? rem.term2ToImprove : rem.term3ToImprove;
-          if (canDo) sumCells[`N${rowNum}`] = canDo;
-          if (toImp) sumCells[`Q${rowNum}`] = toImp;
-        }
+        const canDo = rem ? (termKey === 'term1' ? rem.term1CanDo : termKey === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
+        const toImp = rem ? (termKey === 'term1' ? rem.term1ToImprove : termKey === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
+        sumCells[`N${rowNum}`] = canDo || '';
+        sumCells[`Q${rowNum}`] = toImp || '';
       } else {
         sumCells[`C${rowNum}`] = '';
         sumCells[`F${rowNum}`] = '';
         sumCells[`H${rowNum}`] = '';
+        sumCells[`N${rowNum}`] = '';
+        sumCells[`Q${rowNum}`] = '';
+        xml = setCellFormulaInSheetXml(xml, `I${rowNum}`, fI, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `J${rowNum}`, fJ, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `K${rowNum}`, fK, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `L${rowNum}`, fL, null, true, '18');
       }
     }
 
@@ -1196,29 +2243,42 @@ export async function populateGrade1TemplateBuffer(
     for (let i = 0; i < 50; i++) {
       const rowNum = 65 + i;
       const st = females[i];
+      const fI = getAgeFormula(rowNum, BOSY_EXCEL_DATE, 'Y');
+      const fJ = getAgeFormula(rowNum, BOSY_EXCEL_DATE, 'YM');
+      const fK = getAgeFormula(rowNum, EOSY_EXCEL_DATE, 'Y');
+      const fL = getAgeFormula(rowNum, EOSY_EXCEL_DATE, 'YM');
+
       if (st) {
         sumCells[`C${rowNum}`] = formatLearnerName(st).toUpperCase();
         sumCells[`F${rowNum}`] = st.lrn || '';
-        sumCells[`H${rowNum}`] = formatDateToMMDDYYYY(st.birthday);
-
-        const stAgeBoSY = calculateAge(st.birthday, new Date(startYear, 5, 1));
-        sumCells[`I${rowNum}`] = stAgeBoSY.years || '';
-        sumCells[`J${rowNum}`] = stAgeBoSY.months || 0;
-        sumCells[`K${rowNum}`] = ''; // Left blank for EoSY until end of school year
-        sumCells[`L${rowNum}`] = ''; // Left blank for EoSY until end of school year
+        const bSerial = birthDateToExcelSerial(st.birthday);
+        sumCells[`H${rowNum}`] = bSerial !== null ? bSerial : formatDateToMMDDYYYY(st.birthday);
         sumCells[`M${rowNum}`] = 'F';
 
+        const stAgeBoSY = calculateAge(st.birthday, BOSY_DATE_2026);
+        const stAgeEoSY = calculateAge(st.birthday, EOSY_DATE_2027);
+        const hasBday = Boolean(st.birthday && parseBirthDateParts(st.birthday));
+
+        xml = setCellFormulaInSheetXml(xml, `I${rowNum}`, fI, hasBday ? stAgeBoSY.years : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `J${rowNum}`, fJ, hasBday ? stAgeBoSY.months : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `K${rowNum}`, fK, hasBday ? stAgeEoSY.years : null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `L${rowNum}`, fL, hasBday ? stAgeEoSY.months : null, true, '18');
+
         const rem = getStudentRemarks ? getStudentRemarks(st.lrn) : (st.lrn === student.lrn ? g1Remarks : undefined);
-        if (rem) {
-          const canDo = termKey === 'term1' ? rem.term1CanDo : termKey === 'term2' ? rem.term2CanDo : rem.term3CanDo;
-          const toImp = termKey === 'term1' ? rem.term1ToImprove : termKey === 'term2' ? rem.term2ToImprove : rem.term3ToImprove;
-          if (canDo) sumCells[`N${rowNum}`] = canDo;
-          if (toImp) sumCells[`Q${rowNum}`] = toImp;
-        }
+        const canDo = rem ? (termKey === 'term1' ? rem.term1CanDo : termKey === 'term2' ? rem.term2CanDo : rem.term3CanDo) : undefined;
+        const toImp = rem ? (termKey === 'term1' ? rem.term1ToImprove : termKey === 'term2' ? rem.term2ToImprove : rem.term3ToImprove) : undefined;
+        sumCells[`N${rowNum}`] = canDo || '';
+        sumCells[`Q${rowNum}`] = toImp || '';
       } else {
         sumCells[`C${rowNum}`] = '';
         sumCells[`F${rowNum}`] = '';
         sumCells[`H${rowNum}`] = '';
+        sumCells[`N${rowNum}`] = '';
+        sumCells[`Q${rowNum}`] = '';
+        xml = setCellFormulaInSheetXml(xml, `I${rowNum}`, fI, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `J${rowNum}`, fJ, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `K${rowNum}`, fK, null, true, '18');
+        xml = setCellFormulaInSheetXml(xml, `L${rowNum}`, fL, null, true, '18');
       }
     }
 
@@ -1264,6 +2324,27 @@ export async function exportGrade1FullWorkbookToExcel(opts: SF9Grade1ExcelExport
   else if (opts.paceSubjectFilter === 'gmrc-makabansa') filePrefix = 'PACE_Form_GMRC_Makabansa';
 
   a.download = `${filePrefix}_${safeName}_${opts.schoolYear}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Export complete Grade 1 Section Master ECR, PACE, and SF9 Workbook (.xlsx)
+ * Containing all enrolled learners, official ECRs, attendance summary, and formula-driven SF9/PACE.
+ */
+export async function exportGrade1AllInOneSectionMasterToExcel(opts: SF9Grade1ExcelExportOptions): Promise<void> {
+  const buffer = await fetchGrade1TemplateBuffer();
+  const outBuffer = await populateGrade1TemplateBuffer(buffer, opts);
+
+  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  const safeSection = (opts.section || 'Grade_1').replace(/[^a-z0-9]/gi, '_');
+  a.download = `Grade1_Master_ECR_PACE_SF9_${safeSection}_${opts.schoolYear}.xlsx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

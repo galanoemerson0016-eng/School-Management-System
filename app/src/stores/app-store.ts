@@ -12,6 +12,7 @@ import { backup } from '../services/backup';
 import { normalizeSubjectName } from '../lib/subjectConfig';
 import { STANDARD_SUBJECTS, getDefaultTermForSubject } from '../lib/curriculum';
 import { normalizeGrade12PESubjectName } from '../utils/grading-helpers';
+import { reconcileOrphanedGradesAndSubjects, generateDeterministicSubjectId } from '../utils/grade-reconciliation';
 import {
   buildAttendanceRecordsFromSf2Sheet,
   buildAutoFilledDateLabels,
@@ -297,12 +298,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // ==================== SCHOOL PROFILE ====================
   schoolProfile: defaultSchoolProfile,
-  setSchoolProfile: (profile) => set({ schoolProfile: profile }),
+  setSchoolProfile: (profile) => set({ schoolProfile: profile ? { ...profile, division: (profile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : profile }),
   updateSchoolProfile: async (profile) => {
     try {
       const currentProfile = get().schoolProfile;
       const updated = { ...currentProfile, ...profile };
-
+      if (updated.division) {
+        updated.division = updated.division.replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim();
+      }
       // If the school_id changed, delete the old record first so we don't
       // leave a stale default entry (e.g. '123456') sitting in IndexedDB.
       if (currentProfile.school_id && currentProfile.school_id !== updated.school_id) {
@@ -311,6 +314,34 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set({ schoolProfile: updated });
       await db.putRecord('schoolProfile', updated);
+
+      if (updated.adviser_name && updated.adviser_name.trim() && updated.adviser_name.toLowerCase() !== 'admin') {
+        const newAdv = updated.adviser_name.trim();
+        const currentSections = get().sections;
+        let anySectionSynced = false;
+        const updatedSections = currentSections.map(sec => {
+          if (sec.is_advisory) {
+            const cName = (sec.adviser_name || '').trim();
+            const isMock = !cName ||
+                           cName.toLowerCase().includes('maria') ||
+                           cName.toLowerCase().includes('santos') ||
+                           cName.toLowerCase().includes('juan') ||
+                           cName.toLowerCase().includes('recovered') ||
+                           cName.toLowerCase() === 'tba' ||
+                           (sec.adviser_id && sec.adviser_id.startsWith('adv-'));
+            if (isMock || cName === currentProfile.adviser_name) {
+              anySectionSynced = true;
+              return { ...sec, adviser_name: newAdv };
+            }
+          }
+          return sec;
+        });
+        if (anySectionSynced) {
+          set({ sections: updatedSections });
+          void db.putRecordsBulk('sections', updatedSections).catch(e => console.error('Failed to sync advisory sections on profile update:', e));
+        }
+      }
+
       get().showNotification('School profile updated', 'success');
     } catch (error) {
       console.error('Error updating school profile:', error);
@@ -1070,6 +1101,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set({ subjects: newSubjects, sections: newSections });
       
+      // Preserve subject_name on any affected classRecords/gradingSheetRecords before deletion
+      if (subjectToDelete) {
+        const stateRecords = get().classRecords || [];
+        const affectedCr = stateRecords.filter(r => r.subject_id === id && !r.subject_name);
+        if (affectedCr.length > 0) {
+          const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subjectToDelete.subject_name }));
+          await db.putRecordsBulk('classRecords', updatedCr);
+        }
+      }
+
       await db.deleteRecord('subjects', id);
       
       // Persist section changes to database
@@ -1113,6 +1154,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set({ subjects: newSubjects, sections: newSections });
       
+      // Preserve subject_name on affected grade records before deletion
+      for (const subj of subjectsToDelete) {
+        const stateRecords = get().classRecords || [];
+        const affectedCr = stateRecords.filter(r => r.subject_id === subj.id && !r.subject_name);
+        if (affectedCr.length > 0) {
+          const updatedCr = affectedCr.map(r => ({ ...r, subject_name: subj.subject_name }));
+          await db.putRecordsBulk('classRecords', updatedCr);
+        }
+      }
+
       // Persist to DB
       for (const id of ids) {
         await db.deleteRecord('subjects', id);
@@ -1361,7 +1412,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         attendanceRecords,
         sf2Sheets,
         observedValues,
-        schoolProfile: schoolProfile || defaultSchoolProfile,
+        schoolProfile: schoolProfile ? { ...schoolProfile, division: (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : defaultSchoolProfile,
       });
       get().showNotification('Data restored successfully', 'success');
     } catch (error) {
@@ -1424,7 +1475,6 @@ export async function initializeAppStore() {
     if (subjects.length === 0) {
       if (!isAutoloaded) {
         console.log('Auto-loading all subjects for all grade levels right away...');
-        const timestamp = Date.now();
         const grades = [
           'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
           'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
@@ -1458,7 +1508,7 @@ export async function initializeAppStore() {
 
           for (let i = 0; i < templates.length; i++) {
             const template = templates[i];
-            const subjectId = `subject-${timestamp}-${grade.replace(/\s+/g, '-')}-${i}-${Math.random().toString(36).substr(2, 5)}`;
+            const subjectId = generateDeterministicSubjectId(grade, template.name);
             newSubjects.push({
               id: subjectId,
               subject_name: template.name,
@@ -1516,7 +1566,7 @@ export async function initializeAppStore() {
     
     // Transparent Migration: Ensure Grade 12 Old K-12 PE subjects and sections use the official title
     let sectionsChanged = false;
-    const finalSections = sections.map(sec => {
+    let finalSections = sections.map(sec => {
       const gNum = parseInt((sec.section_grade_level || '').replace(/\D/g, '')) || 0;
       const isSSHS = (sec.track || '').toLowerCase().includes('sshs') || (sec.track || '').toLowerCase().includes('cluster');
       if (gNum === 12 && !isSSHS) {
@@ -1564,20 +1614,71 @@ export async function initializeAppStore() {
       void db.putRecordsBulk('subjects', finalSubjectsWithMigration).catch(e => console.error('Failed to persist migrated subjects:', e));
     }
 
+    // Transparent Self-Healing: Sync advisory sections with mock adviser names ('Maria L. Santos', etc.) to actual schoolProfile adviser
+    const activeProfileAdviser = (schoolProfile?.adviser_name || '').trim();
+    if (activeProfileAdviser && activeProfileAdviser.toLowerCase() !== 'admin') {
+      let anyAdviserMigrated = false;
+      finalSections = finalSections.map(sec => {
+        if (sec.is_advisory) {
+          const cName = (sec.adviser_name || '').trim();
+          const isMock = !cName ||
+                         cName.toLowerCase().includes('maria') ||
+                         cName.toLowerCase().includes('santos') ||
+                         cName.toLowerCase().includes('juan') ||
+                         cName.toLowerCase().includes('recovered') ||
+                         cName.toLowerCase() === 'tba' ||
+                         (sec.adviser_id && sec.adviser_id.startsWith('adv-'));
+          if (isMock && cName !== activeProfileAdviser) {
+            anyAdviserMigrated = true;
+            return { ...sec, adviser_name: activeProfileAdviser };
+          }
+        }
+        return sec;
+      });
+      if (anyAdviserMigrated) {
+        void db.putRecordsBulk('sections', finalSections).catch(e => console.error('Failed to persist adviser-migrated sections:', e));
+      }
+    }
+
+    // Transparent Self-Healing: Reconnect any orphaned class records, HPS, and grading sheet records
+    // caused by deleted, edited, or re-templated subjects, and resurrect missing/unhidden subjects
+    const reconciliation = reconcileOrphanedGradesAndSubjects({
+      subjects: finalSubjectsWithMigration,
+      sections: finalSections,
+      students,
+      classRecords,
+      hpsRecords,
+      gradingSheetRecords
+    });
+
+    if (reconciliation.modified) {
+      console.log(`[FormEase Pro] Self-healing reconnected ${reconciliation.repairedCount} orphaned grade/HPS record(s) to active subjects.`);
+      await Promise.all([
+        db.putRecordsBulk('classRecords', reconciliation.classRecords),
+        db.putRecordsBulk('hpsRecords', reconciliation.hpsRecords),
+        db.putRecordsBulk('gradingSheetRecords', reconciliation.gradingSheetRecords),
+      ]);
+    }
+
+    if (reconciliation.subjectsModified) {
+      console.log(`[FormEase Pro] Self-healing restored visibility for ${reconciliation.subjects.length} subjects with recorded grades.`);
+      await db.putRecordsBulk('subjects', reconciliation.subjects);
+    }
+
     useAppStore.setState({
       students,
       studentProfiles: students,
       sections: finalSections,
-      subjects: finalSubjectsWithMigration,
-      classRecords,
-      gradingSheetRecords,
-      hpsRecords,
+      subjects: reconciliation.subjects,
+      classRecords: reconciliation.classRecords,
+      gradingSheetRecords: reconciliation.gradingSheetRecords,
+      hpsRecords: reconciliation.hpsRecords,
       enrollments,
       announcements,
       attendanceRecords: repaired.attendanceRecords,
       sf2Sheets: repaired.sf2Sheets,
       observedValues,
-      schoolProfile: schoolProfile || defaultSchoolProfile,
+      schoolProfile: schoolProfile ? { ...schoolProfile, division: (schoolProfile.division || '').replace(/schools division office of/i, '').replace(/schools division of/i, '').replace(/division of/i, '').trim() } : defaultSchoolProfile,
       isSyncReady: true,
       selectedSection: resolvedSelectedSection
     });

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore, useAppStore, initializeAppStore, useUpdateStore } from '../stores';
 import { db } from '../services/database';
-import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare } from 'lucide-react';
+import { Database, User, Shield, Upload, History, Cloud, Info, Sparkles, Sun, Moon, Monitor, Download, MessageSquare, FileSpreadsheet, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { AboutPage } from './AboutPage';
 import { SmsGatewaySettings } from '../components/settings/SmsGatewaySettings';
 import { AutoBackupManager, type AutomatedBackupEntry } from '../services/AutoBackupManager';
@@ -18,6 +18,13 @@ import { compareBackupSizes, formatBytes } from '../utils/backup-compression';
 import { createBackupMetadata, saveBackupMetadata } from '../utils/backup-metadata';
 import { embedChecksum } from '../utils/backup-integrity';
 import { exportToCSV } from '../utils/csv-export';
+import {
+    getLiveDatabaseRecordCounts,
+    exportDirectDatabaseToExcel,
+    exportDirectDatabaseStoreToCSV,
+    exportAllDirectDatabaseStoresToCSV,
+    type DatabaseRecordCounts
+} from '../services/database-rescue-export';
 import type { Student, AttendanceRecord, ClassRecord } from '../types';
 
 interface FsBackupEntry {
@@ -97,6 +104,78 @@ export function SettingsPage() {
     const [isRestoringCloudBackup, setIsRestoringCloudBackup] = useState(false);
     const [showEmergencyRollbacks, setShowEmergencyRollbacks] = useState(false);
     const [selectedSectionToCascadePurge, setSelectedSectionToCascadePurge] = useState<string>('');
+
+    // --- Direct Database Rescue & Health State ---
+    const [liveDbCounts, setLiveDbCounts] = useState<DatabaseRecordCounts | null>(null);
+    const [isScanningDb, setIsScanningDb] = useState(false);
+    const [isRescuingExcel, setIsRescuingExcel] = useState(false);
+    const [isReloadingDb, setIsReloadingDb] = useState(false);
+
+    const handleScanLiveDatabase = useCallback(async () => {
+        setIsScanningDb(true);
+        try {
+            const counts = await getLiveDatabaseRecordCounts();
+            setLiveDbCounts(counts);
+        } catch (e) {
+            console.error('Failed to scan live database:', e);
+        } finally {
+            setIsScanningDb(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'backups' || activeTab === 'maintenance') {
+            void handleScanLiveDatabase();
+        }
+    }, [activeTab, handleScanLiveDatabase]);
+
+    const handleRescueDatabaseExcel = async () => {
+        setIsRescuingExcel(true);
+        try {
+            const res = await exportDirectDatabaseToExcel();
+            if (res.totalRecords === 0) {
+                alert('⚠️ The local IndexedDB database (FormEaseDB) currently contains 0 records on this browser.\n\nPlease check if your data was entered in a different browser (e.g. Chrome vs Edge), an Incognito/Private window, or under a different Windows user profile.');
+            } else {
+                const studentsCount = res.breakdown['Students_Masterlist'] ?? res.breakdown['Students'] ?? 0;
+                const sectionsCount = res.breakdown['Sections_Masterlist'] ?? res.breakdown['Sections'] ?? 0;
+                const subjectsCount = res.breakdown['Subjects_Masterlist'] ?? res.breakdown['Subjects'] ?? 0;
+                const gradesCount = res.breakdown['DepEd_EClass_Records'] ?? res.breakdown['ClassRecords'] ?? 0;
+                const attendanceCount = (res.breakdown['SF2_Monthly_Attendance'] ?? 0) + (res.breakdown['Daily_Attendance'] ?? 0) || (res.breakdown['Attendance'] ?? 0);
+                const enrollmentsCount = res.breakdown['Enrollments_History'] ?? res.breakdown['Enrollments'] ?? 0;
+                const dateStr = new Date().toISOString().split('T')[0];
+
+                alert(
+                    `✅ Complete Database Rescued & Exported to Excel!\n\n` +
+                    `Extracted ${res.totalRecords} total records across all sheets directly from IndexedDB (FormEaseDB):\n` +
+                    `• Students: ${studentsCount}\n` +
+                    `• Sections: ${sectionsCount}\n` +
+                    `• Subjects: ${subjectsCount}\n` +
+                    `• E-Class Records / Grades: ${gradesCount}\n` +
+                    `• Attendance Records: ${attendanceCount}\n` +
+                    `• Enrollments: ${enrollmentsCount}\n\n` +
+                    `Check your Downloads folder for FormEase_Complete_DepEd_Database_Rescue_${dateStr}.xlsx.`
+                );
+            }
+            await handleScanLiveDatabase();
+        } catch (err: unknown) {
+            alert('Failed to export database to Excel: ' + (err instanceof Error ? err.message : String(err)));
+        } finally {
+            setIsRescuingExcel(false);
+        }
+    };
+
+    const handleForceReloadDatabase = async () => {
+        setIsReloadingDb(true);
+        try {
+            await initializeAppStore();
+            await handleScanLiveDatabase();
+            alert('✅ Success! The application has re-read all records directly from IndexedDB into active memory. Your data should now appear in all page views.');
+        } catch (err: unknown) {
+            alert('Failed to reload database: ' + (err instanceof Error ? err.message : String(err)));
+        } finally {
+            setIsReloadingDb(false);
+        }
+    };
 
     useEffect(() => {
         CloudSyncService.getStateAsync().then(state => {
@@ -972,46 +1051,62 @@ export function SettingsPage() {
         }
     };
 
-    // --- CSV Table Exporter ---
-    const handleExportTableCsv = (tableName: string) => {
+    // --- CSV & Direct DB Exporter ---
+    const handleExportTableCsv = async (tableName: string) => {
         try {
-            let dataToExport: Record<string, unknown>[] = [];
-            if (tableName === 'students') {
-                dataToExport = (studentProfiles.length > 0 ? studentProfiles : students) as unknown as Record<string, unknown>[];
-            } else if (tableName === 'sections') {
-                dataToExport = sections as unknown as Record<string, unknown>[];
-            } else if (tableName === 'subjects') {
-                dataToExport = subjects as unknown as Record<string, unknown>[];
-            } else if (tableName === 'grades') {
-                dataToExport = classRecords as unknown as Record<string, unknown>[];
-            } else if (tableName === 'gradingSheetRecords') {
-                dataToExport = gradingSheetRecords as unknown as Record<string, unknown>[];
-            } else if (tableName === 'attendanceRecords') {
-                dataToExport = attendanceRecords as unknown as Record<string, unknown>[];
-            } else if (tableName === 'enrollments') {
-                dataToExport = enrollments as unknown as Record<string, unknown>[];
-            }
+            const storeMap: Record<string, string> = {
+                students: 'students',
+                sections: 'sections',
+                subjects: 'subjects',
+                grades: 'classRecords',
+                gradingSheetRecords: 'gradingSheetRecords',
+                attendanceRecords: 'attendanceRecords',
+                enrollments: 'enrollments'
+            };
+            const actualStore = storeMap[tableName] || tableName;
+            const count = await exportDirectDatabaseStoreToCSV(actualStore);
+            if (count === 0) {
+                // Fallback to Zustand memory if IndexedDB store is empty
+                let dataToExport: Record<string, unknown>[] = [];
+                if (tableName === 'students') {
+                    dataToExport = (studentProfiles.length > 0 ? studentProfiles : students) as unknown as Record<string, unknown>[];
+                } else if (tableName === 'sections') {
+                    dataToExport = sections as unknown as Record<string, unknown>[];
+                } else if (tableName === 'subjects') {
+                    dataToExport = subjects as unknown as Record<string, unknown>[];
+                } else if (tableName === 'grades') {
+                    dataToExport = classRecords as unknown as Record<string, unknown>[];
+                } else if (tableName === 'gradingSheetRecords') {
+                    dataToExport = gradingSheetRecords as unknown as Record<string, unknown>[];
+                } else if (tableName === 'attendanceRecords') {
+                    dataToExport = attendanceRecords as unknown as Record<string, unknown>[];
+                } else if (tableName === 'enrollments') {
+                    dataToExport = enrollments as unknown as Record<string, unknown>[];
+                }
 
-            if (dataToExport.length === 0) {
-                alert(`No records found in table "${tableName}" to export.`);
-                return;
-            }
+                if (dataToExport.length === 0) {
+                    alert(`No records found in table "${tableName}" to export.`);
+                    return;
+                }
 
-            exportToCSV(dataToExport, `FormEase_${tableName}_${new Date().toISOString().split('T')[0]}`);
-            addMaintenanceLog(`Export table CSV: ${tableName}`, dataToExport.length);
+                exportToCSV(dataToExport, `FormEase_${tableName}_${new Date().toISOString().split('T')[0]}`);
+                addMaintenanceLog(`Export table CSV: ${tableName}`, dataToExport.length);
+            } else {
+                addMaintenanceLog(`Direct DB Export CSV: ${actualStore}`, count);
+            }
         } catch (e) {
             alert('CSV Export failed: ' + e);
         }
     };
 
-    const handleExportAllTablesCsv = () => {
-        const tables = ['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'];
-        tables.forEach((table, idx) => {
-            setTimeout(() => {
-                handleExportTableCsv(table);
-            }, idx * 250);
-        });
-        alert(`📦 Started batch CSV export for all 7 database tables! Check your downloads folder.`);
+    const handleExportAllTablesCsv = async () => {
+        try {
+            const results = await exportAllDirectDatabaseStoresToCSV();
+            const total = Object.values(results).reduce((sum, n) => sum + n, 0);
+            alert(`📦 Batch CSV export complete directly from IndexedDB! (${total} records across tables). Check your downloads folder.`);
+        } catch (e) {
+            alert('Batch CSV export failed: ' + e);
+        }
     };
 
     // --- School Year Archiver ---
@@ -2390,10 +2485,130 @@ export function SettingsPage() {
                                             </button>
                                             <button
                                                 onClick={() => setIsRestoreModalOpen(true)}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
                                             >
                                                 <Upload className="h-4 w-4 text-emerald-500" />
                                                 Restore
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Emergency Database Rescue & Excel Recovery Card */}
+                                    <div className="rounded-2xl border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50/40 via-white to-white dark:from-emerald-950/20 dark:via-[#0d1225] dark:to-[#0d1225] p-6 shadow-xs space-y-5">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-100 dark:border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs">
+                                                    <FileSpreadsheet className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-base font-black text-slate-800 dark:text-white tracking-wide">Emergency Database Rescue to Excel</h3>
+                                                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black px-2.5 py-0.5 uppercase tracking-wider border border-emerald-300/50">
+                                                            Direct DB Extraction
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                                                        Extracts ALL records directly from browser IndexedDB (FormEaseDB), bypassing any active screen filters, section dropdowns, or school year settings.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleScanLiveDatabase}
+                                                disabled={isScanningDb}
+                                                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-[11px] font-bold text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                                            >
+                                                <RefreshCw className={`w-3.5 h-3.5 ${isScanningDb ? 'animate-spin text-emerald-600' : ''}`} />
+                                                {isScanningDb ? 'Scanning DB...' : 'Scan Database Now'}
+                                            </button>
+                                        </div>
+
+                                        {/* Live Database Physical Health & Count Indicator */}
+                                        <div className="rounded-xl border border-slate-200/80 dark:border-white/5 bg-white/70 dark:bg-black/20 p-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="relative flex h-2.5 w-2.5">
+                                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${liveDbCounts?.hasData ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                                                        <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${liveDbCounts?.hasData ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                                                    </span>
+                                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                                        IndexedDB (FormEaseDB) Physical Storage Status:
+                                                    </span>
+                                                </div>
+                                                {liveDbCounts && (
+                                                    <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                                                        {liveDbCounts.totalRecords} total records found in storage
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Live Badges */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 pt-1">
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Students</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.students ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Sections</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.sections ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Subjects</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.subjects ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">ECR Grades</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{(liveDbCounts?.classRecords ?? 0) + (liveDbCounts?.gradingSheetRecords ?? 0)}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">HPS Scores</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.hpsRecords ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">SF2 Monthly</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.sf2Sheets ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Core Values</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.observedValues ?? '...'}</span>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-center">
+                                                    <span className="block text-[9px] font-bold text-slate-400 uppercase truncate">Daily Attd</span>
+                                                    <span className="text-sm font-black text-slate-800 dark:text-white">{liveDbCounts?.attendanceRecords ?? '...'}</span>
+                                                </div>
+                                            </div>
+
+                                            {liveDbCounts?.hasData && (
+                                                <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                                                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                                    <span>Good news! Your database contains active records. Even if certain sections or grades are not displaying on screen due to a filter, they are physically preserved here.</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Big Action Buttons */}
+                                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
+                                            <button
+                                                onClick={handleRescueDatabaseExcel}
+                                                disabled={isRescuingExcel}
+                                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <FileSpreadsheet className="h-4 w-4" />
+                                                {isRescuingExcel ? 'Extracting & Generating Excel...' : 'Download Complete Database to Excel (.xlsx)'}
+                                            </button>
+                                            <button
+                                                onClick={handleExportAllTablesCsv}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                            >
+                                                <Download className="h-4 w-4 text-indigo-500" />
+                                                Download Tables (CSV)
+                                            </button>
+                                            <button
+                                                onClick={handleForceReloadDatabase}
+                                                disabled={isReloadingDb}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-500/20 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                                            >
+                                                <RefreshCw className={`h-4 w-4 ${isReloadingDb ? 'animate-spin' : ''}`} />
+                                                {isReloadingDb ? 'Reloading...' : 'Force Re-sync to Screen'}
                                             </button>
                                         </div>
                                     </div>
@@ -3093,32 +3308,42 @@ export function SettingsPage() {
                                 </div>
                                 */}
 
-                                {/* CSV Export Card */}
+                                {/* Data Export Card (Excel & CSV) */}
                                 <div className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-[#0d1225] p-6 shadow-xs space-y-4">
                                     <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
-                                        <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
-                                            <Upload className="h-5 w-5 rotate-180" />
+                                        <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
+                                            <FileSpreadsheet className="h-5 w-5" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Data Export as CSV</h3>
-                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Download individual database tables as clean CSV spreadsheets.</p>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider">Direct Database Export (Excel & CSV)</h3>
+                                            <p className="text-xs font-semibold text-slate-400 mt-0.5">Download database tables directly from IndexedDB as Excel or CSV spreadsheets.</p>
                                         </div>
                                     </div>
                                     <div className="space-y-3">
-                                        <button
-                                            onClick={handleExportAllTablesCsv}
-                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
-                                        >
-                                            <Download className="w-4 h-4" /> Download All 7 Database Tables (Bulk CSV Package)
-                                        </button>
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <button
+                                                onClick={handleRescueDatabaseExcel}
+                                                disabled={isRescuingExcel}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4" />
+                                                {isRescuingExcel ? 'Exporting...' : 'Download Master Excel Workbook (.xlsx)'}
+                                            </button>
+                                            <button
+                                                onClick={handleExportAllTablesCsv}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                                            >
+                                                <Download className="w-4 h-4" /> Download All Tables (Bulk CSV)
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 pt-1">
                                             {['students', 'sections', 'subjects', 'grades', 'gradingSheetRecords', 'attendanceRecords', 'enrollments'].map(table => (
                                                 <button
                                                     key={table}
                                                     onClick={() => handleExportTableCsv(table)}
                                                     className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-gray-300 cursor-pointer"
                                                 >
-                                                    {table.replace('Records', '')} ↓
+                                                    {table.replace('Records', '')} CSV ↓
                                                 </button>
                                             ))}
                                         </div>
@@ -3351,12 +3576,29 @@ export function SettingsPage() {
                             </div>
 
                             <div className="space-y-6 relative pl-3 border-l-2 border-slate-100 dark:border-white/5 ml-2.5">
-                                {/* Version 3.3.1 */}
+                                {/* Version 3.4.0 */}
                                 <div className="relative pl-6">
                                     <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-[#0d1225] shadow-xs" />
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.1</span>
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.4.0</span>
                                         <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider px-2 py-0.5">Latest Production</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 8, 2026</p>
+                                    <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">
+                                        <li>🛡️ <strong>Self-Healing Grade Reconciliation Engine</strong>: Automatic startup scanning that detects and reconnects orphaned grades/HPS records and unhides all client records with zero data loss.</li>
+                                        <li>🎓 <strong>Senior High School (SHS) Grade 12 3-Term ECR</strong>: Integrated official DepEd 3-term E-Class Record for Grade 12 with ST1/ST2 relocated as WW6/WW7, single Term Exam, and full native formula preservation.</li>
+                                        <li>🔬 <strong>SSHS Pilot E-Class Record Suite</strong>: Complete official 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summaries and formula preservation.</li>
+                                        <li>🎨 <strong>Special Curricular Programs (SCP) Support</strong>: Full official 3-term template integration for SPFL, SPJ, SPA, SPS, SPTVE, SSES, and SPSTEM with per-component breakdowns.</li>
+                                        <li>📑 <strong>SF9 Multi-Level Report Cards</strong>: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School with 100% DepEd layout and formula preservation.</li>
+                                        <li>🔒 <strong>Guaranteed Subject Visibility</strong>: Enforced full-year visibility (<code>term: 'all'</code>) for all Elementary and JHS subjects, permanently eliminating <code>term: 'none'</code> visibility filters.</li>
+                                    </ul>
+                                </div>
+
+                                {/* Version 3.3.1 */}
+                                <div className="relative pl-6">
+                                    <div className="absolute left-[-18.5px] top-1.5 w-3 h-3 rounded-full bg-slate-300 border-2 border-white dark:border-[#0d1225] shadow-xs" />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-extrabold text-slate-800 dark:text-white">Version 3.3.1</span>
                                     </div>
                                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">September 3, 2026</p>
                                     <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-gray-300 font-semibold list-disc list-inside leading-relaxed">

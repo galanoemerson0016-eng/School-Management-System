@@ -474,6 +474,7 @@ export const STANDARD_SUBJECTS = {
 export interface SpecialSubjectItem {
     name: string;
     code: string;
+    term?: 1 | 2 | 3 | 'all' | 'none';
     program?: 'STE' | 'SPA' | 'SPJ' | 'SPS' | 'SPFL' | 'SSES' | 'SPTVE' | 'ALIVE' | string;
     category?: string;
     counts_in_general_average?: boolean;
@@ -489,6 +490,7 @@ export interface SpecialSubjectItem {
 export const SPECIAL_CURRICULAR_PROGRAMS = [
     { id: 'Regular', label: 'Regular Basic Education' },
     { id: 'STE', label: 'Science, Technology, and Engineering (STE)' },
+    { id: 'SPSTEM', label: 'Special Program in STEM (SPSTEM)' },
     { id: 'SPA', label: 'Special Program in the Arts (SPA)' },
     { id: 'SPJ', label: 'Special Program in Journalism (SPJ)' },
     { id: 'SPS', label: 'Special Program in Sports (SPS)' },
@@ -498,30 +500,79 @@ export const SPECIAL_CURRICULAR_PROGRAMS = [
     { id: 'ALIVE', label: 'Madrasah / ALIVE Program' }
 ] as const;
 
-export const STE_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
+export const SUBJECT_CATEGORIES_ELEM = [
+    'Core Academic Subjects',
+    'Languages & Literacy',
+    'Values / Character Education',
+    'Livelihood & Makabansa',
+    'MAPEH (Music, Arts, PE, Health)',
+    'Special Science Elementary School (SSES)',
+    'Madrasah / ALIVE Program',
+    'ICT & Computer Education',
+    'Other Subjects'
+] as const;
+
+export const SUBJECT_CATEGORIES_JHS = [
+    'Core Academic Subjects',
+    'Values / Character Education',
+    'Technology & Livelihood (TLE)',
+    'MAPEH (Music, Arts, PE, Health)',
+    'Science, Technology & Engineering (STE / SPSTEM)',
+    'Special Program in the Arts (SPA)',
+    'Special Program in Journalism (SPJ)',
+    'Special Program in Sports (SPS)',
+    'Special Program in Foreign Language (SPFL)',
+    'Technical-Vocational Education (SPTVE)',
+    'Madrasah / ALIVE Program',
+    'ICT & Computer Education',
+    'Other Subjects'
+] as const;
+
+export const SPSTEM_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
     'Grade 7': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI7', program: 'SPSTEM' },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH7', program: 'SPSTEM' },
+        { name: 'Creative Technology', code: 'SPSTEM-CT7', program: 'SPSTEM' },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES7', program: 'SPSTEM' },
         { name: 'Environmental Science', code: 'STE-ES', program: 'STE' },
         { name: 'Research I (Scientific Investigation)', code: 'STE-RES1', program: 'STE' },
         { name: 'Computer Science I', code: 'STE-CS1', program: 'STE' }
     ],
     'Grade 8': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI8', program: 'SPSTEM' },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH8', program: 'SPSTEM' },
+        { name: 'Creative Technology', code: 'SPSTEM-CT8', program: 'SPSTEM' },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES8', program: 'SPSTEM' },
         { name: 'Biotechnology', code: 'STE-BIO', program: 'STE' },
         { name: 'Research II (Research Methodology)', code: 'STE-RES2', program: 'STE' },
         { name: 'Advanced Statistics', code: 'STE-STAT', program: 'STE' }
     ],
     'Grade 9': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI9', program: 'SPSTEM' },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH9', program: 'SPSTEM' },
+        { name: 'Creative Technology', code: 'SPSTEM-CT9', program: 'SPSTEM' },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES9', program: 'SPSTEM' },
         { name: 'Consumer Chemistry', code: 'STE-CHEM', program: 'STE' },
         { name: 'Advanced Physics (Electronics)', code: 'STE-PHYS', program: 'STE' },
         { name: 'Research III (Science Investigatory Project)', code: 'STE-RES3', program: 'STE' }
     ],
     'Grade 10': [
+        { name: 'Enhanced Science', code: 'SPSTEM-SCI10', program: 'SPSTEM' },
+        { name: 'Enhanced Mathematics', code: 'SPSTEM-MTH10', program: 'SPSTEM' },
+        { name: 'Creative Technology', code: 'SPSTEM-CT10', program: 'SPSTEM' },
+        { name: 'Research MIM/SIP', code: 'SPSTEM-RES10', program: 'SPSTEM' },
         { name: 'Advanced Chemistry', code: 'STE-ACHEM', program: 'STE' },
         { name: 'Robotics and Digital Electronics', code: 'STE-ROB', program: 'STE' },
         { name: 'Research IV (SIP Defense & Capstone)', code: 'STE-RES4', program: 'STE' }
     ]
 };
 
+export const STE_SUBJECTS: Record<string, SpecialSubjectItem[]> = SPSTEM_SUBJECTS;
+
 export const SPA_MAJORS: Record<string, SpecialSubjectItem[]> = {
+    'General': [
+        { name: 'Special Program in the Arts (SPA)', code: 'SPA-GEN', program: 'SPA', category: 'General' }
+    ],
     'Visual Arts': [
         { name: 'SPA - Visual Arts', code: 'SPA-VA', program: 'SPA', category: 'Visual Arts' }
     ],
@@ -547,35 +598,57 @@ export const SPA_MAJORS: Record<string, SpecialSubjectItem[]> = {
 
 export const SPJ_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
     'Grade 7': [
-        { name: 'Journalism I (Print Journalism)', code: 'SPJ-1', program: 'SPJ' }
+        { name: 'Special Program in Journalism (Journalism)', code: 'SPJ-GEN-EN', program: 'SPJ' },
+        { name: 'Special Program in Journalism (Pamamahayag)', code: 'SPJ-GEN-FIL', program: 'SPJ' },
+        { name: 'Journalism I (Print Journalism)', code: 'SPJ-1', program: 'SPJ' },
+        { name: 'Pamamahayag I (Pamamahayag na Nakalimbag)', code: 'SPJ-P1', program: 'SPJ' }
     ],
     'Grade 8': [
-        { name: 'Journalism II (Broadcast Journalism - Radio)', code: 'SPJ-2', program: 'SPJ' }
+        { name: 'Special Program in Journalism (Journalism)', code: 'SPJ-GEN-EN', program: 'SPJ' },
+        { name: 'Special Program in Journalism (Pamamahayag)', code: 'SPJ-GEN-FIL', program: 'SPJ' },
+        { name: 'Journalism II (Broadcast Journalism - Radio)', code: 'SPJ-2', program: 'SPJ' },
+        { name: 'Pamamahayag II (Pamamahayag sa Radyo)', code: 'SPJ-P2', program: 'SPJ' }
     ],
     'Grade 9': [
-        { name: 'Journalism III (TV Broadcasting & Photojournalism)', code: 'SPJ-3', program: 'SPJ' }
+        { name: 'Special Program in Journalism (Journalism)', code: 'SPJ-GEN-EN', program: 'SPJ' },
+        { name: 'Special Program in Journalism (Pamamahayag)', code: 'SPJ-GEN-FIL', program: 'SPJ' },
+        { name: 'Journalism III (TV Broadcasting & Photojournalism)', code: 'SPJ-3', program: 'SPJ' },
+        { name: 'Pamamahayag III (Pamamahayag sa Telebisyon at Pagkuha ng Larawan)', code: 'SPJ-P3', program: 'SPJ' }
     ],
     'Grade 10': [
-        { name: 'Journalism IV (Online Journalism & Media Ethics)', code: 'SPJ-4', program: 'SPJ' }
+        { name: 'Special Program in Journalism (Journalism)', code: 'SPJ-GEN-EN', program: 'SPJ' },
+        { name: 'Special Program in Journalism (Pamamahayag)', code: 'SPJ-GEN-FIL', program: 'SPJ' },
+        { name: 'Journalism IV (Online Journalism & Media Ethics)', code: 'SPJ-4', program: 'SPJ' },
+        { name: 'Pamamahayag IV (Online na Pamamahayag at Etika sa Media)', code: 'SPJ-P4', program: 'SPJ' }
     ]
 };
 
 export const SPS_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
     'Grade 7': [
+        { name: 'Special Program in Sports (SPS)', code: 'SPS-GEN', program: 'SPS' },
         { name: 'SPS - Foundations of Sports & Individual/Dual Sports', code: 'SPS-1', program: 'SPS' }
     ],
     'Grade 8': [
+        { name: 'Special Program in Sports (SPS)', code: 'SPS-GEN', program: 'SPS' },
         { name: 'SPS - Team Sports & Biomechanics', code: 'SPS-2', program: 'SPS' }
     ],
     'Grade 9': [
+        { name: 'Special Program in Sports (SPS)', code: 'SPS-GEN', program: 'SPS' },
         { name: 'SPS - Sports Science, Physiology & Nutrition', code: 'SPS-3', program: 'SPS' }
     ],
     'Grade 10': [
+        { name: 'Special Program in Sports (SPS)', code: 'SPS-GEN', program: 'SPS' },
         { name: 'SPS - Sports Officiating & Sports Management', code: 'SPS-4', program: 'SPS' }
     ]
 };
 
 export const SPFL_LANGUAGES: SpecialSubjectItem[] = [
+    { name: 'Special Program in Foreign Language - Spanish', code: 'SPFL-ES-FULL', program: 'SPFL' },
+    { name: 'Special Program in Foreign Language - Japanese', code: 'SPFL-JA-FULL', program: 'SPFL' },
+    { name: 'Special Program in Foreign Language - French', code: 'SPFL-FR-FULL', program: 'SPFL' },
+    { name: 'Special Program in Foreign Language - German', code: 'SPFL-DE-FULL', program: 'SPFL' },
+    { name: 'Special Program in Foreign Language - Chinese', code: 'SPFL-ZH-FULL', program: 'SPFL' },
+    { name: 'Special Program in Foreign Language - Korean', code: 'SPFL-KO-FULL', program: 'SPFL' },
     { name: 'SPFL - Spanish', code: 'SPFL-ES', program: 'SPFL' },
     { name: 'SPFL - Japanese (Nihongo)', code: 'SPFL-JA', program: 'SPFL' },
     { name: 'SPFL - French', code: 'SPFL-FR', program: 'SPFL' },
@@ -591,26 +664,44 @@ export const SSES_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
         { name: 'Computer Education', code: 'SSES-ICT1', program: 'SSES' }
     ],
     'Grade 2': [
+        { name: 'Enhanced Science', code: 'SSES-ESCI2', program: 'SSES' },
+        { name: 'Enhanced Mathematics', code: 'SSES-EMTH2', program: 'SSES' },
+        { name: 'Creative Technology', code: 'SSES-CT2', program: 'SSES' },
         { name: 'Science and Health', code: 'SSES-SCI2', program: 'SSES' },
         { name: 'Enriched Mathematics', code: 'SSES-MTH2', program: 'SSES' },
         { name: 'Computer Education', code: 'SSES-ICT2', program: 'SSES' }
     ],
     'Grade 3': [
+        { name: 'Enhanced Science', code: 'SSES-ESCI3', program: 'SSES' },
+        { name: 'Enhanced Mathematics', code: 'SSES-EMTH3', program: 'SSES' },
+        { name: 'Creative Technology', code: 'SSES-CT3', program: 'SSES' },
         { name: 'Advanced Science', code: 'SSES-SCI3', program: 'SSES' },
         { name: 'Enriched Mathematics', code: 'SSES-MTH3', program: 'SSES' },
         { name: 'Computer Education', code: 'SSES-ICT3', program: 'SSES' }
     ],
     'Grade 4': [
+        { name: 'Enhanced Science', code: 'SSES-ESCI4', program: 'SSES' },
+        { name: 'Enhanced Mathematics', code: 'SSES-EMTH4', program: 'SSES' },
+        { name: 'Creative Technology', code: 'SSES-CT4', program: 'SSES' },
+        { name: 'Research MIM/SIP', code: 'SSES-RES4', program: 'SSES' },
         { name: 'Investigative Science', code: 'SSES-SCI4', program: 'SSES' },
         { name: 'Advanced Mathematics', code: 'SSES-MTH4', program: 'SSES' },
         { name: 'Robotics & ICT', code: 'SSES-ROB4', program: 'SSES' }
     ],
     'Grade 5': [
+        { name: 'Enhanced Science', code: 'SSES-ESCI5', program: 'SSES' },
+        { name: 'Enhanced Mathematics', code: 'SSES-EMTH5', program: 'SSES' },
+        { name: 'Creative Technology', code: 'SSES-CT5', program: 'SSES' },
+        { name: 'Research MIM/SIP', code: 'SSES-RES5', program: 'SSES' },
         { name: 'Investigative Science', code: 'SSES-SCI5', program: 'SSES' },
         { name: 'Advanced Mathematics', code: 'SSES-MTH5', program: 'SSES' },
         { name: 'Robotics & ICT', code: 'SSES-ROB5', program: 'SSES' }
     ],
     'Grade 6': [
+        { name: 'Enhanced Science', code: 'SSES-ESCI6', program: 'SSES' },
+        { name: 'Enhanced Mathematics', code: 'SSES-EMTH6', program: 'SSES' },
+        { name: 'Creative Technology', code: 'SSES-CT6', program: 'SSES' },
+        { name: 'Research MIM/SIP', code: 'SSES-RES6', program: 'SSES' },
         { name: 'Investigative Science', code: 'SSES-SCI6', program: 'SSES' },
         { name: 'Advanced Mathematics', code: 'SSES-MTH6', program: 'SSES' },
         { name: 'Robotics & ICT', code: 'SSES-ROB6', program: 'SSES' }
@@ -618,6 +709,10 @@ export const SSES_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
 };
 
 export const SPTVE_SPECIALIZATIONS: SpecialSubjectItem[] = [
+    { name: 'Applied Technical Drawing', code: 'SPTVE-ATD', program: 'SPTVE' },
+    { name: 'Applied Entrepreneurship', code: 'SPTVE-AE', program: 'SPTVE' },
+    { name: 'TVE Specialization', code: 'SPTVE-SPEC', program: 'SPTVE' },
+    { name: 'Special Program in Technical-Vocational Education (SPTVE)', code: 'SPTVE-GEN', program: 'SPTVE' },
     { name: 'SPTVE - Technical Drafting', code: 'SPTVE-TD', program: 'SPTVE' },
     { name: 'SPTVE - Computer Systems Servicing (CSS)', code: 'SPTVE-CSS', program: 'SPTVE' },
     { name: 'SPTVE - Electrical Installation and Maintenance (EIM)', code: 'SPTVE-EIM', program: 'SPTVE' },
@@ -656,8 +751,8 @@ export function getCurriculumTemplatesForSection(
         }
     };
 
-    if (program === 'STE') {
-        const ste = STE_SUBJECTS[gradeLevel] || [];
+    if (program === 'STE' || program === 'SPSTEM') {
+        const ste = SPSTEM_SUBJECTS[gradeLevel] || [];
         ste.forEach(pushSpecial);
     } else if (program === 'SPA') {
         const majorsToInclude = (spaMajors && spaMajors.length > 0)
@@ -682,7 +777,7 @@ export function getCurriculumTemplatesForSection(
     } else if (program === 'SPTVE') {
         SPTVE_SPECIALIZATIONS.forEach(pushSpecial);
     } else if (program === 'ALIVE') {
-        const isElementary = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Kindergarten', 'Kinder'].some(g => gradeLevel.includes(g));
+        const isElementary = /^(Kindergarten|Kinder|Grade\s*[1-6])\b/i.test((gradeLevel || '').trim());
         if (isElementary) {
             const aliveSubjects: SpecialSubjectItem[] = [
                 { name: 'Arabic Language', code: 'ALIVE-AL', program: 'ALIVE', counts_in_general_average: false, countsInGeneralAverage: false },
@@ -844,20 +939,23 @@ export const SPECIAL_SUBJECTS: Record<string, SpecialSubjectItem[]> = {
 export type GradeLevel = keyof typeof STANDARD_SUBJECTS;
 
 export function getDefaultTermForSubject(subjectName: string, gradeLevel: string): 1 | 2 | 3 | 'all' | 'none' {
-    const gl = gradeLevel.toLowerCase();
+    const gl = (gradeLevel || '').toLowerCase().trim();
+    const gNum = parseInt(gl.replace(/\D/g, '')) || 0;
     
-    // For Grade 12, all subjects default to 'none' (user must choose offering term manually)
-    if (gl.includes('12')) {
-        return 'none';
-    }
-
-    const isSHS = gl.includes('11') || gl.includes('12');
+    // Elementary (Kinder, Grades 1-6) and Junior High School (Grades 7-10)
+    // NEVER have semesters or trimesters — ALL subjects are strictly offered for the full year ('all')
+    const isSHS = gNum === 11 || gNum === 12 || gl.includes('11') || gl.includes('12');
     if (!isSHS) {
         return 'all';
     }
+
+    // For Grade 12, elective/specialized subjects default to 'none' (user chooses offering term manually)
+    if (gNum === 12 || gl.includes('12')) {
+        return 'none';
+    }
     
     // For Grade 11, Core subjects are offered in all terms; electives are per term (default none)
-    const normalized = subjectName.trim().toLowerCase();
+    const normalized = (subjectName || '').trim().toLowerCase();
     const g11Cores = [
         'effective communication',
         'mabisang komunikasyon',
@@ -1197,6 +1295,341 @@ export function isGrade11CoreSubject(subjectName: string): boolean {
     ];
     return g11Cores.some(c => norm.includes(c));
 }
+
+/**
+ * SHS Subject Categorization (Grades 11 & 12)
+ */
+export const getShsCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
+    const normalized = (subjectName || '').trim().toLowerCase();
+    const isG11 = gradeLevel.includes('11');
+    const isG12 = gradeLevel.includes('12');
+
+    if (isG11) {
+        // Core Subject (All Tracks)
+        const cores = [
+            'effective communication',
+            'mabisang komunikasyon',
+            'general mathematics',
+            'general science',
+            'life and career skills',
+            'pag-aaral ng kasaysayan at lipunang pilipino',
+            'kasaysayan at lipunang pilipino'
+        ];
+        if (cores.some(c => normalized.includes(c))) {
+            return 'Core Subject (All Tracks)';
+        }
+
+        // Academic Elective (Field Experience/ Exposure, and Sports and Arts)
+        if (normalized.startsWith('field exposure') || normalized.startsWith('field experience') || normalized.includes('apprenticeship')) {
+            return 'Academic Elective (Field Experience/ Exposure, and Sports and Arts)';
+        }
+
+        // TechPro Elective (All Other Elective)
+        const techPros = [
+            'aesthetic services', 'aesthethic services', 'aesthetic', 'aesthethic', 'beauty care', 'barbering services', 'caregiving', 'hairdressing', 'wellness services', 'hilot',
+            'agricultural crops', 'agro-entrepreneurship', 'aquaculture', 'fish capture', 'food processing',
+            'organic agriculture', 'poultry production', 'ruminants production', 'swine production', 'garments artisanry',
+            'handicrafts', 'weaving', 'automotive servicing', 'electrical repair', 'engine and chassis', 'driving',
+            'motorcycle', 'small engine', 'carpentry', 'construction operation', 'manual metal arc welding', 'welding',
+            'technical drafting', 'animation', 'illustration', 'visual graphics', 'visual graphic', 'bakery operation',
+            'events management', 'food and beverage', 'hotel operation', 'front office', 'housekeeping', 'kitchen operations',
+            'kitchen operation', 'tourism services', 'commercial air-conditioning', 'domestic refrigeration',
+            'electrical installation', 'electronics product', 'mechatronics', 'photovoltaic systems', 'broadband installation',
+            'computer programming', 'java', '.net', 'oracle', 'computer systems servicing', 'contact center', 'marine engineering',
+            'marine transportation', 'support level', 'ships catering'
+        ];
+        if (techPros.some(tp => normalized.includes(tp))) {
+            return 'TechPro Elective (All Other Elective)';
+        }
+
+        // Academic Elective (All Other Electives)
+        return 'Academic Elective (All Other Electives)';
+    }
+
+    if (isG12) {
+        const norm = normalized.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // 1. Core Subjects
+        const cores = [
+            "21st century literature from the philippines and the world",
+            "contemporary philippine arts from the regions",
+            "disaster readiness and risk reduction",
+            "earth and life science",
+            "earth science",
+            "general mathematics",
+            "introduction to philosophy of the human person",
+            "komunikasyon at pananaliksik sa wika at kulturang pilipino",
+            "media and information literacy",
+            "oral communication in context",
+            "pagbasa at pagsusuri ng ibat ibang teksto tungo sa pananaliksik",
+            "pagbasa at pagsusuri ng iba't ibang teksto tungo sa pananaliksik",
+            "personal development",
+            "physical education and health 1",
+            "physical education and health 2",
+            "physical education and health 3",
+            "physical education and health 4",
+            "health optimizing physical education and health 1",
+            "health optimizing physical education and health 2",
+            "health optimizing physical education and health 3",
+            "health optimizing physical education and health 4",
+            "health optimizing physical education 1",
+            "health optimizing physical education 2",
+            "health optimizing physical education 3",
+            "health optimizing physical education 4",
+            "hope 1",
+            "hope 2",
+            "hope 3",
+            "hope 4",
+            "physical science",
+            "reading and writing skills",
+            "statistics and probability",
+            "understanding culture society and politics",
+            "understanding culture, society and politics",
+            "21st century literature",
+            "contemporary philippine arts",
+            "pe and health 1",
+            "pe and health 2",
+            "pe and health 3",
+            "pe and health 4",
+            "physical education 1",
+            "physical education 2",
+            "physical education 3",
+            "physical education 4",
+            "pe 1",
+            "pe 2",
+            "pe 3",
+            "pe 4"
+        ];
+        if (cores.some(c => {
+            const cNorm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm);
+        })) {
+            return 'Core Subjects';
+        }
+
+        // 2. Applied Subjects
+        const applied = [
+            "empowerment technologies",
+            "english for academic and professional purposes",
+            "entrepreneurship",
+            "filipino sa piling larang akademik",
+            "filipino sa piling larang akademiko",
+            "filipino sa piling larang isports",
+            "filipino sa piling larang sining at disenyo",
+            "filipino sa piling larang teknikal bokasyunal",
+            "filipino sa piling larang teknikal-bokasyunal",
+            "filipino sa piling larang",
+            "inquiries investigations and immersion",
+            "inquiries, investigations and immersion",
+            "practical research 1",
+            "practical research 2"
+        ];
+        if (applied.some(a => {
+            const aNorm = a.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === aNorm || norm.includes(aNorm) || aNorm.includes(norm);
+        })) {
+            return 'Applied Subjects';
+        }
+
+        // 3. Specialized Subjects
+        return 'Specialized Subjects';
+    }
+
+    return '';
+};
+
+/**
+ * Universal Subject Categorization for Elementary (Grade 1-6), JHS (Grade 7-10), and SHS (Grade 11-12)
+ * Categorizes standard DepEd subjects, MATATAG, and all Special Curricular Programs (SCP).
+ */
+export const getCategoryForSubject = (subjectName: string, gradeLevel: string): string => {
+    const raw = String(subjectName || '').trim();
+    const normalized = raw.toLowerCase();
+    const stripped = normalized.replace(/[^a-z0-9]/g, '');
+    const isSHS = gradeLevel.includes('11') || gradeLevel.includes('12');
+
+    if (isSHS) {
+        return getShsCategoryForSubject(subjectName, gradeLevel);
+    }
+
+    // 1. Madrasah / ALIVE Program (Grades K-10)
+    if (
+        normalized.startsWith('*arabic') || 
+        normalized.startsWith('*islamic') || 
+        normalized.includes('arabic language') || 
+        normalized.includes('islamic values') ||
+        normalized.startsWith('alive') ||
+        stripped.includes('madrasah')
+    ) {
+        return 'Madrasah / ALIVE Program';
+    }
+
+    const isES = /^(Kindergarten|Kinder|Grade\s*[1-6])\b/i.test((gradeLevel || '').trim());
+
+    // 2. Elementary Special Science Elementary School (SSES)
+    if (isES) {
+        if (
+            normalized.startsWith('sses') ||
+            stripped.includes('specialscienceelementary') ||
+            normalized.includes('enhanced science') ||
+            normalized.includes('enhanced math') ||
+            normalized.includes('creative technology') ||
+            normalized.includes('research mim') ||
+            normalized.includes('research sip') ||
+            normalized.includes('investigative science') ||
+            normalized.includes('advanced math') ||
+            normalized.includes('enriched math') ||
+            normalized === 'science and health' ||
+            normalized.includes('robotics & ict')
+        ) {
+            return 'Special Science Elementary School (SSES)';
+        }
+    }
+
+    // 3. Junior High School (JHS Grades 7 - 10) Special Curricular Programs
+    const isJHS = /^Grade\s*(7|8|9|10)\b/i.test((gradeLevel || '').trim());
+
+    if (isJHS) {
+        // A. Science, Technology & Engineering / STEM (STE / SPSTEM)
+        const steKeywords = [
+            'ste -', 'ste-', 'spstem', 'special program in stem', 'enhanced science', 'enhanced math',
+            'creative technology', 'research mim', 'research sip', 'mim/sip', 'environmental science', 
+            'scientific investigation', 'research i', 'research ii', 'research iii', 'research iv', 
+            'biotechnology', 'advanced statistics', 'consumer chemistry', 'advanced physics', 
+            'advanced chemistry', 'robotics and digital electronics', 'sip defense', 'capstone',
+            'science investigatory project'
+        ];
+        if (steKeywords.some(k => normalized.includes(k)) || stripped.startsWith('ste') || stripped.startsWith('spstem')) {
+            return 'Science, Technology & Engineering (STE / SPSTEM)';
+        }
+
+        // B. Special Program in the Arts (SPA)
+        if (
+            normalized.startsWith('spa') || 
+            stripped.startsWith('spa') ||
+            normalized.includes('special program in the arts') ||
+            normalized.includes('malikhaing pagsulat') ||
+            normalized.includes('creative writing') ||
+            normalized.includes('media arts') ||
+            normalized.includes('theater arts') ||
+            normalized.includes('visual arts')
+        ) {
+            return 'Special Program in the Arts (SPA)';
+        }
+
+        // C. Special Program in Journalism (SPJ)
+        if (
+            normalized.startsWith('spj') || 
+            stripped.startsWith('spj') ||
+            normalized.includes('special program in journalism') ||
+            normalized.includes('journalism') ||
+            normalized.includes('pamamahayag')
+        ) {
+            return 'Special Program in Journalism (SPJ)';
+        }
+
+        // D. Special Program in Sports (SPS)
+        if (
+            normalized.startsWith('sps') || 
+            stripped.startsWith('sps') ||
+            normalized.includes('special program in sports') ||
+            normalized.includes('sports officiating') || 
+            normalized.includes('sports management') ||
+            normalized.includes('sports science') || 
+            normalized.includes('biomechanics') ||
+            normalized.includes('foundations of sports')
+        ) {
+            return 'Special Program in Sports (SPS)';
+        }
+
+        // E. Special Program in Foreign Language (SPFL)
+        if (
+            normalized.startsWith('spfl') ||
+            stripped.startsWith('spfl') ||
+            normalized.includes('special program in foreign language') ||
+            normalized.includes('spanish') ||
+            normalized.includes('nihongo') ||
+            normalized.includes('japanese') ||
+            normalized.includes('mandarin') ||
+            normalized.includes('french') ||
+            normalized.includes('german') ||
+            normalized.includes('korean')
+        ) {
+            return 'Special Program in Foreign Language (SPFL)';
+        }
+
+        // F. Technical-Vocational Education (SPTVE)
+        if (
+            normalized.startsWith('sptve') || 
+            stripped.startsWith('sptve') ||
+            normalized.startsWith('stvep') ||
+            stripped.startsWith('stvep') ||
+            normalized.includes('applied technical drawing') ||
+            normalized.includes('applied entrepreneurship') ||
+            normalized.includes('tve specialization') ||
+            normalized.includes('technical-vocational education') ||
+            normalized.includes('technical vocational education')
+        ) {
+            return 'Technical-Vocational Education (SPTVE)';
+        }
+    }
+
+    // 4. ICT & Computer Education (Elem & JHS)
+    if (
+        normalized.includes('computer education') || 
+        normalized.includes('computer science') ||
+        normalized === 'ict' ||
+        normalized.includes('computer education / ict')
+    ) {
+        return 'ICT & Computer Education';
+    }
+
+    // 5. DepEd Standard Core Curriculum
+    if (isJHS) {
+        const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
+        if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
+            return 'Core Academic Subjects';
+        }
+        const values = ['values education', 'gmrc', 'good manners'];
+        if (values.some(v => normalized.includes(v))) {
+            return 'Values / Character Education';
+        }
+        const livelihood = ['technology and livelihood', 'tle', 'specialization', 'e.p.p.', 'epp'];
+        if (livelihood.some(l => normalized.includes(l))) {
+            return 'Technology & Livelihood (TLE)';
+        }
+        const mapeh = ['music', 'arts', 'physical education', 'health', 'mapeh', 'pe '];
+        if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
+            return 'MAPEH (Music, Arts, PE, Health)';
+        }
+        return 'Other Subjects';
+    }
+
+    // Elementary (Grade 1 - 6)
+    // Priority: Languages & Literacy (Language, Reading and Literacy) before Core
+    const languages = ['language', 'reading and literacy', 'reading', 'literacy', 'mother tongue'];
+    if (languages.some(l => normalized.includes(l) && !normalized.includes('english') && !normalized.includes('filipino'))) {
+        return 'Languages & Literacy';
+    }
+    const cores = ['filipino', 'english', 'mathematics', 'science', 'araling panlipunan'];
+    if (cores.some(c => normalized.includes(c) || normalized === 'ap' || normalized === 'math')) {
+        return 'Core Academic Subjects';
+    }
+    const values = ['gmrc', 'good manners', 'values education'];
+    if (values.some(v => normalized.includes(v))) {
+        return 'Values / Character Education';
+    }
+    const livelihood = ['makabansa', 'e.p.p.', 'epp', 'tle', 'technology and livelihood', 'specialization'];
+    if (livelihood.some(l => normalized.includes(l))) {
+        return 'Livelihood & Makabansa';
+    }
+    const mapeh = ['mapeh', 'music', 'arts', 'physical education', 'health', 'pe '];
+    if (mapeh.some(m => normalized.includes(m) || normalized === 'pe' || normalized === 'pe.')) {
+        return 'MAPEH (Music, Arts, PE, Health)';
+    }
+
+    return 'Other Subjects';
+};
 
 // Re-export SSHS Modules
 export * from './sshsCatalog';

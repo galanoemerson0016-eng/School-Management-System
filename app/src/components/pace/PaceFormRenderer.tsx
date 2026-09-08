@@ -47,8 +47,55 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
   const leftDomains = currentDomains.filter(d => d.columnGroup === 'left');
   const rightDomains = currentDomains.filter(d => d.columnGroup === 'right');
 
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
   const getRating = (id: string, term: 't1' | 't2' | 't3') => {
     return paceData.ratings?.[id]?.[term] || '';
+  };
+
+  /**
+   * Authoritative test for whether a cell is unassessed / black / gray
+   */
+  const isUnassessedCellColor = (color: string | undefined | null): boolean => {
+    if (!color) return true;
+    const c = color.trim().toLowerCase();
+    if (
+      c === '#000000' ||
+      c === '#000' ||
+      c === 'black' ||
+      c === '#b7b7b7' ||
+      c === '#b8c0c8' ||
+      c === '#18181b' ||
+      c === '#1f1f1f' ||
+      c === '#262626' ||
+      c === '#333333' ||
+      c === '#404040' ||
+      c === '#595959' ||
+      c === '#7f7f7f' ||
+      c === '#808080' ||
+      c === '#a6a6a6' ||
+      c === '#b2b2b2' ||
+      c === '#cccccc' ||
+      c === '#d9d9d9' ||
+      c === UNASSESSED_CELL_GREY.toLowerCase()
+    ) {
+      return true;
+    }
+    // Any hex color where RGB are essentially equal (gray/black) and not white:
+    if (c.startsWith('#') && c.length === 7) {
+      const r = parseInt(c.slice(1, 3), 16);
+      const g = parseInt(c.slice(3, 5), 16);
+      const b = parseInt(c.slice(5, 7), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        // Any grayscale / dark cell (saturation < 18, brightness < 240)
+        if (max - min <= 18 && max < 240) {
+          return true;
+        }
+      }
+    }
+    return false;
   };
 
   /**
@@ -56,6 +103,92 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
    */
   const getCellBg = (_domainId: string, subId: string, term: 't1' | 't2' | 't3', _ratingVal: string, _skillColor: string) => {
     return currentMasterColors[subId]?.[term] || UNASSESSED_CELL_GREY;
+  };
+
+  /**
+   * Tab and Arrow Key Navigation:
+   * Pressing Tab, Enter, or ArrowDown moves focus BELOW to the next row in the SAME column.
+   * Pressing Shift+Tab, Shift+Enter, or ArrowUp moves focus UP in the SAME column.
+   * Unassessed / black cells are automatically skipped.
+   */
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    term: 't1' | 't2' | 't3',
+    subId: string
+  ) => {
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      onSetRating?.(subId, term, '' as PaceRatingDescriptor);
+      return;
+    }
+
+    // Tab, Enter, ArrowDown, ArrowUp: Navigate strictly vertically within the same column (term)
+    if (e.key === 'Tab' || e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const container = containerRef.current;
+      if (!container) return;
+
+      const colInputs = Array.from(
+        container.querySelectorAll<HTMLInputElement>(`input[data-pace-input="true"][data-term="${term}"]`)
+      ).filter(input => !input.disabled && input.offsetParent !== null);
+
+      const currentIndex = colInputs.indexOf(e.currentTarget);
+      if (currentIndex === -1) return;
+
+      const isMovingUp = e.shiftKey || e.key === 'ArrowUp';
+
+      if (isMovingUp) {
+        // Move UP
+        const prev = colInputs[currentIndex - 1];
+        if (prev) {
+          prev.focus();
+          prev.select();
+        }
+      } else {
+        // Move BELOW (not to the right!)
+        const next = colInputs[currentIndex + 1];
+        if (next) {
+          next.focus();
+          next.select();
+        }
+      }
+      return;
+    }
+
+    // ArrowRight: Move to next column horizontally for the same competency if available
+    if (e.key === 'ArrowRight') {
+      const container = containerRef.current;
+      if (!container) return;
+      const nextTerm = term === 't1' ? 't2' : term === 't2' ? 't3' : null;
+      if (nextTerm) {
+        const nextInput = container.querySelector<HTMLInputElement>(
+          `input[data-pace-input="true"][data-subid="${subId}"][data-term="${nextTerm}"]`
+        );
+        if (nextInput && !nextInput.disabled) {
+          e.preventDefault();
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+      return;
+    }
+
+    // ArrowLeft: Move to previous column horizontally for the same competency if available
+    if (e.key === 'ArrowLeft') {
+      const container = containerRef.current;
+      if (!container) return;
+      const prevTerm = term === 't3' ? 't2' : term === 't2' ? 't1' : null;
+      if (prevTerm) {
+        const prevInput = container.querySelector<HTMLInputElement>(
+          `input[data-pace-input="true"][data-subid="${subId}"][data-term="${prevTerm}"]`
+        );
+        if (prevInput && !prevInput.disabled) {
+          e.preventDefault();
+          prevInput.focus();
+          prevInput.select();
+        }
+      }
+      return;
+    }
   };
 
   const renderRatingCell = (
@@ -68,21 +201,34 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
     skillColor: string,
     isBorderRight: boolean = true
   ) => {
-    const isInteractive = editable && !!onSetRating;
+    const bg = getCellBg(domainId, subId, term, ratingVal, skillColor);
+    const isUnassessed = subId.endsWith('_main') || isUnassessedCellColor(bg);
+    const isInteractive = editable && !!onSetRating && !isUnassessed;
 
     return (
       <td
         className={`text-center font-bold p-0 align-middle w-5 text-[9.5px] h-3.5 ${
           isBorderRight ? 'border-r border-black' : ''
-        }`}
+        } ${isUnassessed ? 'select-none pointer-events-none cursor-not-allowed' : ''}`}
         style={{ 
-          backgroundColor: getCellBg(domainId, subId, term, ratingVal, skillColor),
+          backgroundColor: bg,
           textAlign: 'center',
           verticalAlign: 'middle'
         }}
+        tabIndex={-1}
+        title={isUnassessed ? `Not assessed in ${term.toUpperCase()}` : undefined}
       >
-        {isInteractive ? (
+        {isUnassessed ? (
+          <div 
+            className="w-full h-full min-h-3.5 pointer-events-none select-none" 
+            style={{ backgroundColor: bg }}
+            aria-hidden="true" 
+          />
+        ) : isInteractive ? (
           <input
+            data-pace-input="true"
+            data-term={term}
+            data-subid={subId}
             type="text"
             value={ratingVal}
             maxLength={1}
@@ -92,11 +238,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                 onSetRating(subId, term, val as PaceRatingDescriptor);
               }
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Backspace' || e.key === 'Delete') {
-                onSetRating(subId, term, '' as PaceRatingDescriptor);
-              }
-            }}
+            onKeyDown={(e) => handleKeyDown(e, term, subId)}
             onFocus={(e) => e.target.select()}
             style={{ textAlign: 'center' }}
             className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 print:bg-transparent cursor-text p-0 m-0 leading-none mx-auto block"
@@ -110,15 +252,33 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
   };
 
   const renderSingleRatingCell = (itemId: string, ratingVal: string) => {
-    const isInteractive = editable && !!onSetRating;
+    const isUnassessed = itemId.endsWith('_main');
+    const isInteractive = editable && !!onSetRating && !isUnassessed;
 
     return (
       <td 
-        className="text-center font-bold p-0 align-middle w-12 text-[9.5px] h-4 bg-white border-l border-black"
-        style={{ textAlign: 'center', verticalAlign: 'middle' }}
+        className={`text-center font-bold p-0 align-middle w-12 text-[9.5px] h-4 border-l border-black ${
+          isUnassessed ? 'select-none pointer-events-none cursor-not-allowed' : 'bg-white'
+        }`}
+        style={{ 
+          backgroundColor: isUnassessed ? UNASSESSED_CELL_GREY : '#ffffff',
+          textAlign: 'center', 
+          verticalAlign: 'middle' 
+        }}
+        tabIndex={-1}
+        title={isUnassessed ? 'Not assessed' : undefined}
       >
-        {isInteractive ? (
+        {isUnassessed ? (
+          <div 
+            className="w-full h-full min-h-4 pointer-events-none select-none" 
+            style={{ backgroundColor: UNASSESSED_CELL_GREY }}
+            aria-hidden="true" 
+          />
+        ) : isInteractive ? (
           <input
+            data-pace-input="true"
+            data-term="t1"
+            data-subid={itemId}
             type="text"
             value={ratingVal}
             maxLength={1}
@@ -128,11 +288,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
                 onSetRating(itemId, 't1', val as PaceRatingDescriptor);
               }
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Backspace' || e.key === 'Delete') {
-                onSetRating(itemId, 't1', '' as PaceRatingDescriptor);
-              }
-            }}
+            onKeyDown={(e) => handleKeyDown(e, 't1', itemId)}
             onFocus={(e) => e.target.select()}
             style={{ textAlign: 'center' }}
             className="w-full h-full text-center font-black text-[9.5px] uppercase bg-transparent border-none outline-none focus:ring-1 focus:ring-amber-500 focus:bg-amber-100/70 cursor-text p-0 m-0 leading-none mx-auto block"
@@ -319,6 +475,7 @@ export const PaceFormRenderer: React.FC<PaceFormRendererProps> = ({
     <div className="relative">
       {/* Main Document Preview Container */}
       <div
+        ref={containerRef}
         className="pace-form-container mx-auto bg-white text-black select-none border border-slate-400 shadow-md print:shadow-none print:border-none print:p-0 print:m-0"
         style={{
           width: '8.5in',

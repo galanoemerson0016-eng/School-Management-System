@@ -333,27 +333,30 @@ export function SF5Page() {
         return normalized === 'recovered adviser' || normalized === 'recovered advisor';
     };
 
-    // Resolve adviser name: Priority 1: Institute Profile (Source of Truth), then section fallback
     const resolvedAdviserName = useMemo(() => {
         const fromProfile = (schoolProfile?.adviser_name || '').trim();
         const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
 
-        // Source of Truth: If profile has a real name, use it!
-        if (!isGenericProfile && fromProfile) return fromProfile;
+        const fromSection = (currentSectionInfo?.adviser_name || '').trim();
+        const isPlaceholder = !fromSection || 
+                              isRecoveredAdviserPlaceholder(fromSection) ||
+                              fromSection.toLowerCase().includes('maria') || 
+                              fromSection.toLowerCase().includes('santos') || 
+                              fromSection.toLowerCase().includes('juan') || 
+                              fromSection.toLowerCase() === 'tba';
 
-        if (!currentSectionInfo) return fromProfile || 'TEST ADVISER';
-        
-        if (currentSectionInfo.adviser_id) {
+        if (currentSectionInfo?.adviser_id && !currentSectionInfo.adviser_id.startsWith('adv-')) {
             const teacher = teachers.find(t => t.uid === currentSectionInfo.adviser_id);
             if (teacher?.displayName) return teacher.displayName;
         }
-        
-        const fromSection = (currentSectionInfo.adviser_name || '').trim();
-        if (fromSection && !isRecoveredAdviserPlaceholder(fromSection) && fromSection.toLowerCase() !== 'tba') {
+
+        if (fromSection && !isPlaceholder) {
             return fromSection;
         }
 
-        return fromProfile || 'TEST ADVISER';
+        if (!isGenericProfile && fromProfile) return fromProfile;
+
+        return fromProfile || 'Class Adviser';
     }, [currentSectionInfo, teachers, schoolProfile]);
 
     const tableRows = useMemo(() => [

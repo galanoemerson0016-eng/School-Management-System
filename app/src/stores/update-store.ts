@@ -307,7 +307,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.11';
+        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.0';
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.3.1';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.0';
       const api = window.electronAPI;
 
       try {
@@ -402,10 +402,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
-              "📊 Fixed Grade 11 TechPro & Academic term summary formula (/7 replaced with dynamic AVERAGE to prevent 10/9 mismatches when only 1 subject graded).",
-              "📋 Restored student names, headers, and eliminated cascading #VALUE! formula failures in SSHS Grade 11 E-Class Record.",
-              "🎵 Restored parent MAPEH in Temporary Grade Slip and E-Class Record with dynamic 2-pass averaging and hierarchical sorting.",
-              "⚡ Enhanced section tracking, curriculum loading, and live grade sync inspector modal.",
+              "🛡️ Self-Healing Grade Reconciliation: automatically recovered and unhid all client records, subjects, and PE & Health components with zero data loss.",
+              "🎓 Senior High School (SHS) Grade 12 3-Term ECR: Integrated official DepEd template with relocated ST1/ST2 as WW6/WW7 and single Term Exam.",
+              "🔬 SSHS Pilot E-Class Record: Complete 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summary.",
+              "🎨 Complete Special Curricular Programs (SCP) Suite: Official ECR support for SPFL, SPJ, SPA, SPS, SPTVE, and SSES/SPSTEM.",
+              "📑 SF9 Multi-Level Report Cards: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School.",
               "🔒 100% backward-compatible update with zero risk to student records, grades, and section enrollments."
             ],
             timestamp: Date.now(),

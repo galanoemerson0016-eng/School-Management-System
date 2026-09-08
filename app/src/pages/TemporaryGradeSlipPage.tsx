@@ -215,7 +215,7 @@ export function TemporaryGradeSlipPage() {
         }
 
         return sortSubjects(uniqueSubjects, s => s.subject_name);
-    }, [subjects, selectedSectionObj]);
+    }, [subjects, selectedSectionObj, schoolProfile?.curriculum]);
 
     const handlePrint = () => {
         window.print();

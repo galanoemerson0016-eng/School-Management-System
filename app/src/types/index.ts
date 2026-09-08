@@ -305,7 +305,7 @@ export interface Section {
     track?: string; // Track for SHS (Academic or TechPro)
     strand?: string; // Strand for SHS (STEM, ABM, HUMSS, GAS, etc.)
     cluster?: string; // SSHS Curriculum Cluster under DepEd Order No. 017, s. 2026 (Grade 11)
-    program?: 'Regular' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'SSES' | 'ALIVE' | string;
+    program?: 'Regular' | 'STE' | 'SPSTEM' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'SSES' | 'ALIVE' | string;
     curriculum_type?: 'MATATAG' | 'K-12' | string;
     spa_majors?: string[]; // Specific art disciplines active in this section (e.g. Visual Arts, Dance)
     section_metadata?: {
@@ -328,8 +328,8 @@ export interface Subject {
     performance_weight?: number;
     exam_weight?: number;
     enrolled_student_lrns?: string[]; // Optional list of LRNs of enrolled students
-    is_special_program?: boolean; // True for STE, SPA, SPS, SPJ, SPFL, etc.
-    program_type?: string; // e.g. 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SSES' | 'ALIVE'
+    is_special_program?: boolean; // True for STE, SPSTEM, SPA, SPS, SPJ, SPFL, etc.
+    program_type?: string; // e.g. 'STE' | 'SPSTEM' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SSES' | 'ALIVE'
     counts_in_general_average?: boolean; // Default true, false for non-averaged subjects like *Arabic Language
     is_component?: boolean; // True for sub-components (Music and Arts, PE and Health)
     parent_subject_id?: string; // e.g. MAPEH

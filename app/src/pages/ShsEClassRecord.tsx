@@ -7,13 +7,18 @@ import type { ClassRecord, HPSRecord, Subject } from '../types';
 import { getTermUpperLabel } from '../lib/terms';
 import { SubjectEnrollmentModal } from '../components/sections/SubjectEnrollmentModal';
 import { exportSSHSEClassRecord, resolveSSHSMetadata, SSHS_GRADE11_CATALOG } from '../services/sshs-excel-export';
+import { exportSHSG12EClassRecord, resolveSHSG12Terms } from '../services/shs-g12-excel-export';
+import { exportDirectDatabaseToExcel } from '../services/database-rescue-export';
 import { isGrade11CoreSubject, SSHS_ELECTIVE_CATALOG } from '../lib/curriculum';
+import { isMatchingSubject } from '../utils/grading-helpers';
 
 import { getSubjectCluster, getWeights, transmuteGrade, getGradeDescriptorWithFilipino, formatGradeForDisplay, computeExamsWeightedScore } from '../lib/grading';
 import { filterSectionsForUser, filterSubjectsForSection } from '../lib/rbac';
 
 const SSHS_WW_COUNT = 10;
 const SSHS_PT_COUNT = 10;
+const G12_WW_COUNT = 10;
+const G12_PT_COUNT = 10;
 const WW_COUNT = 5;
 const PT_COUNT = 3;
 const ST_COUNT = 3;
@@ -266,6 +271,7 @@ interface StudentGradeRowProps {
     activeWwCount: number;
     activePtCount: number;
     isZeroExam: boolean;
+    isSSHS: boolean;
 }
 
 const StudentGradeRow = memo(({
@@ -286,6 +292,7 @@ const StudentGradeRow = memo(({
     activeWwCount,
     activePtCount,
     isZeroExam,
+    isSSHS,
 }: StudentGradeRowProps) => {
     const summary = useMemo(() => {
         const sGrades: Pick<ClassRecord, 'written_works' | 'performance_tasks' | 'quarterly_exam'> = record || {
@@ -294,14 +301,6 @@ const StudentGradeRow = memo(({
             quarterly_exam: ''
         };
 
-        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
-            const n = Number(s);
-            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
-        });
-        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
-            const n = Number(s);
-            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
-        });
         const rawQaRec = (record as any)?.summative_tests;
         const qaScores = normalizeScores(rawQaRec, 3).map(s => {
             const n = Number(s);
@@ -312,8 +311,38 @@ const StudentGradeRow = memo(({
             qaScores[2] = Number(sGrades.quarterly_exam);
         }
 
+        const wwScores = normalizeScores(sGrades.written_works, activeWwCount).map(s => {
+            const n = Number(s);
+            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
+        });
+
+        // For Grade 12: relocate Summative Test 1 and 2 to Written Works 6 and 7 if empty
+        if (!isSSHS) {
+            if ((wwScores[5] === '' || wwScores[5] === undefined) && qaScores[0] !== '') {
+                wwScores[5] = qaScores[0];
+            }
+            if ((wwScores[6] === '' || wwScores[6] === undefined) && qaScores[1] !== '') {
+                wwScores[6] = qaScores[1];
+            }
+        }
+
+        const ptScores = normalizeScores(sGrades.performance_tasks, activePtCount).map(s => {
+            const n = Number(s);
+            return (s === '' || s === null || s === undefined || isNaN(n)) ? '' : n;
+        });
+
+        const effectiveHpsWw = [...hps.ww];
+        if (!isSSHS) {
+            if ((effectiveHpsWw[5] === '' || effectiveHpsWw[5] === undefined || effectiveHpsWw[5] === 0) && Number(hps.qa[0]) > 0) {
+                effectiveHpsWw[5] = hps.qa[0];
+            }
+            if ((effectiveHpsWw[6] === '' || effectiveHpsWw[6] === undefined || effectiveHpsWw[6] === 0) && Number(hps.qa[1]) > 0) {
+                effectiveHpsWw[6] = hps.qa[1];
+            }
+        }
+
         const wwTotalScore = wwScores.reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
+        const wwTotalHPS = effectiveHpsWw.reduce<number>((a, b) => a + Number(b), 0);
         const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
         const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
 
@@ -335,17 +364,24 @@ const StudentGradeRow = memo(({
 
         let qaScore = 0;
         let qaHPS = 0;
-        if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
-            qaHPS += st1HPS;
-            qaScore += (st1Score as number);
-        }
-        if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
-            qaHPS += st2HPS;
-            qaScore += (st2Score as number);
-        }
-        if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
-            qaHPS += teHPS;
-            qaScore += (teScore as number);
+        if (isSSHS) {
+            if (st1HPS > 0 && st1Score !== null && !isNaN(st1Score as number)) {
+                qaHPS += st1HPS;
+                qaScore += (st1Score as number);
+            }
+            if (st2HPS > 0 && st2Score !== null && !isNaN(st2Score as number)) {
+                qaHPS += st2HPS;
+                qaScore += (st2Score as number);
+            }
+            if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+                qaHPS += teHPS;
+                qaScore += (teScore as number);
+            }
+        } else {
+            if (teHPS > 0 && teScore !== null && !isNaN(teScore as number)) {
+                qaHPS = teHPS;
+                qaScore = (teScore as number);
+            }
         }
 
         const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
@@ -357,7 +393,7 @@ const StudentGradeRow = memo(({
         const hasScores =
             wwScores.some(isValidScore) ||
             ptScores.some(isValidScore) ||
-            (!isZeroExam && qaScores.some(isValidScore));
+            (!isZeroExam && (isSSHS ? qaScores.some(isValidScore) : isValidScore(qaScores[2])));
 
         const quarterlyGrade = hasScores ? transmuteGrade(initialGrade, activeSchoolYear) : 0;
 
@@ -370,10 +406,11 @@ const StudentGradeRow = memo(({
             ptTotalScore, ptTotalHPS, ptPS, ptWS,
             st1WS, st2WS, teWS,
             qaScore, qaHPS, qaPS, qaWS,
+            teHPS,
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
+    }, [record, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam, isSSHS]);
 
     const rowNum = (sectionIdx === 0 ? 1 : maleStudentsCount + 1) + idx;
 
@@ -414,24 +451,49 @@ const StudentGradeRow = memo(({
             <td className="border border-black bg-green-100/60 font-medium text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptTotalScore : ''}</td>
             <td className="border border-black bg-green-100/60 text-[8px] text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptPS.toFixed(2) : ''}</td>
             <td className="border border-black border-r-2 border-r-black bg-green-200/60 font-bold text-[8.5px] text-center">{summary.ptTotalHPS > 0 && summary.pt.some(s => s !== '') ? summary.ptWS.toFixed(2) : ''}</td>
-            {!isZeroExam && summary.qa.map((score, i) => (
-                <td key={`qa-${i}`} className="border border-black p-0">
-                    <DebouncedInput
-                        type="number"
-                        value={score === '' ? '' : score}
-                        onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
-                        onKeyDown={(e) => handleKeyDown(e, rowNum, activeWwCount + activePtCount + i)}
-                        data-row={rowNum}
-                        data-col={activeWwCount + activePtCount + i}
-                        className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
-                    />
-                </td>
-            ))}
-            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>}
-            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>}
-            {!isZeroExam && <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>}
-            {!isZeroExam && <td className="border border-black bg-yellow-100/60 text-[8px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>}
-            {!isZeroExam && <td className="border border-black border-r-2 border-r-black bg-yellow-200/60 font-bold text-[8.5px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>}
+            
+            {/* Examination Inputs & Sub-weights */}
+            {!isZeroExam && isSSHS && (
+                <>
+                    {summary.qa.map((score, i) => (
+                        <td key={`qa-${i}`} className="border border-black p-0">
+                            <DebouncedInput
+                                type="number"
+                                value={score === '' ? '' : score}
+                                onChange={(v) => updateGrade(student.lrn, 'qa', i, v)}
+                                onKeyDown={(e) => handleKeyDown(e, rowNum, activeWwCount + activePtCount + i)}
+                                data-row={rowNum}
+                                data-col={activeWwCount + activePtCount + i}
+                                className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                            />
+                        </td>
+                    ))}
+                    <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st1WS !== null ? summary.st1WS.toFixed(2) : ''}</td>
+                    <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.st2WS !== null ? summary.st2WS.toFixed(2) : ''}</td>
+                    <td className="border border-black bg-yellow-100/50 text-[8px] text-center">{summary.teWS !== null ? summary.teWS.toFixed(2) : ''}</td>
+                    <td className="border border-black bg-yellow-100/60 text-[8px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaPS.toFixed(2) : ''}</td>
+                    <td className="border border-black border-r-2 border-r-black bg-yellow-200/60 font-bold text-[8.5px] text-center">{summary.qaHPS > 0 && summary.qa.some(s => s !== '') ? summary.qaWS.toFixed(2) : ''}</td>
+                </>
+            )}
+
+            {!isZeroExam && !isSSHS && (
+                <>
+                    <td className="border border-black p-0">
+                        <DebouncedInput
+                            type="number"
+                            value={summary.qa[2] === '' ? '' : summary.qa[2]}
+                            onChange={(v) => updateGrade(student.lrn, 'qa', 2, v)}
+                            onKeyDown={(e) => handleKeyDown(e, rowNum, activeWwCount + activePtCount)}
+                            data-row={rowNum}
+                            data-col={activeWwCount + activePtCount}
+                            className="w-full h-full text-center outline-none p-0 focus:bg-yellow-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold"
+                        />
+                    </td>
+                    <td className="border border-black bg-yellow-100/60 text-[8px] text-center">{summary.teHPS > 0 && summary.qa[2] !== '' ? summary.qaPS.toFixed(2) : ''}</td>
+                    <td className="border border-black border-r-2 border-r-black bg-yellow-200/60 font-bold text-[8.5px] text-center">{summary.teHPS > 0 && summary.qa[2] !== '' ? summary.qaWS.toFixed(2) : ''}</td>
+                </>
+            )}
+
             <td className="border border-black border-r-2 border-r-black bg-yellow-50/50 font-bold text-center text-[9.5px] whitespace-nowrap">{summary.hasScores ? summary.initialGrade.toFixed(2) : ''}</td>
             <td className={`border border-black font-black text-center text-[10.5px] leading-tight whitespace-nowrap ${summary.quarterlyGrade > 0 ? (summary.quarterlyGrade < 75 ? 'bg-red-500 text-white' : 'bg-deped-blue text-white') : 'bg-white'}`}>
                 {summary.quarterlyGrade > 0 ? formatGradeForDisplay(summary.quarterlyGrade, sectionGradeLevel) : ''}
@@ -455,7 +517,8 @@ const StudentGradeRow = memo(({
         prev.optimalNameColumnWidth === next.optimalNameColumnWidth &&
         prev.activeWwCount === next.activeWwCount &&
         prev.activePtCount === next.activePtCount &&
-        prev.isZeroExam === next.isZeroExam
+        prev.isZeroExam === next.isZeroExam &&
+        prev.isSSHS === next.isSSHS
     );
 });
 
@@ -541,6 +604,15 @@ export function ShsEClassRecord() {
     const onSectionChange = (val: string) => {
         setSelectedSection(val);
         setGlobalSection(val);
+        const targetSec = sections.find(s => s.id === val || s.section_name === val);
+        if (targetSec) {
+            const secSubjects = filterSubjectsForSection(user, targetSec, subjects).filter(s => s.term !== 'none');
+            if (secSubjects.length > 0) {
+                setSelectedSubject(secSubjects[0].id);
+                setGlobalSubject(secSubjects[0].id);
+                return;
+            }
+        }
         setSelectedSubject('');
         setGlobalSubject('');
     };
@@ -622,16 +694,17 @@ export function ShsEClassRecord() {
         }
     }, [filteredSubjects, sectionGradeLevel]);
 
-    // Reset selected subject if it's no longer offered in the current term
+    // Auto-select first available subject if no subject is currently selected or if the selected subject is invalid
     useEffect(() => {
-        if (selectedSubject && filteredSubjects.length > 0) {
-            const exists = filteredSubjects.some(s => s.id === selectedSubject);
-            if (!exists) {
-                setSelectedSubject('');
-                setGlobalSubject('');
+        if (selectedSection && filteredSubjects.length > 0) {
+            const isValid = selectedSubject && filteredSubjects.some(s => s.id === selectedSubject);
+            if (!isValid) {
+                const firstSub = filteredSubjects[0].id;
+                setSelectedSubject(firstSub);
+                setGlobalSubject(firstSub);
             }
         }
-    }, [quarter, filteredSubjects, selectedSubject, setGlobalSubject]);
+    }, [selectedSection, filteredSubjects, selectedSubject, setGlobalSubject]);
 
     const effectiveSubjectId = selectedSubject;
 
@@ -822,8 +895,8 @@ export function ShsEClassRecord() {
         return false;
     }, [isGrade11, isGrade12, selectedSubjectObj, selectedSectionObj, sectionTrack]);
 
-    const activeWwCount = isSSHS ? SSHS_WW_COUNT : WW_COUNT;
-    const activePtCount = isSSHS ? SSHS_PT_COUNT : PT_COUNT;
+    const activeWwCount = isSSHS ? SSHS_WW_COUNT : (isGrade12 ? G12_WW_COUNT : WW_COUNT);
+    const activePtCount = isSSHS ? SSHS_PT_COUNT : (isGrade12 ? G12_PT_COUNT : PT_COUNT);
 
     // Highest Possible Scores (HPS) - Persistent
     const hps = useMemo(() => {
@@ -836,7 +909,7 @@ export function ShsEClassRecord() {
         const fullSecName = selectedSectionObj ? `${selectedSectionObj.section_grade_level} - ${selectedSectionObj.section_name}` : selectedSection;
 
         const record = hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             (
@@ -848,7 +921,7 @@ export function ShsEClassRecord() {
                 (secName && r.id.includes(secName))
             )
         ) || hpsRecords.find(r =>
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id))) &&
             r.school_year === activeSchoolYear &&
             Number(r.quarter) === quarter &&
             !r.section_id
@@ -866,12 +939,22 @@ export function ShsEClassRecord() {
             return v === '' ? '' : Number(v);
         });
 
+        // For Grade 12: relocate Summative Test 1 and 2 HPS to Written Works 6 and 7 if empty
+        if (!isSSHS) {
+            if ((hps_ww[5] === '' || hps_ww[5] === undefined || hps_ww[5] === 0) && Number(hps_qa[0]) > 0) {
+                hps_ww[5] = hps_qa[0];
+            }
+            if ((hps_ww[6] === '' || hps_ww[6] === undefined || hps_ww[6] === 0) && Number(hps_qa[1]) > 0) {
+                hps_ww[6] = hps_qa[1];
+            }
+        }
+
         return {
             ww: hps_ww,
             pt: hps_pt,
             qa: hps_qa
         };
-    }, [hpsRecords, effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount]);
+    }, [hpsRecords, effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, activeWwCount, activePtCount, isSSHS]);
 
     const currentCluster = useMemo(() => {
         return getSubjectCluster(subjectName, sectionGradeLevel, sectionTrack);
@@ -945,7 +1028,7 @@ export function ShsEClassRecord() {
         return getSubjectCategory(selectedSubjectObj?.subject_name || subjectName || '', sectionGradeLevel).toUpperCase();
     }, [selectedSubjectObj, subjectName, sectionGradeLevel]);
 
-    const totalNonNameCols = (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? 8 : 0) + 2;
+    const totalNonNameCols = (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2;
     const colSpanGls = Math.max(3, Math.round(totalNonNameCols * 0.20));
     const colSpanSection = Math.max(4, Math.round(totalNonNameCols * 0.24));
     const colSpanTeacher = Math.max(5, Math.round(totalNonNameCols * 0.30));
@@ -954,7 +1037,7 @@ export function ShsEClassRecord() {
     const getStudentSummary = useCallback((student: typeof students[0]) => {
         const record = classRecords.find(r =>
             r.student_lrn === student.lrn &&
-            r.subject_id === effectiveSubjectId &&
+            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
             Number(r.quarter) === quarter
         );
 
@@ -1038,7 +1121,7 @@ export function ShsEClassRecord() {
             initialGrade: isNaN(initialGrade) ? 0 : initialGrade,
             quarterlyGrade: isNaN(quarterlyGrade) ? 0 : quarterlyGrade
         };
-    }, [classRecords, effectiveSubjectId, quarter, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
+    }, [classRecords, effectiveSubjectId, subjectName, quarter, hps, currentWeights, currentCluster, activeSchoolYear, activeWwCount, activePtCount, isZeroExam]);
 
     const getGradeDescriptor = useCallback((grade: number, hasScores: boolean) => {
         if (!hasScores || grade <= 0) return '';
@@ -1063,7 +1146,7 @@ export function ShsEClassRecord() {
             }
             const record = classRecords.find(r =>
                 r.student_lrn === student.lrn &&
-                r.subject_id === selectedSubject &&
+                (r.subject_id === selectedSubject || (targetSubjectObj && isMatchingSubject(targetSubjectObj.subject_name, r.subject_id, r.subject_name))) &&
                 Number(r.quarter) === q
             );
             const grade = record?.final_grade ? Number(record.final_grade) : 0;
@@ -1267,7 +1350,7 @@ export function ShsEClassRecord() {
         sectionStudents.forEach(st => {
             const cr = stateClassRecords.find(r =>
                 r.student_lrn === st.lrn &&
-                r.subject_id === effectiveSubjectId &&
+                (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
                 Number(r.quarter) === Number(quarter)
             );
             if (!cr) return;
@@ -1305,15 +1388,18 @@ export function ShsEClassRecord() {
 
             const updatedCr: ClassRecord = {
                 ...cr,
+                subject_id: effectiveSubjectId,
+                subject_name: subjectName || cr.subject_name,
                 final_grade: newFinalGrade
             };
             updateClassRecord(updatedCr);
 
             const { updateGradingSheetRecord } = useAppStore.getState();
             updateGradingSheetRecord({
-                id: `${cr.student_lrn}_${cr.subject_id}_${cr.quarter}_${cr.school_year}`,
+                id: `${cr.student_lrn}_${effectiveSubjectId}_${cr.quarter}_${cr.school_year}`,
                 student_lrn: cr.student_lrn,
-                subject_id: cr.subject_id,
+                subject_id: effectiveSubjectId,
+                subject_name: cr.subject_name || subjectName || '',
                 section_id: cr.section_id,
                 quarter: cr.quarter as 1|2|3,
                 school_year: cr.school_year,
@@ -1323,7 +1409,7 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         });
-    }, [effectiveSubjectId, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, activeWwCount, activePtCount, isZeroExam]);
+    }, [effectiveSubjectId, subjectName, activeSchoolYear, quarter, selectedSection, selectedSectionObj, sections, sectionStudents, currentWeights, currentCluster, updateHPSRecord, updateClassRecord, activeWwCount, activePtCount, isZeroExam]);
 
     const updateGrade = useCallback((lrn: string, type: 'ww' | 'pt' | 'qa', index: number, value: string) => {
         if (!selectedSection || !effectiveSubjectId) return;
@@ -1358,13 +1444,14 @@ export function ShsEClassRecord() {
 
         const parsedVal: number | string = value === '' ? '' : Number(value);
 
+        // Validation: Do not allow score higher than HPS
         if (typeof parsedVal === 'number') {
             let currentHPS = 0;
             if (type === 'ww') currentHPS = Number(hps.ww[index]);
             else if (type === 'pt') currentHPS = Number(hps.pt[index]);
             else if (type === 'qa') currentHPS = Number(hps.qa[index]);
 
-            if (parsedVal > currentHPS) {
+            if (currentHPS > 0 && parsedVal > currentHPS) {
                 showNotification(`Score (${parsedVal}) cannot be higher than the Highest Possible Score (${currentHPS}).`, 'error');
                 return;
             }
@@ -1375,11 +1462,11 @@ export function ShsEClassRecord() {
             recordWithSummative.summative_tests = qaScores;
             record.quarterly_exam = qaScores[2];
         } else if (type === 'ww') {
-            const newWW = [...record.written_works];
+            const newWW = normalizeScores(record.written_works, activeWwCount);
             newWW[index] = parsedVal;
             record.written_works = newWW;
         } else if (type === 'pt') {
-            const newPT = [...record.performance_tasks];
+            const newPT = normalizeScores(record.performance_tasks, activePtCount);
             newPT[index] = parsedVal;
             record.performance_tasks = newPT;
         }
@@ -1388,14 +1475,15 @@ export function ShsEClassRecord() {
         const normalizedPT = normalizeScores(record.performance_tasks, activePtCount);
 
         const wwTotalScore = normalizedWW.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-        const wwTotalHPS = hps.ww.reduce((a, b) => a + b, 0);
-        const wwPS = wwTotalHPS === 0 ? 0 : Math.round((wwTotalScore / wwTotalHPS) * 100 * 100) / 100;
-        const wwWS = Math.round(wwPS * (currentWeights.written_works || 0) * 100) / 100;
+        const wwTotalHPS = hps.ww.reduce<number>((a, b) => a + Number(b), 0);
+        const wwPS = wwTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (wwTotalScore / wwTotalHPS) * 100));
+        const wwWS = wwPS * (currentWeights.written_works || 0);
 
         const ptTotalScore = normalizedPT.reduce<number>((a, b) => a + (b !== '' && !isNaN(Number(b)) ? Number(b) : 0), 0);
-        const ptTotalHPS = hps.pt.reduce((a, b) => a + b, 0);
-        const ptPS = ptTotalHPS === 0 ? 0 : Math.round((ptTotalScore / ptTotalHPS) * 100 * 100) / 100;
-        const ptWS = Math.round(ptPS * (currentWeights.performance_tasks || 0) * 100) / 100;
+        const ptTotalHPS = hps.pt.reduce<number>((a, b) => a + Number(b), 0);
+        const ptPS = ptTotalHPS === 0 ? 0 : Math.min(100, Math.max(0, (ptTotalScore / ptTotalHPS) * 100));
+        const ptWS = ptPS * (currentWeights.performance_tasks || 0);
+
         const st1Score = qaScores[0] === '' || qaScores[0] === null || qaScores[0] === undefined ? null : Number(qaScores[0]);
         const st1HPS = Number(hps.qa[0]) || 0;
         const st2Score = qaScores[1] === '' || qaScores[1] === null || qaScores[1] === undefined ? null : Number(qaScores[1]);
@@ -1406,7 +1494,7 @@ export function ShsEClassRecord() {
         const qaPS = isZeroExam ? 0 : computeExamsWeightedScore(st1Score, st1HPS, st2Score, st2HPS, teScore, teHPS, currentCluster);
         const qaWS = isZeroExam ? 0 : Math.round(qaPS * (currentWeights.quarterly_exam || 0) * 100) / 100;
 
-        const initialGrade = Math.round(((wwWS || 0) + (ptWS || 0) + (qaWS || 0)) * 100) / 100;
+        const initialGrade = Math.min(100, Math.max(0, (wwWS || 0) + (ptWS || 0) + (qaWS || 0)));
 
         const isValidScore = (s: number | string | null | undefined) => s !== '' && s !== null && s !== undefined;
         const hasScores =
@@ -1416,17 +1504,32 @@ export function ShsEClassRecord() {
 
         if (!hasScores) {
             deleteClassRecord(record.id);
+            if (existingRecord && existingRecord.id !== record.id) {
+                deleteClassRecord(existingRecord.id);
+            }
+            
+            // Clear Sync from Grading Sheet
             const { deleteGradingSheetRecord } = useAppStore.getState();
             deleteGradingSheetRecord(`${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`);
+            if (existingRecord && existingRecord.subject_id !== record.subject_id) {
+                deleteGradingSheetRecord(`${existingRecord.student_lrn}_${existingRecord.subject_id}_${existingRecord.quarter}_${existingRecord.school_year}`);
+            }
         } else {
             record.final_grade = transmuteGrade(initialGrade, record.school_year);
+            record.subject_id = effectiveSubjectId;
+            record.subject_name = subjectName;
+            if (existingRecord && existingRecord.id !== record.id) {
+                deleteClassRecord(existingRecord.id);
+            }
             updateClassRecord(record);
-
+            
+            // Live Sync to Grading Sheet (Official Records)
             const { updateGradingSheetRecord } = useAppStore.getState();
             updateGradingSheetRecord({
                 id: `${record.student_lrn}_${record.subject_id}_${record.quarter}_${record.school_year}`,
                 student_lrn: record.student_lrn,
                 subject_id: record.subject_id,
+                subject_name: record.subject_name || subjectName || '',
                 section_id: record.section_id,
                 quarter: record.quarter as 1|2|3,
                 school_year: record.school_year,
@@ -1436,7 +1539,7 @@ export function ShsEClassRecord() {
                 quarterly_exam: 0
             });
         }
-    }, [selectedSection, effectiveSubjectId, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, activeWwCount, activePtCount, isZeroExam]);
+    }, [selectedSection, effectiveSubjectId, subjectName, quarter, selectedSectionObj, activeSchoolYear, hps, currentWeights, currentCluster, updateClassRecord, deleteClassRecord, showNotification, sections, activeWwCount, activePtCount, isZeroExam]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
@@ -1590,28 +1693,49 @@ export function ShsEClassRecord() {
             showNotification('Please select both a section and a subject to export.', 'error');
             return;
         }
-        if (!isSSHS) {
-            showNotification('Excel Export is only supported for Strengthened Senior High School (SSHS) Grade 11 and Grade 12 records (DO 15, s. 2026).', 'error');
-            return;
-        }
         try {
             setIsDownloading(true);
-            await exportSSHSEClassRecord({
-                schoolProfile: schoolProfile || null,
-                schoolYear: activeSchoolYear,
-                section: selectedSectionObj,
-                subject: selectedSubjectObj,
-                students: sectionStudents,
-                classRecords,
-                hpsRecords,
-                teacherName,
-                termBlock: (selectedSubjectObj as any)?.term_block || '1ST, 2ND, 3RD',
-                numTerms: 3
-            });
-            showNotification('SSHS E-Class Record exported to Excel successfully!', 'success');
+            if (isSSHS) {
+                // Grade 11 SSHS (DO 15, s. 2026) export
+                await exportSSHSEClassRecord({
+                    schoolProfile: schoolProfile || null,
+                    schoolYear: activeSchoolYear,
+                    section: selectedSectionObj,
+                    subject: selectedSubjectObj,
+                    students: sectionStudents,
+                    classRecords,
+                    hpsRecords,
+                    teacherName,
+                    termBlock: (selectedSubjectObj as any)?.term_block || '1ST, 2ND, 3RD',
+                    numTerms: 3
+                });
+                showNotification('SSHS E-Class Record exported to Excel successfully!', 'success');
+            } else {
+                // Grade 12 Legacy K-12 (DO 8, s. 2015) export
+                const resolvedTerms = resolveSHSG12Terms(
+                    selectedSubjectObj,
+                    classRecords,
+                    hpsRecords,
+                    activeSchoolYear
+                );
+                await exportSHSG12EClassRecord({
+                    schoolProfile: schoolProfile || null,
+                    schoolYear: activeSchoolYear,
+                    section: selectedSectionObj,
+                    subject: selectedSubjectObj,
+                    students: sectionStudents,
+                    classRecords,
+                    hpsRecords,
+                    teacherName,
+                    track: sectionTrack,
+                    termBlock: resolvedTerms.termBlock,
+                    numTerms: resolvedTerms.numTerms
+                });
+                showNotification('SHS Grade 12 E-Class Record exported to Excel successfully!', 'success');
+            }
         } catch (err: any) {
-            console.error('SSHS Excel Export Error:', err);
-            showNotification(err?.message || 'Failed to export SSHS Excel record.', 'error');
+            console.error('SHS Excel Export Error:', err);
+            showNotification(err?.message || 'Failed to export SHS Excel record.', 'error');
         } finally {
             setIsDownloading(false);
         }
@@ -1774,16 +1898,14 @@ export function ShsEClassRecord() {
                         <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-1.5 h-8 px-3 text-[10px] rounded-xl whitespace-nowrap">
                             <Printer className="w-3.5 h-3.5" /> Print Record
                         </button>
-                        {isSSHS && (
-                            <button
-                                onClick={handleExcelExport}
-                                disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
-                                className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
-                                title={!selectedSubject ? "Please select a subject first to export Excel" : "Export official DepEd SSHS Excel File (.xlsx)"}
-                            >
-                                <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
-                            </button>
-                        )}
+                        <button
+                            onClick={handleExcelExport}
+                            disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
+                            className="h-8 px-3 bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-800 hover:scale-[1.02] transition-all flex items-center gap-1.5 group disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                            title={!selectedSubject ? "Please select a subject first to export Excel" : (isSSHS ? "Export official DepEd SSHS Excel File (.xlsx)" : "Export official DepEd Grade 12 E-Class Record (.xlsx)")}
+                        >
+                            <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
+                        </button>
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading || !selectedSubject || sectionStudents.length === 0}
@@ -1861,6 +1983,29 @@ export function ShsEClassRecord() {
                             <Bug className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                             <span>Inspect</span>
                         </button>
+
+                        {/* Emergency Database Rescue Excel Button */}
+                        <button
+                            onClick={async () => {
+                                try {
+                                    showNotification('Extracting complete DepEd database from local storage...', 'info');
+                                    const res = await exportDirectDatabaseToExcel();
+                                    if (res.totalRecords > 0) {
+                                        showNotification(`Rescued ${res.totalRecords} DepEd records to Master Excel!`, 'success');
+                                    } else {
+                                        showNotification('No records found in local FormEaseDB. Check if entered in another browser.', 'info');
+                                    }
+                                } catch (err) {
+                                    console.error(err);
+                                    showNotification('Failed to export database rescue file.', 'error');
+                                }
+                            }}
+                            className="h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm active:scale-95 transition-all whitespace-nowrap cursor-pointer shrink-0"
+                            title="Download Complete Database to Excel (.xlsx) - Bypasses all filters & includes all DepEd records"
+                        >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span className="hidden xl:inline">Excel Rescue</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1869,7 +2014,7 @@ export function ShsEClassRecord() {
                 <div className="bg-slate-50/50 dark:bg-[#070a12] p-3 md:p-4 h-full min-h-0 overflow-auto custom-scrollbar">
                     <div className="w-full min-h-full flex justify-center overflow-x-auto py-2">
                     <div
-                        className="eclass-zoom-shell origin-top transition-all duration-300"
+                        className="eclass-zoom-shell origin-top transition-all duration-300 m-auto"
                         style={{ transform: `scale(${zoom})` }}
                     >
                     {typeof quarter === 'string' && quarter.startsWith('summary') ? (
@@ -2043,7 +2188,7 @@ export function ShsEClassRecord() {
                                                {isSSHS ? 'Strengthened Senior High School Class Record' : 'Senior High School Class Record'}
                                            </h1>
                                            <p className="text-[8.5px] italic text-blue-600 font-sans mt-0.5 font-medium mb-0">
-                                               (Pursuant to DepEd Order 15 series of 2026)
+                                               {isSSHS ? '(Pursuant to DepEd Order 15 series of 2026)' : '(Pursuant to DepEd Order No. 8, s. 2015 and DepEd Order No. 13, s. 2025)'}
                                            </p>
                                        </div>
                                        <div className="w-20 h-12 shrink-0 flex items-center justify-center">
@@ -2107,8 +2252,8 @@ export function ShsEClassRecord() {
                                      <col style={{ width: '38px' }} />
                                      <col style={{ width: '38px' }} />
 
-                                     {/* EXs (8 cols) */}
-                                     {!isZeroExam && (
+                                     {/* EXs: SSHS=8 cols (ST1,ST2,TE,WS ST1,WS ST2,WS TE,PS,WS), G12 K-12=3 cols (TE,PS,WS) */}
+                                     {!isZeroExam && isSSHS && (
                                          <>
                                              <col style={{ width: '26px' }} />
                                              <col style={{ width: '26px' }} />
@@ -2118,6 +2263,13 @@ export function ShsEClassRecord() {
                                              <col style={{ width: '34px' }} />
                                              <col style={{ width: '38px' }} />
                                              <col style={{ width: '38px' }} />
+                                         </>
+                                     )}
+                                     {!isZeroExam && !isSSHS && (
+                                         <>
+                                             <col style={{ width: '30px' }} />
+                                             <col style={{ width: '42px' }} />
+                                             <col style={{ width: '42px' }} />
                                          </>
                                      )}
 
@@ -2251,8 +2403,8 @@ export function ShsEClassRecord() {
                                                      {displaySubjectName}
                                                  </th>
 
-                                                 {/* Over Examinations (8 cols) & Summary Grades (2 cols) = 10 cols */}
-                                                 <th colSpan={(!isZeroExam ? 8 : 0) + 2} className="border border-black bg-white"></th>
+                                                 {/* Over Examinations (8 cols or 3 cols) & Summary Grades (2 cols) */}
+                                                 <th colSpan={(!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2} className="border border-black bg-white"></th>
                                              </tr>
 
                                              <tr className="h-5 text-[8.5px] font-bold border-b-2 border-black">
@@ -2317,8 +2469,8 @@ export function ShsEClassRecord() {
                                             <div className="italic font-bold text-[8px]">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</div>
                                         </th>
                                         {!isZeroExam && (
-                                            <th colSpan={8} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-100/70 leading-tight">
-                                                <div className="font-black text-[8.5px] tracking-wide">EXAMINATIONS (EXs)</div>
+                                            <th colSpan={isSSHS ? 8 : 3} className="border-2 border-black px-1 py-0.5 text-center align-middle font-bold text-[8px] tracking-wider bg-yellow-100/70 leading-tight">
+                                                <div className="font-black text-[8.5px] tracking-wide">{isSSHS ? 'EXAMINATIONS (EXs)' : 'TERM EXAM'}</div>
                                                 <div className="italic font-bold text-[8px]">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</div>
                                             </th>
                                         )}
@@ -2346,12 +2498,13 @@ export function ShsEClassRecord() {
                                         <th className="border border-black bg-green-100/70 font-bold">PS</th>
                                         <th className="border border-black border-r-2 border-r-black bg-green-200/70 font-bold">WS</th>
 
-                                        {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">ST 1</th>}
-                                        {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">ST 2</th>}
+                                        {/* SSHS: ST1, ST2, TE, WS ST1, WS ST2, WS TE, PS, WS */}
+                                        {!isZeroExam && isSSHS && <th className="bg-white border border-black font-bold text-[7.5px]">ST 1</th>}
+                                        {!isZeroExam && isSSHS && <th className="bg-white border border-black font-bold text-[7.5px]">ST 2</th>}
                                         {!isZeroExam && <th className="bg-white border border-black font-bold text-[7.5px]">TE</th>}
-                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1</th>}
-                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2</th>}
-                                        {!isZeroExam && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS TE</th>}
+                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST1</th>}
+                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS ST2</th>}
+                                        {!isZeroExam && isSSHS && <th className="border border-black text-[7px] font-bold leading-none bg-yellow-100/70">WS TE</th>}
                                         {!isZeroExam && <th className="border border-black bg-yellow-100/70 font-bold text-[7.5px] leading-none">PS</th>}
                                         {!isZeroExam && <th className="border border-black border-r-2 border-r-black bg-yellow-200/70 font-bold text-[7.5px] leading-none">WS</th>}
                                     </tr>
@@ -2395,7 +2548,8 @@ export function ShsEClassRecord() {
                                         <td className="border border-black bg-green-100/80 font-bold">100</td>
                                         <td className="border border-black border-r-2 border-r-black bg-green-200/80 font-black italic">{Math.round((currentWeights.performance_tasks || 0) * 100)}%</td>
 
-                                        {!isZeroExam && hps.qa.map((val, i) => (
+                                        {/* SSHS: 3 exam HPS inputs (ST1, ST2, TE) + 3 sub-weights + PS + WS = 8 cols */}
+                                        {!isZeroExam && isSSHS && hps.qa.map((val, i) => (
                                             <td key={`hps-qa-${i}`} className="bg-white border border-black p-0">
                                                 <DebouncedInput
                                                     type="number"
@@ -2408,11 +2562,27 @@ export function ShsEClassRecord() {
                                                 />
                                             </td>
                                         ))}
-                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
-                                        {!isZeroExam && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
-                                        {!isZeroExam && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
-                                        {!isZeroExam && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
+                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">30</td>}
+                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/70 font-bold italic text-[7px]">40</td>}
+                                        {!isZeroExam && isSSHS && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
+                                        {!isZeroExam && isSSHS && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
+                                        {/* G12 K-12: 1 exam HPS input (TE) + PS + WS = 3 cols */}
+                                        {!isZeroExam && !isSSHS && (
+                                            <td className="bg-white border border-black p-0">
+                                                <DebouncedInput
+                                                    type="number"
+                                                    value={hps.qa[2] === '' ? '' : hps.qa[2]}
+                                                    onChange={(v) => updateHPS('qa', 2, v)}
+                                                    onKeyDown={(e) => handleKeyDown(e, 0, activeWwCount + activePtCount)}
+                                                    data-row={0}
+                                                    data-col={activeWwCount + activePtCount}
+                                                    className="w-full h-full text-center bg-transparent outline-none p-0 focus:bg-yellow-100/50 font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                />
+                                            </td>
+                                        )}
+                                        {!isZeroExam && !isSSHS && <td className="border border-black bg-yellow-100/80 font-bold">100</td>}
+                                        {!isZeroExam && !isSSHS && <td className="border border-black border-r-2 border-r-black bg-yellow-200/80 font-black italic">{Math.round((currentWeights.quarterly_exam || 0) * 100)}%</td>}
 
                                         {/* Empty cells for Initial Grade & Term Grade */}
                                         <td className="border border-black border-r-2 border-r-black bg-yellow-50/50"></td>
@@ -2421,12 +2591,12 @@ export function ShsEClassRecord() {
                                 </thead>
                                 <tbody>
                                     <tr className="bg-gray-100 font-bold text-left h-5">
-                                        <td colSpan={1 + (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? 8 : 0) + 2} className="border-2 border-black px-2 text-[8.5px] uppercase tracking-wider font-black">{section.gender}</td>
+                                        <td colSpan={1 + (activeWwCount + 3) + (activePtCount + 3) + (!isZeroExam ? (isSSHS ? 8 : 3) : 0) + 2} className="border-2 border-black px-2 text-[8.5px] uppercase tracking-wider font-black">{section.gender}</td>
                                     </tr>
                                     {section.students.map((student, idx) => {
                                         const record = classRecords.find(r =>
                                             r.student_lrn === student.lrn &&
-                                            r.subject_id === effectiveSubjectId &&
+                                            (r.subject_id === effectiveSubjectId || (subjectName && isMatchingSubject(subjectName, r.subject_id, r.subject_name))) &&
                                             Number(r.quarter) === quarter
                                         );
                                         return (
@@ -2449,6 +2619,7 @@ export function ShsEClassRecord() {
                                                 activeWwCount={activeWwCount}
                                                 activePtCount={activePtCount}
                                                 isZeroExam={isZeroExam}
+                                                isSSHS={isSSHS}
                                             />
                                         );
                                     })}

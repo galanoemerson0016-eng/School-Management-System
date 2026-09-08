@@ -1,5 +1,31 @@
 # Version History
 
+## v3.4.0 (2026-09-08)
+
+### 🚀 New Features & Enhancements
+
+- **Senior High School (SHS) Grade 12 3-Term ECR**: Integrated the official DepEd 3-term E-Class Record for Grade 12 with Summative Tests 1 and 2 seamlessly relocated to Written Works 6 and 7, single consolidated Term Exam, and full native formula preservation.
+- **SSHS Pilot E-Class Record Suite**: Complete official 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summaries and formula preservation.
+- **Special Curricular Programs (SCP) Support**: Integrated official DepEd 3-term ECR templates for SPFL, SPJ, SPA, SPS, SPTVE, SSES, and SPSTEM with per-component breakdowns.
+- **SF9 Multi-Level Report Cards**: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School with 100% DepEd layout and formula fidelity.
+
+### ⚡ Client Data Protection & Self-Healing
+
+- **Automated Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and restores missing subjects before UI rendering.
+- **Elementary & JHS Subject Visibility**: Guaranteed full-year visibility (`term: 'all'`) for all Elementary (Grades 1–6) and JHS (Grades 7–10) subjects, permanently eliminating `term: 'none'` visibility filters.
+- **MAPEH Dual Component Restoration**: Automatic dual-component resolver ensuring both "Music and Arts" and "Physical Education and Health" are always accessible in ECR and grade sheets.
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, and student profiles in IndexedDB.
+
+### 🐞 Bug Fixes
+
+- **Resolved Subject & Grade Visibility Cascade**: Fixed issue where edited subjects or subjects without a term defaulted to `term: 'none'`, causing them to be hidden from Grade Management, E-Class Record, and SF9.
+- **Fixed MAPEH Component Dropdown**: Resolved issue where only "Music and Arts" was shown in the component dropdown, ensuring "Physical Education and Health" is always displayed with its encoded grades.
+- **Transmutation Table Boundary Fix**: Corrected DepEd Order 15 s. 2026 Table 4 edge-case boundary mapping for SY 2026-2027.
+
+### 📝 Notes
+
+- Fully backward-compatible update with automated database self-healing on first startup.
+
 ## v3.3.1 (2026-09-03)
 
 ### 🚀 New Features & Enhancements

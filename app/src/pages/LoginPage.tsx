@@ -98,11 +98,20 @@ export const LoginPage = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isCardHovered, setIsCardHovered] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-
-    const { login, isLoading, error, getSecurityQuestion, resetPasswordWithSecurityAnswer } = useAuthStore();
+    const { login, isLoading, error, getSecurityQuestion, resetPasswordWithSecurityAnswer, getAccountInfo } = useAuthStore();
+    const accountInfo = getAccountInfo();
     const { loginAnnouncement, fetchSystemSettings } = useSystemStore();
     const { schoolProfile } = useAppStore();
     const [shake, setShake] = useState(false);
+
+    const handleResetAdminCredentials = () => {
+        localStorage.removeItem('formease-credentials-v2');
+        localStorage.removeItem('formease-credentials');
+        localStorage.removeItem('formease-session');
+        localStorage.removeItem('formease-remember-password');
+        useAuthStore.setState({ needsAccountSetup: true, isAuthenticated: false, user: null, error: null });
+        setShowRecoveryModal(false);
+    };
 
     // Recovery Modal State (password reset — the old password is never revealed)
     const [showRecoveryModal, setShowRecoveryModal] = useState(false);
@@ -550,6 +559,21 @@ export const LoginPage = () => {
                                 <User className={`absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none transition-colors ${darkMode ? 'text-gray-600 group-focus-within:text-blue-400' : 'text-gray-300 group-focus-within:text-deped-blue-light'
                                     }`} />
                             </div>
+                            {accountInfo?.username && (
+                                <div className="flex items-center justify-between px-1 text-[11px]">
+                                    <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
+                                        Registered User ID:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCredentials(prev => ({ ...prev, id: accountInfo.username }))}
+                                        className="font-bold text-deped-blue dark:text-blue-400 hover:underline font-mono"
+                                        title="Click to fill User ID"
+                                    >
+                                        {accountInfo.username}
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Password Field */}
@@ -726,15 +750,28 @@ export const LoginPage = () => {
                                 </div>
 
                                 {!getSecurityQuestion() ? (
-                                    <div className="space-y-6">
+                                    <div className="space-y-5">
                                         <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-amber-50 border-amber-100'}`}>
-                                            <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-amber-800'}`}>
-                                                Password recovery was not set up for this account. To regain access, reinstall and reactivate the application with your license key, then create a new account.
+                                            <p className={`text-xs leading-relaxed ${darkMode ? 'text-gray-300' : 'text-amber-900'}`}>
+                                                A security question was not configured for this account. If you forgot your password, you can reset your credentials and set a new password.
                                             </p>
+                                            {accountInfo?.username && (
+                                                <p className="mt-2 text-xs font-bold text-deped-blue dark:text-blue-400">
+                                                    Registered User ID: <span className="font-mono font-black">{accountInfo.username}</span>
+                                                </p>
+                                            )}
                                         </div>
                                         <button
+                                            type="button"
+                                            onClick={handleResetAdminCredentials}
+                                            className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md cursor-pointer"
+                                        >
+                                            RESET CREDENTIALS & CREATE NEW PASSWORD
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => setShowRecoveryModal(false)}
-                                            className="w-full py-4 bg-gray-800 hover:bg-gray-700 text-white font-black rounded-2xl transition-all"
+                                            className="w-full py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs rounded-2xl transition-all cursor-pointer"
                                         >
                                             CLOSE
                                         </button>

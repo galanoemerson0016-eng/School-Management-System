@@ -1,51 +1,74 @@
-# Release FormEase Pro (Enhanced Workflow v2.2)
+# Release FormEase Pro (Enhanced Workflow v2.3)
 
 Prepare, verify, and publish a new official release for FormEase Pro by strictly following this workflow.
 
 ---
 
 ## 1. Pre-Flight Verification & Health Check
-Before initiating the release, verify project health:
+Before initiating the release, verify project health and data safety:
 1. Inspect Git working tree state (`git status`).
-   - If there are uncommitted feature/fix changes, stage and commit them first (`git commit -m "feat/fix: ..."`).
-2. Run pre-flight build check in `app/`: execute `npm run build && npm run obfuscate:electron && npm run release:check && npx tsc --noEmit`.
-3. Run unit test suite in `app/`: execute `npx vitest run`.
-4. If any pre-flight step fails, ABORT immediately and display the error traceback.
+   - Verify all feature changes, new services (`grade-reconciliation.ts`, `shs-g12-excel-export.ts`, `database-rescue-export.ts`), and official templates in `app/public/templates/` are accounted for.
+   - Stage and commit working tree code if needed (`git commit -m "feat/fix: ..."`).
+2. Run pre-flight build check in `app/`:
+   ```bash
+   npm run build && npm run obfuscate:electron && npm run release:check && npx tsc --noEmit
+   ```
+3. Run complete automated unit and integration test suite in `app/`:
+   ```bash
+   npm test -- --run
+   ```
+   - Verify all test suites pass with **0 failures**, specifically checking:
+     - `grade-reconciliation.test.ts` (verifying self-healing, unhiding Elem/JHS subjects, restoring PE & Health)
+     - `ecr-excel-export.test.ts` (32 tests covering Academic, EPP/TLE, MAPEH, GMRC, and all SCP programs)
+     - `shs-g12-excel-export.test.ts` & `sshs-excel-export.test.ts` (Grade 12 K-12 and SSHS Pilot exports)
+     - `sf9-*.test.ts` (SF9 multi-level report cards)
+4. If any pre-flight verification step fails, **ABORT immediately** and display the error traceback.
 
 ---
 
-## 2. Determine Release Type
-Determine the version bump level:
-- **Patch** (e.g., 2.10.2 -> 2.10.3): Bug fixes, performance tweaks, or minor text/styling updates.
-- **Minor** (e.g., 2.10.2 -> 2.11.0): New backward-compatible features, modules, or enhancements.
-- **Major** (e.g., 2.10.2 -> 3.0.0): Breaking changes, major structural updates, or architectural overhauls.
+## 2. Determine Release Type & Versioning
+Determine the version bump level relative to the current release (`v3.3.1`):
+- **Patch** (e.g., `3.3.1` -> `3.3.2`): Critical client data self-healing, bug fixes, template adjustments, and formula preservation.
+- **Minor** (e.g., `3.3.1` -> `3.4.0`): New Senior High School Grade 12 3-Term ECR, SSHS Pilot ECR, SCP templates (SPFL, SPJ, SPA, SPS, SPTVE, SSES/SPSTEM), and SF9 multi-level exports.
+- **Major** (e.g., `3.3.1` -> `4.0.0`): Structural architectural overhauls or breaking database schema migrations.
 
 ---
 
 ## 3. Collect Release Information & Synthesize History
-1. Run `git log v<current-version>..HEAD --oneline` to extract all commits since the last release tag.
-2. Group extracted commits into:
-   - 🚀 **New Features & Enhancements**
-   - ⚡ **Improvements**
-   - 🐞 **Bug Fixes**
+1. Run `git log v3.3.1..HEAD --oneline` to extract all commits since the last release tag.
+2. Group extracted changes into:
+   - 🚀 **New Features & Enhancements**:
+     - Senior High School (SHS) Grade 12 3-Term E-Class Record (relocated ST1/ST2 to WW6/WW7, preserved formulas, singular Term Exam).
+     - SSHS Pilot E-Class Record with all 8 subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) and automated 3-term summary.
+     - Official Special Curricular Programs (SCP) ECR support: SPFL, SPJ, SPA, SPS, SPTVE, SSES & SPSTEM, and EPP/TLE per-component templates.
+     - Multi-level SF9 (School Form 9) official exports with 100% DepEd formula and layout preservation (Grades 1 to 12).
+   - ⚡ **Improvements & Client Data Safeguards**:
+     - **Self-Healing Grade Reconciliation Engine**: Automatic startup scanning that detects and reconnects orphaned grades/HPS records.
+     - **Guaranteed Subject Visibility**: Forces `term: 'all'` for all Elementary (Grades 1–6) and JHS (Grades 7–10) subjects, preventing accidental hiding.
+     - **MAPEH Dual Component Restoration**: Automatic fallback resolution ensuring both "Music and Arts" and "Physical Education and Health" are present in ECR and grade sheets.
+     - Dynamic semester and term allocation controls for Senior High School subjects in Subjects and Sections pages.
+   - 🐞 **Bug Fixes**:
+     - Fixed `term: 'none'` cascade that hid subjects and encoded grades in E-Class Record, Grade Management, and SF9.
+     - Fixed MAPEH component dropdown omitting Physical Education and Health.
+     - Resolved DepEd Order 15 s. 2026 Table 4 transmutation boundary handling.
 3. Generate:
-   - A Conventional Commit message (e.g., `chore(release): v2.10.3`).
-   - A human-readable release summary formatted for `VERSION_HISTORY.md` and `SettingsPage.tsx`.
+   - A Conventional Commit message (e.g., `chore(release): v3.4.0` or `chore(release): v3.3.2`).
+   - A detailed release summary for `VERSION_HISTORY.md` and `SettingsPage.tsx`.
 
 ---
 
 ## 4. Preview Plan (Mandatory User Approval)
-Display a release preview plan and WAIT for explicit user approval (`Proceed`) before making any file changes:
+Display a release preview plan and **WAIT for explicit user approval (`Proceed`)** before making any file changes:
 
 ```
 =============================================================
   FormEase Pro Release Preview
 =============================================================
-Current Version : v2.10.2
-Release Type    : Patch
-New Version     : v2.10.3
+Current Version : v3.3.1
+Release Type    : Minor / Patch
+New Version     : v<new-version>
 
-Commit Message  : chore(release): v2.10.3
+Commit Message  : chore(release): v<new-version>
 
 Files to Modify :
   ✓ app/package.json
@@ -56,19 +79,20 @@ Files to Modify :
   ✓ app/dist-electron/preload.cjs
   ✓ app/dist-electron/license.cjs
 
-Release Notes   :
-  • Fixed Term 1 certificate evaluation & multi-format quarter matching
-  • Enhanced attendance absent sentinel calculation (-1) in Reports page
-  • Automated subject ID to subject name resolution in certificate generator
+Release Highlights :
+  • Self-Healing Grade Reconciliation: automatically recovers and unhides all client records, subjects, and PE & Health components on launch with zero data loss.
+  • Official SHS Grade 12 & SSHS Pilot 3-Term ECR with preserved DepEd formulas.
+  • SF9 Multi-Level Report Card exports (Grades 1-12) with full formula preservation.
+  • Complete Special Curricular Programs (SCP) ECR suite (SPFL, SPJ, SPA, SPS, SPTVE, SSES/SPSTEM).
 =============================================================
 ```
 
 ---
 
 ## 5. Update Version Files, Reconciliation Notes & Electron Shields
-Upon user approval:
+Upon explicit user approval:
 1. Update `"version"` in `app/package.json`.
-2. Update application version constants (`CURRENT_VERSION` in `app/src/stores/update-store.ts`) and add release highlight notes in `checkForPostUpdateReconciliation`.
+2. Update application version constants (`CURRENT_VERSION` in `app/src/stores/update-store.ts`) and include post-update reconciliation announcement notes in `checkForPostUpdateReconciliation`.
 3. Execute `npm run obfuscate:electron` inside `app/` to generate updated production Electron main & preload shields (`dist-electron/main.cjs`, `preload.cjs`, `license.cjs`).
 
 ---
@@ -81,19 +105,27 @@ Upon user approval:
 
 ### 🚀 New Features & Enhancements
 
-- <Feature description>
+- **Senior High School (SHS) Grade 12 3-Term ECR**: Official template with ST1/ST2 relocated to WW6/WW7, preserved native Excel formulas, and single Term Exam.
+- **SSHS Pilot E-Class Record**: Complete 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summaries and formula preservation.
+- **Special Curricular Programs (SCP) Support**: Full template integration for SPFL, SPJ, SPA, SPS, SPTVE, SSES, and SPSTEM.
+- **SF9 Multi-Level Exports**: High-fidelity DepEd School Form 9 exports across Key Stage 1 (PACE Form & SF9), Grades 2–10, and Senior High School.
 
-### ⚡ Improvements
+### ⚡ Client Data Protection & Self-Healing
 
-- <Improvement description>
+- **Automated Startup Reconciliation**: Scans local database on app launch, reconnects any orphaned grade records, and restores missing subjects.
+- **Elementary & JHS Subject Visibility**: Guaranteed full-year visibility (`term: 'all'`) for all Elem and JHS subjects, permanently eliminating `term: 'none'` visibility filters.
+- **MAPEH Dual Component Restoration**: Automatic dual-component resolver ensuring both "Music and Arts" and "Physical Education and Health" are always accessible in ECR and grade sheets.
+- **Zero Data Loss Guarantee**: 100% preservation of all existing client records, raw scores, and student profiles in IndexedDB.
 
 ### 🐞 Bug Fixes
 
-- <Bug fix description>
+- Resolved issue where edited subjects or subjects without a term defaulted to `term: 'none'`, hiding them from Grade Management and E-Class Record.
+- Fixed MAPEH component dropdown omitting PE & Health scores.
+- Resolved Table 4 transmutation edge-case mapping for DepEd SY 2026-2027.
 
 ### 📝 Notes
 
-- Fully backward compatible update with zero risk of data loss.
+- Fully backward-compatible update with automated database self-healing on first startup.
 ```
 
 2. Update `app/src/pages/SettingsPage.tsx` under the Version History tab (`activeTab === 'versions'`):
@@ -114,18 +146,24 @@ Verify release asset automation integrity:
 ---
 
 ## 8. Create Release Commit & Git Tag
-1. Stage all modified files:
-   `git add app/package.json app/src/stores/update-store.ts VERSION_HISTORY.md app/src/pages/SettingsPage.tsx app/dist-electron/ app/public/templates/ .github/workflows/`
-2. Commit with the release message:
-   `git commit -m "chore(release): v<new-version>"`
+1. Stage all modified and new production files:
+   ```bash
+   git add app/package.json app/package-lock.json app/src/ app/public/templates/ VERSION_HISTORY.md app/dist-electron/ .gitignore .github/workflows/
+   ```
+2. Commit with the conventional release message:
+   ```bash
+   git commit -m "chore(release): v<new-version>"
+   ```
 3. Create an annotated Git tag matching the exact version:
-   `git tag -a v<new-version> -m "Release v<new-version>"`
-4. *Re-tagging safeguard*: If a release tag ever needs to be updated or re-triggered, explicitly delete local (`git tag -d vX.Y.Z`) and remote (`git push origin :refs/tags/vX.Y.Z`) before creating the new annotated tag.
+   ```bash
+   git tag -a v<new-version> -m "Release v<new-version>"
+   ```
+4. *Re-tagging safeguard*: If a release tag ever needs to be updated or re-triggered, explicitly delete local (`git tag -d v<new-version>`) and remote (`git push origin :refs/tags/v<new-version>`) before re-creating.
 
 ---
 
 ## 9. Publish Release & Trigger Pipeline
-1. **Set Repository Visibility to Public (for Build & GitHub Actions Quota / Page / Release Execution)**:
+1. **Set Repository Visibility to Public (for GitHub Actions Quota & Release Artifact Execution)**:
    ```bash
    gh repo edit galanoemerson0016-eng/School-Management-System --visibility public --accept-visibility-change-consequences
    ```
@@ -157,6 +195,7 @@ Verify:
 - [x] Commit and Tag exist on GitHub remote (`origin/main` & `v<new-version>`).
 - [x] `app/package.json`, `update-store.ts`, and `VERSION_HISTORY.md` match `v<new-version>`.
 - [x] Repository visibility successfully restored to `private`.
+- [x] All client data self-healing mechanisms and test suites verified.
 - [x] Provide direct link to monitor GitHub Actions pipeline: `https://github.com/galanoemerson0016-eng/School-Management-System/actions`
 
 Output final summary:
@@ -166,7 +205,7 @@ Output final summary:
 =============================================================
 Released Version      : v<new-version>
 Git Tag               : v<new-version>
-Release Type          : Patch / Minor / Major
+Release Type          : Minor / Patch
 GitHub Status         : Pushed to refs/heads/main & v<new-version>
 Repo Visibility       : Private (Secured)
 Pipeline Monitor      : https://github.com/galanoemerson0016-eng/School-Management-System/actions
@@ -187,8 +226,9 @@ Modified Files        :
 ## Strict Rules
 - **Never skip Preview**: Always display the preview and receive confirmation before writing file changes.
 - **Fail-Fast**: If `npm run build`, `npm run obfuscate:electron`, `tsc --noEmit`, or `vitest run` fails, stop immediately.
+- **Data Protection Guarantee**: Ensure the self-healing reconciliation module is always included in the build to safeguard existing client databases.
 - **Reverse Chronological**: Ensure latest releases are at the top of `VERSION_HISTORY.md`.
-- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v2.10.3`).
+- **Tag Formatting**: Always prefix version tags with `v` (e.g., `v3.4.0`).
 - **Refspec Precision**: Always use `refs/heads/main` when pushing to avoid refspec ambiguity.
 - **Dynamic Checksum Protection**: Always write patched `latest.yml` and `latest-mac.yml` with re-calculated SHA-512 hashes back to release metadata before uploading assets.
 - **Safety & Confidentiality**: Never mention repository visibility toggling (public/private switching) in user-facing release notes (`VERSION_HISTORY.md` or `SettingsPage.tsx`).

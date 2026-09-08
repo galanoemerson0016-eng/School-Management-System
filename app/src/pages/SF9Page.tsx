@@ -1335,7 +1335,7 @@ function getGeneralAverageRemarks(
     return remarks;
 }
 
-interface SF9ExactDocumentProps {
+export interface SF9ExactDocumentProps {
     student: Student;
     schoolName: string;
     schoolYear: string;
@@ -1483,7 +1483,7 @@ function SF9Pages({
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Republic of the Philippines</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>Department of Education</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>{region || '"RegionVIII'}</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>SCHOOLS DIVISION OFFICE OF {cleanDivision || 'LEYTE'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold', fontSize: 8 }]}>{cleanDivision || 'LEYTE'}</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>{district || 'District of Creative'}</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle', fontSize: 7.5 }]}>
                                         {(() => {
@@ -1716,7 +1716,7 @@ function SF9Pages({
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Republic of the Philippines</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>Department of Education</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{region || 'Region'}</Text>
-                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold' }]}>SCHOOLS DIVISION OFFICE OF {cleanDivision || '_________________'}</Text>
+                                    <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle-Bold' }]}>{cleanDivision || '_________________'}</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>{district || 'District'}</Text>
                                     <Text style={[styles.singleHeaderText, { fontFamily: 'BookmanOldStyle' }]}>
                                         {(() => {
@@ -2171,7 +2171,7 @@ function SF9Pages({
         );
 }
 
-function SF9ExactDocument(props: SF9ExactDocumentProps) {
+export function SF9ExactDocument(props: SF9ExactDocumentProps) {
     return (
         <Document>
             <SF9Pages {...props} />
@@ -2558,18 +2558,22 @@ export function SF9Page() {
         const fromProfile = (schoolProfile?.adviser_name || '').trim();
         const isGenericProfile = fromProfile.toLowerCase() === 'admin' || fromProfile === '';
 
-        // Source of Truth: If profile has a real name, use it!
-        if (!isGenericProfile && fromProfile) return fromProfile;
+        const fromSection = (selectedSectionObj?.adviser_name || '').trim();
+        const isPlaceholder = !fromSection || 
+                              fromSection.toLowerCase().includes('maria') || 
+                              fromSection.toLowerCase().includes('santos') || 
+                              fromSection.toLowerCase().includes('juan') || 
+                              fromSection.toLowerCase().includes('recovered') || 
+                              fromSection.toLowerCase() === 'tba';
 
-        const t = teacherList.find(t => t.uid === selectedSectionObj?.adviser_id);
+        const t = teacherList.find(t => t.uid === selectedSectionObj?.adviser_id && !t.uid.startsWith('adv-'));
         if (t?.displayName) return t.displayName;
 
-        const fromSection = (selectedSectionObj?.adviser_name || '').trim();
-        const isPlaceholder = fromSection.toLowerCase().includes('juan') || fromSection.toLowerCase().includes('recovered');
-        
-        if (fromSection && !isPlaceholder && fromSection.toLowerCase() !== 'tba') {
+        if (fromSection && !isPlaceholder) {
             return fromSection;
         }
+
+        if (!isGenericProfile && fromProfile) return fromProfile;
 
         return fromProfile || '';
     }, [selectedSectionObj, teacherList, schoolProfile.adviser_name]);

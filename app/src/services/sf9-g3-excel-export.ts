@@ -564,7 +564,15 @@ export async function populateGrade3TemplateBuffer(
   const cleanDivision = rawDivision.toUpperCase().startsWith('DIVISION OF ')
     ? rawDivision.substring(12).trim()
     : rawDivision;
-  const cleanCity = (schoolProfile?.city || schoolProfile?.municipality || '').trim();
+  let cleanCity = (schoolProfile?.city || schoolProfile?.municipality || '').trim();
+  if (!cleanCity && schoolProfile?.district) {
+    const extracted = schoolProfile.district.replace(/\b(east|west|north|south|central|district|dist\.|cluster|zone)\b/gi, '').trim();
+    if (extracted) cleanCity = extracted;
+  }
+  if (!cleanCity && schoolProfile?.province) {
+    cleanCity = schoolProfile.province.trim();
+  }
+  cleanCity = (cleanCity || 'VICTORIA').toUpperCase();
   const cleanDistrict = (schoolProfile?.district || '').trim();
   const cleanSchoolId = (schoolProfile?.school_id || '').trim();
   const cleanSchoolName = (schoolProfile?.name || '').trim();

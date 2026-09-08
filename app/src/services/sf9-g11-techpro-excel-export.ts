@@ -820,8 +820,8 @@ export async function populateGrade11TechProTemplateBuffer(
   const elective1Title = currentGrades.elective1Name || 'TechPro Elective 1';
   // Cleaned profile fields
   const cleanRegion = schoolProfile?.region ? `${schoolProfile.region}` : 'Region III';
-  const cleanDivision = schoolProfile?.division ? `${schoolProfile.division.replace(/^Schools Division of\s*/i, '')}` : 'Tarlac Province';
-  const cleanDistrict = schoolProfile?.district || schoolProfile?.city || 'Victoria East District';
+  const cleanDivision = (schoolProfile?.division ? `${schoolProfile.division.replace(/^Schools Division of\s*/i, '')}` : 'TARLAC PROVINCE').toUpperCase();
+  const cleanDistrict = (schoolProfile?.district || schoolProfile?.city || 'VICTORIA EAST DISTRICT').toUpperCase();
   const cleanSchoolId = schoolProfile?.school_id || '307014';
   const cleanSchoolName = schoolProfile?.name || 'CALIBUNGAN HIGH SCHOOL';
   const cleanSy = schoolYear || '2026-2027';
@@ -854,7 +854,7 @@ export async function populateGrade11TechProTemplateBuffer(
     const inputDataCells: Record<string, string | number> = {
       'F10': cleanRegion,
       'F11': cleanDivision,
-      'F12': schoolProfile?.city || schoolProfile?.municipality || 'Victoria',
+      'F12': (schoolProfile?.city || schoolProfile?.municipality || 'VICTORIA').toUpperCase(),
       'F13': cleanDistrict,
       'F15': cleanSchoolId,
       'F16': cleanSchoolName,
@@ -992,7 +992,7 @@ export async function populateGrade11TechProTemplateBuffer(
 
     // Ensure summary formula dynamically averages only graded subjects (averages non-blank cells instead of hardcoded division by 7)
     sXml = sXml.replace(
-      /ROUND\(\([A-Z0-9\+]+?\)\/7,0\)/g,
+      /ROUND\(\([A-Z0-9+]+?\)\/7,0\)/g,
       (match) => {
         const rowMatch = match.match(/[A-Z](\d+)/);
         if (rowMatch) {

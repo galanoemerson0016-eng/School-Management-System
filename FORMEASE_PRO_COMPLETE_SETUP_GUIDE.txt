@@ -1,0 +1,532 @@
+====================================================================================================
+               FORMEASE PRO v3.3.1 — MASTER SETUP & OPERATING MANUAL
+          The Complete, Comprehensive Guide to Setting Up and Operating FormEase Pro
+                     Copyright (C) 2026 Department of Education / Emerson M. Galano
+====================================================================================================
+
+TABLE OF CONTENTS
+----------------------------------------------------------------------------------------------------
+1. SYSTEM ARCHITECTURE & REQUIREMENTS
+2. FIRST-RUN INSTALLATION & ACCOUNT CREATION
+3. INSTITUTE PROFILE SETUP (SCHOOL CREDENTIALS & SIGNATURES)
+4. CURRICULUM & SUBJECTS SETUP (DEPED MATATAG / K-12)
+5. CLASSES & SECTIONS SETUP (ADVISORY VS. TEACHING LOAD)
+6. STUDENT ENROLLMENT & MASTERLIST (1-CLICK LIS SF1 IMPORT)
+7. STUDENT ID CARD GENERATOR
+8. DAILY ATTENDANCE SYSTEM (SF2 AUTOMATION & SCANNING)
+9. DEPED E-CLASS RECORD (GRADING, WEIGHTS & MAPEH)
+10. SENIOR HIGH SCHOOL E-CLASS RECORD (TRACKS & STRANDS)
+11. GRADE MANAGEMENT & CONSOLIDATED MASTER SHEETS
+12. SCHOOL FORMS MASTER HUB:
+    - SF9: Learner's Progress Report Card (Form 138)
+    - SF10: Learner's Permanent Academic Record (Form 137)
+    - SF5: Report on Promotion & Learning Progress
+    - SF6: Summarized Report on Promotion
+    - SF8: Health & Nutrition Report (BMI)
+    - TGS: Temporary Grade Slips (4-per-page)
+    - LIR: Learner's Individual Record
+    - PACE: Reading & Literacy Assessment
+13. TEACHER PRODUCTIVITY & LESSON PLANNING SUITE
+14. BACKUP, DATABASE RESCUE & GOOGLE DRIVE CLOUD SYNC
+15. TROUBLESHOOTING & FREQUENTLY ASKED QUESTIONS (FAQ)
+
+====================================================================================================
+1. SYSTEM ARCHITECTURE & REQUIREMENTS
+====================================================================================================
+- Operating System: Windows 10 / Windows 11 (64-bit), macOS 11.0+ (Universal), Linux.
+- Offline-First Architecture: FormEase Pro runs completely OFFLINE. All student data, grades,
+  highest possible scores (HPS), attendance logs, and school forms are stored locally on your machine
+  inside an encrypted, ultra-fast IndexedDB database ("FormEaseDB").
+- Zero Internet Dependency: You do NOT need an active internet connection to compute grades, print
+  report cards, or generate DepEd forms. Internet is only required if you choose to enable optional
+  Google Drive Cloud Sync or Cloud Backup.
+- Data Privacy & Security: Compliant with Republic Act No. 10173 (Data Privacy Act of 2012). Sensitive
+  learner records are encrypted locally using AES-GCM 256-bit encryption.
+
+====================================================================================================
+2. FIRST-RUN INSTALLATION & ACCOUNT CREATION
+====================================================================================================
+STEP 2.1: RUNNING THE INSTALLER
+1. Locate the installer executable on your computer:
+   "FormEase Pro Setup 3.3.1.exe"
+2. Double-click the file to begin installation.
+3. FormEase Pro installs silently and creates a desktop shortcut and Start Menu entry.
+4. Launch the application.
+
+STEP 2.2: CREATING THE MASTER ADMINISTRATOR ACCOUNT
+On a fresh installation, FormEase Pro has NO factory-default or hardcoded passwords for security.
+The first screen presented is the "Set up your account" screen:
+1. Username: Enter your chosen administrator username (minimum 3 characters).
+2. Password: Enter a strong master password (minimum 8 characters).
+3. Confirm Password: Re-enter the exact same password.
+4. Recovery Email (Optional but Recommended): Enter your DepEd or personal email address.
+5. Security Question & Answer: Select or input a security question and its corresponding answer.
+   (Crucial: This enables password recovery if you ever forget your master credentials).
+6. Click "Create Account". You will immediately be logged in and directed to the Dashboard.
+
+====================================================================================================
+3. INSTITUTE PROFILE SETUP (SCHOOL CREDENTIALS & SIGNATURES)
+====================================================================================================
+Navigate to: "Institute Profile" on the left navigation sidebar.
+(Note: Only users with Administrator or School Head roles can edit these settings).
+
+All information entered here is permanently bound to your school database and automatically populates
+the headers, division logos, DepEd banners, and signature sections across ALL school forms (SF1, SF2,
+SF5, SF6, SF8, SF9, SF10, Temporary Grade Slips, and School ID cards).
+
+STEP 3.1: ENTER OFFICIAL SCHOOL IDENTIFIERS
+1. School ID: Enter your official 6-digit DepEd School ID (e.g., 300123).
+2. School Name: Enter the official DepEd registered school name (e.g., Mabini National High School).
+3. Region: Select or type your DepEd Region (e.g., Region III, Region IV-A, NCR).
+4. Division: Enter your Schools Division Office (e.g., Division of Bulacan, Division of Manila).
+5. District: Enter your school district (e.g., District 1, San Ildefonso North District).
+6. Municipality / City: Enter your municipality or city (e.g., Malolos City).
+7. Province: Enter your province (e.g., Bulacan).
+
+STEP 3.2: SCHOOL HEAD LEADERSHIP & DIGITAL SIGNATURE
+1. School Head Name: Enter the complete name and academic title of your principal or school director
+   (e.g., JUAN DELA CRUZ, EdD, or MARIA SANTOS, CESO V).
+2. Position / Designation: Enter the official designation (e.g., Principal IV, School Head, TIC).
+3. Upload School Logo:
+   - Click "Upload School Logo".
+   - Select a high-resolution PNG or JPG file of your school seal or DepEd logo.
+   - The system automatically optimizes and crops the image into an ultra-sharp transparent badge.
+4. Upload School Head Digital Signature:
+   - Click "Upload School Head Signature".
+   - Select a clean, transparent PNG image of the principal's signature.
+   - BENEFIT: When you generate SF9 (Form 138), SF10 (Form 137), or Graduation Certificates, the
+     principal's signature is automatically stamped in high resolution, saving hours of manual signing.
+
+STEP 3.3: ACTIVE SCHOOL YEAR CONFIRMATION
+- Confirm that the active school year is set to the current academic cycle (e.g., 2025-2026).
+- Click "Save Profile".
+
+====================================================================================================
+4. CURRICULUM & SUBJECTS SETUP (DEPED MATATAG / K-12)
+====================================================================================================
+Navigate to: "Subjects" on the left navigation sidebar.
+
+Subjects define the official learning areas for your school. FormEase Pro uses canonical deterministic
+subject IDs (e.g., "subject-grade7-science"), guaranteeing that student scores are permanently linked
+and never lost even if templates are reloaded.
+
+STEP 4.1: LOADING THE STANDARD DEPED CURRICULUM TEMPLATE
+1. On the top right of the Subjects screen, click "Load Standard Curriculum" or "Curriculum Wizard".
+2. Select your school offering:
+   - KINDERGARTEN: Early Childhood Development Domains (Pangangalaga sa Sarili, Kagandahang Asal, etc.).
+   - ELEMENTARY (Grades 1 to 2): Language, Reading and Literacy, Mathematics, Makabansa, GMRC.
+   - ELEMENTARY (Grades 3 to 6): English, Mathematics, Science, Filipino, Araling Panlipunan (AP),
+     Edukasyong Pantahanan at Pangkabuhayan (EPP/TLE), MAPEH, GMRC / ESP.
+   - JUNIOR HIGH SCHOOL (Grades 7 to 10 - DepEd MATATAG / K-12):
+     1. English
+     2. Mathematics
+     3. Science
+     4. Filipino
+     5. Araling Panlipunan (AP)
+     6. Technology and Livelihood Education (TLE / TVL)
+     7. Music and Arts, Physical Education and Health (MAPEH)
+     8. Edukasyon sa Pagpapakatao (ESP / Values Education)
+   - SENIOR HIGH SCHOOL (Grades 11 to 12):
+     * Core Subjects: Oral Communication, Komunikasyon at Pananaliksik, General Mathematics,
+       Earth and Life Science, Personal Development, Understanding Culture Society & Politics, etc.
+     * Applied Subjects: Practical Research 1 & 2, English for Academic & Professional Purposes,
+       Empowerment Technologies, Entrepreneurship.
+     * Specialized Strands: STEM, ABM, HUMSS, GAS, TVL-HE, TVL-ICT, TVL-IA, TVL-Agri-Fishery.
+   - SPECIAL SCIENCE HIGH SCHOOL (SSHS): Special Science curriculum with enriched Science,
+     Advanced Mathematics, Research I-IV, and Robotics electives.
+3. Click "Import Selected Curriculum". FormEase Pro instantly creates the complete subject list.
+
+STEP 4.2: ADDING CUSTOM SCHOOL ELECTIVES (OPTIONAL)
+If your school offers unique electives (e.g., Campus Journalism, Advanced Robotics, Foreign Language):
+1. Click "Add Custom Subject".
+2. Subject Name: Enter the full subject title (e.g., "Special English - Campus Journalism").
+3. Subject Code: Enter a unique short code (e.g., "JOURN-7").
+4. Grade Level: Select the grade level where this subject is taught.
+5. Department Category: Select the parent learning area (e.g., English, Science, TLE).
+6. Click "Save Subject".
+
+====================================================================================================
+5. CLASSES & SECTIONS SETUP (ADVISORY VS. TEACHING LOAD)
+====================================================================================================
+Navigate to: "Classes & Sections" on the left navigation sidebar.
+
+> CRITICAL ARCHITECTURAL DISTINCTION:
+  - SECTION OFFICIAL CURRICULUM: The complete 8 to 10 subjects that the students in that section must
+    learn and take. This curriculum is REQUIRED for SF9 (Report Card), SF10 (Permanent Record), and
+    Consolidated Grades to show every subject.
+  - TEACHER'S TEACHING LOAD: The specific 1 or 2 subjects that YOU personally teach in that section
+    (e.g., Science 7). This determines what appears in your own E-Class Record.
+
+STEP 5.1: CREATING A SECTION
+1. Click the "Add Section" button.
+2. Section Details:
+   - Section Name: Enter the name of the section (e.g., "Emerald", "Rizal", "Diamond").
+   - Grade Level: Select the grade level (e.g., "Grade 7", "Grade 11").
+   - Room / Building (Optional): Enter room designation (e.g., "Room 204, Bonifacio Bldg").
+   - Track & Strand: (Required for Senior High School only, e.g., "Academic - STEM").
+   - Adviser Name: Type the full name of the section's class adviser.
+
+STEP 5.2: CONFIGURING ADVISORY VS. TEACHING LOAD
+A. IF YOU ARE THE CLASS ADVISER:
+   1. Check the box: [x] "Is this your Advisory Section?".
+   2. Notice the "Section Official Curriculum" panel: FormEase Pro automatically populates all 8-10
+      DepEd subjects for that grade level as interactive chips.
+   3. Under "My Teaching Load", check ONLY the subject(s) you personally teach (e.g., Science 7).
+   4. BENEFIT: Your E-Class Record only shows Science 7, but your Section's Consolidated Grades, SF9,
+      and SF10 will retain all 8 subjects.
+
+B. IF YOU ARE A SUBJECT TEACHER ONLY (NOT THE ADVISER):
+   1. Leave "Is this your Advisory Section?" UNCHECKED.
+   2. Under "My Teaching Load", check only the subject you teach in this section.
+   3. The section will appear in your E-Class Record for your specific subject only.
+
+STEP 5.3: SELF-HEALING CURRICULUM RESET BUTTON
+If you are editing an existing section that was created in an older version of the software where
+subjects were missing or truncated:
+- Look for the button: "Reset to Standard DepEd Curriculum".
+- Click it once: FormEase Pro instantly restores all official DepEd curriculum subjects to your
+  section without affecting existing student grades.
+- Click "Save Section".
+
+====================================================================================================
+6. STUDENT ENROLLMENT & MASTERLIST (1-CLICK LIS SF1 IMPORT)
+====================================================================================================
+Navigate to: "Student Information" on the left navigation sidebar.
+
+STEP 6.1: METHOD A — 1-CLICK DEPED LIS SF1 EXCEL IMPORT (RECOMMENDED)
+FormEase Pro includes an intelligent parser engineered specifically for the official DepEd Learner
+Information System (LIS) School Form 1 (SF1) Excel file.
+1. Download your official SF1 (.xlsx) from the DepEd LIS portal for your section.
+2. In FormEase Pro, click "Import Students" -> "Import from DepEd LIS SF1".
+3. Select your downloaded SF1 Excel file.
+4. Select the target Grade Level and Section to enroll these students into.
+5. FormEase Pro automatically detects, cleans, and extracts:
+   - 12-Digit Learner Reference Number (LRN)
+   - Student Full Name (Last Name, First Name, Middle Name, Extension e.g., Jr., III)
+   - Sex (Male / Female — automatically segregated according to DepEd standards)
+   - Birthdate (YYYY-MM-DD) and Computed Age
+   - Mother Tongue, Ethnic Group / IP Status, Religion
+   - Complete Address (House/Street, Barangay, Municipality/City, Province, Zip Code)
+   - Father's Full Name, Mother's Maiden Name, Guardian's Full Name & Contact Number
+6. Click "Confirm & Enroll All Learners". In under 2 seconds, your entire official section roster is
+   enrolled and ready for grading.
+
+STEP 6.2: METHOD B — MANUAL ENROLLMENT
+1. Click "Enroll Student".
+2. Enter the LRN (12 numerical digits), Last Name, First Name, Middle Name, Sex, and Birthdate.
+3. Select the Section and click "Save Student".
+
+====================================================================================================
+7. STUDENT ID CARD GENERATOR
+====================================================================================================
+Navigate to: "Student ID Generator" on the left navigation sidebar.
+
+FormEase Pro allows schools to produce professional, durable student identity cards without third-party
+graphic design software:
+1. Select the Section from the dropdown.
+2. Choose your preferred ID layout: Standard DepEd Badge, Modern Gradient, or Classic Institutional.
+3. Front Template Features:
+   - High-resolution school logo and DepEd header banner
+   - Student portrait photo (upload individual photos or crop via built-in webcam tool)
+   - Student Full Name, Grade, Section, and LRN
+   - Emergency contact person and phone number
+4. Back Template Features:
+   - Scannable QR Code encoding the student's LRN and emergency data
+   - DepEd institutional pledge and terms of use
+   - School Head digital signature
+5. Click "Batch Print IDs": FormEase Pro generates an exact 2x4 grid on standard A4 or Letter sheets,
+   ready for thermal laminating or PVC printing.
+
+====================================================================================================
+8. DAILY ATTENDANCE SYSTEM (SF2 AUTOMATION & SCANNING)
+====================================================================================================
+Navigate to: "Daily Attendance" on the left navigation sidebar.
+
+STEP 8.1: DAILY LOGGING
+1. Select your Section and the active Month / Date.
+2. The student roster appears, pre-segregated into Males and Females following DepEd standards.
+3. Mark attendance status for each learner:
+   - [P] Present (Green)
+   - [A] Absent (Red)
+   - [T] Tardy / Late (Amber)
+   - [E] Excused (Blue)
+4. Quick Action: Click "Mark All Present" to set everyone present in 1 click, then simply change the
+   few students who are absent.
+
+STEP 8.2: MOBILE / BARCODE ATTENDANCE (OPTIONAL)
+- Click "Mobile Scanner" to open the camera barcode reader.
+- As students arrive at the classroom door, scan their FormEase Pro Student ID QR code.
+- Attendance is recorded live with timestamp.
+
+STEP 8.3: AUTOMATIC SF2 REPORT GENERATION
+- FormEase Pro automatically computes:
+  * Total Days of Classes Conducted
+  * Total Daily Absences, Tardiness, and Percentage of Attendance
+  * Average Daily Attendance (ADA) and Combined ADA
+- Click "Export Official SF2": Download the complete, filled-out DepEd School Form 2 in Excel format.
+
+====================================================================================================
+9. DEPED E-CLASS RECORD (GRADING, WEIGHTS & MAPEH)
+====================================================================================================
+Navigate to: "E-Class Record" on the left navigation sidebar.
+
+FormEase Pro strictly implements DepEd Order No. 8, s. 2015 (Policy Guidelines on Classroom Assessment
+for the K to 12 Basic Education Program) and DepEd MATATAG curriculum guidelines.
+
+STEP 9.1: SELECTING CLASS AND QUARTER
+1. Select your Section (e.g., Grade 7 - Emerald).
+2. Select your Subject (e.g., Science 7).
+3. Select the Quarter: "Quarter 1", "Quarter 2", "Quarter 3", or "Quarter 4".
+
+STEP 9.2: ENTERING HIGHEST POSSIBLE SCORES (HPS)
+Before encoding student raw scores, define the HPS on the top header row:
+1. Written Works (WW): Enter HPS for up to 10 Written Works (e.g., Quizzes, Unit Tests, Essays).
+2. Performance Tasks (PT): Enter HPS for up to 10 Performance Tasks (e.g., Lab Experiments, Oral
+   Presentations, Projects, Group Activities).
+3. Quarterly Assessment (QA): Enter HPS for the Periodic / Quarterly Examination (e.g., 50).
+- The system automatically calculates Total HPS and displays it in bold.
+
+STEP 9.3: ENCODING STUDENT SCORES & LIVE TRANSMUTATION
+1. Type student scores across the grid. Use the [Tab] or [Enter] key to navigate effortlessly down
+   the column.
+2. FormEase Pro enforces strict data validation: You cannot accidentally input a score higher than
+   the HPS.
+3. LIVE AUTOMATED CALCULATIONS:
+   - Total Raw Score for WW, PT, and QA
+   - Percentage Score (PS = [Learner Total / HPS Total] * 100)
+   - Weighted Score (WS = PS * Learning Area Weight)
+   - Initial Grade (IG = WS_WW + WS_PT + WS_QA)
+   - Transmuted Quarterly Grade (TQG): Automatically looked up against the official DepEd
+     Transmutation Table (60.00-61.59 -> 75, ..., 98.40-99.19 -> 99, 99.20-100.00 -> 100).
+
+DEPED LEARNING AREA COMPONENT WEIGHTS (DO 8, s. 2015):
+--------------------------------------------------------------------------------------
+Learning Area                               Written Works   Performance Tasks   Quarterly Exam
+--------------------------------------------------------------------------------------
+Languages (English, Filipino), AP, ESP            30%              50%               20%
+Science, Mathematics                              40%              40%               20%
+MAPEH, EPP / TLE                                  20%              60%               20%
+--------------------------------------------------------------------------------------
+
+STEP 9.4: SPECIAL HANDLING FOR MAPEH (MUSIC, ARTS, PE, HEALTH)
+MAPEH requires special multi-component scoring:
+1. When MAPEH is selected, the "MAPEH Component Selector" appears at the top.
+2. Click to select the component you are encoding:
+   - In MATATAG: "Music and Arts" or "Physical Education and Health".
+   - In K to 12: "Music", "Arts", "Physical Education", or "Health".
+3. Enter WW, PT, and QA for each component independently.
+4. FormEase Pro automatically computes the Quarterly Average across all MAPEH components and
+   reflects the consolidated MAPEH grade on SF9, SF10, and Consolidated Sheets.
+
+STEP 9.5: SUMMARY OF QUARTERLY GRADES
+- Click the "Summary of Grades" tab inside E-Class Record to view Q1, Q2, Q3, Q4, Final Rating, and
+  General Remarks ("PASSED" or "FAILED") for the entire section.
+- Click "Export DepEd E-Class Record" to export the official multi-tab Excel template.
+
+====================================================================================================
+10. SENIOR HIGH SCHOOL E-CLASS RECORD (TRACKS & STRANDS)
+====================================================================================================
+Navigate to: "SHS E-Class Record" on the left navigation sidebar.
+
+FormEase Pro features a dedicated grading engine tailored for Senior High School (Grades 11 and 12)
+with semester-based configurations (Semester 1: Q1 & Q2; Semester 2: Q3 & Q4).
+
+DEPED SHS TRACK WEIGHTINGS (DO 8, s. 2015):
+--------------------------------------------------------------------------------------
+Subject Type / Track                        Written Works   Performance Tasks   Quarterly Exam
+--------------------------------------------------------------------------------------
+SHS Core Subjects                                 25%              50%               25%
+Academic Track (STEM)                             35%              40%               25%
+Academic Track (HUMSS, ABM, GAS)                  25%              45%               30%
+Technical-Vocational-Livelihood (TVL)             20%              60%               20%
+Work Immersion / Apprenticeship                    35%              40%               25%
+--------------------------------------------------------------------------------------
+- Semestral Final Grade: Automatically computed as: (Quarter 1 Grade + Quarter 2 Grade) / 2.
+
+====================================================================================================
+11. GRADE MANAGEMENT & CONSOLIDATED MASTER SHEETS
+====================================================================================================
+Navigate to: "Grade Management" (Consolidated Grades) on the left navigation sidebar.
+
+This screen is the central command center for the Class Adviser. It aggregates student grades from all
+subject teachers into a single master consolidation table.
+
+FEATURES:
+1. Complete Curriculum Grid: Displays all 8 to 10 learning areas side-by-side with columns for Q1, Q2,
+   Q3, Q4, and Final Rating.
+2. Live General Average: FormEase Pro computes the student's General Average live, applying official
+   DepEd rounding rules (rounded to the nearest whole number for reporting, with two decimal places
+   maintained for ranking).
+3. Academic Honors Identification:
+   Learners who qualify for honors are highlighted automatically according to DepEd guidelines:
+   - "With Honors": General Average of 90 to 94 (and NO final grade below 85 in ANY subject).
+   - "With High Honors": General Average of 95 to 97 (and NO final grade below 85 in ANY subject).
+   - "With Highest Honors": General Average of 98 to 100 (and NO final grade below 85 in ANY subject).
+4. Export Master Sheet: Click "Export Consolidated Grades" to download the complete multi-subject
+   Excel spreadsheet for your records or submission to the School Quality Management Committee.
+
+====================================================================================================
+12. SCHOOL FORMS MASTER HUB
+====================================================================================================
+Navigate to: "School Forms" on the left navigation sidebar.
+
+FormEase Pro automates the generation of every standard DepEd school form. All forms pull directly from
+your entered student records, attendance logs, and grades with zero double-encoding.
+
+----------------------------------------------------------------------------------------------------
+12.1: SF9 — LEARNER'S PROGRESS REPORT CARD (FORM 138)
+----------------------------------------------------------------------------------------------------
+- The official card distributed to parents every quarter.
+- Front Page:
+  * Official DepEd seal, Region, Division, District, School Name, and School ID.
+  * Learner's Name, LRN, Age, Sex, Grade, Section, and School Year.
+  * Attendance Record Matrix: Complete grid showing Days of School, Days Present, and Days Absent
+    for every month from August to May.
+  * Certificate of Transfer and Cancellation of Eligibility blocks.
+- Back Page:
+  * Official Learning Areas Table: Populates all subjects, Q1, Q2, Q3, Q4, Final Grade, and Remarks.
+  * MAPEH Breakdown: Shows parent MAPEH grade along with Music, Arts, PE, and Health component ratings.
+  * Observed Values (DepEd Core Values):
+    - Maka-Diyos, Makatao, Makakalikasan, and Makabansa.
+    - Standard DepEd Markings: Always Observed (AO), Sometimes Observed (SO), Rarely Observed (RO),
+      Not Observed (NO).
+  * Digital Signatures: Pre-stamped with Class Adviser and Principal digital signatures.
+- Printing: Click "Print SF9" or "Batch Print All SF9" to generate crisp, print-ready duplex PDFs.
+
+----------------------------------------------------------------------------------------------------
+12.2: SF10 — LEARNER'S PERMANENT ACADEMIC RECORD (FORM 137)
+----------------------------------------------------------------------------------------------------
+- The permanent scholastic history that travels with the student throughout their school life.
+- Features:
+  * Complete multi-year transcript.
+  * Automatic historical subject normalization.
+  * Remedial classes table and certification of eligibility for transfer.
+  * Official Principal certification block with digital signature.
+
+----------------------------------------------------------------------------------------------------
+12.3: SF5 — REPORT ON PROMOTION AND LEARNING PROGRESS & ACHIEVEMENT
+----------------------------------------------------------------------------------------------------
+- End-of-school-year master roster summarizing:
+  * Promoted Learners: General Average >= 75 with no failing grades.
+  * Conditional Learners: Did not meet expectations in 1 or 2 learning areas (remedial required).
+  * Retained Learners: Did not meet expectations in 3 or more learning areas.
+  * Summary Table of Academic Progress across achievement levels (Outstanding, Very Satisfactory,
+    Satisfactory, Fairly Satisfactory, Did Not Meet Expectations).
+
+----------------------------------------------------------------------------------------------------
+12.4: SF6 — SUMMARIZED REPORT ON PROMOTION
+----------------------------------------------------------------------------------------------------
+- Consolidated school-level statistical summary across all grade levels and sections for submission
+  to the Schools Division Office.
+
+----------------------------------------------------------------------------------------------------
+12.5: SF8 — LEARNER'S BASIC HEALTH AND NUTRITION REPORT
+----------------------------------------------------------------------------------------------------
+- Annual nutritional assessment tracking:
+  * Baseline (Beginning of School Year) and Endline (End of School Year).
+  * Height (m), Weight (kg), and Body Mass Index (BMI).
+  * Nutritional Status: Normal, Wasted, Severely Wasted, Overweight, Obese.
+  * Height-for-Age (HFA): Normal, Stunted, Severely Stunted, Tall.
+
+----------------------------------------------------------------------------------------------------
+12.6: TEMPORARY GRADE SLIP (TGS)
+----------------------------------------------------------------------------------------------------
+- Engineered specifically for quarterly Card Distribution Day and PTA assemblies.
+- Compact 4-per-page printout containing the student's name, section, quarter grades across all
+  subjects, general average, attendance summary, and adviser signature line.
+- Saves 75% on paper and printing costs compared to full SF9 printing during intermediate quarters.
+
+----------------------------------------------------------------------------------------------------
+12.7: LIR — LEARNER'S INDIVIDUAL RECORD
+----------------------------------------------------------------------------------------------------
+- A 360-degree holistic student folio summarizing academic scores, behavioral notes, parent-teacher
+  consultations, and interventions for guidance counselors and advisers.
+
+----------------------------------------------------------------------------------------------------
+12.8: PACE FORM — READING & LITERACY ASSESSMENT
+----------------------------------------------------------------------------------------------------
+- DepEd MATATAG performance assessment tracking 27 foundational reading, comprehension, and literacy
+  competencies.
+
+====================================================================================================
+13. TEACHER PRODUCTIVITY & LESSON PLANNING SUITE
+====================================================================================================
+Navigate to: "Lesson Planning Suite" & "Games & Tools" on the left navigation sidebar.
+
+FormEase Pro includes built-in pedagogical tools to assist teachers:
+1. Daily Lesson Log (DLL) & Daily Lesson Plan (DLP) Generator:
+   - Generates compliant lesson outlines with Objectives, Content, Learning Resources, Procedures,
+     and Reflection prompts.
+2. Table of Specifications (TOS) Generator:
+   - Automatically computes Bloom's Taxonomy item distributions (Remembering, Understanding,
+     Applying, Analyzing, Evaluating, Creating) for quarterly tests.
+3. Classroom Games & Gamified Reviewers:
+   - Interactive Word Search builder, Bouncing Words, Classroom Raffle Jar, and Random Groupings tool
+     for classroom engagement.
+
+====================================================================================================
+14. BACKUP, DATABASE RESCUE & GOOGLE DRIVE CLOUD SYNC
+====================================================================================================
+Navigate to: "Settings" (gear icon) -> "Backups & Maintenance".
+
+STEP 14.1: AUTOMATIC LOCAL ROLLING BACKUPS
+- FormEase Pro continuously creates timestamped local snapshots of your entire database in the
+  background every time major grading or enrollment operations occur.
+- You can view and restore from these snapshots in Settings -> Automated Backups.
+
+STEP 14.2: MANUAL FULL BACKUP (.formease)
+1. Click "Create Full Backup".
+2. Save the ".formease" backup file to your computer, a USB flash drive, or an external hard drive.
+3. To restore on another computer, simply click "Restore Backup", select the file, and confirm.
+
+STEP 14.3: GOOGLE DRIVE CLOUD SYNC (OPTIONAL)
+1. In Settings, click the "Cloud Sync" tab.
+2. Connect your Google account.
+3. FormEase Pro will securely sync encrypted backup bundles to a private folder in your Google Drive.
+4. If your laptop is lost or damaged, simply install FormEase Pro on a new laptop, log into Cloud Sync,
+   and your entire school database is restored in seconds.
+
+STEP 14.4: DIRECT DATABASE RESCUE EXPORT TO EXCEL
+If you ever need an immediate, un-encrypted Excel spreadsheet containing every raw table in your system:
+1. In Settings -> Maintenance, click "Rescue Database to Excel".
+2. FormEase Pro bypasses all UI filters and extracts every single record directly from IndexedDB into
+   a multi-tab Excel file:
+   - Sheet 1: Students Masterlist
+   - Sheet 2: Sections Masterlist
+   - Sheet 3: Subjects Masterlist
+   - Sheet 4: DepEd E-Class Records (all student scores and quarterly grades)
+   - Sheet 5: Highest Possible Scores (HPS)
+   - Sheet 6: Daily & Monthly Attendance Records
+   - Sheet 7: School Profile & Configuration
+
+====================================================================================================
+15. TROUBLESHOOTING & FREQUENTLY ASKED QUESTIONS (FAQ)
+====================================================================================================
+Q1: Why do some subjects not appear in my Section's SF9 or Consolidated Grades?
+A1: This happens if the section was created in an older software version where only the teacher's
+    individual teaching load was assigned as the curriculum.
+    FIX: Go to "Classes & Sections" -> Edit Section -> Click the blue "Reset to Standard DepEd
+    Curriculum" button -> Click "Save Section". All 8 to 10 subjects will immediately appear on SF9
+    and Consolidated Grades. Existing grades are 100% preserved.
+
+Q2: Does updating FormEase Pro or installing a new setup executable delete my previous data?
+A2: NO. Never. FormEase Pro stores its database in a persistent, protected IndexedDB store located in
+    your Windows user profile. Updating the application replaces only the application binaries, leaving
+    your student masterlist, grades, and school profile completely intact.
+
+Q3: When I encode MAPEH, how do I switch between Music, Arts, PE, and Health?
+A3: Open "E-Class Record", select MAPEH as your subject, and use the "MAPEH Component Selector" dropdown
+    at the top of the grading sheet. It remains continuously visible, allowing you to alternate between
+    components. Scores are tracked per component and automatically averaged.
+
+Q4: Can two teachers use FormEase Pro on the same laptop?
+A4: Yes. Administrators can create separate user accounts with distinct credentials and role permissions
+    (e.g., Adviser vs. Subject Teacher).
+
+Q5: Where is the installer executable located after building?
+A5: In the project root directory:
+    "FormEase Pro Setup 3.3.1.exe" (approx. 180 MB).
+
+====================================================================================================
+                                      END OF SETUP MANUAL
+====================================================================================================
