@@ -813,7 +813,7 @@ export function SectionForm({ section, onClose }: SectionFormProps) {
                                                     >
                                                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                             <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs' : 'border-slate-300 dark:border-white/20'}`}>
-                                                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                                {isSelected && <Check className="w-3 h-3 stroke-3" />}
                                                             </div>
                                                             <span className={`text-[9.5px] font-black uppercase tracking-tight block truncate ${isSelected ? 'text-indigo-950 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
                                                                 {subj.name}

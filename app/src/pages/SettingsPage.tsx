@@ -2485,7 +2485,7 @@ export function SettingsPage() {
                                             </button>
                                             <button
                                                 onClick={() => setIsRestoreModalOpen(true)}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-800 dark:text-gray-200 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
                                             >
                                                 <Upload className="h-4 w-4 text-emerald-500" />
                                                 Restore
@@ -2494,7 +2494,7 @@ export function SettingsPage() {
                                     </div>
 
                                     {/* Emergency Database Rescue & Excel Recovery Card */}
-                                    <div className="rounded-2xl border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-gradient-to-br from-emerald-50/40 via-white to-white dark:from-emerald-950/20 dark:via-[#0d1225] dark:to-[#0d1225] p-6 shadow-xs space-y-5">
+                                    <div className="rounded-2xl border-2 border-emerald-500/30 dark:border-emerald-500/20 bg-linear-to-br from-emerald-50/40 via-white to-white dark:from-emerald-950/20 dark:via-[#0d1225] dark:to-[#0d1225] p-6 shadow-xs space-y-5">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-100 dark:border-white/5">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs">
