@@ -307,7 +307,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
           observedValues: await db.getStoreCount('observedValues')
         };
 
-        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.0';
+        const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.1';
         const stateData = {
           fromVersion: currentVersion,
           toVersion: get().updateInfo?.version || 'Unknown',
@@ -344,7 +344,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
     },
 
     checkForPostUpdateReconciliation: async () => {
-      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.0';
+      const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '3.4.1';
       const api = window.electronAPI;
 
       try {
@@ -402,6 +402,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => {
             fromVersion: lastVersion,
             toVersion: CURRENT_VERSION,
             notes: [
+              "✨ UI & Tailwind v4 Optimization: Refined modern gradient styles, streamlined border themes, and optimized check indicators.",
               "🛡️ Self-Healing Grade Reconciliation: automatically recovered and unhid all client records, subjects, and PE & Health components with zero data loss.",
               "🎓 Senior High School (SHS) Grade 12 3-Term ECR: Integrated official DepEd template with relocated ST1/ST2 as WW6/WW7 and single Term Exam.",
               "🔬 SSHS Pilot E-Class Record: Complete 8-subject sheets (Core, Applied, Specialized, Apprenticeship/Immersion) with automated 3-term summary.",

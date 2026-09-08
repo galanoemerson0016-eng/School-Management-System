@@ -1,5 +1,17 @@
 # Version History
 
+## v3.4.1 (2026-09-08)
+
+### ⚡ Improvements & Styling Refinements
+
+- **Modern Tailwind v4 Class Compatibility**: Streamlined gradient syntax to modern `bg-linear-to-br` and resolved redundant dark border token declarations across administrative settings.
+- **Section Form SVG Indicator Precision**: Upgraded checkbox checkmark indicators in advisory subject selection rosters with optimized `stroke-3` SVG rendering.
+- **Component & Hook Dependency Optimization**: Reinforced React hook dependency arrays across Grade 1 PACE forms and Consolidated Grade sheets, ensuring zero unnecessary re-renders.
+
+### 📝 Notes
+
+- 100% backward-compatible patch update with zero changes to underlying database schemas.
+
 ## v3.4.0 (2026-09-08)
 
 ### 🚀 New Features & Enhancements
