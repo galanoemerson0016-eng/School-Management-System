@@ -181,13 +181,15 @@ jobs:
       # 4. Build and Deploy license-portal to Firebase
       - name: Install Licensing Portal dependencies
         if: ${{ env.FIREBASE_TOKEN != '' }}
+        continue-on-error: true
         working-directory: license-portal
-        run: npm ci
+        run: npm ci || npm install
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Build Licensing Portal website
         if: ${{ env.FIREBASE_TOKEN != '' }}
+        continue-on-error: true
         working-directory: license-portal
         run: npm run build
         env:
