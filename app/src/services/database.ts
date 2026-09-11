@@ -569,8 +569,9 @@ async function importFromBackup(rawBackupData: BackupImportPayload) {
   if (backupData.subjects) {
     await putRecordsBulk('subjects', backupData.subjects);
   }
-  if (backupData.classRecords || backupData.grades) {
-    await putRecordsBulk('classRecords', backupData.classRecords || backupData.grades);
+  const classRecordsToImport = backupData.classRecords || backupData.grades;
+  if (classRecordsToImport) {
+    await putRecordsBulk('classRecords', classRecordsToImport);
   }
   if (backupData.enrollments) {
     await putRecordsBulk('enrollments', backupData.enrollments);
