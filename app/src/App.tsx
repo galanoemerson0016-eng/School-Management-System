@@ -629,16 +629,8 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-[#080d1a] relative text-slate-800 dark:text-slate-200">
+    <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-[#0A0E17] relative text-slate-800 dark:text-slate-200">
       <AutoBackupManager />
-      {/* Global Multi-Color Mesh Underlay (static — animating this forces a
-          full-window repaint every frame and was a major source of lag) */}
-      <div className="absolute inset-0 z-0 opacity-60 dark:opacity-20 pointer-events-none print:hidden" style={{
-        backgroundImage: `radial-gradient(circle at 10% 0%, #3A7BFF44 0%, transparent 50%), radial-gradient(circle at 90% 100%, #10b98133 0%, transparent 50%), radial-gradient(circle at 50% 50%, #fdb71411 0%, transparent 50%)`,
-      }} />
-      <div className="absolute inset-0 z-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none print:hidden" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-      }} />
 
       <BroadcastBannerModal />
       <Toast />
@@ -678,7 +670,7 @@ function App() {
         <div className="print:hidden h-full flex flex-col">
           <Sidebar />
         </div>
-        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-white/85 dark:bg-[#0a101f]/90 rounded-none border-l border-r-0 border-y-0 border-slate-200 dark:border-white/5 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
+        <main data-tour="workspace" className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0B0F19] rounded-none border-l border-slate-200 dark:border-slate-800 relative print:bg-white print:border-none print:shadow-none print:rounded-none print:block print:overflow-visible">
           <div className="print:hidden">
             <Header />
           </div>

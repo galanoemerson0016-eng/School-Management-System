@@ -27,6 +27,15 @@ import {
 
 import { canAccessView, type AppView } from '../../lib/rbac';
 
+interface NavGroup {
+    title: string;
+    items: Array<{
+        id: AppView;
+        label: string;
+        icon: React.ComponentType<{ className?: string }>;
+    }>;
+}
+
 export function Sidebar() {
     const currentView = useAppStore(state => state.currentView);
     const setCurrentView = useAppStore(state => state.setCurrentView);
@@ -63,7 +72,7 @@ export function Sidebar() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebar-width');
-        return saved ? parseInt(saved) : 224;
+        return saved ? parseInt(saved) : 236;
     });
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
@@ -89,7 +98,6 @@ export function Sidebar() {
 
     const resize = useCallback((e: MouseEvent) => {
         if (isResizing) {
-            // Account for the p-3 padding on the parent container (12px)
             const newWidth = e.clientX - 12; 
             if (newWidth >= 200 && newWidth <= 460) {
                 setSidebarWidth(newWidth);
@@ -109,22 +117,47 @@ export function Sidebar() {
         };
     }, [resize, stopResizing]);
 
-    const menuItems: Array<{ id: AppView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'subjects', label: 'Subjects', icon: GraduationCap },
-        { id: 'sections', label: 'Classes & Sections', icon: Layers },
-        { id: 'students', label: 'Student Information', icon: Users },
-        { id: 'institute', label: 'Institute Profile', icon: School },
-        { id: 'daily-attendance', label: 'Daily Attendance', icon: ClipboardCheck },
-        { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
-        { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
-        { id: 'school-forms', label: 'School Forms', icon: ClipboardList },
-        { id: 'student-id-generator', label: 'Student ID Generator', icon: IdCard },
-        { id: 'calendar', label: 'School Calendar', icon: Calendar },
-        { id: 'announcements', label: 'Announcements', icon: Megaphone },
-        { id: 'reports', label: 'Reports', icon: BarChart3 },
-        { id: 'games-tools', label: 'Games & Tools', icon: Gamepad2 },
-        { id: 'online-generators', label: 'Online DLL Generators', icon: BookOpen },
+    const navGroups: NavGroup[] = [
+        {
+            title: 'Overview',
+            items: [
+                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            ],
+        },
+        {
+            title: 'Academic Management',
+            items: [
+                { id: 'eclass', label: 'E-Class Record', icon: FileSpreadsheet },
+                { id: 'consolidated-grades', label: 'Grade Management', icon: BarChart3 },
+                { id: 'sections', label: 'Classes & Sections', icon: Layers },
+                { id: 'subjects', label: 'Subjects', icon: GraduationCap },
+            ],
+        },
+        {
+            title: 'Learner Records & Forms',
+            items: [
+                { id: 'students', label: 'Student Information', icon: Users },
+                { id: 'daily-attendance', label: 'Daily Attendance', icon: ClipboardCheck },
+                { id: 'school-forms', label: 'School Forms Hub', icon: ClipboardList },
+            ],
+        },
+        {
+            title: 'Institution & Planning',
+            items: [
+                { id: 'institute', label: 'Institute Profile', icon: School },
+                { id: 'calendar', label: 'School Calendar', icon: Calendar },
+                { id: 'announcements', label: 'Announcements', icon: Megaphone },
+                { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
+            ],
+        },
+        {
+            title: 'Tools & Utilities',
+            items: [
+                { id: 'student-id-generator', label: 'Student ID Generator', icon: IdCard },
+                { id: 'online-generators', label: 'DLL Generators', icon: BookOpen },
+                { id: 'games-tools', label: 'Games & Tools', icon: Gamepad2 },
+            ],
+        },
     ];
 
     const handleNavClick = (id: string) => {
@@ -132,95 +165,123 @@ export function Sidebar() {
         setIsMobileOpen(false);
     };
 
-    const visibleMenuItems = menuItems.filter((item) => canAccessView(user, item.id));
-
     const sidebarContent = (
         <>
-            <div className={`p-3 pb-2 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
-                <div className="w-9 h-9 bg-linear-to-br from-emerald-400 to-deped-blue rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(52,211,153,0.3)] shrink-0 border border-white/20 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
-                    <img src={`${import.meta.env.BASE_URL}app-logo.png`} alt="App Logo" className="w-6 h-6 object-contain relative z-10" />
+            <div className={`p-3 pb-2.5 flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''} border-b border-slate-200/60 dark:border-slate-800/60`}>
+                <div className="w-8.5 h-8.5 bg-deped-blue dark:bg-blue-600 rounded-lg flex items-center justify-center shadow-xs shrink-0 border border-blue-400/20 relative overflow-hidden">
+                    <img src={`${import.meta.env.BASE_URL}app-logo.png`} alt="App Logo" className="w-5.5 h-5.5 object-contain" />
                 </div>
                 {!isCollapsed && (
                     <div className="min-w-0">
                         <h1 
-                            className="font-bold text-[11px] lg:text-[12px] leading-tight tracking-tighter text-slate-800 dark:text-white drop-shadow-sm truncate"
+                            className="font-semibold text-xs leading-tight tracking-tight text-slate-900 dark:text-white truncate"
                             title={schoolProfile.name}
                         >
                             {schoolProfile.name}
                         </h1>
-                        <p className="text-[8px] uppercase font-bold tracking-[0.15em] text-emerald-600 dark:text-emerald-400 mt-0.5">Portal</p>
+                        <p className="text-[9px] uppercase font-bold tracking-wider text-deped-blue dark:text-blue-400 mt-0.5">Management Portal</p>
                     </div>
                 )}
             </div>
 
-            <nav className="flex-1 overflow-y-auto custom-scrollbar px-2.5 py-1.5 space-y-1">
-                {visibleMenuItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = currentView === item.id;
+            <nav className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-3">
+                {navGroups.map((group, groupIdx) => {
+                    const accessibleItems = group.items.filter((item) => canAccessView(user, item.id));
+                    if (accessibleItems.length === 0) return null;
 
                     return (
-                        <button
-                            key={item.id}
-                            onClick={() => handleNavClick(item.id)}
-                            data-tour={`sidebar-${item.id}`}
-                            title={isCollapsed ? item.label : undefined}
-                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${isActive
-                                ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
-                                : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
-                                }`}
-                        >
-                            {isActive && (
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
+                        <div key={group.title} className="space-y-0.5">
+                            {!isCollapsed ? (
+                                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400 select-none">
+                                    {group.title}
+                                </div>
+                            ) : (
+                                groupIdx > 0 && <div className="border-t border-slate-200 dark:border-slate-800 my-2 mx-1" />
                             )}
-                            <Icon className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                            {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide truncate transition-colors ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>{item.label}</span>}
-                        </button>
+                            <div className="space-y-0.5">
+                                {accessibleItems.map((item) => {
+                                    const Icon = item.icon;
+                                    const isActive = currentView === item.id;
+
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => handleNavClick(item.id)}
+                                            data-tour={`sidebar-${item.id}`}
+                                            title={isCollapsed ? item.label : undefined}
+                                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0 h-9' : 'px-2.5 py-1.5'} rounded-md text-xs font-medium transition-colors relative group select-none cursor-pointer ${
+                                                isActive
+                                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-deped-blue dark:text-blue-300 font-semibold border border-blue-200/70 dark:border-blue-800/40 shadow-2xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/70 dark:hover:bg-white/5 border border-transparent'
+                                            }`}
+                                        >
+                                            {isActive && !isCollapsed && (
+                                                <div className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-deped-blue dark:bg-blue-400 rounded-r" />
+                                            )}
+                                            <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                                                isActive 
+                                                    ? 'text-deped-blue dark:text-blue-400' 
+                                                    : 'text-slate-400 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
+                                            }`} />
+                                            {!isCollapsed && (
+                                                <span className="truncate">{item.label}</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     );
                 })}
 
-
                 {/* Settings */}
                 {canAccessView(user, 'settings') && (
-                    <button
-                        onClick={() => handleNavClick('settings')}
-                        data-tour="sidebar-settings"
-                        title={isCollapsed ? 'Settings' : undefined}
-                        className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-2.5'} py-1.5 rounded-xl transition-all duration-300 relative group overflow-hidden ${currentView === 'settings'
-                            ? 'bg-emerald-500/10 dark:bg-emerald-400/15 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]'
-                            : 'hover:bg-slate-500/5 dark:hover:bg-white/5'
+                    <div className="pt-1">
+                        <button
+                            onClick={() => handleNavClick('settings')}
+                            data-tour="sidebar-settings"
+                            title={isCollapsed ? 'Settings' : undefined}
+                            className={`w-full flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0 h-9' : 'px-2.5 py-1.5'} rounded-md text-xs font-medium transition-colors relative group select-none cursor-pointer ${
+                                currentView === 'settings'
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-deped-blue dark:text-blue-300 font-semibold border border-blue-200/70 dark:border-blue-800/40 shadow-2xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/70 dark:hover:bg-white/5 border border-transparent'
                             }`}
-                    >
-                        {currentView === 'settings' && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1/2 bg-emerald-500 dark:bg-emerald-400 rounded-r-md shadow-[0_0_12px_rgba(52,211,153,1)]" />
-                        )}
-                        <Settings className={`w-4.5 h-4.5 shrink-0 transition-colors ${currentView === 'settings' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                        {!isCollapsed && <span className={`text-[12px] font-semibold tracking-wide transition-colors ${currentView === 'settings' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>Settings</span>}
-                    </button>
+                        >
+                            {currentView === 'settings' && !isCollapsed && (
+                                <div className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-deped-blue dark:bg-blue-400 rounded-r" />
+                            )}
+                            <Settings className={`w-4 h-4 shrink-0 transition-colors ${
+                                currentView === 'settings' 
+                                    ? 'text-deped-blue dark:text-blue-400' 
+                                    : 'text-slate-400 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
+                            }`} />
+                            {!isCollapsed && <span className="truncate">Settings</span>}
+                        </button>
+                    </div>
                 )}
             </nav>
 
-            <div className={`p-2.5 space-y-1.5`}>
-                <div className={`border-t border-slate-200 dark:border-white/10 mb-4 ${isCollapsed ? 'mx-0' : 'mx-2'}`} />
+            <div className="p-2 space-y-1">
+                <div className={`border-t border-slate-200 dark:border-slate-800 mb-2 ${isCollapsed ? 'mx-0' : 'mx-1'}`} />
                 {/* Collapse toggle (desktop) */}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className={`hidden lg:flex w-full items-center justify-center gap-2.5 h-9 rounded-xl text-slate-400 hover:bg-slate-500/10 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-300 transition-all font-medium border border-transparent hover:border-slate-300/30 dark:hover:border-white/10`}
+                    className="hidden lg:flex w-full items-center justify-center gap-2 h-8.5 rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-medium border border-transparent cursor-pointer"
                 >
                     <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
-                    {!isCollapsed && <span className="text-[12px] font-semibold tracking-wide">Collapse UI</span>}
+                    {!isCollapsed && <span className="text-xs font-medium">Collapse Menu</span>}
                 </button>
 
                 <button
                     onClick={() => setShowLogoutConfirm(true)}
-                    className={`w-full flex items-center justify-center gap-2.5 h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all font-medium border border-transparent hover:border-red-500/20`}
+                    className="w-full flex items-center justify-center gap-2 h-8.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 transition-colors font-medium border border-transparent cursor-pointer"
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
-                    {!isCollapsed && <span className="text-[12px] font-semibold tracking-wide">Sign Out</span>}
+                    {!isCollapsed && <span className="text-xs font-medium">Sign Out</span>}
                 </button>
 
-                <div className="pt-2 text-center">
-                    <span className={`text-[9px] uppercase font-bold tracking-widest text-slate-400/70 dark:text-slate-50/70 select-none ${isCollapsed ? 'block' : ''}`}>
+                <div className="pt-1.5 text-center">
+                    <span className={`text-[10px] uppercase font-semibold tracking-wider text-slate-400 dark:text-slate-400 select-none ${isCollapsed ? 'block' : ''}`}>
                         {isCollapsed ? `v${__APP_VERSION__.split('.').slice(0, 2).join('.')}` : `Version ${__APP_VERSION__}`}
                     </span>
                 </div>
@@ -233,7 +294,7 @@ export function Sidebar() {
             {/* Mobile hamburger button */}
             <button
                 onClick={() => setIsMobileOpen(true)}
-                className="lg:hidden fixed top-4 left-4 z-40 p-2.5 bg-white/70 dark:bg-black/50 backdrop-blur-xl border border-white/40 dark:border-white/10 text-slate-800 dark:text-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.1)] no-print"
+                className="lg:hidden fixed top-4 left-4 z-40 p-2.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white rounded-lg shadow-sm no-print"
             >
                 <Menu className="w-5 h-5" />
             </button>
@@ -241,17 +302,17 @@ export function Sidebar() {
             {/* Mobile overlay */}
             {isMobileOpen && (
                 <div
-                    className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+                    className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-40"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
 
             {/* Mobile sidebar */}
-            <div className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white/90 dark:bg-slate-900/90 backdrop-blur-3xl flex flex-col shadow-2xl border-r border-white/50 dark:border-white/10 transform transition-transform duration-300 no-print ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+            <div className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 flex flex-col shadow-xl border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 no-print ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'
                 }`}>
                 <button
                     onClick={() => setIsMobileOpen(false)}
-                    className="absolute top-6 right-6 p-1.5 hover:bg-slate-500/10 dark:hover:bg-white/10 rounded-lg text-slate-500 transition-colors"
+                    className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-md text-slate-500 transition-colors cursor-pointer"
                 >
                     <X className="w-5 h-5" />
                 </button>
@@ -261,9 +322,9 @@ export function Sidebar() {
             {/* Desktop sidebar */}
             <div 
                 ref={sidebarRef}
-                style={{ width: isCollapsed ? '88px' : `${sidebarWidth}px` }}
+                style={{ width: isCollapsed ? '72px' : `${sidebarWidth}px` }}
                 data-tour="sidebar"
-                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white/70 dark:bg-white/2 backdrop-blur-3xl rounded-none border-r border-l-0 border-y-0 border-slate-200 dark:border-white/5 shadow-none group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
+                className={`hidden lg:flex flex-col h-full z-20 no-print relative bg-white dark:bg-[#0d1322] border-r border-slate-200 dark:border-slate-800 shadow-none group/sidebar ${isResizing ? '' : 'transition-[width] duration-300'}`}
             >
                 {sidebarContent}
                 
@@ -271,9 +332,9 @@ export function Sidebar() {
                 {!isCollapsed && (
                     <div
                         onMouseDown={startResizing}
-                        className="absolute -right-2 top-0 w-4 h-full cursor-col-resize z-40 group-hover/sidebar:bg-emerald-500/5 transition-colors flex items-center justify-center group/handle"
+                        className="absolute -right-2 top-0 w-4 h-full cursor-col-resize z-40 group-hover/sidebar:bg-blue-500/5 transition-colors flex items-center justify-center group/handle"
                     >
-                        <div className="w-1 h-12 bg-emerald-500/20 rounded-full opacity-0 group-hover/sidebar:opacity-100 group-hover/handle:bg-emerald-500 transition-all shadow-[0_0_8px_rgba(16,185,129,0.3)]" />
+                        <div className="w-1 h-10 bg-slate-300 dark:bg-slate-700 rounded-full opacity-0 group-hover/sidebar:opacity-100 group-hover/handle:bg-deped-blue transition-all" />
                     </div>
                 )}
             </div>
