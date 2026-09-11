@@ -629,7 +629,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-[#0A0E17] relative text-slate-800 dark:text-slate-200">
+    <div className="h-screen w-full overflow-hidden bg-slate-50 dark:bg-app-bg-dark relative text-slate-800 dark:text-slate-200">
       <AutoBackupManager />
 
       <BroadcastBannerModal />
